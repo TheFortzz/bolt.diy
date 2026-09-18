@@ -3,6 +3,7 @@ import { ClientOnly } from 'remix-utils/client-only';
 import { chatStore } from '~/lib/stores/chat';
 import { classNames } from '~/utils/classNames';
 import { HeaderActionButtons } from './HeaderActionButtons.client';
+import { PublishButton } from './PublishButton.client';
 import { ChatDescription } from '~/lib/persistence/ChatDescription.client';
 
 export function Header() {
@@ -28,11 +29,14 @@ export function Header() {
           </span>
         </a>
       </div>
-      {chat.started && ( // Display ChatDescription and HeaderActionButtons only when the chat has started.
-        <>
-          <span className="flex-1 px-4 truncate text-center text-bolt-elements-textPrimary">
-            <ClientOnly>{() => <ChatDescription />}</ClientOnly>
-          </span>
+      {chat.started && (
+        <span className="flex-1 px-4 truncate text-center text-bolt-elements-textPrimary">
+          <ClientOnly>{() => <ChatDescription />}</ClientOnly>
+        </span>
+      )}
+      <div className="ml-auto flex items-center gap-2 z-10">
+        <ClientOnly>{() => <PublishButton />}</ClientOnly>
+        {chat.started && (
           <ClientOnly>
             {() => (
               <div className="mr-1">
@@ -40,8 +44,8 @@ export function Header() {
               </div>
             )}
           </ClientOnly>
-        </>
-      )}
+        )}
+      </div>
     </header>
   );
 }

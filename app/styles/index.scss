@@ -22,3 +22,25 @@ body {
   --secondary-color: rgba(139, 92, 246, var(--gradient-opacity));
   --accent-color: rgba(30, 58, 138, var(--gradient-opacity));
 }
+
+/* Unique THEFORTZ 1px Border Radius Styling */
+*,
+*::before,
+*::after {
+  --radius: 1px !important;
+}
+
+button,
+input,
+textarea,
+select,
+[class*='rounded'],
+.rounded-sm,
+.rounded-md,
+.rounded-lg,
+.rounded-xl,
+.rounded-2xl,
+.rounded-3xl,
+.rounded-full {
+  border-radius: 1px !important;
+}
