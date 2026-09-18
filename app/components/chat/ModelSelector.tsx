@@ -28,6 +28,7 @@ export const ModelSelector = ({
     if (savedProviders) {
       try {
         const parsedProviders = JSON.parse(savedProviders);
+        if (parsedProviders.OpenAILike === undefined) parsedProviders.OpenAILike = true;
         return providerList.filter((p) => parsedProviders[p.name]);
       } catch (error) {
         console.error('Failed to parse providers from cookies:', error);
@@ -47,6 +48,7 @@ export const ModelSelector = ({
       if (savedProviders) {
         try {
           const parsedProviders = JSON.parse(savedProviders);
+          if (parsedProviders.OpenAILike === undefined) parsedProviders.OpenAILike = true;
           const newEnabledProviders = providerList.filter((p) => parsedProviders[p.name]);
           setEnabledProviders(newEnabledProviders);
 
