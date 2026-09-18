@@ -1,6 +1,7 @@
 import type { Message } from 'ai';
 import { createScopedLogger } from '~/utils/logger';
 import type { ChatHistoryItem } from './useChatHistory';
+import { saveChatToAppwrite } from './appwriteChat';
 
 const logger = createScopedLogger('ChatHistory');
 
@@ -71,7 +72,17 @@ export async function setMessages(
       timestamp: timestamp ?? new Date().toISOString(),
     });
 
-    request.onsuccess = () => resolve();
+    request.onsuccess = () => {
+      // Sync chat savings to Appwrite Cloud Storage
+      void saveChatToAppwrite({
+        id,
+        messages,
+        urlId,
+        description,
+        timestamp: timestamp ?? new Date().toISOString(),
+      });
+      resolve();
+    };
     request.onerror = () => reject(request.error);
   });
 }

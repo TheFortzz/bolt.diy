@@ -283,18 +283,18 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         <div ref={scrollRef} className="flex flex-col lg:flex-row overflow-y-auto w-full h-full">
           <div className={classNames(styles.Chat, 'flex flex-col flex-grow lg:min-w-[var(--chat-min-width)] h-full')}>
             {!chatStarted && (
-              <div id="intro" className="mt-[20vh] max-w-chat mx-auto text-center px-4 lg:px-0">
+              <div id="intro" className="mt-[16vh] max-w-chat mx-auto text-center px-4 lg:px-0">
                 <div className="flex justify-center mb-4 animate-fade-in">
                   <img
                     src="/thefortztext.png"
                     alt="THEFORTZ"
-                    className="h-14 lg:h-20 w-auto object-contain drop-shadow-[0_8px_30px_rgba(56,189,248,0.45)]"
+                    className="h-14 lg:h-20 w-auto object-contain"
                   />
                 </div>
-                <h1 className="text-xl lg:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-sky-200 to-indigo-300 mb-3 animate-fade-in tracking-wider uppercase">
-                  AI GAME & WEB STUDIO
+                <h1 className="text-2xl lg:text-4xl font-extrabold text-white mb-3 animate-fade-in tracking-wider uppercase font-['Anton',sans-serif]">
+                  AI GAME &amp; WEB STUDIO
                 </h1>
-                <p className="text-sm lg:text-base mb-8 text-blue-200/75 animate-fade-in animation-delay-200 font-medium">
+                <p className="text-sm lg:text-base mb-8 text-white/90 animate-fade-in font-medium">
                   Create, code, and play custom web games powered by Azure AI.
                 </p>
               </div>
@@ -362,7 +362,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       providerList={providerList || PROVIDER_LIST}
                       apiKeys={apiKeys}
                     />
-                    {(providerList || []).length > 0 && provider && (
+                    {(providerList || []).length > 0 && provider && provider.name !== 'OpenAILike' && (
                       <APIKeyManager
                         provider={provider}
                         apiKey={apiKeys[provider.name] || ''}
@@ -385,7 +385,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 />
                 <div
                   className={classNames(
-                    'relative shadow-xs border border-bolt-elements-borderColor backdrop-blur rounded-lg',
+                    'relative border border-bolt-elements-borderColor backdrop-blur rounded-lg',
                   )}
                 >
                   <textarea

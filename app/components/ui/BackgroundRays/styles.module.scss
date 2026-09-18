@@ -17,27 +17,15 @@
   z-index: 0;
   //   background-color: transparent;
 
-  :global(html[data-theme='dark']) & {
-    mix-blend-mode: screen;
-  }
-
-  :global(html[data-theme='light']) & {
-    mix-blend-mode: multiply;
-  }
+  mix-blend-mode: screen;
+  opacity: 0.35;
 }
 
 .lightRay {
   position: absolute;
   border-radius: 100%;
-
-  :global(html[data-theme='dark']) & {
-    mix-blend-mode: screen;
-  }
-
-  :global(html[data-theme='light']) & {
-    mix-blend-mode: multiply;
-    opacity: 0.4;
-  }
+  mix-blend-mode: screen;
+  opacity: 0.35;
 }
 
 .ray1 {

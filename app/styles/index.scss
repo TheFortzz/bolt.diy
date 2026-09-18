@@ -11,16 +11,19 @@ html,
 body {
   height: 100%;
   width: 100%;
-  background-color: #0b1342;
-  background-image: radial-gradient(circle at 50% 15%, #1730b8 0%, #0d1754 55%, #070c2c 100%);
+  background-color: #1730b8 !important;
+  background-image: none !important;
   color: #ffffff;
 }
 
 :root {
-  --gradient-opacity: 0.85;
-  --primary-color: rgba(56, 189, 248, var(--gradient-opacity));
-  --secondary-color: rgba(139, 92, 246, var(--gradient-opacity));
-  --accent-color: rgba(30, 58, 138, var(--gradient-opacity));
+  --thefortz-blue: #1730b8;
+  --thefortz-orange: #e26e03;
+  --thefortz-purple: #8340ed;
+  --thefortz-green: #22c55e;
+  --primary-color: #e26e03;
+  --secondary-color: #8340ed;
+  --accent-color: #22c55e;
 }
 
 /* Unique THEFORTZ 1px Border Radius Styling */
