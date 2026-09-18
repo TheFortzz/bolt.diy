@@ -37,10 +37,8 @@ export function getAPIKey(cloudflareEnv: Env, provider: string, userApiKeys?: Re
       return (
         env.OPENAI_LIKE_API_KEY ||
         cloudflareEnv.OPENAI_LIKE_API_KEY ||
-        env.AZURE_OPENAI_API_KEY ||
-        cloudflareEnv.AZURE_OPENAI_API_KEY ||
-        env.FORTZ_AI_KEY ||
-        cloudflareEnv.FORTZ_AI_KEY
+        (cloudflareEnv as any).AZURE_OPENAI_API_KEY ||
+        (cloudflareEnv as any).FORTZ_AI_KEY
       );
     case 'Together':
       return env.TOGETHER_API_KEY || cloudflareEnv.TOGETHER_API_KEY;
@@ -63,8 +61,7 @@ export function getBaseURL(cloudflareEnv: Env, provider: string) {
       return (
         env.OPENAI_LIKE_API_BASE_URL ||
         cloudflareEnv.OPENAI_LIKE_API_BASE_URL ||
-        env.AZURE_OPENAI_API_BASE_URL ||
-        cloudflareEnv.AZURE_OPENAI_API_BASE_URL ||
+        (cloudflareEnv as any).AZURE_OPENAI_API_BASE_URL ||
         'https://fortz-ai-resource.services.ai.azure.com/openai/v1'
       );
     case 'LMStudio':

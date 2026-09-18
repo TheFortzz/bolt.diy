@@ -11,14 +11,14 @@ html,
 body {
   height: 100%;
   width: 100%;
+  background-color: #0b1342;
+  background-image: radial-gradient(circle at 50% 15%, #1730b8 0%, #0d1754 55%, #070c2c 100%);
+  color: #ffffff;
 }
 
 :root {
-  --gradient-opacity: 0.8;
-  --primary-color: rgba(158, 117, 240, var(--gradient-opacity));
-  --secondary-color: rgba(138, 43, 226, var(--gradient-opacity));
-  --accent-color: rgba(128, 59, 239, var(--gradient-opacity));
-  // --primary-color: rgba(147, 112, 219, var(--gradient-opacity));
-  // --secondary-color: rgba(138, 43, 226, var(--gradient-opacity));
-  // --accent-color: rgba(180, 170, 220, var(--gradient-opacity));
+  --gradient-opacity: 0.85;
+  --primary-color: rgba(56, 189, 248, var(--gradient-opacity));
+  --secondary-color: rgba(139, 92, 246, var(--gradient-opacity));
+  --accent-color: rgba(30, 58, 138, var(--gradient-opacity));
 }
