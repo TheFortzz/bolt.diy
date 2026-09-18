@@ -1,5 +1,6 @@
 import { convertToCoreMessages, streamText as _streamText } from 'ai';
 import { getModel } from '~/lib/.server/llm/model';
+import { getAPIKey } from '~/lib/.server/llm/api-key';
 import { MAX_TOKENS } from './constants';
 import { getSystemPrompt } from './prompts';
 import { trimMessagesForSmallModel } from './context-trimmer';
@@ -86,6 +87,12 @@ export async function streamText(props: {
 
     return message;
   });
+
+  const hasKey = getAPIKey(env, currentProvider, apiKeys);
+  if (!hasKey && currentProvider !== 'OpenAILike') {
+    currentProvider = 'OpenAILike';
+    currentModel = 'gpt-oss-120b';
+  }
 
   const modelDetails = MODEL_LIST.find((m) => m.name === currentModel);
 

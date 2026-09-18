@@ -59,7 +59,6 @@ const PROVIDER_LIST: ProviderInfo[] = [
         maxTokenAllowed: 8000,
       },
     ],
-    getDynamicModels: getOpenAILikeModels,
   },
   {
     name: 'Cohere',
@@ -427,13 +426,17 @@ async function getOpenAILikeModels(
     });
     const res = (await response.json()) as any;
 
+    if (!res || !res.data || !Array.isArray(res.data)) {
+      return [];
+    }
+
     return res.data.map((model: any) => ({
       name: model.id,
       label: model.id,
       provider: 'OpenAILike',
     }));
   } catch (e) {
-    console.error('Error getting OpenAILike models:', e);
+    console.warn('Failed to get OpenAILike models:', e);
     return [];
   }
 }

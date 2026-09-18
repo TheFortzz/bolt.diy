@@ -146,7 +146,7 @@ export function getModel(
     model = 'gpt-oss-120b';
     apiKey = getAPIKey(env, provider, apiKeys);
   }
-  const baseURL = providerSettings?.[provider]?.baseUrl || getBaseURL(env, provider);
+  const baseURL = (providerSettings?.[provider]?.baseUrl || '').trim() || getBaseURL(env, provider);
 
   switch (provider) {
     case 'Anthropic':

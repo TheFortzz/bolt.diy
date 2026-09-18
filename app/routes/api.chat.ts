@@ -81,17 +81,20 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
       },
     });
   } catch (error: any) {
-    console.log(error);
+    console.error('Chat error in api.chat:', error);
 
     if (error.message?.includes('API key')) {
-      throw new Response('Invalid or missing API key', {
+      return new Response(JSON.stringify({ error: 'Invalid or missing API key' }), {
         status: 401,
+        headers: { 'Content-Type': 'application/json' },
         statusText: 'Unauthorized',
       });
     }
 
-    throw new Response(null, {
+    const errorMessage = error?.message || error?.toString() || 'Internal Server Error';
+    return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
+      headers: { 'Content-Type': 'application/json' },
       statusText: 'Internal Server Error',
     });
   }
