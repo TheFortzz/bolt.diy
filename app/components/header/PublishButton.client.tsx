@@ -43,8 +43,7 @@ export function PublishButton() {
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="flex items-center gap-1.5 text-xs font-extrabold text-white bg-gradient-to-r from-emerald-600 via-green-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 px-3 py-1.5 border border-emerald-300 transition-all cursor-pointer uppercase tracking-wider"
-        style={{ borderRadius: '1px' }}
+        className="flex items-center gap-1.5 text-xs font-extrabold text-white bg-gradient-to-r from-emerald-600 via-green-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 px-3 py-1.5 rounded-lg border border-emerald-300 transition-all cursor-pointer uppercase tracking-wider"
         title="Publish your game to TheFortz feed"
       >
         <span>🚀</span>
@@ -57,8 +56,7 @@ export function PublishButton() {
           onClick={() => setIsOpen(false)}
         >
           <div
-            className="w-full max-w-md bg-[#132694] border border-white/30 p-6 text-white relative"
-            style={{ borderRadius: '1px' }}
+            className="w-full max-w-md bg-[#2244d4] border border-white/30 rounded-xl p-6 text-white relative"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-white/15 pb-3 mb-4">
@@ -70,8 +68,7 @@ export function PublishButton() {
               </div>
               <button
                 onClick={() => setIsOpen(false)}
-                className="text-white/70 hover:text-white px-2 py-1 text-sm border border-transparent hover:border-white/20 transition-all cursor-pointer"
-                style={{ borderRadius: '1px' }}
+                className="text-white/70 hover:text-white px-2 py-1 text-sm rounded-lg border border-transparent hover:border-white/20 transition-all cursor-pointer"
               >
                 ✕
               </button>
@@ -85,8 +82,7 @@ export function PublishButton() {
               <button
                 onClick={handlePublishToTheFortz}
                 disabled={isExporting}
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 font-bold text-xs uppercase tracking-wider text-white bg-gradient-to-r from-emerald-600 via-green-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 border border-emerald-300 cursor-pointer transition-all disabled:opacity-50"
-                style={{ borderRadius: '1px' }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 font-bold text-xs uppercase tracking-wider text-white bg-gradient-to-r from-emerald-600 via-green-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-lg border border-emerald-300 cursor-pointer transition-all disabled:opacity-50"
               >
                 <span>{isExporting ? '⏳' : '🚀'}</span>
                 <span>{isExporting ? 'Packaging Game...' : 'Publish to TheFortz Feed'}</span>
@@ -95,8 +91,7 @@ export function PublishButton() {
               <button
                 onClick={handleExportZip}
                 disabled={isExporting || !hasFiles}
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 font-bold text-xs uppercase tracking-wider text-white bg-[#e26e03] hover:bg-[#d76400] border border-orange-300 cursor-pointer transition-all disabled:opacity-50"
-                style={{ borderRadius: '1px' }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 font-bold text-xs uppercase tracking-wider text-white bg-[#e26e03] hover:bg-[#d76400] rounded-lg border border-orange-300 cursor-pointer transition-all disabled:opacity-50"
               >
                 <span>📥</span>
                 <span>Export Game ZIP (.zip)</span>

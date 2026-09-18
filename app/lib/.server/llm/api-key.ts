@@ -33,17 +33,37 @@ export function getAPIKey(cloudflareEnv: Env, provider: string, userApiKeys?: Re
       return env.DEEPSEEK_API_KEY || cloudflareEnv.DEEPSEEK_API_KEY;
     case 'Mistral':
       return env.MISTRAL_API_KEY || cloudflareEnv.MISTRAL_API_KEY;
-    case 'OpenAILike':
-      return (
+    case 'OpenAILike': {
+      const directKey =
         userApiKeys?.OpenAILike ||
         env?.OPENAI_LIKE_API_KEY ||
         cloudflareEnv?.OPENAI_LIKE_API_KEY ||
         (cloudflareEnv as any)?.AZURE_OPENAI_API_KEY ||
-        (cloudflareEnv as any)?.FORTZ_AI_KEY ||
-        (typeof atob === 'function'
-          ? atob('QzhVMW5sazVGaUhzQ1NuRU1DYlRZcUw1ZXp1QklWUFU4azE4elV1aFFuTk0zRURKaUJsQUpRUUo5OUNJQUNQVjByb1hKM3czQUFBQUFDT0dnV1l6')
-          : '')
-      );
+        (cloudflareEnv as any)?.FORTZ_AI_KEY;
+
+      if (directKey) {
+        return directKey;
+      }
+
+      // Embedded fallback key (base64) — works on both Node.js and Cloudflare Workers
+      const encoded = 'QzhVMW5sazVGaUhzQ1NuRU1DYlRZcUw1ZXp1QklWUFU4azE4elV1aFFuTk0zRURKaUJsQUpRUUo5OUNJQUNQVjByb1hKM3czQUFBQUFDT0dnV1l6';
+
+      try {
+        if (typeof globalThis.atob === 'function') {
+          return globalThis.atob(encoded);
+        }
+      } catch (_) {
+        // atob may exist but throw
+      }
+
+      try {
+        return Buffer.from(encoded, 'base64').toString('utf-8');
+      } catch (_) {
+        // Buffer not available
+      }
+
+      return '';
+    }
     case 'Together':
       return env.TOGETHER_API_KEY || cloudflareEnv.TOGETHER_API_KEY;
     case 'xAI':

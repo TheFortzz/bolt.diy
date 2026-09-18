@@ -1,0 +1,7 @@
+[build]
+command = "pnpm run build"
+output_directory = "build/client"
+
+[build.environment]
+NODE_VERSION = "20"
+PNPM_VERSION = "9"
