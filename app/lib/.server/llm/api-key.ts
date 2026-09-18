@@ -34,7 +34,14 @@ export function getAPIKey(cloudflareEnv: Env, provider: string, userApiKeys?: Re
     case 'Mistral':
       return env.MISTRAL_API_KEY || cloudflareEnv.MISTRAL_API_KEY;
     case 'OpenAILike':
-      return env.OPENAI_LIKE_API_KEY || cloudflareEnv.OPENAI_LIKE_API_KEY;
+      return (
+        env.OPENAI_LIKE_API_KEY ||
+        cloudflareEnv.OPENAI_LIKE_API_KEY ||
+        env.AZURE_OPENAI_API_KEY ||
+        cloudflareEnv.AZURE_OPENAI_API_KEY ||
+        env.FORTZ_AI_KEY ||
+        cloudflareEnv.FORTZ_AI_KEY
+      );
     case 'Together':
       return env.TOGETHER_API_KEY || cloudflareEnv.TOGETHER_API_KEY;
     case 'xAI':
@@ -53,7 +60,13 @@ export function getBaseURL(cloudflareEnv: Env, provider: string) {
     case 'Together':
       return env.TOGETHER_API_BASE_URL || cloudflareEnv.TOGETHER_API_BASE_URL || 'https://api.together.xyz/v1';
     case 'OpenAILike':
-      return env.OPENAI_LIKE_API_BASE_URL || cloudflareEnv.OPENAI_LIKE_API_BASE_URL;
+      return (
+        env.OPENAI_LIKE_API_BASE_URL ||
+        cloudflareEnv.OPENAI_LIKE_API_BASE_URL ||
+        env.AZURE_OPENAI_API_BASE_URL ||
+        cloudflareEnv.AZURE_OPENAI_API_BASE_URL ||
+        'https://fortz-ai-resource.services.ai.azure.com/openai/v1'
+      );
     case 'LMStudio':
       return env.LMSTUDIO_API_BASE_URL || cloudflareEnv.LMSTUDIO_API_BASE_URL || 'http://localhost:1234';
     case 'Ollama': {

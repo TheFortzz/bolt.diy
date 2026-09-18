@@ -96,10 +96,13 @@ export const ChatImpl = memo(
 
     const [model, setModel] = useState(() => {
       const savedModel = Cookies.get('selectedModel');
-      return savedModel || DEFAULT_MODEL;
+      return (!savedModel || savedModel === 'claude-3-5-sonnet-latest') ? DEFAULT_MODEL : savedModel;
     });
     const [provider, setProvider] = useState(() => {
       const savedProvider = Cookies.get('selectedProvider');
+      if (!savedProvider || savedProvider === 'Anthropic') {
+        return DEFAULT_PROVIDER;
+      }
       return PROVIDER_LIST.find((p) => p.name === savedProvider) || DEFAULT_PROVIDER;
     });
 

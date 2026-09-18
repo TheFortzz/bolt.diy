@@ -140,8 +140,13 @@ export function getModel(
    * let baseURL;
    */
 
-  const apiKey = getAPIKey(env, provider, apiKeys); // Then assign
-  const baseURL = providerSettings?.[provider].baseUrl || getBaseURL(env, provider);
+  let apiKey = getAPIKey(env, provider, apiKeys);
+  if (!apiKey && provider !== 'OpenAILike') {
+    provider = 'OpenAILike';
+    model = 'gpt-oss-120b';
+    apiKey = getAPIKey(env, provider, apiKeys);
+  }
+  const baseURL = providerSettings?.[provider]?.baseUrl || getBaseURL(env, provider);
 
   switch (provider) {
     case 'Anthropic':
