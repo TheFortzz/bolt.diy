@@ -23,6 +23,7 @@ import { ExamplePrompts } from '~/components/chat/ExamplePrompts';
 import GitCloneButton from './GitCloneButton';
 import { SettingsWindow } from '~/components/settings/SettingsWindow';
 import { HeaderActionButtons } from '~/components/header/HeaderActionButtons.client';
+import { StudioLandingSection, StudioLandingFooter } from './StudioLandingSection';
 
 import FilePreview from './FilePreview';
 import { ModelSelector } from '~/components/chat/ModelSelector';
@@ -224,6 +225,29 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       }
     };
 
+    const handleSelectTemplate = (templatePrompt: string) => {
+      if (handleInputChange) {
+        const syntheticEvent = {
+          target: { value: templatePrompt },
+        } as React.ChangeEvent<HTMLTextAreaElement>;
+        handleInputChange(syntheticEvent);
+      }
+      if (textareaRef?.current) {
+        textareaRef.current.focus();
+        textareaRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    };
+
+    const handleLaunchTemplate = (event: React.UIEvent, templatePrompt: string) => {
+      if (handleInputChange) {
+        const syntheticEvent = {
+          target: { value: templatePrompt },
+        } as React.ChangeEvent<HTMLTextAreaElement>;
+        handleInputChange(syntheticEvent);
+      }
+      handleSendMessage?.(event, templatePrompt);
+    };
+
     const handleFileUpload = () => {
       const input = document.createElement('input');
       input.type = 'file';
@@ -291,35 +315,11 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               </div>
             )}
             {!chatStarted && (
-              <div id="intro" className="mt-[18vh] mx-auto text-center px-4 lg:px-0 select-none" style={{ maxWidth: '840px' }}>
-                <h1
-                  className="animate-fade-in"
-                  style={{
-                    fontFamily: "'Luckiest Guy', cursive, sans-serif",
-                    fontSize: 'clamp(32px, 5.8vw, 62px)',
-                    fontWeight: 400,
-                    letterSpacing: '0.04em',
-                    lineHeight: 1.12,
-                    color: 'rgb(0, 248, 255)',
-                    textShadow: '0 4px 0 #0f1e78, 0 8px 0 #091350, 0 10px 25px rgba(0, 248, 255, 0.45)',
-                    animation: 'fortz-text-glow 3s ease-in-out infinite alternate',
-                  }}
-                >
-                  Make Your Game Possible here.
-                </h1>
-                <style>{`
-                  @keyframes fortz-text-glow {
-                    0% {
-                      text-shadow: 0 4px 0 #0f1e78, 0 8px 0 #091350, 0 10px 25px rgba(0, 248, 255, 0.4);
-                      transform: translateY(0);
-                    }
-                    100% {
-                      text-shadow: 0 4px 0 #0f1e78, 0 8px 0 #091350, 0 14px 40px rgba(0, 248, 255, 0.75), 0 0 60px rgba(0, 248, 255, 0.35);
-                      transform: translateY(-2px);
-                    }
-                  }
-                `}</style>
-              </div>
+              <StudioLandingSection
+                onSelectTemplate={handleSelectTemplate}
+                onLaunchTemplate={handleLaunchTemplate}
+                onOpenSettings={() => setIsSettingsOpen(true)}
+              />
             )}
             <div
               className={classNames('pt-6 px-2 sm:px-6', {
@@ -558,18 +558,24 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               </div>
             </div>
             {!chatStarted && (
-              <div className="flex justify-center items-center gap-2.5 flex-wrap max-w-3xl mx-auto mt-2 px-4 select-none">
-                {ImportButtons(importChat)}
-                <GitCloneButton importChat={importChat} />
-                <button
-                  onClick={() => setIsSettingsOpen(true)}
-                  className="px-4 py-2 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-prompt-background text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-3 transition-all flex items-center gap-2 cursor-pointer text-sm font-semibold shadow-md active:translate-y-0.5"
-                  title="Configure Claude, OpenAI, Ollama and other AI providers"
-                >
-                  <div className="i-ph:gear-six-fill text-base text-cyan-300" />
-                  <span>Configure AI / Add Your Own</span>
-                </button>
-              </div>
+              <>
+                <div className="flex justify-center items-center gap-2.5 flex-wrap max-w-3xl mx-auto mt-2 px-4 select-none">
+                  {ImportButtons(importChat)}
+                  <GitCloneButton importChat={importChat} />
+                  <button
+                    onClick={() => setIsSettingsOpen(true)}
+                    className="px-4 py-2 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-prompt-background text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-3 transition-all flex items-center gap-2 cursor-pointer text-sm font-semibold shadow-md active:translate-y-0.5"
+                    title="Configure Claude, OpenAI, Ollama and other AI providers"
+                  >
+                    <div className="i-ph:gear-six-fill text-base text-cyan-300" />
+                    <span>Configure AI / Add Your Own</span>
+                  </button>
+                </div>
+                <StudioLandingFooter
+                  onSelectTemplate={handleSelectTemplate}
+                  onLaunchTemplate={handleLaunchTemplate}
+                />
+              </>
             )}
 
           </div>
