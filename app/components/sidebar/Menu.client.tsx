@@ -12,6 +12,11 @@ import { HistoryItem } from './HistoryItem';
 import { binDates } from './date-binning';
 import { useSearchFilter } from '~/lib/hooks/useSearchFilter';
 
+import { useStore } from '@nanostores/react';
+import { isSidebarOpen } from '~/lib/stores/sidebar';
+import { workbenchStore } from '~/lib/stores/workbench';
+import { authStore, isAuthModalOpen, appwriteLogout } from '~/lib/auth/appwrite';
+
 const menuVariants = {
   closed: {
     opacity: 0,
@@ -39,13 +44,21 @@ export const Menu = () => {
   const { duplicateCurrentChat, exportChat } = useChatHistory();
   const menuRef = useRef<HTMLDivElement>(null);
   const [list, setList] = useState<ChatHistoryItem[]>([]);
-  // Always open all the time like Claude and ChatGPT
-  const [open, setOpen] = useState(true);
+  const open = useStore(isSidebarOpen);
+  const showWorkbench = useStore(workbenchStore.showWorkbench);
+  const auth = useStore(authStore);
+
+  // Auto-collapse sidebar when AI opens workbench box
+  useEffect(() => {
+    if (showWorkbench) {
+      isSidebarOpen.set(false);
+    }
+  }, [showWorkbench]);
+
   const [dialogContent, setDialogContent] = useState<DialogContent>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'chat-history' | 'providers' | 'features' | 'debug' | 'connection'>('providers');
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [fortzBalance, setFortzBalance] = useState<number>(() => {
     if (typeof window === 'undefined') return 100;
     const saved = localStorage.getItem('thefortz_fortz_balance');
@@ -138,8 +151,8 @@ export const Menu = () => {
       {/* Floating expand button if user ever closes the sidebar */}
       {!open && (
         <button
-          onClick={() => setOpen(true)}
-          className="fixed top-3 left-3 z-50 p-2 rounded-md bg-[#162a9c] hover:bg-[#1d37ba] text-white border border-white/20 shadow-md transition-all flex items-center justify-center cursor-pointer"
+          onClick={() => isSidebarOpen.set(true)}
+          className="fixed top-3 left-3 z-50 p-2.5 rounded-xl bg-[#162a9c]/90 hover:bg-[#1d37ba] text-cyan-300 hover:text-white border border-cyan-400/40 shadow-xl backdrop-blur-md transition-all flex items-center justify-center cursor-pointer active:scale-95"
           title="Open Sidebar"
         >
           <div className="i-ph:sidebar-simple-duotone text-lg" />
@@ -158,21 +171,26 @@ export const Menu = () => {
         <div className="flex items-center justify-between px-3.5 py-3 border-b border-white/10 bg-[#101e74]">
           <a
             href="https://thefortz.me"
-            className="flex items-center gap-2 text-white hover:text-cyan-300 transition-colors no-underline select-none"
+            className="flex items-center gap-2.5 text-white hover:text-cyan-300 transition-colors no-underline select-none"
             title="Return to TheFortz platform"
           >
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-cyan-400 to-blue-600 flex items-center justify-center text-xs font-black text-white shadow-md">
+              F
+            </div>
             <span
-              className="text-lg font-black tracking-wider uppercase text-cyan-300"
-              style={{ fontFamily: "'Lilita One', 'Anton', sans-serif" }}
+              className="text-xl lowercase tracking-tight text-cyan-300"
+              style={{
+                fontFamily: "'Kabel', 'Syne', 'Outfit', sans-serif",
+                fontWeight: 900,
+                letterSpacing: '-0.03em',
+                textShadow: '0 2px 12px rgba(0, 248, 255, 0.4)',
+              }}
             >
-              THEFORTZ
-            </span>
-            <span className="text-[10px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded bg-cyan-400/20 text-cyan-300 border border-cyan-400/30">
-              STUDIO
+              fortzstudio
             </span>
           </a>
           <button
-            onClick={() => setOpen(false)}
+            onClick={() => isSidebarOpen.set(false)}
             className="p-1 rounded text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
             title="Collapse Sidebar"
           >
@@ -305,19 +323,46 @@ export const Menu = () => {
 
         {/* ── Bottom Section: Login/Signup, Settings, Theme ── */}
         <div className="border-t border-white/10 bg-[#101e74] p-2.5 flex flex-col gap-2 select-none">
-          {/* Login / Sign Up */}
-          <button
-            onClick={() => setIsAuthModalOpen(true)}
-            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md bg-white/5 hover:bg-white/15 border border-white/10 text-xs font-semibold text-white transition-all cursor-pointer"
-          >
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-cyan-400 flex items-center justify-center text-[#101e74] font-black text-[10px]">
-                F
+          {auth.user ? (
+            <div className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white">
+              <div className="flex items-center gap-2 overflow-hidden">
+                <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-cyan-400 to-blue-600 flex items-center justify-center text-white font-black text-[11px] flex-shrink-0">
+                  {auth.user.name?.charAt(0).toUpperCase() || 'U'}
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="font-bold truncate text-white leading-tight">
+                    {auth.user.name}
+                  </span>
+                  <span className="text-[10px] text-blue-200/60 truncate leading-tight">
+                    {auth.user.email}
+                  </span>
+                </div>
               </div>
-              <span>Login / Sign Up</span>
+              <button
+                onClick={() => {
+                  appwriteLogout();
+                  toast.info('Signed out of THEFORTZ');
+                }}
+                className="p-1 rounded text-white/60 hover:text-rose-300 hover:bg-white/10 transition-all cursor-pointer flex-shrink-0"
+                title="Sign out of Appwrite"
+              >
+                <div className="i-ph:sign-out-bold text-sm" />
+              </button>
             </div>
-            <div className="i-ph:arrow-square-out text-white/50 text-xs" />
-          </button>
+          ) : (
+            <button
+              onClick={() => isAuthModalOpen.set(true)}
+              className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg bg-gradient-to-r from-cyan-500/20 to-blue-600/20 hover:from-cyan-500/30 hover:to-blue-600/30 border border-cyan-400/40 text-xs font-bold text-cyan-300 hover:text-white transition-all cursor-pointer shadow-sm"
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-full bg-cyan-400 flex items-center justify-center text-[#101e74] font-black text-[10px]">
+                  F
+                </div>
+                <span>Sign In / Register</span>
+              </div>
+              <div className="i-ph:arrow-square-out text-cyan-300 text-xs" />
+            </button>
+          )}
 
           <div className="flex items-center justify-between pt-0.5">
             <button
@@ -407,46 +452,7 @@ export const Menu = () => {
           </div>
         </div>
       )}
-
-      {/* ── Login / Sign Up Modal ── */}
-      {isAuthModalOpen && (
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in"
-          onClick={() => setIsAuthModalOpen(false)}
-        >
-          <div
-            className="w-full max-w-sm bg-[#162a9c] border border-white/30 rounded-xl p-6 text-white shadow-2xl relative text-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-cyan-400 to-blue-500 mx-auto flex items-center justify-center text-xl text-white font-black mb-3">
-              F
-            </div>
-            <h3 className="font-extrabold text-lg uppercase tracking-wider font-['Anton',sans-serif] mb-1">
-              THEFORTZ Creator Account
-            </h3>
-            <p className="text-xs text-blue-200/80 mb-5 leading-relaxed">
-              Sign in on TheFortz to publish games, gain followers, track player plays, and earn creator rewards.
-            </p>
-
-            <div className="flex flex-col gap-2.5">
-              <a
-                href="https://thefortz.me"
-                target="_blank"
-                rel="noreferrer"
-                className="w-full py-2.5 px-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs uppercase tracking-wider rounded-lg transition-all no-underline block"
-              >
-                Open TheFortz Login
-              </a>
-              <button
-                onClick={() => setIsAuthModalOpen(false)}
-                className="w-full py-2 px-4 bg-white/10 hover:bg-white/20 text-white/80 font-semibold text-xs rounded-lg transition-all cursor-pointer"
-              >
-                Stay Guest
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 };
+

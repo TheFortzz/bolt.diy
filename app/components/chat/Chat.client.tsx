@@ -20,6 +20,7 @@ import Cookies from 'js-cookie';
 import { debounce } from '~/utils/debounce';
 import { useSettings } from '~/lib/hooks/useSettings';
 import type { ProviderInfo } from '~/types/model';
+import { authStore, isAuthModalOpen } from '~/lib/auth/appwrite';
 
 const toastAnimation = cssTransition({
   enter: 'animated fadeInRight',
@@ -193,6 +194,12 @@ export const ChatImpl = memo(
       const _input = messageInput || input;
 
       if (_input.length === 0 || isLoading) {
+        return;
+      }
+
+      const auth = authStore.get();
+      if (!auth.user) {
+        isAuthModalOpen.set(true);
         return;
       }
 

@@ -26,6 +26,11 @@ import { SettingsWindow } from '~/components/settings/SettingsWindow';
 import { HeaderActionButtons } from '~/components/header/HeaderActionButtons.client';
 import { StudioLandingSection, StudioLandingFooter } from './StudioLandingSection';
 
+import { useStore } from '@nanostores/react';
+import { isSidebarOpen } from '~/lib/stores/sidebar';
+import { authStore, isAuthModalOpen, checkAuthSession } from '~/lib/auth/appwrite';
+import { AppwriteAuthModal } from '~/components/auth/AppwriteAuthModal';
+
 import FilePreview from './FilePreview';
 import { ModelSelector } from '~/components/chat/ModelSelector';
 import { SpeechRecognitionButton } from '~/components/chat/SpeechRecognition';
@@ -114,6 +119,13 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const [recognition, setRecognition] = useState<any>(null);
     const [transcript, setTranscript] = useState('');
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const sidebarOpen = useStore(isSidebarOpen);
+    const auth = useStore(authStore);
+
+    useEffect(() => {
+      checkAuthSession();
+    }, []);
+
     const FORTZ_PROMPT_COST = 10;
     const [fortzBalance, setFortzBalance] = useState<number>(() => {
       if (typeof window === 'undefined') return 100;
@@ -125,6 +137,17 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       localStorage.setItem('thefortz_fortz_balance', '100');
       return 100;
     });
+
+    // Update balance when Appwrite user profile changes
+    useEffect(() => {
+      if (auth.user?.prefs?.fortz_balance !== undefined) {
+        const userBal = auth.user.prefs.fortz_balance;
+        if (typeof userBal === 'number') {
+          setFortzBalance(userBal);
+          localStorage.setItem('thefortz_fortz_balance', String(userBal));
+        }
+      }
+    }, [auth.user]);
 
     useEffect(() => {
       console.log(transcript);
@@ -220,6 +243,13 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const handleSendMessage = (event: React.UIEvent, messageInput?: string) => {
       const text = messageInput || input;
       if (!text || !text.trim()) return;
+
+      const currentAuth = authStore.get();
+      if (!currentAuth.user) {
+        toast.info('🔒 Please sign in or create an account with THEFORTZ to start building your game!');
+        isAuthModalOpen.set(true);
+        return;
+      }
 
       if (fortzBalance < FORTZ_PROMPT_COST) {
         toast.error(
@@ -351,7 +381,13 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         data-chat-visible={showChat}
       >
         <ClientOnly>{() => <Menu />}</ClientOnly>
-        <div ref={scrollRef} className="flex flex-col lg:flex-row overflow-y-auto w-full h-full lg:pl-[260px]">
+        <div
+          ref={scrollRef}
+          className={classNames(
+            'flex flex-col lg:flex-row overflow-y-auto w-full h-full transition-[padding] duration-200 ease-in-out',
+            sidebarOpen ? 'lg:pl-[260px]' : 'lg:pl-0',
+          )}
+        >
           <div className={classNames(styles.Chat, 'flex flex-col flex-grow lg:min-w-[var(--chat-min-width)] h-full relative')}>
             {chatStarted && (
               <div className="absolute top-3 right-4 z-20">
@@ -383,6 +419,23 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   ) : null;
                 }}
               </ClientOnly>
+
+              {/* ── Lane of action/import buttons directly on top of the prompt input ── */}
+              {!chatStarted && (
+                <div className="flex justify-center items-center gap-2.5 flex-wrap max-w-[54rem] mx-auto mb-3.5 px-2 select-none animate-fade-in">
+                  {ImportButtons(importChat)}
+                  <GitCloneButton importChat={importChat} />
+                  <button
+                    onClick={() => setIsSettingsOpen(true)}
+                    className="px-3.5 py-1.5 rounded-lg border border-white/20 bg-[#162a9c]/80 hover:bg-[#1c36ba] text-white transition-all flex items-center gap-2 cursor-pointer text-xs font-bold shadow-sm active:translate-y-0.5 backdrop-blur-sm"
+                    title="Configure Claude, OpenAI, Ollama and other AI providers"
+                  >
+                    <div className="i-ph:gear-six-fill text-sm text-cyan-300" />
+                    <span>Configure AI</span>
+                  </button>
+                </div>
+              )}
+
               <div
                 className={classNames(
                   'p-3.5 rounded-2xl relative w-full mx-auto z-prompt mb-6 transition-all duration-300',
@@ -654,30 +707,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 </div>
               </div>
             </div>
-            {!chatStarted && (
-              <>
-                <div className="flex justify-center items-center gap-2.5 flex-wrap max-w-3xl mx-auto mt-2 px-4 select-none">
-                  {ImportButtons(importChat)}
-                  <GitCloneButton importChat={importChat} />
-                  <button
-                    onClick={() => setIsSettingsOpen(true)}
-                    className="px-4 py-2 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-prompt-background text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-3 transition-all flex items-center gap-2 cursor-pointer text-sm font-semibold shadow-md active:translate-y-0.5"
-                    title="Configure Claude, OpenAI, Ollama and other AI providers"
-                  >
-                    <div className="i-ph:gear-six-fill text-base text-cyan-300" />
-                    <span>Configure AI / Add Your Own</span>
-                  </button>
-                </div>
-                <StudioLandingFooter
-                  onSelectTemplate={handleSelectTemplate}
-                  onLaunchTemplate={handleLaunchTemplate}
-                />
-              </>
-            )}
-
           </div>
           <ClientOnly>{() => <Workbench chatStarted={chatStarted} isStreaming={isStreaming} />}</ClientOnly>
         </div>
+        <AppwriteAuthModal />
         <SettingsWindow
           open={isSettingsOpen}
           initialTab="providers"
