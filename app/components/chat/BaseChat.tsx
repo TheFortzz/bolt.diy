@@ -21,6 +21,7 @@ import { ExportChatButton } from '~/components/chat/chatExportAndImport/ExportCh
 import { ImportButtons } from '~/components/chat/chatExportAndImport/ImportButtons';
 import { ExamplePrompts } from '~/components/chat/ExamplePrompts';
 import GitCloneButton from './GitCloneButton';
+import { toast } from 'react-toastify';
 import { SettingsWindow } from '~/components/settings/SettingsWindow';
 import { HeaderActionButtons } from '~/components/header/HeaderActionButtons.client';
 import { StudioLandingSection, StudioLandingFooter } from './StudioLandingSection';
@@ -113,6 +114,17 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
     const [transcript, setTranscript] = useState('');
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const FORTZ_PROMPT_COST = 10;
+    const [fortzBalance, setFortzBalance] = useState<number>(() => {
+      if (typeof window === 'undefined') return 100;
+      const saved = localStorage.getItem('thefortz_fortz_balance');
+      if (saved !== null) {
+        const parsed = parseInt(saved, 10);
+        return isNaN(parsed) ? 100 : parsed;
+      }
+      localStorage.setItem('thefortz_fortz_balance', '100');
+      return 100;
+    });
 
     useEffect(() => {
       console.log(transcript);
@@ -206,6 +218,38 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     };
 
     const handleSendMessage = (event: React.UIEvent, messageInput?: string) => {
+      const text = messageInput || input;
+      if (!text || !text.trim()) return;
+
+      if (fortzBalance < FORTZ_PROMPT_COST) {
+        toast.error(
+          `⚠️ Insufficient Fortz! Each AI game prompt costs ${FORTZ_PROMPT_COST} Fortz. Your balance is ${fortzBalance} Fortz. Visit TheFortz to refill your balance.`,
+          { autoClose: 7000 }
+        );
+        return;
+      }
+
+      // Deduct Fortz prompt cost
+      const newBalance = Math.max(0, fortzBalance - FORTZ_PROMPT_COST);
+      setFortzBalance(newBalance);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('thefortz_fortz_balance', String(newBalance));
+        try {
+          const rawAuth = localStorage.getItem('fortz_auth_v2');
+          if (rawAuth) {
+            const authObj = JSON.parse(rawAuth);
+            authObj.fortz = newBalance;
+            localStorage.setItem('fortz_auth_v2', JSON.stringify(authObj));
+            window.dispatchEvent(new CustomEvent('fortz-auth-updated'));
+          }
+        } catch (e) {}
+        window.dispatchEvent(new CustomEvent('thefortz-balance-updated', { detail: { balance: newBalance } }));
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'thefortz-balance-deducted', cost: FORTZ_PROMPT_COST, balance: newBalance }, '*');
+        }
+      }
+      toast.info(`🪙 -${FORTZ_PROMPT_COST} Fortz • Balance: ${newBalance} Fortz`, { autoClose: 3500 });
+
       if (sendMessage) {
         sendMessage(event, messageInput);
 
@@ -319,6 +363,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 onSelectTemplate={handleSelectTemplate}
                 onLaunchTemplate={handleLaunchTemplate}
                 onOpenSettings={() => setIsSettingsOpen(true)}
+                fortzBalance={fortzBalance}
               />
             )}
             <div
@@ -405,6 +450,50 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     setImageDataList?.(imageDataList.filter((_, i) => i !== index));
                   }}
                 />
+                {/* ── TheFortz Prompt Balance & Token HUD ── */}
+                <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-white/10 px-1 select-none">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-500/20 via-yellow-400/20 to-amber-500/10 border border-yellow-400/40 text-yellow-300 shadow-sm text-xs font-bold tracking-wide">
+                      <span className="text-sm">🪙</span>
+                      <span style={{ fontFamily: '"Lilita One", Anton, sans-serif' }}>
+                        {fortzBalance.toLocaleString()} FORTZ
+                      </span>
+                    </div>
+                    <span className="text-[11px] font-semibold text-cyan-200/90 bg-[#101e74] px-2 py-0.5 rounded border border-cyan-400/30">
+                      ⚡ 10 Fortz / Prompt
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href="https://thefortz.me"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] font-bold text-yellow-300 hover:text-yellow-100 transition-colors flex items-center gap-1 hover:underline"
+                      title="Refill Fortz tokens on TheFortz"
+                    >
+                      <span>Refill</span>
+                      <span className="text-xs">↗</span>
+                    </a>
+                  </div>
+                </div>
+
+                {fortzBalance < FORTZ_PROMPT_COST && (
+                  <div className="mb-2.5 px-3 py-1.5 rounded-lg bg-rose-950/80 border border-rose-500/60 text-rose-200 text-xs font-semibold flex items-center justify-between shadow-inner">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">⚠️</span>
+                      <span>Insufficient Fortz (requires 10 Fortz per prompt). Balance: {fortzBalance}</span>
+                    </div>
+                    <a
+                      href="https://thefortz.me"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline text-yellow-300 font-bold hover:text-white"
+                    >
+                      Get Fortz →
+                    </a>
+                  </div>
+                )}
+
                 <div
                   className={classNames(
                     'relative border border-bolt-elements-borderColor backdrop-blur rounded-lg',
@@ -546,13 +635,21 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         {isModelSettingsCollapsed ? <span className="text-xs">{model}</span> : <span />}
                       </IconButton>
                     </div>
-                    {input.length > 3 ? (
-                      <div className="text-xs text-bolt-elements-textTertiary">
-                        Use <kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Shift</kbd> +{' '}
-                        <kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Return</kbd> a
-                        new line
-                      </div>
-                    ) : null}
+                    <div className="flex items-center gap-2 text-xs text-blue-200/70">
+                      <span className="font-semibold text-yellow-300/90 flex items-center gap-1">
+                        <span>🪙</span>
+                        <span>10 Fortz</span>
+                      </span>
+                      {input.length > 3 && (
+                        <>
+                          <span className="text-white/20">•</span>
+                          <span>
+                            <kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Shift</kbd> +{' '}
+                            <kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Return</kbd> for new line
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

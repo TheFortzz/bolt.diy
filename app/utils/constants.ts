@@ -379,11 +379,9 @@ const getOllamaBaseUrl = (settings?: IProviderSetting) => {
 };
 
 async function getOllamaModels(apiKeys?: Record<string, string>, settings?: IProviderSetting): Promise<ModelInfo[]> {
-  /*
-   * if (typeof window === 'undefined') {
-   * return [];
-   * }
-   */
+  if (!settings?.baseUrl && !import.meta.env.OLLAMA_API_BASE_URL) {
+    return [];
+  }
 
   try {
     const baseUrl = getOllamaBaseUrl(settings);
@@ -397,7 +395,6 @@ async function getOllamaModels(apiKeys?: Record<string, string>, settings?: IPro
       maxTokenAllowed: 8000,
     }));
   } catch (e: any) {
-    logger.warn('Failed to get Ollama models: ', e.message || '');
     return [];
   }
 }
@@ -475,7 +472,7 @@ async function getOpenRouterModels(): Promise<ModelInfo[]> {
 }
 
 async function getLMStudioModels(_apiKeys?: Record<string, string>, settings?: IProviderSetting): Promise<ModelInfo[]> {
-  if (typeof window === 'undefined') {
+  if (!settings?.baseUrl && !import.meta.env.LMSTUDIO_API_BASE_URL) {
     return [];
   }
 
@@ -490,7 +487,6 @@ async function getLMStudioModels(_apiKeys?: Record<string, string>, settings?: I
       provider: 'LMStudio',
     }));
   } catch (e: any) {
-    logger.warn('Failed to get LMStudio models: ', e.message || '');
     return [];
   }
 }

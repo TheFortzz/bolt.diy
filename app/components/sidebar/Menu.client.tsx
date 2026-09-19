@@ -43,9 +43,33 @@ export const Menu = () => {
   const [open, setOpen] = useState(true);
   const [dialogContent, setDialogContent] = useState<DialogContent>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'chat-history' | 'providers'>('chat-history');
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [fortzBalance, setFortzBalance] = useState<number>(() => {
+    if (typeof window === 'undefined') return 100;
+    const saved = localStorage.getItem('thefortz_fortz_balance');
+    if (saved !== null) {
+      const parsed = parseInt(saved, 10);
+      return isNaN(parsed) ? 100 : parsed;
+    }
+    return 100;
+  });
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      const saved = localStorage.getItem('thefortz_fortz_balance');
+      if (saved !== null) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed)) setFortzBalance(parsed);
+      }
+    };
+    window.addEventListener('storage', handleUpdate);
+    window.addEventListener('thefortz-balance-updated', handleUpdate);
+    return () => {
+      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('thefortz-balance-updated', handleUpdate);
+    };
+  }, []);
 
   const { filteredItems: filteredList, handleSearchChange } = useSearchFilter({
     items: list,
@@ -164,6 +188,28 @@ export const Menu = () => {
             <div className="i-ph:chart-bar-fill text-cyan-300 text-sm" />
             <span>Studio Analytics</span>
           </button>
+
+          {/* Fortz Balance Card */}
+          <div className="mt-1 p-2 rounded-md bg-[#101e74] border border-white/10 flex items-center justify-between text-xs shadow-inner">
+            <div className="flex items-center gap-1.5">
+              <span className="text-base">🪙</span>
+              <div className="flex flex-col leading-tight">
+                <span className="text-[9px] uppercase font-bold text-cyan-300/80 tracking-wider">Fortz Balance</span>
+                <span className="font-extrabold text-yellow-300 text-xs" style={{ fontFamily: "'Lilita One', Anton, sans-serif" }}>
+                  {fortzBalance.toLocaleString()} FORTZ
+                </span>
+              </div>
+            </div>
+            <a
+              href="https://thefortz.me"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-300 border border-yellow-400/40 hover:bg-yellow-500/30 transition-all no-underline"
+              title="Refill Fortz balance on TheFortz"
+            >
+              Refill ↗
+            </a>
+          </div>
         </div>
 
         {/* ── Search Chats ── */}
