@@ -101,20 +101,6 @@ export function StudioLandingSection({
     <div className="w-full flex flex-col items-center select-none pb-12">
       {/* ── 1. Hero Brand Header ── */}
       <div className="text-center px-4 pt-10 pb-4 max-w-4xl mx-auto">
-        {/* Top Glowing Badges */}
-        <div className="flex items-center justify-center gap-2.5 mb-4 flex-wrap">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/10 border border-cyan-400/30 text-[11px] font-bold tracking-widest text-cyan-300 uppercase shadow-[0_0_15px_rgba(6,182,212,0.25)] backdrop-blur-md animate-fade-in">
-            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-            <span>THEFORTZ STUDIO • POWERED BY AZURE AI</span>
-          </div>
-          {typeof fortzBalance === 'number' && (
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 border border-yellow-400/40 text-[11px] font-bold tracking-wider text-yellow-300 shadow-[0_0_15px_rgba(234,179,8,0.2)] backdrop-blur-md animate-fade-in">
-              <span>🪙</span>
-              <span style={{ fontFamily: '"Lilita One", Anton, sans-serif' }}>{fortzBalance.toLocaleString()} FORTZ</span>
-              <span className="text-[10px] text-yellow-200/70 font-normal ml-1">(10 / prompt)</span>
-            </div>
-          )}
-        </div>
 
         {/* Hero Title with Luckiest Guy Font */}
         <h1

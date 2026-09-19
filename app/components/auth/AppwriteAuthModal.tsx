@@ -82,8 +82,22 @@ export function AppwriteAuthModal() {
 
         {/* Brand Header */}
         <div className="flex flex-col items-center text-center mb-5">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-cyan-400 to-blue-600 flex items-center justify-center text-2xl font-black text-white shadow-lg mb-3">
-            F
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-3 bg-[#101e74] border border-cyan-400/30">
+            <img
+              src="/thefortzicon.png"
+              alt="TheFortz"
+              className="w-10 h-10 object-contain"
+              onError={(e) => {
+                const el = e.currentTarget as HTMLImageElement;
+                el.style.display = 'none';
+                const parent = el.parentElement;
+                if (parent) {
+                  parent.style.background = 'linear-gradient(135deg, #06b6d4, #2563eb)';
+                  parent.textContent = '🎮';
+                  parent.style.fontSize = '28px';
+                }
+              }}
+            />
           </div>
           <h2
             className="text-2xl font-black uppercase tracking-wider text-cyan-300 font-['Anton',sans-serif]"

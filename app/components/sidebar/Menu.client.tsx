@@ -23,7 +23,7 @@ const menuVariants = {
     width: 0,
     x: -260,
     transition: {
-      duration: 0.2,
+      duration: 0.12,
       ease: cubicEasingFn,
     },
   },
@@ -32,7 +32,7 @@ const menuVariants = {
     width: 260,
     x: 0,
     transition: {
-      duration: 0.2,
+      duration: 0.12,
       ease: cubicEasingFn,
     },
   },
@@ -59,31 +59,6 @@ export const Menu = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'chat-history' | 'providers' | 'features' | 'debug' | 'connection'>('providers');
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
-  const [fortzBalance, setFortzBalance] = useState<number>(() => {
-    if (typeof window === 'undefined') return 100;
-    const saved = localStorage.getItem('thefortz_fortz_balance');
-    if (saved !== null) {
-      const parsed = parseInt(saved, 10);
-      return isNaN(parsed) ? 100 : parsed;
-    }
-    return 100;
-  });
-
-  useEffect(() => {
-    const handleUpdate = () => {
-      const saved = localStorage.getItem('thefortz_fortz_balance');
-      if (saved !== null) {
-        const parsed = parseInt(saved, 10);
-        if (!isNaN(parsed)) setFortzBalance(parsed);
-      }
-    };
-    window.addEventListener('storage', handleUpdate);
-    window.addEventListener('thefortz-balance-updated', handleUpdate);
-    return () => {
-      window.removeEventListener('storage', handleUpdate);
-      window.removeEventListener('thefortz-balance-updated', handleUpdate);
-    };
-  }, []);
 
   const { filteredItems: filteredList, handleSearchChange } = useSearchFilter({
     items: list,
@@ -171,12 +146,15 @@ export const Menu = () => {
         <div className="flex items-center justify-between px-3.5 py-3 border-b border-white/10 bg-[#101e74]">
           <a
             href="https://thefortz.me"
-            className="flex items-center gap-2.5 text-white hover:text-cyan-300 transition-colors no-underline select-none"
+            className="flex items-center gap-2 text-white hover:text-cyan-300 transition-colors no-underline select-none"
             title="Return to TheFortz platform"
           >
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-cyan-400 to-blue-600 flex items-center justify-center text-xs font-black text-white shadow-md">
-              F
-            </div>
+            <img
+              src="/thefortzicon.png"
+              alt="TheFortz"
+              className="w-7 h-7 rounded-lg object-contain"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+            />
             <span
               className="text-xl lowercase tracking-tight text-cyan-300"
               style={{
@@ -186,7 +164,7 @@ export const Menu = () => {
                 textShadow: '0 2px 12px rgba(0, 248, 255, 0.4)',
               }}
             >
-              fortzstudio
+              studio
             </span>
           </a>
           <button
@@ -198,7 +176,7 @@ export const Menu = () => {
           </button>
         </div>
 
-        {/* ── Action Buttons: Create, Created Projects, Analytics ── */}
+        {/* ── Action Buttons: Create, Analytics ── */}
         <div className="p-3 pb-1 flex flex-col gap-1.5 select-none">
           {/* Create Button */}
           <a
@@ -217,28 +195,6 @@ export const Menu = () => {
             <div className="i-ph:chart-bar-fill text-cyan-300 text-sm" />
             <span>Studio Analytics</span>
           </button>
-
-          {/* Fortz Balance Card */}
-          <div className="mt-1 p-2 rounded-md bg-[#101e74] border border-white/10 flex items-center justify-between text-xs shadow-inner">
-            <div className="flex items-center gap-1.5">
-              <span className="text-base">🪙</span>
-              <div className="flex flex-col leading-tight">
-                <span className="text-[9px] uppercase font-bold text-cyan-300/80 tracking-wider">Fortz Balance</span>
-                <span className="font-extrabold text-yellow-300 text-xs" style={{ fontFamily: "'Lilita One', Anton, sans-serif" }}>
-                  {fortzBalance.toLocaleString()} FORTZ
-                </span>
-              </div>
-            </div>
-            <a
-              href="https://thefortz.me"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-300 border border-yellow-400/40 hover:bg-yellow-500/30 transition-all no-underline"
-              title="Refill Fortz balance on TheFortz"
-            >
-              Refill ↗
-            </a>
-          </div>
         </div>
 
         {/* ── Search Chats ── */}
@@ -326,7 +282,24 @@ export const Menu = () => {
           {auth.user ? (
             <div className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white">
               <div className="flex items-center gap-2 overflow-hidden">
-                <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-cyan-400 to-blue-600 flex items-center justify-center text-white font-black text-[11px] flex-shrink-0">
+                {/* Avatar: show profile photo if available, else gradient initial */}
+                {auth.user.prefs?.photoURL ? (
+                  <img
+                    src={auth.user.prefs.photoURL}
+                    alt={auth.user.name}
+                    className="w-7 h-7 rounded-full object-cover flex-shrink-0 border border-cyan-400/40"
+                    onError={(e) => {
+                      const el = e.currentTarget as HTMLImageElement;
+                      el.style.display = 'none';
+                      const next = el.nextElementSibling as HTMLElement | null;
+                      if (next) next.style.display = 'flex';
+                    }}
+                  />
+                ) : null}
+                <div
+                  className="w-7 h-7 rounded-full bg-gradient-to-tr from-cyan-400 to-blue-600 flex items-center justify-center text-white font-black text-[11px] flex-shrink-0"
+                  style={{ display: auth.user.prefs?.photoURL ? 'none' : 'flex' }}
+                >
                   {auth.user.name?.charAt(0).toUpperCase() || 'U'}
                 </div>
                 <div className="flex flex-col min-w-0">
@@ -344,7 +317,7 @@ export const Menu = () => {
                   toast.info('Signed out of THEFORTZ');
                 }}
                 className="p-1 rounded text-white/60 hover:text-rose-300 hover:bg-white/10 transition-all cursor-pointer flex-shrink-0"
-                title="Sign out of Appwrite"
+                title="Sign out"
               >
                 <div className="i-ph:sign-out-bold text-sm" />
               </button>
@@ -355,9 +328,7 @@ export const Menu = () => {
               className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg bg-gradient-to-r from-cyan-500/20 to-blue-600/20 hover:from-cyan-500/30 hover:to-blue-600/30 border border-cyan-400/40 text-xs font-bold text-cyan-300 hover:text-white transition-all cursor-pointer shadow-sm"
             >
               <div className="flex items-center gap-2">
-                <div className="w-5 h-5 rounded-full bg-cyan-400 flex items-center justify-center text-[#101e74] font-black text-[10px]">
-                  F
-                </div>
+                <div className="i-ph:user-circle-bold text-lg text-cyan-300" />
                 <span>Sign In / Register</span>
               </div>
               <div className="i-ph:arrow-square-out text-cyan-300 text-xs" />
