@@ -26,7 +26,6 @@ import { SettingsWindow } from '~/components/settings/SettingsWindow';
 import { HeaderActionButtons } from '~/components/header/HeaderActionButtons.client';
 import { StudioLandingSection, StudioLandingFooter } from './StudioLandingSection';
 
-import { useStore } from '@nanostores/react';
 import { isSidebarOpen } from '~/lib/stores/sidebar';
 import { authStore, isAuthModalOpen, checkAuthSession } from '~/lib/auth/appwrite';
 import { AppwriteAuthModal } from '~/components/auth/AppwriteAuthModal';
@@ -119,24 +118,38 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const [recognition, setRecognition] = useState<any>(null);
     const [transcript, setTranscript] = useState('');
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-    const sidebarOpen = useStore(isSidebarOpen);
-    const auth = useStore(authStore);
+    // Use safe SSR defaults; real values are hydrated client-side via useEffect
+    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [auth, setAuth] = useState<{ user: any }>({ user: null });
 
     useEffect(() => {
+      // Subscribe to nanostores after hydration to avoid SSR mismatch (#418/#425)
+      setSidebarOpen(isSidebarOpen.get());
+      setAuth(authStore.get());
+      const unsubSidebar = isSidebarOpen.subscribe((v) => setSidebarOpen(v));
+      const unsubAuth = authStore.subscribe((v) => setAuth(v));
+      // Kick off auth session check (client-only)
       checkAuthSession();
+      return () => {
+        unsubSidebar();
+        unsubAuth();
+      };
     }, []);
 
     const FORTZ_PROMPT_COST = 10;
-    const [fortzBalance, setFortzBalance] = useState<number>(() => {
-      if (typeof window === 'undefined') return 100;
+    // Safe initializer: never read localStorage during SSR
+    const [fortzBalance, setFortzBalance] = useState<number>(100);
+
+    // Read persisted balance from localStorage after client hydration
+    useEffect(() => {
       const saved = localStorage.getItem('thefortz_fortz_balance');
       if (saved !== null) {
         const parsed = parseInt(saved, 10);
-        return isNaN(parsed) ? 100 : parsed;
+        if (!isNaN(parsed)) setFortzBalance(parsed);
+      } else {
+        localStorage.setItem('thefortz_fortz_balance', '100');
       }
-      localStorage.setItem('thefortz_fortz_balance', '100');
-      return 100;
-    });
+    }, []);
 
     // Update balance when Appwrite user profile changes
     useEffect(() => {

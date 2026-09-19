@@ -71,8 +71,20 @@ export default async function handleRequest(
 
   responseHeaders.set('Content-Type', 'text/html');
 
-  responseHeaders.set('Cross-Origin-Embedder-Policy', 'require-corp');
-  responseHeaders.set('Cross-Origin-Opener-Policy', 'same-origin');
+  // Only set isolation headers when NOT embedded in an iframe.
+  // When Sec-Fetch-Dest is 'iframe' the page is cross-origin embedded (e.g. thefortz.me),
+  // and COEP:require-corp would block loading entirely.
+  const secFetchDest = request.headers.get('Sec-Fetch-Dest') ?? '';
+  const isIframeRequest = secFetchDest === 'iframe';
+
+  if (!isIframeRequest) {
+    responseHeaders.set('Cross-Origin-Embedder-Policy', 'require-corp');
+    responseHeaders.set('Cross-Origin-Opener-Policy', 'same-origin');
+  } else {
+    // Allow embedding in cross-origin iframes
+    responseHeaders.set('Cross-Origin-Embedder-Policy', 'unsafe-none');
+    responseHeaders.set('X-Frame-Options', 'ALLOWALL');
+  }
 
   return new Response(body, {
     headers: responseHeaders,
