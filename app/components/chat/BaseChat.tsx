@@ -283,20 +283,28 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         <div ref={scrollRef} className="flex flex-col lg:flex-row overflow-y-auto w-full h-full">
           <div className={classNames(styles.Chat, 'flex flex-col flex-grow lg:min-w-[var(--chat-min-width)] h-full')}>
             {!chatStarted && (
-              <div id="intro" className="mt-[16vh] max-w-chat mx-auto text-center px-4 lg:px-0">
-                <div className="flex justify-center mb-4 animate-fade-in">
-                  <img
-                    src="/thefortztext.png"
-                    alt="THEFORTZ"
-                    className="h-14 lg:h-20 w-auto object-contain"
-                  />
-                </div>
-                <h1 className="text-2xl lg:text-4xl font-extrabold text-white mb-3 animate-fade-in tracking-wider uppercase font-['Anton',sans-serif]">
-                  AI GAME &amp; WEB STUDIO
+              <div id="intro" className="mt-[20vh] mx-auto text-center px-4 lg:px-0" style={{ maxWidth: '800px' }}>
+                <h1
+                  className="animate-fade-in"
+                  style={{
+                    fontFamily: "'Lilita One', 'Anton', cursive, sans-serif",
+                    fontSize: 'clamp(28px, 5vw, 56px)',
+                    fontWeight: 900,
+                    letterSpacing: '0.04em',
+                    lineHeight: 1.15,
+                    color: 'rgb(0, 248, 255)',
+                    textShadow: '0 0 30px rgba(0, 248, 255, 0.5), 0 0 60px rgba(0, 248, 255, 0.2)',
+                    animation: 'fortz-text-glow 3s ease-in-out infinite alternate',
+                  }}
+                >
+                  Make Your Game Possible here.
                 </h1>
-                <p className="text-sm lg:text-base mb-8 text-white/90 animate-fade-in font-medium">
-                  Create, code, and play custom web games powered by Azure AI.
-                </p>
+                <style>{`
+                  @keyframes fortz-text-glow {
+                    0% { text-shadow: 0 0 20px rgba(0,248,255,0.4), 0 0 40px rgba(0,248,255,0.15); }
+                    100% { text-shadow: 0 0 40px rgba(0,248,255,0.7), 0 0 80px rgba(0,248,255,0.3), 0 4px 16px rgba(0,248,255,0.2); }
+                  }
+                `}</style>
               </div>
             )}
             <div
@@ -318,11 +326,12 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               </ClientOnly>
               <div
                 className={classNames(
-                  'bg-bolt-elements-background-depth-2 p-3 rounded-lg border border-bolt-elements-borderColor relative w-full max-w-chat mx-auto z-prompt mb-6',
+                  'bg-bolt-elements-background-depth-2 p-3 rounded-lg border border-bolt-elements-borderColor relative w-full mx-auto z-prompt mb-6',
                   {
                     'sticky bottom-2': chatStarted,
                   },
                 )}
+                style={{ maxWidth: chatStarted ? '37rem' : '52rem' }}
               >
                 <svg className={classNames(styles.PromptEffectContainer)}>
                   <defs>
@@ -352,27 +361,39 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 </svg>
                 <div>
                   <div className={isModelSettingsCollapsed ? 'hidden' : ''}>
-                    <ModelSelector
-                      key={provider?.name + ':' + modelList.length}
-                      model={model}
-                      setModel={setModel}
-                      modelList={modelList}
-                      provider={provider}
-                      setProvider={setProvider}
-                      providerList={providerList || PROVIDER_LIST}
-                      apiKeys={apiKeys}
-                    />
-                    {(providerList || []).length > 0 && provider && provider.name !== 'OpenAILike' && (
-                      <APIKeyManager
+                    {/* Hidden model selector — auto-configured, not shown to users */}
+                    <div className="hidden">
+                      <ModelSelector
+                        key={provider?.name + ':' + modelList.length}
+                        model={model}
+                        setModel={setModel}
+                        modelList={modelList}
                         provider={provider}
-                        apiKey={apiKeys[provider.name] || ''}
-                        setApiKey={(key) => {
-                          const newApiKeys = { ...apiKeys, [provider.name]: key };
-                          setApiKeys(newApiKeys);
-                          Cookies.set('apiKeys', JSON.stringify(newApiKeys));
-                        }}
+                        setProvider={setProvider}
+                        providerList={providerList || PROVIDER_LIST}
+                        apiKeys={apiKeys}
                       />
-                    )}
+                    </div>
+                    {/* Clean "Add Your Own" API key button */}
+                    <div className="mb-2 flex items-center gap-2">
+                      <button
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white/90 border border-white/20 bg-white/10 hover:bg-white/20 transition-all cursor-pointer"
+                        onClick={() => {
+                          const key = prompt('Enter your API key (OpenAI-compatible):');
+                          if (key && key.trim()) {
+                            const newApiKeys = { ...apiKeys, OpenAILike: key.trim() };
+                            setApiKeys(newApiKeys);
+                            Cookies.set('apiKeys', JSON.stringify(newApiKeys));
+                          }
+                        }}
+                      >
+                        <div className="i-ph:key text-sm" />
+                        <span>Add Your Own</span>
+                      </button>
+                      {apiKeys.OpenAILike && (
+                        <span className="text-[10px] text-green-400 font-medium">✓ Key set</span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <FilePreview
@@ -541,15 +562,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 <GitCloneButton importChat={importChat} />
               </div>
             )}
-            {!chatStarted &&
-              ExamplePrompts((event, messageInput) => {
-                if (isStreaming) {
-                  handleStop?.();
-                  return;
-                }
 
-                handleSendMessage?.(event, messageInput);
-              })}
           </div>
           <ClientOnly>{() => <Workbench chatStarted={chatStarted} isStreaming={isStreaming} />}</ClientOnly>
         </div>

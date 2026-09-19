@@ -202,6 +202,23 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
                       <div className="i-ph:github-logo" />
                       Push to GitHub
                     </PanelHeaderButton>
+                    <PanelHeaderButton
+                      className="mr-1 text-sm"
+                      onClick={async () => {
+                        try {
+                          await workbenchStore.downloadZip();
+                          toast.success('Game package downloaded! Upload this ZIP on TheFortz to publish.', { autoClose: 6000 });
+                          if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+                            window.parent.postMessage({ type: 'fortz-open-upload' }, '*');
+                          }
+                        } catch (err: any) {
+                          toast.error('Failed to package game: ' + (err?.message || 'Unknown error'));
+                        }
+                      }}
+                    >
+                      <div className="i-ph:rocket-launch" />
+                      Publish Game
+                    </PanelHeaderButton>
                   </div>
                 )}
                 <IconButton
