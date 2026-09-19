@@ -5,7 +5,7 @@ import { Dialog, DialogButton, DialogDescription, DialogRoot, DialogTitle } from
 import { ThemeSwitch } from '~/components/ui/ThemeSwitch';
 import { SettingsWindow } from '~/components/settings/SettingsWindow';
 import { SettingsButton } from '~/components/ui/SettingsButton';
-import { db, deleteById, getAll, chatId, type ChatHistoryItem, useChatHistory } from '~/lib/persistence';
+import { db, dbPromise, deleteById, getAll, chatId, type ChatHistoryItem, useChatHistory } from '~/lib/persistence';
 import { cubicEasingFn } from '~/utils/easings';
 import { logger } from '~/utils/logger';
 import { HistoryItem } from './HistoryItem';
@@ -43,6 +43,7 @@ export const Menu = () => {
   const [open, setOpen] = useState(true);
   const [dialogContent, setDialogContent] = useState<DialogContent>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'chat-history' | 'providers' | 'features' | 'debug' | 'connection'>('providers');
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [fortzBalance, setFortzBalance] = useState<number>(() => {
@@ -82,14 +83,24 @@ export const Menu = () => {
         .then((list) => list.filter((item) => item.urlId && item.description))
         .then(setList)
         .catch((error) => toast.error(error.message));
+    } else {
+      dbPromise.then((database) => {
+        if (database) {
+          getAll(database)
+            .then((list) => list.filter((item) => item.urlId && item.description))
+            .then(setList)
+            .catch((error) => toast.error(error.message));
+        }
+      });
     }
   }, []);
 
-  const deleteItem = useCallback((event: React.UIEvent, item: ChatHistoryItem) => {
+  const deleteItem = useCallback(async (event: React.UIEvent, item: ChatHistoryItem) => {
     event.preventDefault();
 
-    if (db) {
-      deleteById(db, item.id)
+    const activeDb = db || (await dbPromise);
+    if (activeDb) {
+      deleteById(activeDb, item.id)
         .then(() => {
           loadEntries();
 
@@ -102,7 +113,7 @@ export const Menu = () => {
           logger.error(error);
         });
     }
-  }, []);
+  }, [loadEntries]);
 
   const closeDialog = () => {
     setDialogContent(null);

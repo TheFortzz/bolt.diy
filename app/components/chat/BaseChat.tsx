@@ -111,7 +111,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const [modelList, setModelList] = useState(MODEL_LIST);
     const [isModelSettingsCollapsed, setIsModelSettingsCollapsed] = useState(false);
     const [isListening, setIsListening] = useState(false);
-    const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
+    const [recognition, setRecognition] = useState<any>(null);
     const [transcript, setTranscript] = useState('');
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const FORTZ_PROMPT_COST = 10;
@@ -173,15 +173,15 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       });
 
       if (typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
+        const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        const recognitionInstance = new SpeechRecognitionAPI();
+        recognitionInstance.continuous = true;
+        recognitionInstance.interimResults = true;
 
-        recognition.onresult = (event) => {
+        recognitionInstance.onresult = (event: any) => {
           const transcript = Array.from(event.results)
-            .map((result) => result[0])
-            .map((result) => result.transcript)
+            .map((result: any) => result[0])
+            .map((result: any) => result.transcript)
             .join('');
 
           setTranscript(transcript);
@@ -194,12 +194,12 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
           }
         };
 
-        recognition.onerror = (event) => {
+        recognitionInstance.onerror = (event: any) => {
           console.error('Speech recognition error:', event.error);
           setIsListening(false);
         };
 
-        setRecognition(recognition);
+        setRecognition(recognitionInstance);
       }
     }, []);
 

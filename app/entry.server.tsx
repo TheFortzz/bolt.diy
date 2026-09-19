@@ -26,7 +26,7 @@ export default async function handleRequest(
 
   const body = new ReadableStream({
     start(controller) {
-      const head = renderHeadToString({ request, remixContext, Head });
+      const head = renderHeadToString({ request, remixContext: remixContext as any, Head });
 
       controller.enqueue(
         new Uint8Array(

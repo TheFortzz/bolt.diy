@@ -24,7 +24,21 @@ export interface ChatHistoryItem {
 
 const persistenceEnabled = !import.meta.env.VITE_DISABLE_PERSISTENCE;
 
-export const db = persistenceEnabled ? await openDatabase() : undefined;
+export let db: IDBDatabase | undefined = undefined;
+
+export const dbPromise: Promise<IDBDatabase | undefined> = (async () => {
+  if (typeof window === 'undefined' || !persistenceEnabled) {
+    return undefined;
+  }
+
+  try {
+    db = await openDatabase();
+    return db;
+  } catch (error) {
+    console.error('Failed to open database:', error);
+    return undefined;
+  }
+})();
 
 export const chatId = atom<string | undefined>(undefined);
 export const description = atom<string | undefined>(undefined);
@@ -39,53 +53,56 @@ export function useChatHistory() {
   const [urlId, setUrlId] = useState<string | undefined>();
 
   useEffect(() => {
-    if (!db) {
-      setReady(true);
+    dbPromise.then((database) => {
+      if (!database) {
+        setReady(true);
 
-      if (persistenceEnabled) {
-        toast.error('Chat persistence is unavailable');
+        if (persistenceEnabled) {
+          toast.error('Chat persistence is unavailable');
+        }
+
+        return;
       }
 
-      return;
-    }
+      if (mixedId) {
+        getMessages(database, mixedId)
+          .then((storedMessages) => {
+            if (storedMessages && storedMessages.messages.length > 0) {
+              const rewindId = searchParams.get('rewindTo');
+              const filteredMessages = rewindId
+                ? storedMessages.messages.slice(0, storedMessages.messages.findIndex((m) => m.id === rewindId) + 1)
+                : storedMessages.messages;
 
-    if (mixedId) {
-      getMessages(db, mixedId)
-        .then((storedMessages) => {
-          if (storedMessages && storedMessages.messages.length > 0) {
-            const rewindId = searchParams.get('rewindTo');
-            const filteredMessages = rewindId
-              ? storedMessages.messages.slice(0, storedMessages.messages.findIndex((m) => m.id === rewindId) + 1)
-              : storedMessages.messages;
+              setInitialMessages(filteredMessages);
+              setUrlId(storedMessages.urlId);
+              description.set(storedMessages.description);
+              chatId.set(storedMessages.id);
+            } else {
+              navigate('/', { replace: true });
+            }
 
-            setInitialMessages(filteredMessages);
-            setUrlId(storedMessages.urlId);
-            description.set(storedMessages.description);
-            chatId.set(storedMessages.id);
-          } else {
-            navigate('/', { replace: true });
-          }
-
-          setReady(true);
-        })
-        .catch((error) => {
-          toast.error(error.message);
-        });
-    }
+            setReady(true);
+          })
+          .catch((error) => {
+            toast.error(error.message);
+          });
+      }
+    });
   }, []);
 
   return {
     ready: !mixedId || ready,
     initialMessages,
     storeMessageHistory: async (messages: Message[]) => {
-      if (!db || messages.length === 0) {
+      const activeDb = db || (await dbPromise);
+      if (!activeDb || messages.length === 0) {
         return;
       }
 
       const { firstArtifact } = workbenchStore;
 
       if (!urlId && firstArtifact?.id) {
-        const urlId = await getUrlId(db, firstArtifact.id);
+        const urlId = await getUrlId(activeDb, firstArtifact.id);
 
         navigateChat(urlId);
         setUrlId(urlId);
@@ -96,7 +113,7 @@ export function useChatHistory() {
       }
 
       if (initialMessages.length === 0 && !chatId.get()) {
-        const nextId = await getNextId(db);
+        const nextId = await getNextId(activeDb);
 
         chatId.set(nextId);
 
@@ -105,15 +122,16 @@ export function useChatHistory() {
         }
       }
 
-      await setMessages(db, chatId.get() as string, messages, urlId, description.get());
+      await setMessages(activeDb, chatId.get() as string, messages, urlId, description.get());
     },
     duplicateCurrentChat: async (listItemId: string) => {
-      if (!db || (!mixedId && !listItemId)) {
+      const activeDb = db || (await dbPromise);
+      if (!activeDb || (!mixedId && !listItemId)) {
         return;
       }
 
       try {
-        const newId = await duplicateChat(db, mixedId || listItemId);
+        const newId = await duplicateChat(activeDb, mixedId || listItemId);
         navigate(`/chat/${newId}`);
         toast.success('Chat duplicated successfully');
       } catch (error) {
@@ -122,12 +140,13 @@ export function useChatHistory() {
       }
     },
     importChat: async (description: string, messages: Message[]) => {
-      if (!db) {
+      const activeDb = db || (await dbPromise);
+      if (!activeDb) {
         return;
       }
 
       try {
-        const newId = await createChatFromMessages(db, description, messages);
+        const newId = await createChatFromMessages(activeDb, description, messages);
         window.location.href = `/chat/${newId}`;
         toast.success('Chat imported successfully');
       } catch (error) {
@@ -139,11 +158,12 @@ export function useChatHistory() {
       }
     },
     exportChat: async (id = urlId) => {
-      if (!db || !id) {
+      const activeDb = db || (await dbPromise);
+      if (!activeDb || !id) {
         return;
       }
 
-      const chat = await getMessages(db, id);
+      const chat = await getMessages(activeDb, id);
       const chatData = {
         messages: chat.messages,
         description: chat.description,
