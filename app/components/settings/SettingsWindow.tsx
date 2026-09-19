@@ -1,6 +1,6 @@
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { motion } from 'framer-motion';
-import { useState, type ReactElement } from 'react';
+import { useState, useEffect, type ReactElement } from 'react';
 import { classNames } from '~/utils/classNames';
 import { DialogTitle, dialogVariants, dialogBackdropVariants } from '~/components/ui/Dialog';
 import { IconButton } from '~/components/ui/IconButton';
@@ -15,14 +15,21 @@ import ConnectionsTab from './connections/ConnectionsTab';
 interface SettingsProps {
   open: boolean;
   onClose: () => void;
+  initialTab?: TabType;
 }
 
 type TabType = 'chat-history' | 'providers' | 'features' | 'debug' | 'connection';
 
 // Providers that support base URL configuration
-export const SettingsWindow = ({ open, onClose }: SettingsProps) => {
+export const SettingsWindow = ({ open, onClose, initialTab = 'chat-history' }: SettingsProps) => {
   const { debug } = useSettings();
-  const [activeTab, setActiveTab] = useState<TabType>('chat-history');
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab);
+
+  useEffect(() => {
+    if (open && initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [open, initialTab]);
 
   const tabs: { id: TabType; label: string; icon: string; component?: ReactElement }[] = [
     { id: 'chat-history', label: 'Chat History', icon: 'i-ph:book', component: <ChatHistoryTab /> },

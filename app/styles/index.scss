@@ -7,17 +7,20 @@
 @use 'components/editor.scss';
 @use 'components/toast.scss';
 
+@import url('https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Lilita+One&family=Anton&display=swap');
+
 html,
 body {
   height: 100%;
   width: 100%;
-  background-color: #1730b8 !important;
+  background-color: #101e74 !important;
   background-image: none !important;
   color: #ffffff;
+  overflow: hidden;
 }
 
 :root {
-  --thefortz-blue: #1730b8;
+  --thefortz-blue: #101e74;
   --thefortz-orange: #e26e03;
   --thefortz-purple: #8340ed;
   --thefortz-green: #22c55e;
@@ -25,5 +28,3 @@ body {
   --secondary-color: #8340ed;
   --accent-color: #22c55e;
 }
-
-

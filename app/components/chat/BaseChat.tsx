@@ -21,6 +21,8 @@ import { ExportChatButton } from '~/components/chat/chatExportAndImport/ExportCh
 import { ImportButtons } from '~/components/chat/chatExportAndImport/ImportButtons';
 import { ExamplePrompts } from '~/components/chat/ExamplePrompts';
 import GitCloneButton from './GitCloneButton';
+import { SettingsWindow } from '~/components/settings/SettingsWindow';
+import { HeaderActionButtons } from '~/components/header/HeaderActionButtons.client';
 
 import FilePreview from './FilePreview';
 import { ModelSelector } from '~/components/chat/ModelSelector';
@@ -109,6 +111,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const [isListening, setIsListening] = useState(false);
     const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
     const [transcript, setTranscript] = useState('');
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
     useEffect(() => {
       console.log(transcript);
@@ -280,20 +283,25 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         data-chat-visible={showChat}
       >
         <ClientOnly>{() => <Menu />}</ClientOnly>
-        <div ref={scrollRef} className="flex flex-col lg:flex-row overflow-y-auto w-full h-full">
-          <div className={classNames(styles.Chat, 'flex flex-col flex-grow lg:min-w-[var(--chat-min-width)] h-full')}>
+        <div ref={scrollRef} className="flex flex-col lg:flex-row overflow-y-auto w-full h-full lg:pl-[260px]">
+          <div className={classNames(styles.Chat, 'flex flex-col flex-grow lg:min-w-[var(--chat-min-width)] h-full relative')}>
+            {chatStarted && (
+              <div className="absolute top-3 right-4 z-20">
+                <ClientOnly>{() => <HeaderActionButtons />}</ClientOnly>
+              </div>
+            )}
             {!chatStarted && (
-              <div id="intro" className="mt-[20vh] mx-auto text-center px-4 lg:px-0" style={{ maxWidth: '800px' }}>
+              <div id="intro" className="mt-[18vh] mx-auto text-center px-4 lg:px-0 select-none" style={{ maxWidth: '840px' }}>
                 <h1
                   className="animate-fade-in"
                   style={{
-                    fontFamily: "'Lilita One', 'Anton', cursive, sans-serif",
-                    fontSize: 'clamp(28px, 5vw, 56px)',
-                    fontWeight: 900,
+                    fontFamily: "'Luckiest Guy', cursive, sans-serif",
+                    fontSize: 'clamp(32px, 5.8vw, 62px)',
+                    fontWeight: 400,
                     letterSpacing: '0.04em',
-                    lineHeight: 1.15,
+                    lineHeight: 1.12,
                     color: 'rgb(0, 248, 255)',
-                    textShadow: '0 0 30px rgba(0, 248, 255, 0.5), 0 0 60px rgba(0, 248, 255, 0.2)',
+                    textShadow: '0 4px 0 #0f1e78, 0 8px 0 #091350, 0 10px 25px rgba(0, 248, 255, 0.45)',
                     animation: 'fortz-text-glow 3s ease-in-out infinite alternate',
                   }}
                 >
@@ -301,8 +309,14 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 </h1>
                 <style>{`
                   @keyframes fortz-text-glow {
-                    0% { text-shadow: 0 0 20px rgba(0,248,255,0.4), 0 0 40px rgba(0,248,255,0.15); }
-                    100% { text-shadow: 0 0 40px rgba(0,248,255,0.7), 0 0 80px rgba(0,248,255,0.3), 0 4px 16px rgba(0,248,255,0.2); }
+                    0% {
+                      text-shadow: 0 4px 0 #0f1e78, 0 8px 0 #091350, 0 10px 25px rgba(0, 248, 255, 0.4);
+                      transform: translateY(0);
+                    }
+                    100% {
+                      text-shadow: 0 4px 0 #0f1e78, 0 8px 0 #091350, 0 14px 40px rgba(0, 248, 255, 0.75), 0 0 60px rgba(0, 248, 255, 0.35);
+                      transform: translateY(-2px);
+                    }
                   }
                 `}</style>
               </div>
@@ -326,12 +340,19 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               </ClientOnly>
               <div
                 className={classNames(
-                  'bg-bolt-elements-background-depth-2 p-3 rounded-lg border border-bolt-elements-borderColor relative w-full mx-auto z-prompt mb-6',
+                  'p-3.5 rounded-2xl relative w-full mx-auto z-prompt mb-6 transition-all duration-300',
                   {
                     'sticky bottom-2': chatStarted,
                   },
                 )}
-                style={{ maxWidth: chatStarted ? '37rem' : '52rem' }}
+                style={{
+                  maxWidth: chatStarted ? '42rem' : '54rem',
+                  background: 'linear-gradient(180deg, rgba(28, 54, 186, 0.95) 0%, rgba(16, 32, 120, 0.98) 100%)',
+                  boxShadow: '0 16px 40px -6px rgba(0, 0, 0, 0.65), 0 8px 16px -4px rgba(0, 0, 0, 0.5), inset 0 1.5px 0 rgba(255, 255, 255, 0.35), inset 0 -3px 0 rgba(0, 0, 0, 0.45)',
+                  border: '1px solid rgba(255, 255, 255, 0.25)',
+                  borderTop: '1.5px solid rgba(255, 255, 255, 0.4)',
+                  borderBottom: '2.5px solid rgba(0, 0, 0, 0.6)',
+                }}
               >
                 <svg className={classNames(styles.PromptEffectContainer)}>
                   <defs>
@@ -361,7 +382,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 </svg>
                 <div>
                   <div className={isModelSettingsCollapsed ? 'hidden' : ''}>
-                    {/* Hidden model selector — auto-configured, not shown to users */}
+                    {/* Hidden model selector — auto-configured */}
                     <div className="hidden">
                       <ModelSelector
                         key={provider?.name + ':' + modelList.length}
@@ -373,26 +394,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         providerList={providerList || PROVIDER_LIST}
                         apiKeys={apiKeys}
                       />
-                    </div>
-                    {/* Clean "Add Your Own" API key button */}
-                    <div className="mb-2 flex items-center gap-2">
-                      <button
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white/90 border border-white/20 bg-white/10 hover:bg-white/20 transition-all cursor-pointer"
-                        onClick={() => {
-                          const key = prompt('Enter your API key (OpenAI-compatible):');
-                          if (key && key.trim()) {
-                            const newApiKeys = { ...apiKeys, OpenAILike: key.trim() };
-                            setApiKeys(newApiKeys);
-                            Cookies.set('apiKeys', JSON.stringify(newApiKeys));
-                          }
-                        }}
-                      >
-                        <div className="i-ph:key text-sm" />
-                        <span>Add Your Own</span>
-                      </button>
-                      {apiKeys.OpenAILike && (
-                        <span className="text-[10px] text-green-400 font-medium">✓ Key set</span>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -557,15 +558,28 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               </div>
             </div>
             {!chatStarted && (
-              <div className="flex justify-center gap-2">
+              <div className="flex justify-center items-center gap-2.5 flex-wrap max-w-3xl mx-auto mt-2 px-4 select-none">
                 {ImportButtons(importChat)}
                 <GitCloneButton importChat={importChat} />
+                <button
+                  onClick={() => setIsSettingsOpen(true)}
+                  className="px-4 py-2 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-prompt-background text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-3 transition-all flex items-center gap-2 cursor-pointer text-sm font-semibold shadow-md active:translate-y-0.5"
+                  title="Configure Claude, OpenAI, Ollama and other AI providers"
+                >
+                  <div className="i-ph:gear-six-fill text-base text-cyan-300" />
+                  <span>Configure AI / Add Your Own</span>
+                </button>
               </div>
             )}
 
           </div>
           <ClientOnly>{() => <Workbench chatStarted={chatStarted} isStreaming={isStreaming} />}</ClientOnly>
         </div>
+        <SettingsWindow
+          open={isSettingsOpen}
+          initialTab="providers"
+          onClose={() => setIsSettingsOpen(false)}
+        />
       </div>
     );
 

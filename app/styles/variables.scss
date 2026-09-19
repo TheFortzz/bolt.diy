@@ -4,10 +4,10 @@
   --bolt-elements-borderColorActive: #38bdf8;
 
   /* Vibrant TheFortz palette — bright blue base with purple/orange/green accents */
-  --bolt-elements-bg-depth-1: #1730b8;
-  --bolt-elements-bg-depth-2: #2244d4;
-  --bolt-elements-bg-depth-3: #1e3cc0;
-  --bolt-elements-bg-depth-4: rgba(255, 255, 255, 0.15);
+  --bolt-elements-bg-depth-1: #101e74;
+  --bolt-elements-bg-depth-2: #162a9c;
+  --bolt-elements-bg-depth-3: #1d37ba;
+  --bolt-elements-bg-depth-4: rgba(255, 255, 255, 0.12);
 
   --bolt-elements-textPrimary: #ffffff;
   --bolt-elements-textSecondary: #e0f2fe;
@@ -111,10 +111,10 @@
   --bolt-elements-borderColorActive: #38bdf8;
 
   /* Vibrant TheFortz palette — bright blue base with purple/orange/green accents */
-  --bolt-elements-bg-depth-1: #1730b8;
-  --bolt-elements-bg-depth-2: #2244d4;
-  --bolt-elements-bg-depth-3: #1e3cc0;
-  --bolt-elements-bg-depth-4: rgba(255, 255, 255, 0.15);
+  --bolt-elements-bg-depth-1: #101e74;
+  --bolt-elements-bg-depth-2: #162a9c;
+  --bolt-elements-bg-depth-3: #1d37ba;
+  --bolt-elements-bg-depth-4: rgba(255, 255, 255, 0.12);
 
   --bolt-elements-textPrimary: #ffffff;
   --bolt-elements-textSecondary: #e0f2fe;
@@ -217,7 +217,7 @@
  * Hierarchy: Element Token -> (Element Token | Color Tokens) -> Primitives
  */
 :root {
-  --header-height: 54px;
+  --header-height: 0px;
   --chat-max-width: 37rem;
   --chat-min-width: 640px;
   --workbench-width: min(calc(100% - var(--chat-min-width)), 1536px);
