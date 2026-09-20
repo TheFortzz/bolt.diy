@@ -4,6 +4,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { type ChatHistoryItem } from '~/lib/persistence';
 import WithTooltip from '~/components/ui/Tooltip';
 import { useEditChatDescription } from '~/lib/hooks';
+import { getProjectIcon } from '~/utils/projectIcons';
 
 interface HistoryItemProps {
   item: ChatHistoryItem;
@@ -52,8 +53,9 @@ export function HistoryItem({ item, onDelete, onDuplicate, exportChat }: History
       {editing ? (
         renderDescriptionForm
       ) : (
-        <a href={`/chat/${item.urlId}`} className="flex w-full relative truncate block">
-          {currentDescription}
+        <a href={`/chat/${item.urlId}`} className="flex items-center gap-1.5 w-full relative truncate block no-underline text-inherit">
+          <div className={`${getProjectIcon(currentDescription).icon} ${getProjectIcon(currentDescription).color} text-xs flex-shrink-0`} />
+          <span className="truncate">{currentDescription}</span>
           <div
             className={classNames(
               'absolute right-0 z-1 top-0 bottom-0 bg-gradient-to-l from-bolt-elements-background-depth-2 group-hover:from-bolt-elements-background-depth-3 box-content pl-3 to-transparent w-10 flex justify-end group-hover:w-22 group-hover:from-99%',

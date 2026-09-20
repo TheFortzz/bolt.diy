@@ -101,28 +101,54 @@ export function useChatHistory() {
 
       const { firstArtifact } = workbenchStore;
 
-      if (!urlId && firstArtifact?.id) {
-        const urlId = await getUrlId(activeDb, firstArtifact.id);
-
-        navigateChat(urlId);
-        setUrlId(urlId);
+      // Extract title from firstArtifact, or generate a punchy title from first user message
+      let currentDesc = description.get();
+      if (!currentDesc || currentDesc === 'Untitled Project') {
+        if (firstArtifact?.title) {
+          currentDesc = firstArtifact.title;
+        } else {
+          const firstUserMsg = messages.find((m) => m.role === 'user')?.content;
+          if (firstUserMsg && typeof firstUserMsg === 'string') {
+            const clean = firstUserMsg
+              .replace(/<[^>]+>/g, '')
+              .replace(/\n+/g, ' ')
+              .trim()
+              .replace(/\s+/g, ' ');
+            if (clean) {
+              currentDesc = clean.length > 36 ? clean.slice(0, 36).trim() + '...' : clean;
+            }
+          }
+        }
+        if (currentDesc) {
+          description.set(currentDesc);
+        }
+      } else if (firstArtifact?.title && currentDesc !== firstArtifact.title) {
+        // Upgrade title if firstArtifact provides a formal game/app name
+        description.set(firstArtifact.title);
+        currentDesc = firstArtifact.title;
       }
 
-      if (!description.get() && firstArtifact?.title) {
-        description.set(firstArtifact?.title);
+      let activeUrlId = urlId;
+      if (!activeUrlId && firstArtifact?.id) {
+        activeUrlId = await getUrlId(activeDb, firstArtifact.id);
+        navigateChat(activeUrlId);
+        setUrlId(activeUrlId);
       }
 
       if (initialMessages.length === 0 && !chatId.get()) {
         const nextId = await getNextId(activeDb);
-
         chatId.set(nextId);
 
-        if (!urlId) {
-          navigateChat(nextId);
+        if (!activeUrlId) {
+          activeUrlId = await getUrlId(activeDb, nextId);
+          navigateChat(activeUrlId);
+          setUrlId(activeUrlId);
         }
       }
 
-      await setMessages(activeDb, chatId.get() as string, messages, urlId, description.get());
+      const effectiveId = (chatId.get() || activeUrlId) as string;
+      const effectiveUrlId = activeUrlId || effectiveId;
+      await setMessages(activeDb, effectiveId, messages, effectiveUrlId, currentDesc || 'Project ' + effectiveId);
     },
     duplicateCurrentChat: async (listItemId: string) => {
       const activeDb = db || (await dbPromise);

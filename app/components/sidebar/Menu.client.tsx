@@ -13,6 +13,7 @@ import { useStore } from '@nanostores/react';
 import { isSidebarOpen, isGalleryOpen } from '~/lib/stores/sidebar';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { authStore, isAuthModalOpen, appwriteLogout } from '~/lib/auth/appwrite';
+import { getProjectIcon } from '~/utils/projectIcons';
 
 const menuVariants = {
   closed: {
@@ -58,16 +59,26 @@ export const Menu = () => {
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
 
   const loadEntries = useCallback(() => {
+    const processItems = (items: ChatHistoryItem[]) => {
+      return items
+        .filter((item) => Boolean(item.urlId || item.id))
+        .map((item) => ({
+          ...item,
+          urlId: item.urlId || item.id,
+          description: item.description || 'Project ' + (item.urlId || item.id),
+        }));
+    };
+
     if (db) {
       getAll(db)
-        .then((items) => items.filter((item) => item.urlId && item.description))
+        .then(processItems)
         .then(setList)
         .catch((error) => toast.error(error.message));
     } else {
       dbPromise.then((database) => {
         if (database) {
           getAll(database)
-            .then((items) => items.filter((item) => item.urlId && item.description))
+            .then(processItems)
             .then(setList)
             .catch((error) => toast.error(error.message));
         }
@@ -280,14 +291,38 @@ export const Menu = () => {
               </DialogRoot>
             </>
           ) : (
-            <div className="flex flex-col items-center gap-2 pt-2">
-              <div
-                className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-sky-300 transition-colors cursor-pointer"
-                title={`${list.length} Saved Projects`}
+            <div className="flex flex-col items-center gap-1 pt-1 overflow-y-auto no-scrollbar">
+              <button
+                type="button"
+                className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-sky-300 transition-colors cursor-pointer mb-1 border-b border-white/10 pb-1"
+                title={`${list.length} Saved Projects (Click to expand sidebar)`}
                 onClick={() => isSidebarOpen.set(true)}
               >
                 <div className="i-ph:folder-fill text-base text-amber-400" />
-              </div>
+              </button>
+              {list.map((item) => {
+                const projectTitle = item.description || 'Project ' + (item.urlId || item.id);
+                const { icon, color } = getProjectIcon(projectTitle);
+                const isCurrent =
+                  chatId.get() === item.id ||
+                  (item.urlId && typeof window !== 'undefined' && window.location.pathname.includes(item.urlId));
+
+                return (
+                  <a
+                    key={item.id}
+                    href={`/chat/${item.urlId || item.id}`}
+                    title={projectTitle}
+                    className={`w-9 h-9 flex items-center justify-center transition-all cursor-pointer no-underline border flex-shrink-0 ${
+                      isCurrent
+                        ? 'bg-[#1a3050] border-[#38bdf8] text-white shadow-sm'
+                        : 'bg-transparent border-transparent hover:bg-white/10 text-slate-300 hover:text-white'
+                    }`}
+                    style={{ borderRadius: 0 }}
+                  >
+                    <div className={`${icon} ${color} text-base`} />
+                  </a>
+                );
+              })}
             </div>
           )}
         </div>
