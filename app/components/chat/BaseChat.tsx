@@ -443,10 +443,11 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   <GitCloneButton importChat={importChat} />
                   <button
                     onClick={() => setIsSettingsOpen(true)}
-                    className="px-3.5 py-1.5 rounded-lg border border-white/20 bg-[#162a9c]/80 hover:bg-[#1c36ba] text-white transition-all flex items-center gap-2 cursor-pointer text-xs font-bold shadow-sm active:translate-y-0.5 backdrop-blur-sm"
+                    style={{ borderRadius: 0 }}
+                    className="px-3.5 py-1.5 border border-emerald-500/40 bg-[#161f30] hover:bg-[#1f2b42] text-emerald-300 transition-all flex items-center gap-2 cursor-pointer text-xs font-bold shadow-sm active:translate-y-0.5"
                     title="Configure Claude, OpenAI, Ollama and other AI providers"
                   >
-                    <div className="i-ph:gear-six-fill text-sm text-cyan-300" />
+                    <div className="i-ph:gear-six-fill text-sm text-emerald-400" />
                     <span>Configure AI</span>
                   </button>
                 </div>
@@ -454,18 +455,18 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
 
               <div
                 className={classNames(
-                  'p-3.5 rounded-2xl relative w-full mx-auto z-prompt mb-6 transition-all duration-300',
+                  'p-3.5 relative w-full mx-auto z-prompt mb-6 transition-all duration-300',
                   {
                     'sticky bottom-2': chatStarted,
                   },
                 )}
                 style={{
                   maxWidth: chatStarted ? '42rem' : '54rem',
-                  background: 'linear-gradient(180deg, rgba(28, 54, 186, 0.95) 0%, rgba(16, 32, 120, 0.98) 100%)',
-                  boxShadow: '0 16px 40px -6px rgba(0, 0, 0, 0.65), 0 8px 16px -4px rgba(0, 0, 0, 0.5), inset 0 1.5px 0 rgba(255, 255, 255, 0.35), inset 0 -3px 0 rgba(0, 0, 0, 0.45)',
-                  border: '1px solid rgba(255, 255, 255, 0.25)',
-                  borderTop: '1.5px solid rgba(255, 255, 255, 0.4)',
-                  borderBottom: '2.5px solid rgba(0, 0, 0, 0.6)',
+                  borderRadius: 0,
+                  background: '#0d1117',
+                  border: '1px solid #232d3f',
+                  borderTop: '3px solid #10b981',
+                  boxShadow: '0 20px 50px rgba(0, 0, 0, 0.75), 0 0 25px rgba(16, 185, 129, 0.15)',
                 }}
               >
                 <svg className={classNames(styles.PromptEffectContainer)}>
@@ -479,10 +480,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       gradientUnits="userSpaceOnUse"
                       gradientTransform="rotate(-45)"
                     >
-                      <stop offset="0%" stopColor="#b44aff" stopOpacity="0%"></stop>
-                      <stop offset="40%" stopColor="#b44aff" stopOpacity="80%"></stop>
-                      <stop offset="50%" stopColor="#b44aff" stopOpacity="80%"></stop>
-                      <stop offset="100%" stopColor="#b44aff" stopOpacity="0%"></stop>
+                      <stop offset="0%" stopColor="#10b981" stopOpacity="0%"></stop>
+                      <stop offset="40%" stopColor="#10b981" stopOpacity="80%"></stop>
+                      <stop offset="50%" stopColor="#10b981" stopOpacity="80%"></stop>
+                      <stop offset="100%" stopColor="#10b981" stopOpacity="0%"></stop>
                     </linearGradient>
                     <linearGradient id="shine-gradient">
                       <stop offset="0%" stopColor="white" stopOpacity="0%"></stop>
@@ -522,13 +523,19 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 {/* ── TheFortz Prompt Balance & Token HUD ── */}
                 <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-white/10 px-1 select-none">
                   <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-500/20 via-yellow-400/20 to-amber-500/10 border border-yellow-400/40 text-yellow-300 shadow-sm text-xs font-bold tracking-wide">
+                    <div
+                      style={{ borderRadius: 0 }}
+                      className="flex items-center gap-1.5 px-3 py-1 bg-[#161f30] border border-amber-400/50 text-amber-300 shadow-sm text-xs font-bold tracking-wide"
+                    >
                       <span className="text-sm">🪙</span>
                       <span style={{ fontFamily: '"Lilita One", Anton, sans-serif' }}>
                         {fortzBalance.toLocaleString()} FORTZ
                       </span>
                     </div>
-                    <span className="text-[11px] font-semibold text-cyan-200/90 bg-[#101e74] px-2 py-0.5 rounded border border-cyan-400/30">
+                    <span
+                      style={{ borderRadius: 0 }}
+                      className="text-[11px] font-bold text-emerald-300 bg-[#0f241a] px-2 py-0.5 border border-emerald-500/40"
+                    >
                       ⚡ 10 Fortz / Prompt
                     </span>
                   </div>
@@ -537,7 +544,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       href="https://thefortz.me"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[11px] font-bold text-yellow-300 hover:text-yellow-100 transition-colors flex items-center gap-1 hover:underline"
+                      className="text-[11px] font-bold text-amber-400 hover:text-amber-200 transition-colors flex items-center gap-1 hover:underline"
                       title="Refill Fortz tokens on TheFortz"
                     >
                       <span>Refill</span>
@@ -547,7 +554,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 </div>
 
                 {fortzBalance < FORTZ_PROMPT_COST && (
-                  <div className="mb-2.5 px-3 py-1.5 rounded-lg bg-rose-950/80 border border-rose-500/60 text-rose-200 text-xs font-semibold flex items-center justify-between shadow-inner">
+                  <div
+                    style={{ borderRadius: 0 }}
+                    className="mb-2.5 px-3 py-1.5 bg-rose-950/80 border border-rose-500/60 text-rose-200 text-xs font-semibold flex items-center justify-between shadow-inner"
+                  >
                     <div className="flex items-center gap-2">
                       <span className="text-base">⚠️</span>
                       <span>Insufficient Fortz (requires 10 Fortz per prompt). Balance: {fortzBalance}</span>
@@ -556,7 +566,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       href="https://thefortz.me"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="underline text-yellow-300 font-bold hover:text-white"
+                      className="underline text-amber-300 font-bold hover:text-white"
                     >
                       Get Fortz →
                     </a>
@@ -564,8 +574,9 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 )}
 
                 <div
+                  style={{ borderRadius: 0 }}
                   className={classNames(
-                    'relative border border-bolt-elements-borderColor backdrop-blur rounded-lg',
+                    'relative border border-[#232d3f] bg-[#090d16] focus-within:border-emerald-500 transition-colors',
                   )}
                 >
                   <textarea

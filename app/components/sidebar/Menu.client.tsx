@@ -140,36 +140,42 @@ export const Menu = () => {
         animate={open ? 'open' : 'closed'}
         variants={menuVariants}
         style={{ borderRadius: 0 }}
-        className="flex selection-accent flex-col side-menu fixed top-0 left-0 w-[260px] h-full bg-[#162a9c] border-r border-white/15 z-sidebar shadow-2xl text-sm overflow-hidden"
+        className="flex selection-accent flex-col side-menu fixed top-0 left-0 w-[260px] h-full bg-[#0d1117] border-r border-[#10b981]/30 z-sidebar shadow-2xl text-sm overflow-hidden"
       >
         {/* ── Top Header Brand ── */}
-        <div className="flex items-center justify-between px-3.5 py-3 border-b border-white/10 bg-[#101e74]">
+        <div className="flex items-center justify-between px-3.5 py-3 border-b border-emerald-500/20 bg-[#121824]" style={{ borderRadius: 0 }}>
           <a
             href="https://thefortz.me"
-            className="flex items-center gap-2 text-white hover:text-cyan-300 transition-colors no-underline select-none"
+            className="flex items-center gap-2 text-white hover:text-emerald-400 transition-colors no-underline select-none"
             title="Return to TheFortz platform"
           >
-            <img
-              src="/thefortzicon.png"
-              alt="TheFortz"
-              className="w-7 h-7 rounded-lg object-contain"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-            />
+            <div className="w-7 h-7 bg-[#1c2436] border border-emerald-500/40 flex items-center justify-center shadow-md" style={{ borderRadius: 0 }}>
+              <img
+                src="/thefortzicon.png"
+                alt="TheFortz"
+                className="w-5 h-5 object-contain"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+              />
+            </div>
             <span
-              className="text-xl lowercase tracking-tight text-cyan-300"
+              className="text-xl lowercase tracking-tight text-emerald-400"
               style={{
                 fontFamily: "'Kabel', 'Syne', 'Outfit', sans-serif",
                 fontWeight: 900,
                 letterSpacing: '-0.03em',
-                textShadow: '0 2px 12px rgba(0, 248, 255, 0.4)',
+                textShadow: '0 2px 10px rgba(16, 185, 129, 0.4)',
               }}
             >
               studio
             </span>
+            <span className="text-[9px] uppercase font-black px-1.5 py-0.5 bg-purple-900/60 text-purple-300 border border-purple-500/40" style={{ borderRadius: 0 }}>
+              IDE
+            </span>
           </a>
           <button
             onClick={() => isSidebarOpen.set(false)}
-            className="p-1 rounded text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            className="p-1 text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            style={{ borderRadius: 0 }}
             title="Collapse Sidebar"
           >
             <div className="i-ph:sidebar-simple-duotone text-base" />
@@ -178,21 +184,23 @@ export const Menu = () => {
 
         {/* ── Action Buttons: Create, Analytics ── */}
         <div className="p-3 pb-1 flex flex-col gap-1.5 select-none">
-          {/* Create Button */}
+          {/* Create Button — Vibrant Replit Orange */}
           <a
             href="/"
-            className="flex items-center justify-center gap-2 bg-[#e26e03] hover:bg-[#f97316] text-white font-extrabold text-xs uppercase tracking-wider py-2 px-3 rounded-md transition-all shadow-md active:translate-y-0.5 no-underline"
+            style={{ borderRadius: 0 }}
+            className="flex items-center justify-center gap-2 bg-[#f97316] hover:bg-[#ea580c] text-white font-black text-xs uppercase tracking-wider py-2 px-3 transition-all shadow-[0_4px_12px_rgba(249,115,22,0.35)] border border-amber-300/40 active:translate-y-0.5 no-underline"
           >
             <div className="i-ph:plus-bold text-sm" />
             <span>Create New Game</span>
           </a>
 
-          {/* Analytics Button */}
+          {/* Analytics Button — Cyber Green Accent */}
           <button
             onClick={() => setIsAnalyticsOpen(true)}
-            className="flex items-center gap-2 bg-white/10 hover:bg-white/15 text-white/90 font-bold text-xs py-1.5 px-3 rounded-md transition-all border border-white/15 cursor-pointer mt-1"
+            style={{ borderRadius: 0 }}
+            className="flex items-center gap-2 bg-[#161f30] hover:bg-[#1f2b42] text-emerald-400 font-bold text-xs py-1.5 px-3 transition-all border border-emerald-500/40 cursor-pointer mt-1"
           >
-            <div className="i-ph:chart-bar-fill text-cyan-300 text-sm" />
+            <div className="i-ph:chart-bar-fill text-emerald-400 text-sm" />
             <span>Studio Analytics</span>
           </button>
         </div>
@@ -201,7 +209,8 @@ export const Menu = () => {
         <div className="px-3 my-1.5">
           <div className="relative w-full">
             <input
-              className="w-full bg-[#101e74] text-white placeholder-blue-200/50 text-xs px-2.5 py-1.5 rounded-md border border-white/15 focus:outline-none focus:border-cyan-400 transition-all"
+              style={{ borderRadius: 0 }}
+              className="w-full bg-[#121824] text-white placeholder-slate-400 text-xs px-2.5 py-1.5 border border-white/15 focus:outline-none focus:border-emerald-400 transition-all font-mono"
               type="search"
               placeholder="Search projects..."
               onChange={handleSearchChange}
@@ -278,16 +287,17 @@ export const Menu = () => {
         </div>
 
         {/* ── Bottom Section: Login/Signup, Settings, Theme ── */}
-        <div className="border-t border-white/10 bg-[#101e74] p-2.5 flex flex-col gap-2 select-none">
+        <div className="border-t border-emerald-500/20 bg-[#121824] p-2.5 flex flex-col gap-2 select-none" style={{ borderRadius: 0 }}>
           {auth.user ? (
-            <div className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white">
+            <div className="w-full flex items-center justify-between px-2.5 py-2 bg-[#161f30] border border-emerald-500/30 text-xs text-white" style={{ borderRadius: 0 }}>
               <div className="flex items-center gap-2 overflow-hidden">
-                {/* Avatar: show profile photo if available, else gradient initial */}
-                {auth.user.prefs?.photoURL ? (
+                {/* Avatar */}
+                {auth.user.prefs?.photoURL || auth.user.photoURL ? (
                   <img
-                    src={auth.user.prefs.photoURL}
+                    src={auth.user.prefs?.photoURL || auth.user.photoURL}
                     alt={auth.user.name}
-                    className="w-7 h-7 rounded-full object-cover flex-shrink-0 border border-cyan-400/40"
+                    className="w-7 h-7 object-cover flex-shrink-0 border border-emerald-400"
+                    style={{ borderRadius: 0 }}
                     onError={(e) => {
                       const el = e.currentTarget as HTMLImageElement;
                       el.style.display = 'none';
@@ -297,16 +307,19 @@ export const Menu = () => {
                   />
                 ) : null}
                 <div
-                  className="w-7 h-7 rounded-full bg-gradient-to-tr from-cyan-400 to-blue-600 flex items-center justify-center text-white font-black text-[11px] flex-shrink-0"
-                  style={{ display: auth.user.prefs?.photoURL ? 'none' : 'flex' }}
+                  className="w-7 h-7 bg-gradient-to-tr from-emerald-500 to-purple-600 flex items-center justify-center text-white font-black text-[11px] flex-shrink-0"
+                  style={{ borderRadius: 0, display: (auth.user.prefs?.photoURL || auth.user.photoURL) ? 'none' : 'flex' }}
                 >
                   {auth.user.name?.charAt(0).toUpperCase() || 'U'}
                 </div>
                 <div className="flex flex-col min-w-0">
-                  <span className="font-bold truncate text-white leading-tight">
-                    {auth.user.name}
-                  </span>
-                  <span className="text-[10px] text-blue-200/60 truncate leading-tight">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 bg-emerald-400 animate-pulse flex-shrink-0" />
+                    <span className="font-bold truncate text-white leading-tight">
+                      {auth.user.name}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 truncate leading-tight font-mono">
                     {auth.user.email}
                   </span>
                 </div>
@@ -316,7 +329,8 @@ export const Menu = () => {
                   appwriteLogout();
                   toast.info('Signed out of THEFORTZ');
                 }}
-                className="p-1 rounded text-white/60 hover:text-rose-300 hover:bg-white/10 transition-all cursor-pointer flex-shrink-0"
+                className="p-1 text-white/60 hover:text-rose-400 hover:bg-white/10 transition-all cursor-pointer flex-shrink-0"
+                style={{ borderRadius: 0 }}
                 title="Sign out"
               >
                 <div className="i-ph:sign-out-bold text-sm" />
@@ -330,13 +344,14 @@ export const Menu = () => {
                 }
                 isAuthModalOpen.set(true);
               }}
-              className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg bg-gradient-to-r from-cyan-500/20 to-blue-600/20 hover:from-cyan-500/30 hover:to-blue-600/30 border border-cyan-400/40 text-xs font-bold text-cyan-300 hover:text-white transition-all cursor-pointer shadow-sm"
+              style={{ borderRadius: 0 }}
+              className="w-full flex items-center justify-between px-2.5 py-2 bg-gradient-to-r from-emerald-900/50 via-purple-900/40 to-orange-900/40 hover:from-emerald-800/60 hover:to-orange-800/50 border border-emerald-500/50 text-xs font-bold text-emerald-300 hover:text-white transition-all cursor-pointer shadow-sm"
             >
               <div className="flex items-center gap-2">
-                <div className="i-ph:user-circle-bold text-lg text-cyan-300" />
+                <div className="i-ph:user-circle-bold text-lg text-emerald-400" />
                 <span>Sign In / Register</span>
               </div>
-              <div className="i-ph:arrow-square-out text-cyan-300 text-xs" />
+              <div className="i-ph:arrow-square-out text-emerald-400 text-xs" />
             </button>
           )}
 
@@ -346,10 +361,11 @@ export const Menu = () => {
                 setSettingsTab('providers');
                 setIsSettingsOpen(true);
               }}
-              className="flex items-center gap-1.5 text-xs text-white/80 hover:text-white transition-colors cursor-pointer py-1 px-1.5 rounded hover:bg-white/10"
+              style={{ borderRadius: 0 }}
+              className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-white transition-colors cursor-pointer py-1 px-1.5 hover:bg-white/10"
               title="Configure AI Providers"
             >
-              <div className="i-ph:gear-six text-base text-cyan-300" />
+              <div className="i-ph:gear-six text-base text-emerald-400" />
               <span>Settings</span>
             </button>
             <ThemeSwitch />

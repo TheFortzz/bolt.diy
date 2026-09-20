@@ -105,10 +105,11 @@ ${file.content}
           onClick(e);
         }}
         title="Clone A Git Repo"
-        className="px-4 py-2 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-prompt-background text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-3 transition-all flex items-center gap-2"
+        style={{ borderRadius: 0 }}
+        className="px-3 py-1.5 border border-purple-500/40 bg-[#161f30] hover:bg-[#1f2b42] text-purple-300 transition-all flex items-center gap-2 cursor-pointer text-xs font-bold shadow-sm active:translate-y-0.5"
       >
-        <span className="i-ph:git-branch" />
-        Clone A Git Repo
+        <span className="i-ph:git-branch text-purple-400 text-sm" />
+        Clone Git Repo
       </button>
     </WithTooltip>
   );

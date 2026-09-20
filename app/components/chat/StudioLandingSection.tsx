@@ -100,22 +100,38 @@ export function StudioLandingSection({
   return (
     <div className="w-full flex flex-col items-center select-none pb-12">
       {/* ── 1. Hero Brand Header ── */}
-      <div className="text-center px-4 pt-10 pb-4 max-w-4xl mx-auto">
+      <div className="text-center px-4 pt-8 pb-4 max-w-4xl mx-auto">
+        {/* Replit-style Developer Engine Badge */}
+        <div className="flex items-center justify-center gap-2 mb-4">
+          <span
+            style={{ borderRadius: 0 }}
+            className="px-2.5 py-0.5 text-[10px] font-mono font-bold tracking-widest uppercase bg-[#131f33] text-emerald-400 border border-emerald-500/40 flex items-center gap-1.5 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
+          >
+            <span className="w-1.5 h-1.5 bg-emerald-400 animate-ping" />
+            <span>AI GAME STUDIO • READY</span>
+          </span>
+          <span
+            style={{ borderRadius: 0 }}
+            className="px-2 py-0.5 text-[10px] font-mono font-bold tracking-widest uppercase bg-[#22173b] text-purple-300 border border-purple-500/40"
+          >
+            v2.4 IDE
+          </span>
+        </div>
 
-        {/* Hero Title with Luckiest Guy Font */}
+        {/* Hero Title */}
         <h1
-          className="animate-fade-in leading-tight tracking-wider uppercase text-cyan-300 mb-3"
+          className="animate-fade-in leading-tight tracking-wider uppercase text-white mb-3"
           style={{
             fontFamily: "'Luckiest Guy', cursive, sans-serif",
             fontSize: 'clamp(34px, 6vw, 64px)',
-            textShadow: '0 4px 0 #0a1450, 0 8px 0 #070e38, 0 12px 30px rgba(0, 248, 255, 0.45)',
+            textShadow: '0 4px 0 #052e16, 0 8px 0 #021a0d, 0 12px 30px rgba(16, 185, 129, 0.35)',
           }}
         >
           Make Your Game Possible
         </h1>
 
         {/* Hero Subtitle */}
-        <p className="text-sm sm:text-base text-blue-100/85 max-w-2xl mx-auto leading-relaxed font-medium">
+        <p className="text-sm sm:text-base text-slate-300 max-w-2xl mx-auto leading-relaxed font-medium font-sans">
           Create, code, and test complete 2D &amp; 3D browser games with instant AI code generation.
           100% free client-side WebAssembly hosting with 1-click publishing to the live TheFortz feed.
         </p>

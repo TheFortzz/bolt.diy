@@ -89,10 +89,11 @@ export const ImportFolderButton: React.FC<ImportFolderButtonProps> = ({ classNam
           const input = document.getElementById('folder-import');
           input?.click();
         }}
+        style={{ borderRadius: 0 }}
         className={className}
         disabled={isLoading}
       >
-        <div className="i-ph:upload-simple" />
+        <div className="i-ph:upload-simple text-emerald-400 text-sm" />
         {isLoading ? 'Importing...' : 'Import Folder'}
       </button>
     </>
