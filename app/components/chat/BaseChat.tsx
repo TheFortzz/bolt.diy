@@ -397,7 +397,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
 
     const isWorkbenchActive = showWorkbench && !isSmallViewport;
     const sidebarWidth = sidebarOpen ? 200 : 54;
-    const chatCompactWidth = 340;
+    const chatCompactWidth = 420;
 
     const baseChat = (
       <div
@@ -428,7 +428,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               styles.Chat,
               'flex flex-col min-h-full relative transition-[width,max-width] duration-200 ease-in-out',
               isWorkbenchActive
-                ? 'w-[340px] max-w-[340px] min-w-[340px] flex-shrink-0 border-r border-purple-500/20'
+                ? 'w-[420px] max-w-[420px] min-w-[420px] flex-shrink-0 border-r border-purple-500/20'
                 : 'w-full flex-grow',
             )}
           >
@@ -445,7 +445,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       ref={messageRef}
                       className={classNames(
                         'flex flex-col w-full flex-1 pb-4 mx-auto z-1',
-                        isWorkbenchActive ? 'max-w-full px-1' : 'max-w-[65rem]',
+                        isWorkbenchActive ? 'max-w-full px-1' : 'max-w-[76rem]',
                       )}
                       messages={messages}
                       isStreaming={isStreaming}
@@ -458,7 +458,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 <div
                   className="w-full mx-auto px-2 sm:px-0 my-auto pt-2 pb-1"
                   style={{
-                    maxWidth: isWorkbenchActive ? '100%' : '65rem',
+                    maxWidth: isWorkbenchActive ? '100%' : '76rem',
                   }}
                 >
                   <StudioLandingSection
@@ -479,7 +479,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   },
                 )}
                 style={{
-                  maxWidth: isWorkbenchActive ? '100%' : '65rem',
+                  maxWidth: isWorkbenchActive ? '100%' : '76rem',
                 }}
               >
                 <div className={isModelSettingsCollapsed ? 'hidden' : ''}>
