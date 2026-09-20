@@ -113,6 +113,8 @@ export const ChatImpl = memo(
 
     const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
 
+    const scrollToBottomRef = useRef<((smooth?: boolean) => void) | null>(null);
+
     const { messages, isLoading, input, handleInputChange, setInput, stop, append } = useChat({
       api: '/api/chat',
       body: {
@@ -120,12 +122,15 @@ export const ChatImpl = memo(
       },
       onError: (error) => {
         logger.error('Request failed\n\n', error);
+        workbenchStore.finishPendingActions();
         toast.error(
           'There was an error processing your request: ' + (error.message ? error.message : 'No details were returned'),
         );
       },
       onFinish: (message) => {
         logger.debug('Finished streaming');
+        workbenchStore.finishPendingActions();
+        scrollToBottomRef.current?.(true);
         if (messages.length > 0) {
           storeMessageHistory(messages).catch((e) => console.warn('Final save error:', e));
         }
@@ -163,6 +168,7 @@ export const ChatImpl = memo(
       stop();
       chatStore.setKey('aborted', true);
       workbenchStore.abortAllActions();
+      workbenchStore.finishPendingActions();
     };
 
     useEffect(() => {
@@ -299,7 +305,14 @@ export const ChatImpl = memo(
       [],
     );
 
-    const [messageRef, scrollRef] = useSnapScroll();
+    const [messageRef, scrollRef, scrollToBottom] = useSnapScroll(isLoading);
+    scrollToBottomRef.current = scrollToBottom;
+
+    useEffect(() => {
+      if (messages.length > 0) {
+        scrollToBottom(true);
+      }
+    }, [messages.length, scrollToBottom]);
 
     useEffect(() => {
       const storedApiKeys = Cookies.get('apiKeys');

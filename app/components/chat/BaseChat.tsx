@@ -426,7 +426,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
           <div
             className={classNames(
               styles.Chat,
-              'flex flex-col h-full relative transition-[width,max-width] duration-200 ease-in-out',
+              'flex flex-col min-h-full relative transition-[width,max-width] duration-200 ease-in-out',
               isWorkbenchActive
                 ? 'w-[340px] max-w-[340px] min-w-[340px] flex-shrink-0 border-r border-purple-500/20'
                 : 'w-full flex-grow',
@@ -434,7 +434,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
           >
             <div
               className={classNames('pt-2 px-2 sm:px-4 flex-1 flex flex-col', {
-                'h-full': chatStarted,
+                'min-h-full': chatStarted,
                 'justify-center items-center pb-8': !chatStarted,
               })}
             >

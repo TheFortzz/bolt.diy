@@ -142,11 +142,11 @@ export class ActionRunner {
         status: isStreaming ? 'running' : action.abortSignal.aborted ? 'aborted' : 'complete',
       });
     } catch (error) {
-      this.#updateAction(actionId, { status: 'failed', error: 'Action failed' });
+      this.#updateAction(actionId, {
+        status: action.abortSignal.aborted ? 'aborted' : 'failed',
+        error: (error as Error)?.message || 'Action failed',
+      });
       logger.error(`[${action.type}]:Action failed\n\n`, error);
-
-      // re-throw the error to be caught in the promise chain
-      throw error;
     }
   }
 
@@ -156,17 +156,52 @@ export class ActionRunner {
     }
 
     const shell = this.#shellTerminal();
-    await shell.ready();
+    const readyTimeout = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Shell terminal ready timeout')), 15000);
+    });
+    await Promise.race([shell.ready(), readyTimeout]);
 
     if (!shell || !shell.terminal || !shell.process) {
       unreachable('Shell terminal not found');
     }
 
-    const resp = await shell.executeCommand(this.runnerId.get(), action.content);
-    logger.debug(`${action.type} Shell Response: [exit code:${resp?.exitCode}]`);
+    if (action.abortSignal.aborted) {
+      throw new Error('Action was aborted');
+    }
 
-    if (resp?.exitCode != 0) {
-      throw new Error('Failed To Execute Shell Command');
+    let timer: any;
+    const abortPromise = new Promise<never>((_, reject) => {
+      action.abortSignal.addEventListener('abort', () => {
+        try {
+          shell.terminal?.input('\x03');
+        } catch (e) {}
+        reject(new Error('Action was aborted'));
+      });
+    });
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        try {
+          shell.terminal?.input('\x03');
+        } catch (e) {}
+        reject(new Error('Shell command execution timed out after 90 seconds'));
+      }, 90000);
+    });
+
+    try {
+      const resp = await Promise.race([
+        shell.executeCommand(this.runnerId.get(), action.content),
+        abortPromise,
+        timeoutPromise,
+      ]);
+
+      logger.debug(`${action.type} Shell Response: [exit code:${resp?.exitCode}]`);
+
+      if (resp?.exitCode != 0) {
+        throw new Error('Failed To Execute Shell Command');
+      }
+    } finally {
+      clearTimeout(timer);
     }
   }
 
@@ -180,7 +215,10 @@ export class ActionRunner {
     }
 
     const shell = this.#shellTerminal();
-    await shell.ready();
+    const readyTimeout = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Shell terminal ready timeout')), 15000);
+    });
+    await Promise.race([shell.ready(), readyTimeout]);
 
     if (!shell || !shell.terminal || !shell.process) {
       unreachable('Shell terminal not found');
@@ -201,7 +239,11 @@ export class ActionRunner {
       unreachable('Expected file action');
     }
 
-    const webcontainer = await this.#webcontainer;
+    const wcTimeout = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('WebContainer initialization timed out')), 20000);
+    });
+
+    const webcontainer = await Promise.race([this.#webcontainer, wcTimeout]);
 
     let folder = nodePath.dirname(action.filePath);
 
@@ -222,6 +264,7 @@ export class ActionRunner {
       logger.debug(`File written ${action.filePath}`);
     } catch (error) {
       logger.error('Failed to write file\n\n', error);
+      throw error;
     }
   }
   #updateAction(id: string, newState: ActionStateUpdate) {

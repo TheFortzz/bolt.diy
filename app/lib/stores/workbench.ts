@@ -229,7 +229,30 @@ export class WorkbenchStore {
   }
 
   abortAllActions() {
-    // TODO: what do we wanna do and how do we wanna recover from this?
+    const artifacts = this.artifacts.get();
+    for (const artifact of Object.values(artifacts)) {
+      const actions = artifact.runner?.actions?.get();
+      if (!actions) continue;
+      for (const action of Object.values(actions)) {
+        if (action.status === 'pending' || action.status === 'running') {
+          action.abort?.();
+        }
+      }
+    }
+  }
+
+  finishPendingActions() {
+    const artifacts = this.artifacts.get();
+    for (const artifact of Object.values(artifacts)) {
+      const runner = artifact.runner;
+      if (!runner) continue;
+      const actions = runner.actions.get();
+      for (const [actionId, action] of Object.entries(actions)) {
+        if (action.status === 'pending' || action.status === 'running') {
+          runner.actions.setKey(actionId, { ...action, status: 'complete', executed: true });
+        }
+      }
+    }
   }
 
   addArtifact({ messageId, title, id, type }: ArtifactCallbackData) {

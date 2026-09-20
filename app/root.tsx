@@ -94,6 +94,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
     document.querySelector('html')?.setAttribute('data-theme', theme);
   }, [theme]);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'thefortz-studio-ready' }, '*');
+    }
+  }, []);
+
   return (
     <>
       {children}

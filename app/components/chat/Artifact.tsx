@@ -49,8 +49,10 @@ export const Artifact = memo(({ messageId }: ArtifactProps) => {
       setShowActions(true);
     }
 
-    if (actions.length !== 0 && artifact.type === 'bundled') {
-      const finished = !actions.find((action) => action.status !== 'complete');
+    if (actions.length !== 0) {
+      const isTerminal = (status: ActionState['status']) =>
+        status === 'complete' || status === 'failed' || status === 'aborted';
+      const finished = actions.every((action) => isTerminal(action.status));
 
       if (allActionFinished !== finished) {
         setAllActionFinished(finished);
