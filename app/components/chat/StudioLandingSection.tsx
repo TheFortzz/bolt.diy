@@ -54,14 +54,14 @@ export function StudioLandingSection({}: StudioLandingSectionProps) {
   const displayedText = currentSentence.slice(0, charIndex);
 
   return (
-    <div className="w-full flex flex-col items-center select-none pt-2 sm:pt-4 pb-1 px-4">
+    <div className="w-full flex flex-col items-center select-none p-0 mb-1">
       {/* ── Typewriter Sentence Hero — Single Horizontal Line ── */}
-      <div className="text-center w-full max-w-4xl mx-auto min-h-[50px] flex items-center justify-center overflow-hidden">
-        <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black uppercase tracking-wider text-white font-['Anton',sans-serif] whitespace-nowrap overflow-hidden text-ellipsis flex items-center justify-center">
+      <div className="text-center w-full mx-auto min-h-[40px] flex items-center justify-center overflow-hidden">
+        <h1 className="text-base sm:text-xl md:text-2xl font-black uppercase tracking-wider text-white font-['Anton',sans-serif] whitespace-nowrap overflow-hidden text-ellipsis flex items-center justify-center">
           <span className="text-white">
             {displayedText}
           </span>
-          <span className="inline-block w-1.5 sm:w-2 h-6 sm:h-8 bg-[#c084fc] ml-1.5 animate-pulse" />
+          <span className="inline-block w-1.5 h-5 sm:h-6 bg-[#c084fc] ml-1.5 animate-pulse" />
         </h1>
       </div>
     </div>

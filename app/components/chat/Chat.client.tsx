@@ -124,8 +124,11 @@ export const ChatImpl = memo(
           'There was an error processing your request: ' + (error.message ? error.message : 'No details were returned'),
         );
       },
-      onFinish: () => {
+      onFinish: (message) => {
         logger.debug('Finished streaming');
+        if (messages.length > 0) {
+          storeMessageHistory(messages).catch((e) => console.warn('Final save error:', e));
+        }
       },
       initialMessages,
       initialInput: Cookies.get(PROMPT_COOKIE_KEY) || '',
@@ -144,7 +147,7 @@ export const ChatImpl = memo(
       parseMessages(messages, isLoading);
 
       if (messages.length > initialMessages.length) {
-        storeMessageHistory(messages).catch((error) => toast.error(error.message));
+        storeMessageHistory(messages).catch((error) => console.warn('Auto save error:', error));
       }
     }, [messages, isLoading, parseMessages]);
 

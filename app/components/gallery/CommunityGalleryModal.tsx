@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { getAll, db, dbPromise, type ChatHistoryItem } from '~/lib/persistence';
+import { getProjectIcon } from '~/utils/projectIcons';
 
 interface CommunityGame {
   id: string;
@@ -84,7 +86,21 @@ interface CommunityGalleryModalProps {
 }
 
 export function CommunityGalleryModal({ open, onClose, onSelectPrompt }: CommunityGalleryModalProps) {
+  const [activeTab, setActiveTab] = useState<'created' | 'community'>('created');
+  const [createdList, setCreatedList] = useState<ChatHistoryItem[]>([]);
   const [activeGenre, setActiveGenre] = useState<string>('ALL');
+
+  useEffect(() => {
+    if (open) {
+      if (db) {
+        getAll(db).then(setCreatedList).catch(() => {});
+      } else {
+        dbPromise.then((database) => {
+          getAll(database).then(setCreatedList).catch(() => {});
+        });
+      }
+    }
+  }, [open]);
 
   if (!open) return null;
 
@@ -105,26 +121,26 @@ export function CommunityGalleryModal({ open, onClose, onSelectPrompt }: Communi
 
   return (
     <div
-      className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md select-none animate-fade-in"
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md select-none animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-4xl max-h-[90vh] bg-[#152642] border border-[#38bdf8]/40 flex flex-col relative overflow-hidden"
+        className="w-full max-w-5xl max-h-[90vh] bg-[#121e33] border border-purple-500/40 flex flex-col relative overflow-hidden shadow-2xl"
         style={{ borderRadius: 0 }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Top Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#38bdf8]/30 bg-[#1c3258]">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-purple-500/25 bg-[#172540]">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-[#233e6c] border border-[#38bdf8]/40 flex items-center justify-center text-[#38bdf8]">
-              <div className="i-ph:game-controller-fill text-lg" />
+            <div className="w-8 h-8 bg-purple-950/80 border border-purple-400/40 flex items-center justify-center text-purple-300">
+              <div className="i-ph:squares-four-fill text-lg" />
             </div>
             <div>
               <h2 className="text-base font-black uppercase tracking-wider text-white font-['Anton',sans-serif]">
-                Community Games Gallery
+                Created Projects & Games
               </h2>
-              <p className="text-[11px] text-sky-200/70">
-                Explore games created by other developers. Click to remix and build your own version!
+              <p className="text-[11px] text-purple-200/70">
+                Browse your saved projects or explore community showcase games to remix.
               </p>
             </div>
           </div>
@@ -143,39 +159,150 @@ export function CommunityGalleryModal({ open, onClose, onSelectPrompt }: Communi
               onClick={onClose}
               className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
               style={{ borderRadius: 0 }}
-              title="Close Gallery"
+              title="Close"
             >
               <div className="i-ph:x-bold text-base" />
             </button>
           </div>
         </div>
 
-        {/* Genre Filter Pills */}
-        <div className="flex items-center gap-1.5 px-5 py-2.5 border-b border-white/10 bg-[#182a4a] overflow-x-auto no-scrollbar">
-          {genres.map((genre) => (
+        {/* Navigation Tabs */}
+        <div className="flex items-center justify-between px-5 py-2.5 border-b border-white/10 bg-[#15243d]">
+          <div className="flex items-center gap-2">
             <button
-              key={genre}
-              onClick={() => setActiveGenre(genre)}
-              className={`px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
-                activeGenre === genre
-                  ? 'bg-[#38bdf8] text-black'
-                  : 'bg-[#1e355c] hover:bg-[#264374] text-sky-200 border border-white/10'
+              onClick={() => setActiveTab('created')}
+              className={`px-3 py-1.5 text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'created'
+                  ? 'bg-[#8b5cf6] text-white border border-purple-300/40'
+                  : 'bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10'
               }`}
               style={{ borderRadius: 0 }}
             >
-              {genre}
+              <div className="i-ph:folder-fill text-sm text-amber-400" />
+              <span>My Created Projects ({createdList.length})</span>
             </button>
-          ))}
-        </div>
 
-        {/* Games Grid List */}
-        <div className="flex-1 overflow-y-auto p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredGames.map((game) => (
-            <div
-              key={game.id}
-              className="bg-[#1c3258] border border-[#38bdf8]/25 hover:border-[#38bdf8] transition-all flex flex-col justify-between group overflow-hidden"
+            <button
+              onClick={() => setActiveTab('community')}
+              className={`px-3 py-1.5 text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'community'
+                  ? 'bg-[#8b5cf6] text-white border border-purple-300/40'
+                  : 'bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10'
+              }`}
               style={{ borderRadius: 0 }}
             >
+              <div className="i-ph:game-controller-fill text-sm text-[#38bdf8]" />
+              <span>Community Showcase ({COMMUNITY_GAMES.length})</span>
+            </button>
+          </div>
+
+          {activeTab === 'community' && (
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+              {genres.map((genre) => (
+                <button
+                  key={genre}
+                  onClick={() => setActiveGenre(genre)}
+                  className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+                    activeGenre === genre
+                      ? 'bg-[#38bdf8] text-black'
+                      : 'bg-[#1e355c] hover:bg-[#264374] text-sky-200 border border-white/10'
+                  }`}
+                  style={{ borderRadius: 0 }}
+                >
+                  {genre}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Tab Content */}
+        <div className="flex-1 overflow-y-auto p-5">
+          {activeTab === 'created' ? (
+            createdList.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="w-14 h-14 bg-purple-950/60 border border-purple-500/30 flex items-center justify-center mb-4">
+                  <div className="i-ph:folder-open-fill text-3xl text-amber-400" />
+                </div>
+                <h3 className="text-lg font-bold text-white uppercase tracking-wider mb-1">
+                  No Created Projects Yet
+                </h3>
+                <p className="text-xs text-slate-400 max-w-sm mb-4">
+                  Start a new conversation with FortzAI or click one of the templates to create your first game.
+                </p>
+                <button
+                  onClick={() => {
+                    onClose();
+                    window.location.href = '/';
+                  }}
+                  className="px-4 py-2 bg-[#f97316] hover:bg-[#ea580c] text-white font-bold text-xs uppercase tracking-wider cursor-pointer"
+                  style={{ borderRadius: 0 }}
+                >
+                  + Create New Project Now
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {createdList.map((item) => {
+                  const title = item.description || 'Project ' + (item.urlId || item.id);
+                  const { icon, color } = getProjectIcon(title);
+                  const msgCount = item.messages ? item.messages.length : 0;
+                  const dateStr = item.timestamp ? new Date(item.timestamp).toLocaleDateString() : '';
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="bg-[#18263e] border border-white/10 hover:border-purple-400/50 transition-all flex flex-col justify-between p-4 group"
+                      style={{ borderRadius: 0 }}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 bg-black/40 border border-white/10 flex items-center justify-center">
+                              <div className={`${icon} ${color} text-sm`} />
+                            </div>
+                            <span className="text-[10px] font-mono text-slate-400 bg-white/5 px-1.5 py-0.5">
+                              #{item.urlId || item.id}
+                            </span>
+                          </div>
+                          {dateStr && (
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              {dateStr}
+                            </span>
+                          )}
+                        </div>
+
+                        <h3 className="font-bold text-sm text-white group-hover:text-purple-300 transition-colors line-clamp-2 mb-2">
+                          {title}
+                        </h3>
+
+                        <div className="flex items-center gap-3 text-[11px] text-slate-400 font-mono mb-4">
+                          <span>💬 {msgCount} messages</span>
+                          <span>⚡ Ready</span>
+                        </div>
+                      </div>
+
+                      <a
+                        href={`/chat/${item.urlId || item.id}`}
+                        className="w-full py-2 px-3 bg-[#8b5cf6] hover:bg-[#7c3aed] text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer no-underline"
+                        style={{ borderRadius: 0 }}
+                      >
+                        <span>Open & Continue</span>
+                        <span>→</span>
+                      </a>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredGames.map((game) => (
+                <div
+                  key={game.id}
+                  className="bg-[#1c3258] border border-[#38bdf8]/25 hover:border-[#38bdf8] transition-all flex flex-col justify-between group overflow-hidden"
+                  style={{ borderRadius: 0 }}
+                >
               {/* Game Thumbnail Header */}
               <div className="h-36 w-full bg-[#132238] border-b border-white/10 relative overflow-hidden flex items-center justify-center">
                 {game.thumbUrl ? (
@@ -230,7 +357,9 @@ export function CommunityGalleryModal({ open, onClose, onSelectPrompt }: Communi
             </div>
           ))}
         </div>
-      </div>
+      )}
     </div>
+  </div>
+</div>
   );
 }

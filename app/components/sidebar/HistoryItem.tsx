@@ -45,9 +45,10 @@ export function HistoryItem({ item, onDelete, onDuplicate, exportChat }: History
 
   return (
     <div
+      style={{ borderRadius: 0 }}
       className={classNames(
-        'group rounded-md text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-3 overflow-hidden flex justify-between items-center px-2 py-1',
-        { '[&&]:text-bolt-elements-textPrimary bg-bolt-elements-background-depth-3': isActiveChat },
+        'group rounded-none text-emerald-100 hover:text-white hover:bg-black/25 overflow-hidden flex justify-between items-center px-2 py-1 transition-colors',
+        { '[&&]:text-white bg-[#062400]/70 border-l-2 border-[#4ade80]': isActiveChat },
       )}
     >
       {editing ? (
@@ -58,8 +59,8 @@ export function HistoryItem({ item, onDelete, onDuplicate, exportChat }: History
           <span className="truncate">{currentDescription}</span>
           <div
             className={classNames(
-              'absolute right-0 z-1 top-0 bottom-0 bg-gradient-to-l from-bolt-elements-background-depth-2 group-hover:from-bolt-elements-background-depth-3 box-content pl-3 to-transparent w-10 flex justify-end group-hover:w-22 group-hover:from-99%',
-              { 'from-bolt-elements-background-depth-3 w-10 ': isActiveChat },
+              'absolute right-0 z-1 top-0 bottom-0 bg-gradient-to-l from-[#0a3800] group-hover:from-[#082900] box-content pl-3 to-transparent w-10 flex justify-end group-hover:w-22 group-hover:from-99%',
+              { 'from-[#062400] w-10 ': isActiveChat },
             )}
           >
             <div className="flex items-center p-1 text-bolt-elements-textSecondary opacity-0 group-hover:opacity-100 transition-opacity">

@@ -36,59 +36,187 @@ export async function openDatabase(): Promise<IDBDatabase | undefined> {
   });
 }
 
-export async function getAll(db: IDBDatabase): Promise<ChatHistoryItem[]> {
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction('chats', 'readonly');
-    const store = transaction.objectStore('chats');
-    const request = store.getAll();
+const LOCAL_STORAGE_KEY_PREFIX = 'fortz_chat_item_';
+const LOCAL_STORAGE_INDEX_KEY = 'fortz_chats_index';
 
-    request.onsuccess = () => resolve(request.result as ChatHistoryItem[]);
-    request.onerror = () => reject(request.error);
+function getLocalStorageIndex(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    return JSON.parse(localStorage.getItem(LOCAL_STORAGE_INDEX_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function addToLocalStorageIndex(id: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    const list = getLocalStorageIndex();
+    if (!list.includes(id)) {
+      list.push(id);
+      localStorage.setItem(LOCAL_STORAGE_INDEX_KEY, JSON.stringify(list));
+    }
+  } catch {}
+}
+
+function removeFromLocalStorageIndex(id: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    const list = getLocalStorageIndex().filter((i) => i !== id);
+    localStorage.setItem(LOCAL_STORAGE_INDEX_KEY, JSON.stringify(list));
+    localStorage.removeItem(LOCAL_STORAGE_KEY_PREFIX + id);
+  } catch {}
+}
+
+function saveToLocalStorage(chatItem: ChatHistoryItem) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(LOCAL_STORAGE_KEY_PREFIX + chatItem.id, JSON.stringify(chatItem));
+    if (chatItem.urlId && chatItem.urlId !== chatItem.id) {
+      localStorage.setItem(LOCAL_STORAGE_KEY_PREFIX + chatItem.urlId, JSON.stringify(chatItem));
+      addToLocalStorageIndex(chatItem.urlId);
+    }
+    addToLocalStorageIndex(chatItem.id);
+  } catch (e) {
+    console.warn('LocalStorage save error:', e);
+  }
+}
+
+function getFromLocalStorage(id: string): ChatHistoryItem | undefined {
+  if (typeof window === 'undefined') return undefined;
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEY_PREFIX + id);
+    if (raw) return JSON.parse(raw);
+
+    // Search through index in case id matches urlId
+    const index = getLocalStorageIndex();
+    for (const key of index) {
+      const itemRaw = localStorage.getItem(LOCAL_STORAGE_KEY_PREFIX + key);
+      if (itemRaw) {
+        const parsed = JSON.parse(itemRaw);
+        if (parsed.id === id || parsed.urlId === id) {
+          return parsed;
+        }
+      }
+    }
+  } catch {}
+  return undefined;
+}
+
+function getAllFromLocalStorage(): ChatHistoryItem[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const ids = getLocalStorageIndex();
+    const map = new Map<string, ChatHistoryItem>();
+    for (const key of ids) {
+      const raw = localStorage.getItem(LOCAL_STORAGE_KEY_PREFIX + key);
+      if (raw) {
+        const item: ChatHistoryItem = JSON.parse(raw);
+        if (item && item.id) {
+          map.set(item.id, item);
+        }
+      }
+    }
+    return Array.from(map.values());
+  } catch {
+    return [];
+  }
+}
+
+export async function getAll(db?: IDBDatabase): Promise<ChatHistoryItem[]> {
+  const localItems = getAllFromLocalStorage();
+  if (!db) {
+    return localItems;
+  }
+
+  return new Promise((resolve) => {
+    try {
+      const transaction = db.transaction('chats', 'readonly');
+      const store = transaction.objectStore('chats');
+      const request = store.getAll();
+
+      request.onsuccess = () => {
+        const idbItems = (request.result as ChatHistoryItem[]) || [];
+        const mergedMap = new Map<string, ChatHistoryItem>();
+        for (const item of localItems) {
+          mergedMap.set(item.id, item);
+        }
+        for (const item of idbItems) {
+          mergedMap.set(item.id, item);
+        }
+        resolve(Array.from(mergedMap.values()));
+      };
+      request.onerror = () => resolve(localItems);
+    } catch {
+      resolve(localItems);
+    }
   });
 }
 
 export async function setMessages(
-  db: IDBDatabase,
+  db: IDBDatabase | undefined,
   id: string,
   messages: Message[],
   urlId?: string,
   description?: string,
   timestamp?: string,
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction('chats', 'readwrite');
-    const store = transaction.objectStore('chats');
+  const chatItem: ChatHistoryItem = {
+    id,
+    messages,
+    urlId,
+    description,
+    timestamp: timestamp ?? new Date().toISOString(),
+  };
 
-    if (timestamp && isNaN(Date.parse(timestamp))) {
-      reject(new Error('Invalid timestamp'));
-      return;
-    }
+  // 1. Guaranteed instantaneous sync into localStorage
+  saveToLocalStorage(chatItem);
 
-    const request = store.put({
-      id,
-      messages,
-      urlId,
-      description,
-      timestamp: timestamp ?? new Date().toISOString(),
-    });
+  // 2. Also save to IndexedDB if available
+  if (!db) {
+    return;
+  }
 
-    request.onsuccess = () => {
-      // Sync chat savings to Appwrite Cloud Storage
-      void saveChatToAppwrite({
-        id,
-        messages,
-        urlId,
-        description,
-        timestamp: timestamp ?? new Date().toISOString(),
-      });
+  return new Promise((resolve) => {
+    try {
+      const transaction = db.transaction('chats', 'readwrite');
+      const store = transaction.objectStore('chats');
+
+      if (timestamp && isNaN(Date.parse(timestamp))) {
+        resolve();
+        return;
+      }
+
+      const request = store.put(chatItem);
+
+      request.onsuccess = () => {
+        void saveChatToAppwrite(chatItem);
+        resolve();
+      };
+      request.onerror = () => {
+        console.warn('IDB put error, preserved in localStorage');
+        resolve();
+      };
+    } catch {
       resolve();
-    };
-    request.onerror = () => reject(request.error);
+    }
   });
 }
 
-export async function getMessages(db: IDBDatabase, id: string): Promise<ChatHistoryItem> {
-  return (await getMessagesById(db, id)) || (await getMessagesByUrlId(db, id));
+export async function getMessages(db: IDBDatabase | undefined, id: string): Promise<ChatHistoryItem | undefined> {
+  if (db) {
+    try {
+      const item = (await getMessagesById(db, id)) || (await getMessagesByUrlId(db, id));
+      if (item && item.messages && item.messages.length > 0) {
+        saveToLocalStorage(item);
+        return item;
+      }
+    } catch (err) {
+      console.warn('IndexedDB getMessages error:', err);
+    }
+  }
+
+  return getFromLocalStorage(id);
 }
 
 export async function getMessagesByUrlId(db: IDBDatabase, id: string): Promise<ChatHistoryItem> {
@@ -114,33 +242,54 @@ export async function getMessagesById(db: IDBDatabase, id: string): Promise<Chat
   });
 }
 
-export async function deleteById(db: IDBDatabase, id: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction('chats', 'readwrite');
-    const store = transaction.objectStore('chats');
-    const request = store.delete(id);
+export async function deleteById(db: IDBDatabase | undefined, id: string): Promise<void> {
+  removeFromLocalStorageIndex(id);
 
-    request.onsuccess = () => resolve(undefined);
-    request.onerror = () => reject(request.error);
+  if (!db) return;
+
+  return new Promise((resolve) => {
+    try {
+      const transaction = db.transaction('chats', 'readwrite');
+      const store = transaction.objectStore('chats');
+      const request = store.delete(id);
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => resolve();
+    } catch {
+      resolve();
+    }
   });
 }
 
-export async function getNextId(db: IDBDatabase): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction('chats', 'readonly');
-    const store = transaction.objectStore('chats');
-    const request = store.getAllKeys();
+export async function getNextId(db?: IDBDatabase): Promise<string> {
+  const localIds = getLocalStorageIndex()
+    .map((id) => parseInt(id, 10))
+    .filter((n) => !isNaN(n));
+  const maxLocal = localIds.length > 0 ? Math.max(...localIds) : 0;
 
-    request.onsuccess = () => {
-      const highestId = request.result.reduce((cur, acc) => Math.max(+cur, +acc), 0);
-      resolve(String(+highestId + 1));
-    };
+  if (!db) {
+    return String(maxLocal + 1);
+  }
 
-    request.onerror = () => reject(request.error);
+  return new Promise((resolve) => {
+    try {
+      const transaction = db.transaction('chats', 'readonly');
+      const store = transaction.objectStore('chats');
+      const request = store.getAllKeys();
+
+      request.onsuccess = () => {
+        const idbIds = (request.result as any[]).map((id) => parseInt(String(id), 10)).filter((n) => !isNaN(n));
+        const highest = Math.max(maxLocal, ...idbIds, 0);
+        resolve(String(highest + 1));
+      };
+      request.onerror = () => resolve(String(maxLocal + 1));
+    } catch {
+      resolve(String(maxLocal + 1));
+    }
   });
 }
 
-export async function getUrlId(db: IDBDatabase, id: string): Promise<string> {
+export async function getUrlId(db: IDBDatabase | undefined, id: string): Promise<string> {
   const idList = await getUrlIds(db);
 
   if (!idList.includes(id)) {
@@ -156,7 +305,11 @@ export async function getUrlId(db: IDBDatabase, id: string): Promise<string> {
   }
 }
 
-async function getUrlIds(db: IDBDatabase): Promise<string[]> {
+async function getUrlIds(db?: IDBDatabase): Promise<string[]> {
+  if (!db) {
+    return getLocalStorageIndex();
+  }
+
   return new Promise((resolve, reject) => {
     const transaction = db.transaction('chats', 'readonly');
     const store = transaction.objectStore('chats');

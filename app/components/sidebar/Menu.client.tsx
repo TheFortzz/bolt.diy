@@ -14,6 +14,7 @@ import { isSidebarOpen, isGalleryOpen } from '~/lib/stores/sidebar';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { authStore, isAuthModalOpen, appwriteLogout } from '~/lib/auth/appwrite';
 import { getProjectIcon } from '~/utils/projectIcons';
+import { StudioAnalyticsModal } from './StudioAnalyticsModal';
 
 const menuVariants = {
   closed: {
@@ -136,12 +137,15 @@ export const Menu = () => {
         initial={open ? 'open' : 'closed'}
         animate={open ? 'open' : 'closed'}
         variants={menuVariants}
-        style={{ borderRadius: 0 }}
-        className="flex selection-accent flex-col side-menu fixed top-0 left-0 h-full bg-[#14243b] border-r border-[#38bdf8]/30 z-sidebar text-xs overflow-hidden select-none"
+        style={{
+          borderRadius: 0,
+          background: 'linear-gradient(180deg, rgb(46, 153, 0) 0%, rgb(1, 161, 19) 55%, rgb(5, 121, 0) 100%)',
+        }}
+        className="flex selection-accent flex-col side-menu fixed top-0 left-0 h-full border-r border-[#4ade80]/40 z-sidebar text-xs overflow-hidden select-none shadow-2xl"
       >
         {/* ── Top Header Brand / Toggle ── */}
         <div
-          className={`flex items-center border-b border-[#38bdf8]/25 bg-[#1a3050] transition-all ${
+          className={`flex items-center border-b border-[#4ade80]/30 bg-[#083000]/75 backdrop-blur-sm transition-all ${
             open ? 'justify-between px-3 py-2.5' : 'justify-center p-2'
           }`}
           style={{ borderRadius: 0, height: 42 }}
@@ -150,42 +154,42 @@ export const Menu = () => {
             <>
               <a
                 href="/"
-                className="flex items-center text-slate-200 hover:text-white transition-colors no-underline select-none"
+                className="flex items-center text-emerald-100 hover:text-white transition-colors no-underline select-none"
                 title="Studio"
               >
-                <span className="text-sm font-normal tracking-wide text-slate-200">
+                <span className="text-sm font-bold tracking-wider uppercase text-white font-['Anton',sans-serif]">
                   Studio
                 </span>
               </a>
               <button
                 onClick={() => isSidebarOpen.set(false)}
-                className="p-1 text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                className="p-1 text-emerald-200/80 hover:text-white hover:bg-black/20 transition-colors cursor-pointer"
                 style={{ borderRadius: 0 }}
                 title="Collapse to icons"
               >
-                <div className="i-ph:sidebar-simple-duotone text-base text-[#38bdf8]" />
+                <div className="i-ph:sidebar-simple-duotone text-base text-[#4ade80]" />
               </button>
             </>
           ) : (
             <button
               onClick={() => isSidebarOpen.set(true)}
-              className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              className="w-8 h-8 flex items-center justify-center text-emerald-200 hover:text-white hover:bg-black/20 transition-colors cursor-pointer"
               style={{ borderRadius: 0 }}
               title="Expand Sidebar"
             >
-              <div className="i-ph:sidebar-simple-duotone text-lg text-[#38bdf8]" />
+              <div className="i-ph:sidebar-simple-duotone text-lg text-[#4ade80]" />
             </button>
           )}
         </div>
 
-        {/* ── Action Buttons: New Game, Gallery, Analytics ── */}
+        {/* ── Action Buttons: New Game, Builder Box, Created, Analytics ── */}
         <div className={`flex flex-col gap-1.5 ${open ? 'p-2' : 'p-1.5 items-center'}`}>
           {/* New Game Button */}
           <a
             href="/"
             style={{ borderRadius: 0 }}
             title="Create New Game"
-            className={`transition-all active:translate-y-0.5 no-underline flex items-center justify-center bg-[#f97316] hover:bg-[#ea580c] text-white font-bold border border-orange-400/40 ${
+            className={`transition-all active:translate-y-0.5 no-underline flex items-center justify-center bg-[#f97316] hover:bg-[#ea580c] text-white font-bold border border-orange-300/40 shadow-sm ${
               open ? 'py-1.5 px-2 gap-1.5 text-xs' : 'w-9 h-9'
             }`}
           >
@@ -203,28 +207,28 @@ export const Menu = () => {
             title={showWorkbench ? 'Close Builder Box' : 'Open Builder Box (Code & Preview)'}
             className={`transition-all flex items-center justify-center font-bold cursor-pointer border ${
               showWorkbench
-                ? 'bg-[#8b5cf6] hover:bg-[#7c3aed] text-white border-purple-400/50 shadow-sm'
-                : 'bg-[#1a0e2e] hover:bg-[#251342] text-purple-300 hover:text-white border-purple-500/35'
+                ? 'bg-[#8b5cf6] hover:bg-[#7c3aed] text-white border-purple-300/50 shadow-sm'
+                : 'bg-[#062400]/70 hover:bg-[#0c4000] text-purple-200 hover:text-white border-[#4ade80]/35'
             } ${
               open ? 'py-1.5 px-2 gap-1.5 text-xs' : 'w-9 h-9'
             }`}
           >
-            <div className={`i-ph:code-bold text-sm ${showWorkbench ? 'text-white' : 'text-purple-400'}`} />
+            <div className={`i-ph:code-bold text-sm ${showWorkbench ? 'text-white' : 'text-purple-300'}`} />
             {open && <span>{showWorkbench ? 'Close Builder' : 'Builder Box'}</span>}
           </button>
 
-          {/* Community Games Gallery Button */}
+          {/* Created Projects & Showcase Button */}
           <button
             type="button"
             onClick={() => isGalleryOpen.set(true)}
             style={{ borderRadius: 0 }}
-            title="Explore Community Games Gallery"
-            className={`transition-all flex items-center justify-center bg-[#1a3050] hover:bg-[#213d66] text-sky-300 hover:text-white font-bold border border-[#38bdf8]/35 cursor-pointer ${
+            title="Open Created Games & Community Projects"
+            className={`transition-all flex items-center justify-center bg-[#062400]/70 hover:bg-[#0c4000] text-emerald-100 hover:text-white font-bold border border-[#4ade80]/35 cursor-pointer ${
               open ? 'py-1.5 px-2 gap-1.5 text-xs' : 'w-9 h-9'
             }`}
           >
-            <div className="i-ph:game-controller-fill text-sm text-[#38bdf8]" />
-            {open && <span>Gallery</span>}
+            <div className="i-ph:squares-four-fill text-sm text-[#4ade80]" />
+            {open && <span>Created</span>}
           </button>
 
           {/* Analytics Button */}
@@ -232,12 +236,12 @@ export const Menu = () => {
             type="button"
             onClick={() => setIsAnalyticsOpen(true)}
             style={{ borderRadius: 0 }}
-            title="Studio Analytics"
-            className={`transition-all flex items-center justify-center bg-[#1a3050] hover:bg-[#213d66] text-sky-300 hover:text-white font-bold border border-[#38bdf8]/35 cursor-pointer ${
+            title="Studio Analytics & Appwrite Status"
+            className={`transition-all flex items-center justify-center bg-[#062400]/70 hover:bg-[#0c4000] text-emerald-100 hover:text-white font-bold border border-[#4ade80]/35 cursor-pointer ${
               open ? 'py-1.5 px-2 gap-1.5 text-xs' : 'w-9 h-9'
             }`}
           >
-            <div className="i-ph:chart-bar-fill text-sm text-[#38bdf8]" />
+            <div className="i-ph:chart-bar-fill text-sm text-[#4ade80]" />
             {open && <span>Analytics</span>}
           </button>
         </div>
@@ -246,18 +250,18 @@ export const Menu = () => {
         <div className="flex-1 overflow-y-auto px-1 pb-3 space-y-1">
           {open ? (
             <>
-              <div className="flex items-center justify-between px-2 pt-2 pb-1 text-[11px] font-bold text-sky-200/80 uppercase tracking-wider select-none">
+              <div className="flex items-center justify-between px-2 pt-2 pb-1 text-[11px] font-bold text-emerald-100/90 uppercase tracking-wider select-none">
                 <div className="flex items-center gap-1.5">
-                  <div className="i-ph:folder-fill text-amber-400 text-xs" />
+                  <div className="i-ph:folder-fill text-amber-300 text-xs" />
                   <span>Projects</span>
                 </div>
-                <span className="text-[10px] font-semibold bg-white/10 px-1.5 py-0.2 text-white">
+                <span className="text-[10px] font-semibold bg-black/30 px-1.5 py-0.2 text-emerald-200 border border-[#4ade80]/30" style={{ borderRadius: 0 }}>
                   {list.length}
                 </span>
               </div>
 
               {list.length === 0 && (
-                <div className="p-3 text-center text-[11px] text-sky-200/60 italic">
+                <div className="p-3 text-center text-[11px] text-emerald-200/70 italic">
                   No projects yet
                 </div>
               )}
@@ -265,7 +269,7 @@ export const Menu = () => {
               <DialogRoot open={dialogContent !== null}>
                 {binDates(list).map(({ category, items }) => (
                   <div key={category} className="mt-2.5 first:mt-0 space-y-0.5">
-                    <div className="text-[10px] font-bold text-[#38bdf8]/80 uppercase tracking-wider sticky top-0 z-1 bg-[#14243b] border-b border-white/5 px-2 py-0.5">
+                    <div className="text-[10px] font-bold text-[#bbf7d0] uppercase tracking-wider sticky top-0 z-1 bg-[#093500]/95 border-b border-white/10 px-2 py-0.5">
                       {category}
                     </div>
                     {items.map((item) => (
@@ -291,7 +295,7 @@ export const Menu = () => {
                           <p className="mt-1">Are you sure you want to delete this project?</p>
                         </div>
                       </DialogDescription>
-                      <div className="px-5 pb-4 bg-[#14243b] flex gap-2 justify-end">
+                      <div className="px-5 pb-4 bg-[#0a2612] flex gap-2 justify-end" style={{ borderRadius: 0 }}>
                         <DialogButton type="secondary" onClick={closeDialog}>
                           Cancel
                         </DialogButton>
@@ -314,11 +318,11 @@ export const Menu = () => {
             <div className="flex flex-col items-center gap-1 pt-1 overflow-y-auto no-scrollbar">
               <button
                 type="button"
-                className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-sky-300 transition-colors cursor-pointer mb-1 border-b border-white/10 pb-1"
+                className="w-8 h-8 flex items-center justify-center text-emerald-200 hover:text-white transition-colors cursor-pointer mb-1 border-b border-white/10 pb-1"
                 title={`${list.length} Saved Projects (Click to expand sidebar)`}
                 onClick={() => isSidebarOpen.set(true)}
               >
-                <div className="i-ph:folder-fill text-base text-amber-400" />
+                <div className="i-ph:folder-fill text-base text-amber-300" />
               </button>
               {list.map((item) => {
                 const projectTitle = item.description || 'Project ' + (item.urlId || item.id);
@@ -334,8 +338,8 @@ export const Menu = () => {
                     title={projectTitle}
                     className={`w-9 h-9 flex items-center justify-center transition-all cursor-pointer no-underline border flex-shrink-0 ${
                       isCurrent
-                        ? 'bg-[#1a3050] border-[#38bdf8] text-white shadow-sm'
-                        : 'bg-transparent border-transparent hover:bg-white/10 text-slate-300 hover:text-white'
+                        ? 'bg-[#062400] border-[#4ade80] text-white shadow-sm'
+                        : 'bg-transparent border-transparent hover:bg-black/25 text-emerald-100 hover:text-white'
                     }`}
                     style={{ borderRadius: 0 }}
                   >
@@ -348,7 +352,7 @@ export const Menu = () => {
         </div>
 
         {/* ── Bottom Section: Settings & Profile Very Under ── */}
-        <div className="border-t border-[#38bdf8]/20 bg-[#172b49] flex flex-col select-none" style={{ borderRadius: 0 }}>
+        <div className="border-t border-[#4ade80]/30 bg-[#062400]/85 backdrop-blur-sm flex flex-col select-none" style={{ borderRadius: 0 }}>
           {/* Settings & Theme Switch */}
           <div className={`flex items-center border-b border-white/10 ${open ? 'justify-between px-2 py-1.5' : 'justify-center p-1.5'}`}>
             <button
@@ -357,34 +361,34 @@ export const Menu = () => {
                 setIsSettingsOpen(true);
               }}
               style={{ borderRadius: 0 }}
-              className={`flex items-center text-slate-300 hover:text-white transition-colors cursor-pointer hover:bg-white/10 ${
+              className={`flex items-center text-emerald-100 hover:text-white transition-colors cursor-pointer hover:bg-black/20 ${
                 open ? 'gap-1.5 text-xs py-1 px-1.5' : 'w-8 h-8 justify-center'
               }`}
               title="Configure AI Settings"
             >
-              <div className="i-ph:gear-six text-base text-[#38bdf8]" />
+              <div className="i-ph:gear-six text-base text-[#4ade80]" />
               {open && <span>Settings</span>}
             </button>
             {open && <ThemeSwitch />}
           </div>
 
           {/* Profile Box - Very Under */}
-          <div className={`${open ? 'p-2' : 'p-1.5 flex justify-center'} bg-[#14243b]`}>
+          <div className={`${open ? 'p-2' : 'p-1.5 flex justify-center'} bg-[#041a00]`}>
             {auth.user ? (
               open ? (
-                <div className="w-full flex items-center justify-between px-2 py-1.5 bg-[#1a3050] border border-[#38bdf8]/35 text-xs text-white" style={{ borderRadius: 0 }}>
+                <div className="w-full flex items-center justify-between px-2 py-1.5 bg-[#093500] border border-[#4ade80]/40 text-xs text-white" style={{ borderRadius: 0 }}>
                   <div className="flex items-center gap-1.5 overflow-hidden">
                     {avatarUrl ? (
                       <img
                         src={avatarUrl}
                         alt={auth.user.name}
-                        className="w-7 h-7 rounded-full object-cover flex-shrink-0 border border-[#38bdf8]"
+                        className="w-7 h-7 rounded-full object-cover flex-shrink-0 border border-[#4ade80]"
                         onError={() => {
                           setAvatarFailed(true);
                         }}
                       />
                     ) : (
-                      <div className="i-ph:user-circle-fill text-xl text-[#38bdf8] flex-shrink-0" />
+                      <div className="i-ph:user-circle-fill text-xl text-[#4ade80] flex-shrink-0" />
                     )}
                     <span className="font-bold truncate text-white leading-tight text-[11px]">
                       {auth.user.name}
@@ -395,7 +399,7 @@ export const Menu = () => {
                       appwriteLogout();
                       toast.info('Signed out');
                     }}
-                    className="p-1 text-slate-400 hover:text-rose-400 hover:bg-white/10 transition-all cursor-pointer flex-shrink-0"
+                    className="p-1 text-emerald-300/70 hover:text-rose-400 hover:bg-black/20 transition-all cursor-pointer flex-shrink-0"
                     style={{ borderRadius: 0 }}
                     title="Sign out"
                   >
@@ -408,20 +412,20 @@ export const Menu = () => {
                     appwriteLogout();
                     toast.info('Signed out');
                   }}
-                  className="w-9 h-9 flex items-center justify-center hover:bg-white/10 transition-colors cursor-pointer relative group"
+                  className="w-9 h-9 flex items-center justify-center hover:bg-black/20 transition-colors cursor-pointer relative group"
                   title={`${auth.user.name} (Click to Sign Out)`}
                 >
                   {avatarUrl ? (
                     <img
                       src={avatarUrl}
                       alt={auth.user.name}
-                      className="w-7 h-7 rounded-full object-cover border border-[#38bdf8]"
+                      className="w-7 h-7 rounded-full object-cover border border-[#4ade80]"
                       onError={() => {
                         setAvatarFailed(true);
                       }}
                     />
                   ) : (
-                    <div className="i-ph:user-circle-fill text-2xl text-[#38bdf8]" />
+                    <div className="i-ph:user-circle-fill text-2xl text-[#4ade80]" />
                   )}
                 </button>
               )
@@ -434,13 +438,13 @@ export const Menu = () => {
                   isAuthModalOpen.set(true);
                 }}
                 style={{ borderRadius: 0 }}
-                className="w-full flex items-center justify-between px-2.5 py-1.5 bg-[#1a3050] hover:bg-[#213d66] border border-[#38bdf8]/35 text-xs font-bold text-sky-300 hover:text-white transition-all cursor-pointer"
+                className="w-full flex items-center justify-between px-2.5 py-1.5 bg-[#093500] hover:bg-[#0f4d02] border border-[#4ade80]/40 text-xs font-bold text-emerald-200 hover:text-white transition-all cursor-pointer"
               >
                 <div className="flex items-center gap-1.5">
-                  <div className="i-ph:user-circle-fill text-base text-[#38bdf8]" />
+                  <div className="i-ph:user-circle-fill text-base text-[#4ade80]" />
                   <span className="text-[11px]">Sign In</span>
                 </div>
-                <div className="i-ph:arrow-square-out text-[#38bdf8] text-xs" />
+                <div className="i-ph:arrow-square-out text-[#4ade80] text-xs" />
               </button>
             ) : (
               <button
@@ -450,10 +454,10 @@ export const Menu = () => {
                   }
                   isAuthModalOpen.set(true);
                 }}
-                className="w-9 h-9 flex items-center justify-center hover:bg-white/10 transition-colors cursor-pointer"
+                className="w-9 h-9 flex items-center justify-center hover:bg-black/20 transition-colors cursor-pointer"
                 title="Sign In"
               >
-                <div className="i-ph:user-circle-fill text-2xl text-[#38bdf8]" />
+                <div className="i-ph:user-circle-fill text-2xl text-[#4ade80]" />
               </button>
             )}
           </div>
@@ -467,70 +471,13 @@ export const Menu = () => {
         onClose={() => setIsSettingsOpen(false)}
       />
 
-      {/* ── Studio Analytics Modal ── */}
-      {isAnalyticsOpen && (
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in"
-          onClick={() => setIsAnalyticsOpen(false)}
-        >
-          <div
-            className="w-full max-w-md bg-[#152642] border border-[#38bdf8]/40 rounded-none p-6 text-white shadow-2xl relative"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-white/15 pb-3 mb-4">
-              <div className="flex items-center gap-2">
-                <div className="i-ph:chart-bar-fill text-2xl text-[#38bdf8]" />
-                <h3 className="font-extrabold text-lg uppercase tracking-wider text-white font-['Anton',sans-serif]">
-                  Studio Analytics
-                </h3>
-              </div>
-              <button
-                onClick={() => setIsAnalyticsOpen(false)}
-                className="text-white/70 hover:text-white px-2 py-1 text-sm rounded-none border border-transparent hover:border-white/20 transition-all cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 mb-5">
-              <div className="p-3 bg-[#101c30] rounded-none border border-white/10">
-                <div className="text-[11px] text-slate-400 uppercase font-semibold">Total Projects</div>
-                <div className="text-2xl font-black text-[#38bdf8] mt-0.5">{list.length}</div>
-              </div>
-              <div className="p-3 bg-[#101c30] rounded-none border border-white/10">
-                <div className="text-[11px] text-slate-400 uppercase font-semibold">Engine Runtime</div>
-                <div className="text-sm font-bold text-sky-300 mt-1 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  Online
-                </div>
-              </div>
-              <div className="p-3 bg-[#101c30] rounded-none border border-white/10">
-                <div className="text-[11px] text-slate-400 uppercase font-semibold">Default AI Model</div>
-                <div className="text-xs font-bold text-white mt-1 truncate" title="Azure Fortz AI (gpt-oss-120b)">
-                  gpt-oss-120b
-                </div>
-              </div>
-              <div className="p-3 bg-[#101c30] rounded-none border border-white/10">
-                <div className="text-[11px] text-slate-400 uppercase font-semibold">Cloud Sync</div>
-                <div className="text-xs font-bold text-[#38bdf8] mt-1 flex items-center gap-1">
-                  <span>✓</span> Live Network
-                </div>
-              </div>
-            </div>
-
-            <p className="text-xs text-slate-300 leading-relaxed mb-4">
-              All games packaged and published here automatically sync to the live game feed for players worldwide.
-            </p>
-
-            <button
-              onClick={() => setIsAnalyticsOpen(false)}
-              className="w-full py-2 bg-[#f97316] hover:bg-[#ea580c] text-white font-bold text-xs uppercase tracking-wider rounded-none transition-all cursor-pointer"
-            >
-              Close Analytics
-            </button>
-          </div>
-        </div>
-      )}
+      {/* ── Studio Analytics & Appwrite Full Dashboard ── */}
+      <StudioAnalyticsModal
+        open={isAnalyticsOpen}
+        onClose={() => setIsAnalyticsOpen(false)}
+        projectsCount={list.length}
+        projects={list}
+      />
     </>
   );
 };

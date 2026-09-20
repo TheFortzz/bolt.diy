@@ -432,18 +432,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 : 'w-full flex-grow',
             )}
           >
-            {!chatStarted && (
-              <StudioLandingSection
-                onSelectTemplate={handleSelectTemplate}
-                onLaunchTemplate={handleLaunchTemplate}
-                onOpenSettings={() => setIsSettingsOpen(true)}
-                fortzBalance={fortzBalance}
-              />
-            )}
             <div
               className={classNames('pt-2 px-2 sm:px-4 flex-1 flex flex-col', {
                 'h-full': chatStarted,
-                'justify-center pb-8': !chatStarted,
+                'justify-center items-center pb-8': !chatStarted,
               })}
             >
               <ClientOnly>
@@ -462,12 +454,28 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 }}
               </ClientOnly>
 
+              {!chatStarted && (
+                <div
+                  className="w-full mx-auto px-2 sm:px-0 mb-3"
+                  style={{
+                    maxWidth: isWorkbenchActive ? '100%' : '48rem',
+                  }}
+                >
+                  <StudioLandingSection
+                    onSelectTemplate={handleSelectTemplate}
+                    onLaunchTemplate={handleLaunchTemplate}
+                    onOpenSettings={() => setIsSettingsOpen(true)}
+                    fortzBalance={fortzBalance}
+                  />
+                </div>
+              )}
+
               <div
                 className={classNames(
                   'relative w-full mx-auto z-prompt mb-4 px-2 sm:px-0 transition-all duration-300',
                   {
                     'sticky bottom-2': chatStarted,
-                    'mt-4 sm:mt-6': !chatStarted,
+                    'mt-0': !chatStarted,
                   },
                 )}
                 style={{

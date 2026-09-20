@@ -53,51 +53,39 @@ export function useChatHistory() {
   const [urlId, setUrlId] = useState<string | undefined>();
 
   useEffect(() => {
-    dbPromise.then((database) => {
-      if (!database) {
-        setReady(true);
-
-        if (persistenceEnabled) {
-          toast.error('Chat persistence is unavailable');
-        }
-
-        return;
-      }
-
+    dbPromise.then(async (database) => {
       if (mixedId) {
-        getMessages(database, mixedId)
-          .then((storedMessages) => {
-            if (storedMessages && storedMessages.messages.length > 0) {
-              const rewindId = searchParams.get('rewindTo');
-              const filteredMessages = rewindId
-                ? storedMessages.messages.slice(0, storedMessages.messages.findIndex((m) => m.id === rewindId) + 1)
-                : storedMessages.messages;
+        try {
+          const storedMessages = await getMessages(database, mixedId);
+          if (storedMessages && storedMessages.messages && storedMessages.messages.length > 0) {
+            const rewindId = searchParams.get('rewindTo');
+            const filteredMessages = rewindId
+              ? storedMessages.messages.slice(0, storedMessages.messages.findIndex((m) => m.id === rewindId) + 1)
+              : storedMessages.messages;
 
-              setInitialMessages(filteredMessages);
-              setUrlId(storedMessages.urlId);
-              description.set(storedMessages.description);
-              chatId.set(storedMessages.id);
-            } else {
-              navigate('/', { replace: true });
-            }
-
-            setReady(true);
-          })
-          .catch((error) => {
-            toast.error(error.message);
-          });
+            setInitialMessages(filteredMessages);
+            setUrlId(storedMessages.urlId);
+            description.set(storedMessages.description);
+            chatId.set(storedMessages.id);
+          } else {
+            console.warn('Chat not found for mixedId:', mixedId);
+          }
+        } catch (error: any) {
+          console.warn('Failed to load chat history:', error);
+        }
       }
+      setReady(true);
     });
-  }, []);
+  }, [mixedId]);
 
   return {
     ready: !mixedId || ready,
     initialMessages,
     storeMessageHistory: async (messages: Message[]) => {
-      const activeDb = db || (await dbPromise);
-      if (!activeDb || messages.length === 0) {
+      if (!messages || messages.length === 0) {
         return;
       }
+      const activeDb = db || (await dbPromise);
 
       const { firstArtifact } = workbenchStore;
 
@@ -190,6 +178,10 @@ export function useChatHistory() {
       }
 
       const chat = await getMessages(activeDb, id);
+      if (!chat) {
+        toast.error('Project not found to export');
+        return;
+      }
       const chatData = {
         messages: chat.messages,
         description: chat.description,
