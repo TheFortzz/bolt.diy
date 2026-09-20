@@ -438,35 +438,29 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
 
               <div
                 className={classNames(
-                  'p-4 relative w-full mx-auto z-prompt mb-4 transition-all duration-300',
+                  'relative w-full mx-auto z-prompt mb-4 px-2 sm:px-0 transition-all duration-300',
                   {
                     'sticky bottom-2': chatStarted,
                     'mt-4 sm:mt-6': !chatStarted,
                   },
                 )}
                 style={{
-                  maxWidth: chatStarted ? '56rem' : '76rem',
-                  borderRadius: 0,
-                  background: '#1a3050',
-                  border: '1.5px solid rgba(56, 189, 248, 0.45)',
-                  boxShadow: 'none',
+                  maxWidth: chatStarted ? '42rem' : '48rem',
                 }}
               >
-                <div>
-                  <div className={isModelSettingsCollapsed ? 'hidden' : ''}>
-                    {/* Hidden model selector — auto-configured */}
-                    <div className="hidden">
-                      <ModelSelector
-                        key={provider?.name + ':' + modelList.length}
-                        model={model}
-                        setModel={setModel}
-                        modelList={modelList}
-                        provider={provider}
-                        setProvider={setProvider}
-                        providerList={providerList || PROVIDER_LIST}
-                        apiKeys={apiKeys}
-                      />
-                    </div>
+                <div className={isModelSettingsCollapsed ? 'hidden' : ''}>
+                  {/* Hidden model selector — auto-configured */}
+                  <div className="hidden">
+                    <ModelSelector
+                      key={provider?.name + ':' + modelList.length}
+                      model={model}
+                      setModel={setModel}
+                      modelList={modelList}
+                      provider={provider}
+                      setProvider={setProvider}
+                      providerList={providerList || PROVIDER_LIST}
+                      apiKeys={apiKeys}
+                    />
                   </div>
                 </div>
                 <FilePreview
@@ -480,34 +474,30 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 <div
                   style={{
                     borderRadius: 0,
-                    boxShadow: '0 6px 0 0 #0c1a2e, 0 10px 24px rgba(0,0,0,0.45)',
+                    boxShadow: '0 5px 0 0 #0f071f, 0 12px 28px rgba(0,0,0,0.45)',
+                    background: '#1a0e2e',
                   }}
                   className={classNames(
-                    'relative border-t border-l border-white/20 border-r-2 border-b-[5px] border-r-[#0c1a2e] border-b-[#0c1a2e] bg-[#14243b] focus-within:border-t-[#38bdf8] focus-within:border-l-[#38bdf8] transition-all',
+                    'relative border border-purple-500/40 border-r-2 border-b-[5px] border-r-[#0f071f] border-b-[#0f071f] focus-within:border-purple-400 focus-within:ring-1 focus-within:ring-purple-500/30 transition-all',
                   )}
                 >
                   <textarea
                     ref={textareaRef}
                     className={classNames(
-                      'w-full pl-4 pt-4 pr-16 focus:outline-none resize-none text-white placeholder-slate-400 bg-transparent text-sm',
+                      'w-full pl-4 pt-4 pr-16 focus:outline-none resize-none text-white placeholder-purple-300/40 bg-transparent text-sm',
                       'transition-all duration-200',
-                      'hover:border-bolt-elements-focus',
                     )}
                     onDragEnter={(e) => {
                       e.preventDefault();
-                      e.currentTarget.style.border = '2px solid #1488fc';
                     }}
                     onDragOver={(e) => {
                       e.preventDefault();
-                      e.currentTarget.style.border = '2px solid #1488fc';
                     }}
                     onDragLeave={(e) => {
                       e.preventDefault();
-                      e.currentTarget.style.border = '1px solid var(--bolt-elements-borderColor)';
                     }}
                     onDrop={(e) => {
                       e.preventDefault();
-                      e.currentTarget.style.border = '1px solid var(--bolt-elements-borderColor)';
 
                       const files = Array.from(e.dataTransfer.files);
                       files.forEach((file) => {
@@ -570,32 +560,31 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       />
                     )}
                   </ClientOnly>
-                  <div className="flex justify-between items-center text-sm p-4 pt-2">
+                  <div className="flex justify-between items-center text-sm p-3 pt-1 border-t border-purple-500/15">
                     <div className="flex gap-1 items-center">
-                      <IconButton title="Upload file" className="transition-all" onClick={() => handleFileUpload()}>
+                      <IconButton title="Upload file" className="transition-all text-purple-300 hover:text-white" onClick={() => handleFileUpload()}>
                         <div className="i-ph:paperclip text-xl"></div>
                       </IconButton>
                       <IconButton
                         title="Enhance prompt"
                         disabled={input.length === 0 || enhancingPrompt}
                         className={classNames(
-                          'transition-all',
+                          'transition-all text-purple-300 hover:text-white',
                           enhancingPrompt ? 'opacity-100' : '',
-                          promptEnhanced ? 'text-bolt-elements-item-contentAccent' : '',
-                          promptEnhanced ? 'pr-1.5' : '',
-                          promptEnhanced ? 'enabled:hover:bg-bolt-elements-item-backgroundAccent' : '',
+                          promptEnhanced ? 'text-purple-300 pr-1.5' : '',
+                          promptEnhanced ? 'enabled:hover:bg-purple-900/40' : '',
                         )}
                         onClick={() => enhancePrompt?.()}
                       >
                         {enhancingPrompt ? (
                           <>
-                            <div className="i-svg-spinners:90-ring-with-bg text-bolt-elements-loader-progress text-xl animate-spin"></div>
-                            <div className="ml-1.5">Enhancing prompt...</div>
+                            <div className="i-svg-spinners:90-ring-with-bg text-purple-400 text-xl animate-spin"></div>
+                            <div className="ml-1.5 text-purple-300">Enhancing prompt...</div>
                           </>
                         ) : (
                           <>
-                            <div className="i-bolt:stars text-xl"></div>
-                            {promptEnhanced && <div className="ml-1.5">Prompt enhanced</div>}
+                            <div className="i-bolt:stars text-xl text-purple-300"></div>
+                            {promptEnhanced && <div className="ml-1.5 text-purple-300">Prompt enhanced</div>}
                           </>
                         )}
                       </IconButton>
@@ -611,28 +600,26 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       {/* Community Games Gallery icon button */}
                       <IconButton
                         title="Community Games Gallery"
-                        className="transition-all text-sky-400 hover:text-white"
+                        className="transition-all text-purple-300 hover:text-white hover:bg-purple-900/30"
                         onClick={() => isGalleryOpen.set(true)}
                       >
-                        <div className="i-ph:game-controller-duotone text-xl text-[#38bdf8]" />
+                        <div className="i-ph:game-controller-duotone text-xl text-[#c084fc]" />
                       </IconButton>
 
                       {/* Configure AI icon button */}
                       <IconButton
                         title="Configure AI & Providers"
-                        className="transition-all text-orange-400 hover:text-white"
+                        className="transition-all text-purple-300 hover:text-white hover:bg-purple-900/30"
                         onClick={() => setIsSettingsOpen(true)}
                       >
-                        <div className="i-ph:gear-six text-xl text-[#f97316]" />
+                        <div className="i-ph:gear-six text-xl text-[#c084fc]" />
                       </IconButton>
 
                       <IconButton
                         title="Model Settings"
-                        className={classNames('transition-all flex items-center gap-1', {
-                          'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent':
-                            isModelSettingsCollapsed,
-                          'bg-bolt-elements-item-backgroundDefault text-bolt-elements-item-contentDefault':
-                            !isModelSettingsCollapsed,
+                        className={classNames('rounded-none transition-all flex items-center gap-1 border border-purple-500/25 bg-[#25133e] text-purple-200 hover:bg-purple-900/50 px-2 py-0.5', {
+                          'opacity-80': isModelSettingsCollapsed,
+                          'bg-purple-900/70 border-purple-400/40': !isModelSettingsCollapsed,
                         })}
                         onClick={() => setIsModelSettingsCollapsed(!isModelSettingsCollapsed)}
                         disabled={!providerList || providerList.length === 0}
@@ -641,10 +628,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         {isModelSettingsCollapsed ? <span className="text-xs">{model}</span> : <span />}
                       </IconButton>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-slate-300 select-none">
+                    <div className="flex items-center gap-2 text-xs text-purple-200/70 select-none">
                       <span
                         style={{ borderRadius: 0 }}
-                        className="px-2 py-0.5 font-mono font-bold bg-[#182238] border border-white/15 text-amber-400 flex items-center gap-1"
+                        className="px-2 py-0.5 font-mono font-bold bg-[#261442] border border-purple-400/30 text-amber-400 flex items-center gap-1"
                         title="10 Tokens per prompt"
                       >
                         <span>🪙</span>
@@ -652,10 +639,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       </span>
                       {input.length > 3 && (
                         <>
-                          <span className="text-white/20">•</span>
+                          <span className="text-purple-400/30">•</span>
                           <span>
-                            <kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Shift</kbd> +{' '}
-                            <kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Return</kbd> for new line
+                            <kbd className="kdb px-1.5 py-0.5 rounded bg-purple-950/60 border border-purple-500/30 text-purple-200">Shift</kbd> +{' '}
+                            <kbd className="kdb px-1.5 py-0.5 rounded bg-purple-950/60 border border-purple-500/30 text-purple-200">Return</kbd> for new line
                           </span>
                         </>
                       )}

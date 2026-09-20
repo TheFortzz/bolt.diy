@@ -16,7 +16,7 @@ export const SendButton = ({ show, isStreaming, disabled, onClick }: SendButtonP
       {show ? (
         <motion.button
           style={{ borderRadius: 0 }}
-          className="absolute flex justify-center items-center top-[18px] right-[22px] p-1 bg-[#f97316] hover:bg-[#ea580c] border border-orange-400/40 text-white w-[34px] h-[34px] transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          className="absolute flex justify-center items-center top-[14px] right-[14px] p-1 bg-[#8b5cf6] hover:bg-[#7c3aed] border border-purple-400/50 text-white w-[34px] h-[34px] transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-md"
           transition={{ ease: customEasingFn, duration: 0.17 }}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}

@@ -61,7 +61,7 @@ export function StudioLandingSection({}: StudioLandingSectionProps) {
           <span className="text-white">
             {displayedText}
           </span>
-          <span className="inline-block w-1.5 sm:w-2 h-6 sm:h-8 bg-[#38bdf8] ml-1.5 animate-pulse" />
+          <span className="inline-block w-1.5 sm:w-2 h-6 sm:h-8 bg-[#c084fc] ml-1.5 animate-pulse" />
         </h1>
       </div>
     </div>
