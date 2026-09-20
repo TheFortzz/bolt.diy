@@ -34,7 +34,7 @@ import { ModelSelector } from '~/components/chat/ModelSelector';
 import { SpeechRecognitionButton } from '~/components/chat/SpeechRecognition';
 import type { IProviderSetting, ProviderInfo } from '~/types/model';
 
-const TEXTAREA_MIN_HEIGHT = 76;
+const TEXTAREA_MIN_HEIGHT = 88;
 
 interface BaseChatProps {
   textareaRef?: React.RefObject<HTMLTextAreaElement> | undefined;
@@ -458,7 +458,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 <div
                   className="w-full mx-auto px-2 sm:px-0 mb-3"
                   style={{
-                    maxWidth: isWorkbenchActive ? '100%' : '48rem',
+                    maxWidth: isWorkbenchActive ? '100%' : '56rem',
                   }}
                 >
                   <StudioLandingSection
@@ -479,7 +479,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   },
                 )}
                 style={{
-                  maxWidth: isWorkbenchActive ? '100%' : (chatStarted ? '42rem' : '48rem'),
+                  maxWidth: isWorkbenchActive ? '100%' : '56rem',
                 }}
               >
                 <div className={isModelSettingsCollapsed ? 'hidden' : ''}>
@@ -518,7 +518,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   <textarea
                     ref={textareaRef}
                     className={classNames(
-                      'w-full pl-4 pt-4 pr-16 focus:outline-none resize-none text-white placeholder-purple-300/40 bg-transparent text-sm',
+                      'w-full pl-5 pt-4.5 pr-16 focus:outline-none resize-none text-white placeholder-purple-300/40 bg-transparent text-[15px]',
                       'transition-all duration-200',
                     )}
                     onDragEnter={(e) => {
@@ -594,31 +594,34 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       />
                     )}
                   </ClientOnly>
-                  <div className="flex justify-between items-center text-sm p-3 pt-1 border-t border-purple-500/15">
-                    <div className="flex gap-1 items-center">
-                      <IconButton title="Upload file" className="transition-all text-purple-300 hover:text-white" onClick={() => handleFileUpload()}>
+                  <div
+                    style={{ borderRadius: 0 }}
+                    className="flex justify-between items-center text-sm p-3 pt-2 bg-[#0c2242] border-t border-[#38bdf8]/40 shadow-inner"
+                  >
+                    <div className="flex gap-1.5 items-center">
+                      <IconButton title="Upload file" className="transition-all text-sky-300 hover:text-white hover:bg-sky-500/20" onClick={() => handleFileUpload()}>
                         <div className="i-ph:paperclip text-xl"></div>
                       </IconButton>
                       <IconButton
                         title="Enhance prompt"
                         disabled={input.length === 0 || enhancingPrompt}
                         className={classNames(
-                          'transition-all text-purple-300 hover:text-white',
+                          'transition-all text-sky-300 hover:text-white hover:bg-sky-500/20',
                           enhancingPrompt ? 'opacity-100' : '',
-                          promptEnhanced ? 'text-purple-300 pr-1.5' : '',
-                          promptEnhanced ? 'enabled:hover:bg-purple-900/40' : '',
+                          promptEnhanced ? 'text-sky-200 pr-1.5' : '',
+                          promptEnhanced ? 'enabled:hover:bg-sky-900/40' : '',
                         )}
                         onClick={() => enhancePrompt?.()}
                       >
                         {enhancingPrompt ? (
                           <>
-                            <div className="i-svg-spinners:90-ring-with-bg text-purple-400 text-xl animate-spin"></div>
-                            <div className="ml-1.5 text-purple-300">Enhancing prompt...</div>
+                            <div className="i-svg-spinners:90-ring-with-bg text-sky-400 text-xl animate-spin"></div>
+                            <div className="ml-1.5 text-sky-200">Enhancing prompt...</div>
                           </>
                         ) : (
                           <>
-                            <div className="i-bolt:stars text-xl text-purple-300"></div>
-                            {promptEnhanced && <div className="ml-1.5 text-purple-300">Prompt enhanced</div>}
+                            <div className="i-bolt:stars text-xl text-sky-300"></div>
+                            {promptEnhanced && <div className="ml-1.5 text-sky-200">Prompt enhanced</div>}
                           </>
                         )}
                       </IconButton>
@@ -634,38 +637,38 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       {/* Community Games Gallery icon button */}
                       <IconButton
                         title="Community Games Gallery"
-                        className="transition-all text-purple-300 hover:text-white hover:bg-purple-900/30"
+                        className="transition-all text-sky-300 hover:text-white hover:bg-sky-500/20"
                         onClick={() => isGalleryOpen.set(true)}
                       >
-                        <div className="i-ph:game-controller-duotone text-xl text-[#c084fc]" />
+                        <div className="i-ph:game-controller-duotone text-xl text-[#38bdf8]" />
                       </IconButton>
 
                       {/* Configure AI icon button */}
                       <IconButton
                         title="Configure AI & Providers"
-                        className="transition-all text-purple-300 hover:text-white hover:bg-purple-900/30"
+                        className="transition-all text-sky-300 hover:text-white hover:bg-sky-500/20"
                         onClick={() => setIsSettingsOpen(true)}
                       >
-                        <div className="i-ph:gear-six text-xl text-[#c084fc]" />
+                        <div className="i-ph:gear-six text-xl text-[#38bdf8]" />
                       </IconButton>
 
                       <IconButton
                         title="Model Settings"
-                        className={classNames('rounded-none transition-all flex items-center gap-1 border border-purple-500/25 bg-[#25133e] text-purple-200 hover:bg-purple-900/50 px-2 py-0.5', {
+                        className={classNames('rounded-none transition-all flex items-center gap-1 border border-[#38bdf8]/35 bg-[#14335c] text-sky-200 hover:bg-[#1b467e] px-2.5 py-1', {
                           'opacity-80': isModelSettingsCollapsed,
-                          'bg-purple-900/70 border-purple-400/40': !isModelSettingsCollapsed,
+                          'bg-[#1e4e8c] border-[#38bdf8]/60': !isModelSettingsCollapsed,
                         })}
                         onClick={() => setIsModelSettingsCollapsed(!isModelSettingsCollapsed)}
                         disabled={!providerList || providerList.length === 0}
                       >
-                        <div className={`i-ph:caret-${isModelSettingsCollapsed ? 'right' : 'down'} text-lg`} />
-                        {isModelSettingsCollapsed ? <span className="text-xs">{model}</span> : <span />}
+                        <div className={`i-ph:caret-${isModelSettingsCollapsed ? 'right' : 'down'} text-lg text-[#38bdf8]`} />
+                        {isModelSettingsCollapsed ? <span className="text-xs font-mono">{model}</span> : <span />}
                       </IconButton>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-purple-200/70 select-none">
+                    <div className="flex items-center gap-2 text-xs text-sky-200/80 select-none">
                       <span
                         style={{ borderRadius: 0 }}
-                        className="px-2 py-0.5 font-mono font-bold bg-[#261442] border border-purple-400/30 text-amber-400 flex items-center gap-1"
+                        className="px-2.5 py-0.5 font-mono font-bold bg-[#071526] border border-[#38bdf8]/40 text-amber-300 flex items-center gap-1"
                         title="10 Tokens per prompt"
                       >
                         <span>🪙</span>
@@ -673,10 +676,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       </span>
                       {input.length > 3 && (
                         <>
-                          <span className="text-purple-400/30">•</span>
-                          <span>
-                            <kbd className="kdb px-1.5 py-0.5 rounded bg-purple-950/60 border border-purple-500/30 text-purple-200">Shift</kbd> +{' '}
-                            <kbd className="kdb px-1.5 py-0.5 rounded bg-purple-950/60 border border-purple-500/30 text-purple-200">Return</kbd> for new line
+                          <span className="text-sky-400/40">•</span>
+                          <span className="text-[11px] text-sky-300/70">
+                            <kbd className="kdb px-1.5 py-0.5 rounded-none bg-sky-950/80 border border-sky-500/30 text-sky-200 font-mono">Shift</kbd> +{' '}
+                            <kbd className="kdb px-1.5 py-0.5 rounded-none bg-sky-950/80 border border-sky-500/30 text-sky-200 font-mono">Return</kbd> for new line
                           </span>
                         </>
                       )}

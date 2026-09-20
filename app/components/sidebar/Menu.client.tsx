@@ -189,7 +189,7 @@ export const Menu = () => {
             href="/"
             style={{ borderRadius: 0 }}
             title="Create New Game"
-            className={`transition-all active:translate-y-0.5 no-underline flex items-center justify-center bg-[#f97316] hover:bg-[#ea580c] text-white font-bold border border-orange-300/40 shadow-sm ${
+            className={`transition-all active:translate-y-0.5 no-underline flex items-center justify-center bg-[#f97316] hover:bg-[#ea580c] text-white font-bold border border-orange-400/50 shadow-md ${
               open ? 'py-1.5 px-2 gap-1.5 text-xs' : 'w-9 h-9'
             }`}
           >
@@ -207,8 +207,8 @@ export const Menu = () => {
             title={showWorkbench ? 'Close Builder Box' : 'Open Builder Box (Code & Preview)'}
             className={`transition-all flex items-center justify-center font-bold cursor-pointer border ${
               showWorkbench
-                ? 'bg-[#8b5cf6] hover:bg-[#7c3aed] text-white border-purple-300/50 shadow-sm'
-                : 'bg-[#062400]/70 hover:bg-[#0c4000] text-purple-200 hover:text-white border-[#4ade80]/35'
+                ? 'bg-[#7c3aed] hover:bg-[#6d28d9] text-white border-purple-300/60 shadow-md'
+                : 'bg-[#25103e] hover:bg-[#38185c] text-purple-200 hover:text-white border-purple-400/40 shadow-sm'
             } ${
               open ? 'py-1.5 px-2 gap-1.5 text-xs' : 'w-9 h-9'
             }`}
@@ -223,11 +223,11 @@ export const Menu = () => {
             onClick={() => isGalleryOpen.set(true)}
             style={{ borderRadius: 0 }}
             title="Open Created Games & Community Projects"
-            className={`transition-all flex items-center justify-center bg-[#062400]/70 hover:bg-[#0c4000] text-emerald-100 hover:text-white font-bold border border-[#4ade80]/35 cursor-pointer ${
+            className={`transition-all flex items-center justify-center bg-[#0f2c4e] hover:bg-[#163f6d] text-sky-100 hover:text-white font-bold border border-cyan-400/40 shadow-sm cursor-pointer ${
               open ? 'py-1.5 px-2 gap-1.5 text-xs' : 'w-9 h-9'
             }`}
           >
-            <div className="i-ph:squares-four-fill text-sm text-[#4ade80]" />
+            <div className="i-ph:squares-four-fill text-sm text-cyan-300" />
             {open && <span>Created</span>}
           </button>
 
@@ -237,11 +237,11 @@ export const Menu = () => {
             onClick={() => setIsAnalyticsOpen(true)}
             style={{ borderRadius: 0 }}
             title="Studio Analytics & Appwrite Status"
-            className={`transition-all flex items-center justify-center bg-[#062400]/70 hover:bg-[#0c4000] text-emerald-100 hover:text-white font-bold border border-[#4ade80]/35 cursor-pointer ${
+            className={`transition-all flex items-center justify-center bg-[#1e1b4b] hover:bg-[#2d2870] text-indigo-100 hover:text-white font-bold border border-indigo-400/45 shadow-sm cursor-pointer ${
               open ? 'py-1.5 px-2 gap-1.5 text-xs' : 'w-9 h-9'
             }`}
           >
-            <div className="i-ph:chart-bar-fill text-sm text-[#4ade80]" />
+            <div className="i-ph:chart-bar-fill text-sm text-indigo-300" />
             {open && <span>Analytics</span>}
           </button>
         </div>
@@ -269,7 +269,7 @@ export const Menu = () => {
               <DialogRoot open={dialogContent !== null}>
                 {binDates(list).map(({ category, items }) => (
                   <div key={category} className="mt-2.5 first:mt-0 space-y-0.5">
-                    <div className="text-[10px] font-bold text-[#bbf7d0] uppercase tracking-wider sticky top-0 z-1 bg-[#093500]/95 border-b border-white/10 px-2 py-0.5">
+                    <div className="text-[10px] font-bold text-sky-200 uppercase tracking-wider sticky top-0 z-1 bg-[#0b1626]/95 border-b border-white/10 px-2 py-0.5">
                       {category}
                     </div>
                     {items.map((item) => (
@@ -338,8 +338,8 @@ export const Menu = () => {
                     title={projectTitle}
                     className={`w-9 h-9 flex items-center justify-center transition-all cursor-pointer no-underline border flex-shrink-0 ${
                       isCurrent
-                        ? 'bg-[#062400] border-[#4ade80] text-white shadow-sm'
-                        : 'bg-transparent border-transparent hover:bg-black/25 text-emerald-100 hover:text-white'
+                        ? 'bg-[#12253f] border-[#38bdf8] text-white shadow-sm'
+                        : 'bg-black/25 border-transparent hover:bg-black/45 text-slate-200 hover:text-white'
                     }`}
                     style={{ borderRadius: 0 }}
                   >
@@ -352,7 +352,7 @@ export const Menu = () => {
         </div>
 
         {/* ── Bottom Section: Settings & Profile Very Under ── */}
-        <div className="border-t border-[#4ade80]/30 bg-[#062400]/85 backdrop-blur-sm flex flex-col select-none" style={{ borderRadius: 0 }}>
+        <div className="border-t border-white/15 bg-[#0b1320] flex flex-col select-none" style={{ borderRadius: 0 }}>
           {/* Settings & Theme Switch */}
           <div className={`flex items-center border-b border-white/10 ${open ? 'justify-between px-2 py-1.5' : 'justify-center p-1.5'}`}>
             <button
@@ -361,34 +361,34 @@ export const Menu = () => {
                 setIsSettingsOpen(true);
               }}
               style={{ borderRadius: 0 }}
-              className={`flex items-center text-emerald-100 hover:text-white transition-colors cursor-pointer hover:bg-black/20 ${
-                open ? 'gap-1.5 text-xs py-1 px-1.5' : 'w-8 h-8 justify-center'
+              className={`flex items-center bg-[#132034] hover:bg-[#1a2d48] text-sky-200 hover:text-white border border-sky-400/30 transition-colors cursor-pointer ${
+                open ? 'gap-1.5 text-xs py-1 px-2' : 'w-8 h-8 justify-center'
               }`}
               title="Configure AI Settings"
             >
-              <div className="i-ph:gear-six text-base text-[#4ade80]" />
+              <div className="i-ph:gear-six text-base text-[#38bdf8]" />
               {open && <span>Settings</span>}
             </button>
             {open && <ThemeSwitch />}
           </div>
 
           {/* Profile Box - Very Under */}
-          <div className={`${open ? 'p-2' : 'p-1.5 flex justify-center'} bg-[#041a00]`}>
+          <div className={`${open ? 'p-2' : 'p-1.5 flex justify-center'} bg-[#070d18]`}>
             {auth.user ? (
               open ? (
-                <div className="w-full flex items-center justify-between px-2 py-1.5 bg-[#093500] border border-[#4ade80]/40 text-xs text-white" style={{ borderRadius: 0 }}>
+                <div className="w-full flex items-center justify-between px-2 py-1.5 bg-[#121c2d] border border-sky-400/35 text-xs text-white" style={{ borderRadius: 0 }}>
                   <div className="flex items-center gap-1.5 overflow-hidden">
                     {avatarUrl ? (
                       <img
                         src={avatarUrl}
                         alt={auth.user.name}
-                        className="w-7 h-7 rounded-full object-cover flex-shrink-0 border border-[#4ade80]"
+                        className="w-7 h-7 rounded-full object-cover flex-shrink-0 border border-sky-400"
                         onError={() => {
                           setAvatarFailed(true);
                         }}
                       />
                     ) : (
-                      <div className="i-ph:user-circle-fill text-xl text-[#4ade80] flex-shrink-0" />
+                      <div className="i-ph:user-circle-fill text-xl text-[#38bdf8] flex-shrink-0" />
                     )}
                     <span className="font-bold truncate text-white leading-tight text-[11px]">
                       {auth.user.name}
@@ -399,7 +399,7 @@ export const Menu = () => {
                       appwriteLogout();
                       toast.info('Signed out');
                     }}
-                    className="p-1 text-emerald-300/70 hover:text-rose-400 hover:bg-black/20 transition-all cursor-pointer flex-shrink-0"
+                    className="p-1 text-slate-400 hover:text-rose-400 hover:bg-white/10 transition-all cursor-pointer flex-shrink-0"
                     style={{ borderRadius: 0 }}
                     title="Sign out"
                   >
@@ -412,20 +412,20 @@ export const Menu = () => {
                     appwriteLogout();
                     toast.info('Signed out');
                   }}
-                  className="w-9 h-9 flex items-center justify-center hover:bg-black/20 transition-colors cursor-pointer relative group"
+                  className="w-9 h-9 flex items-center justify-center hover:bg-white/10 transition-colors cursor-pointer relative group"
                   title={`${auth.user.name} (Click to Sign Out)`}
                 >
                   {avatarUrl ? (
                     <img
                       src={avatarUrl}
                       alt={auth.user.name}
-                      className="w-7 h-7 rounded-full object-cover border border-[#4ade80]"
+                      className="w-7 h-7 rounded-full object-cover border border-sky-400"
                       onError={() => {
                         setAvatarFailed(true);
                       }}
                     />
                   ) : (
-                    <div className="i-ph:user-circle-fill text-2xl text-[#4ade80]" />
+                    <div className="i-ph:user-circle-fill text-2xl text-[#38bdf8]" />
                   )}
                 </button>
               )
@@ -438,13 +438,13 @@ export const Menu = () => {
                   isAuthModalOpen.set(true);
                 }}
                 style={{ borderRadius: 0 }}
-                className="w-full flex items-center justify-between px-2.5 py-1.5 bg-[#093500] hover:bg-[#0f4d02] border border-[#4ade80]/40 text-xs font-bold text-emerald-200 hover:text-white transition-all cursor-pointer"
+                className="w-full flex items-center justify-between px-2.5 py-1.5 bg-[#121c2d] hover:bg-[#18263e] border border-sky-400/40 text-xs font-bold text-sky-200 hover:text-white transition-all cursor-pointer"
               >
                 <div className="flex items-center gap-1.5">
-                  <div className="i-ph:user-circle-fill text-base text-[#4ade80]" />
+                  <div className="i-ph:user-circle-fill text-base text-[#38bdf8]" />
                   <span className="text-[11px]">Sign In</span>
                 </div>
-                <div className="i-ph:arrow-square-out text-[#4ade80] text-xs" />
+                <div className="i-ph:arrow-square-out text-[#38bdf8] text-xs" />
               </button>
             ) : (
               <button
@@ -454,10 +454,10 @@ export const Menu = () => {
                   }
                   isAuthModalOpen.set(true);
                 }}
-                className="w-9 h-9 flex items-center justify-center hover:bg-black/20 transition-colors cursor-pointer"
+                className="w-9 h-9 flex items-center justify-center hover:bg-white/10 transition-colors cursor-pointer"
                 title="Sign In"
               >
-                <div className="i-ph:user-circle-fill text-2xl text-[#4ade80]" />
+                <div className="i-ph:user-circle-fill text-2xl text-[#38bdf8]" />
               </button>
             )}
           </div>

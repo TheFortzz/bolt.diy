@@ -8,41 +8,42 @@ $code-font-size: 13px;
 }
 
 .MarkdownContent {
-  line-height: 1.6;
+  font-size: 13.5px;
+  line-height: 1.52;
   color: var(--bolt-elements-textPrimary);
 
   > *:not(:last-child) {
-    margin-block-end: 16px;
+    margin-block-end: 10px;
   }
 
   :global(.artifact) {
-    margin: 1.5em 0;
+    margin: 1em 0;
   }
 
   :is(h1, h2, h3, h4, h5, h6) {
     @include not-inside-actions {
-      margin-block-start: 24px;
-      margin-block-end: 16px;
-      font-weight: 600;
+      margin-block-start: 14px;
+      margin-block-end: 8px;
+      font-weight: 700;
       line-height: 1.25;
       color: var(--bolt-elements-textPrimary);
     }
   }
 
   h1 {
-    font-size: 2em;
-    border-bottom: 1px solid var(--bolt-elements-borderColor);
-    padding-bottom: 0.3em;
+    font-size: 1.35em;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    padding-bottom: 0.25em;
   }
 
   h2 {
-    font-size: 1.5em;
-    border-bottom: 1px solid var(--bolt-elements-borderColor);
-    padding-bottom: 0.3em;
+    font-size: 1.2em;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 0.2em;
   }
 
   h3 {
-    font-size: 1.25em;
+    font-size: 1.1em;
   }
 
   h4 {
@@ -50,12 +51,12 @@ $code-font-size: 13px;
   }
 
   h5 {
-    font-size: 0.875em;
+    font-size: 0.9em;
   }
 
   h6 {
     font-size: 0.85em;
-    color: #6a737d;
+    color: #94a3b8;
   }
 
   p {
@@ -63,7 +64,7 @@ $code-font-size: 13px;
 
     &:not(:last-of-type) {
       margin-block-start: 0;
-      margin-block-end: 16px;
+      margin-block-end: 10px;
     }
   }
 
@@ -79,19 +80,20 @@ $code-font-size: 13px;
 
   :not(pre) > code {
     font-family: $font-mono;
-    font-size: $code-font-size;
+    font-size: 12px;
 
     @include not-inside-actions {
-      border-radius: 6px;
-      padding: 0.2em 0.4em;
-      background-color: var(--bolt-elements-messages-inlineCode-background);
-      color: var(--bolt-elements-messages-inlineCode-text);
+      border-radius: 0;
+      padding: 0.15em 0.35em;
+      background-color: rgba(255, 255, 255, 0.08);
+      color: #7dd3fc;
+      border: 1px solid rgba(255, 255, 255, 0.1);
     }
   }
 
   pre {
-    padding: 20px 16px;
-    border-radius: 6px;
+    padding: 12px 14px;
+    border-radius: 0;
   }
 
   pre:has(> code) {
