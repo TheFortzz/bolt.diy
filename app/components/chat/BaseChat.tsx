@@ -18,15 +18,13 @@ import * as Tooltip from '@radix-ui/react-tooltip';
 
 import styles from './BaseChat.module.scss';
 import { ExportChatButton } from '~/components/chat/chatExportAndImport/ExportChatButton';
-import { ImportButtons } from '~/components/chat/chatExportAndImport/ImportButtons';
-import { ExamplePrompts } from '~/components/chat/ExamplePrompts';
-import GitCloneButton from './GitCloneButton';
 import { toast } from 'react-toastify';
 import { SettingsWindow } from '~/components/settings/SettingsWindow';
 import { HeaderActionButtons } from '~/components/header/HeaderActionButtons.client';
-import { StudioLandingSection, QUICK_PILLS } from './StudioLandingSection';
+import { StudioLandingSection } from './StudioLandingSection';
+import { CommunityGalleryModal } from '~/components/gallery/CommunityGalleryModal';
 
-import { isSidebarOpen } from '~/lib/stores/sidebar';
+import { isSidebarOpen, isGalleryOpen } from '~/lib/stores/sidebar';
 import { authStore, isAuthModalOpen, checkAuthSession } from '~/lib/auth/appwrite';
 import { AppwriteAuthModal } from '~/components/auth/AppwriteAuthModal';
 
@@ -120,18 +118,22 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     // Use safe SSR defaults; real values are hydrated client-side via useEffect
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [galleryOpen, setGalleryOpen] = useState(false);
     const [auth, setAuth] = useState<{ user: any }>({ user: null });
 
     useEffect(() => {
       // Subscribe to nanostores after hydration to avoid SSR mismatch (#418/#425)
       setSidebarOpen(isSidebarOpen.get());
+      setGalleryOpen(isGalleryOpen.get());
       setAuth(authStore.get());
       const unsubSidebar = isSidebarOpen.subscribe((v) => setSidebarOpen(v));
+      const unsubGallery = isGalleryOpen.subscribe((v) => setGalleryOpen(v));
       const unsubAuth = authStore.subscribe((v) => setAuth(v));
       // Kick off auth session check (client-only)
       checkAuthSession();
       return () => {
         unsubSidebar();
+        unsubGallery();
         unsubAuth();
       };
     }, []);
@@ -398,7 +400,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
           ref={scrollRef}
           className={classNames(
             'flex flex-col lg:flex-row overflow-y-auto w-full h-full transition-[padding] duration-200 ease-in-out',
-            sidebarOpen ? 'lg:pl-[260px]' : 'lg:pl-0',
+            sidebarOpen ? 'pl-[200px]' : 'pl-[54px]',
           )}
         >
           <div className={classNames(styles.Chat, 'flex flex-col flex-grow lg:min-w-[var(--chat-min-width)] h-full relative')}>
@@ -416,8 +418,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               />
             )}
             <div
-              className={classNames('pt-6 px-2 sm:px-6', {
-                'h-full flex flex-col': chatStarted,
+              className={classNames('pt-2 px-2 sm:px-6 flex-1 flex flex-col', {
+                'h-full': chatStarted,
               })}
             >
               <ClientOnly>
@@ -435,15 +437,16 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
 
               <div
                 className={classNames(
-                  'p-3.5 relative w-full mx-auto z-prompt mb-4 transition-all duration-300',
+                  'p-4 relative w-full mx-auto z-prompt mb-4 transition-all duration-300',
                   {
                     'sticky bottom-2': chatStarted,
+                    'mt-16 sm:mt-24 md:mt-32': !chatStarted,
                   },
                 )}
                 style={{
-                  maxWidth: chatStarted ? '42rem' : '52rem',
+                  maxWidth: chatStarted ? '56rem' : '76rem',
                   borderRadius: 0,
-                  background: '#182238',
+                  background: '#1a3050',
                   border: '1.5px solid rgba(56, 189, 248, 0.45)',
                   boxShadow: 'none',
                 }}
@@ -476,10 +479,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 <div
                   style={{
                     borderRadius: 0,
-                    boxShadow: '0 6px 0 0 #070b13, 0 10px 24px rgba(0,0,0,0.5)',
+                    boxShadow: '0 6px 0 0 #0c1a2e, 0 10px 24px rgba(0,0,0,0.45)',
                   }}
                   className={classNames(
-                    'relative mt-4 sm:mt-6 border-t border-l border-white/20 border-r-2 border-b-[5px] border-r-[#070b13] border-b-[#070b13] bg-[#121929] focus-within:border-t-[#38bdf8] focus-within:border-l-[#38bdf8] transition-all',
+                    'relative border-t border-l border-white/20 border-r-2 border-b-[5px] border-r-[#0c1a2e] border-b-[#0c1a2e] bg-[#14243b] focus-within:border-t-[#38bdf8] focus-within:border-l-[#38bdf8] transition-all',
                   )}
                 >
                   <textarea
@@ -642,38 +645,29 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               </div>
 
               {!chatStarted && (
-                <>
-                  {/* Quick-start template presets in one horizontal row only */}
-                  <div className="flex flex-row flex-nowrap items-center justify-center gap-2 overflow-x-auto no-scrollbar max-w-[52rem] mx-auto mb-3 px-2 select-none">
-                    {QUICK_PILLS.map((pill) => (
-                      <button
-                        key={pill.id}
-                        type="button"
-                        onClick={() => handleSelectTemplate(`Build a complete ${pill.label} game with smooth physics and audio in HTML5 canvas`)}
-                        className="px-3 py-1 bg-[#182238] hover:bg-[#202c48] text-sky-300 hover:text-white border border-[#38bdf8]/30 hover:border-[#f97316] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap flex-shrink-0"
-                        style={{ borderRadius: 0 }}
-                      >
-                        <span>{pill.icon}</span>
-                        <span>{pill.label}</span>
-                      </button>
-                    ))}
-                  </div>
+                <div className="flex justify-center items-center gap-3 flex-wrap max-w-[52rem] mx-auto mb-8 px-2 select-none">
+                  <button
+                    type="button"
+                    onClick={() => isGalleryOpen.set(true)}
+                    style={{ borderRadius: 0 }}
+                    className="px-4 py-2 bg-[#1a3050] hover:bg-[#213d66] active:bg-[#284b7c] text-sky-200 hover:text-white border border-[#38bdf8]/40 hover:border-[#38bdf8] text-xs font-semibold tracking-wide transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+                    title="Browse community games gallery and remix them"
+                  >
+                    <div className="i-ph:game-controller-duotone text-base text-[#38bdf8]" />
+                    <span>Community Games Gallery</span>
+                  </button>
 
-                  {/* Secondary developer actions: Import & AI Configuration */}
-                  <div className="flex justify-center items-center gap-2.5 flex-wrap max-w-[52rem] mx-auto mb-6 px-2 select-none">
-                    {ImportButtons(importChat)}
-                    <GitCloneButton importChat={importChat} />
-                    <button
-                      onClick={() => setIsSettingsOpen(true)}
-                      style={{ borderRadius: 0 }}
-                      className="px-3 py-1.5 border border-[#38bdf8]/30 bg-[#182238] hover:bg-[#202c48] text-sky-300 hover:text-white transition-all flex items-center gap-2 cursor-pointer text-xs font-bold"
-                      title="Configure AI models and providers"
-                    >
-                      <div className="i-ph:gear-six-fill text-sm text-[#f97316]" />
-                      <span>Configure AI</span>
-                    </button>
-                  </div>
-                </>
+                  <button
+                    type="button"
+                    onClick={() => setIsSettingsOpen(true)}
+                    style={{ borderRadius: 0 }}
+                    className="px-4 py-2 bg-[#1a3050] hover:bg-[#213d66] active:bg-[#284b7c] text-sky-200 hover:text-white border border-[#38bdf8]/40 hover:border-[#38bdf8] text-xs font-semibold tracking-wide transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+                    title="Configure AI models and providers"
+                  >
+                    <div className="i-ph:gear-six-fill text-base text-[#f97316]" />
+                    <span>Configure AI</span>
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -684,6 +678,13 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
           open={isSettingsOpen}
           initialTab="providers"
           onClose={() => setIsSettingsOpen(false)}
+        />
+        <CommunityGalleryModal
+          open={galleryOpen}
+          onClose={() => isGalleryOpen.set(false)}
+          onSelectPrompt={(prompt) => {
+            handleSelectTemplate(prompt);
+          }}
         />
       </div>
     );

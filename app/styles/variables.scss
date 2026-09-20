@@ -1,19 +1,19 @@
 :root,
 :root[data-theme='light'] {
-  --bolt-elements-borderColor: rgba(56, 189, 248, 0.22);
+  --bolt-elements-borderColor: rgba(56, 189, 248, 0.28);
   --bolt-elements-borderColorActive: #38bdf8;
 
-  /* Replit Modern Palette — Light Slate Base with Electric Light Blue & Vibrant Orange */
-  --bolt-elements-bg-depth-1: #121929;
-  --bolt-elements-bg-depth-2: #182238;
-  --bolt-elements-bg-depth-3: #202c48;
-  --bolt-elements-bg-depth-4: #28375a;
+  /* Modern Digital Blue Palette — Clean Blue with Electric Light Blue & Vibrant Orange */
+  --bolt-elements-bg-depth-1: #14243b;
+  --bolt-elements-bg-depth-2: #1a3050;
+  --bolt-elements-bg-depth-3: #213d66;
+  --bolt-elements-bg-depth-4: #284b7c;
 
   --bolt-elements-textPrimary: #ffffff;
-  --bolt-elements-textSecondary: #cbd5e1;
+  --bolt-elements-textSecondary: #e0f2fe;
   --bolt-elements-textTertiary: #94a3b8;
 
-  --bolt-elements-code-background: #0f1422;
+  --bolt-elements-code-background: #0f1c30;
   --bolt-elements-code-text: #38bdf8;
 
   --bolt-elements-button-primary-background: #f97316;
@@ -107,20 +107,20 @@
 /* Color Tokens Dark Theme */
 :root,
 :root[data-theme='dark'] {
-  --bolt-elements-borderColor: rgba(56, 189, 248, 0.22);
+  --bolt-elements-borderColor: rgba(56, 189, 248, 0.28);
   --bolt-elements-borderColorActive: #38bdf8;
 
-  /* Replit Modern Palette — Light Slate Base with Electric Light Blue & Vibrant Orange */
-  --bolt-elements-bg-depth-1: #121929;
-  --bolt-elements-bg-depth-2: #182238;
-  --bolt-elements-bg-depth-3: #202c48;
-  --bolt-elements-bg-depth-4: #28375a;
+  /* Modern Digital Blue Palette — Clean Blue with Electric Light Blue & Vibrant Orange */
+  --bolt-elements-bg-depth-1: #14243b;
+  --bolt-elements-bg-depth-2: #1a3050;
+  --bolt-elements-bg-depth-3: #213d66;
+  --bolt-elements-bg-depth-4: #284b7c;
 
   --bolt-elements-textPrimary: #ffffff;
-  --bolt-elements-textSecondary: #cbd5e1;
+  --bolt-elements-textSecondary: #e0f2fe;
   --bolt-elements-textTertiary: #94a3b8;
 
-  --bolt-elements-code-background: #0f1422;
+  --bolt-elements-code-background: #0f1c30;
   --bolt-elements-code-text: #38bdf8;
 
   --bolt-elements-button-primary-background: #f97316;

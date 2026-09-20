@@ -1,18 +1,11 @@
 import React, { useEffect, useState } from 'react';
 
 interface StudioLandingSectionProps {
-  onSelectTemplate: (prompt: string) => void;
-  onLaunchTemplate: (event: React.UIEvent, prompt: string) => void;
-  onOpenSettings: () => void;
+  onSelectTemplate?: (prompt: string) => void;
+  onLaunchTemplate?: (event: React.UIEvent, prompt: string) => void;
+  onOpenSettings?: () => void;
   fortzBalance?: number;
 }
-
-export const QUICK_PILLS = [
-  { icon: '🕹️', label: 'Platformer', id: 'platformer' },
-  { icon: '🚀', label: 'Space Shooter', id: 'space-shooter' },
-  { icon: '⚔️', label: 'Dungeon RPG', id: 'metroidvania' },
-  { icon: '🧩', label: 'Physics Puzzle', id: 'physics-puzzle' },
-];
 
 const ANIMATED_SENTENCES = [
   'What do you want to build?',
@@ -24,54 +17,57 @@ const ANIMATED_SENTENCES = [
   'Prompt, build, and play directly in your browser.',
 ];
 
-export function StudioLandingSection({
-  onSelectTemplate,
-  onLaunchTemplate,
-  onOpenSettings,
-  fortzBalance,
-}: StudioLandingSectionProps) {
-  const [index, setIndex] = useState(0);
-  const [isFading, setIsFading] = useState(false);
+export function StudioLandingSection({}: StudioLandingSectionProps) {
+  const [sentenceIndex, setSentenceIndex] = useState(0);
+  const [charIndex, setCharIndex] = useState(0);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setIsFading(true);
-      setTimeout(() => {
-        setIndex((prev) => (prev + 1) % ANIMATED_SENTENCES.length);
-        setIsFading(false);
-      }, 350);
-    }, 3600);
+    const currentSentence = ANIMATED_SENTENCES[sentenceIndex];
+    let timeout: ReturnType<typeof setTimeout>;
 
-    return () => clearInterval(timer);
-  }, []);
+    if (!isDeleting && charIndex < currentSentence.length) {
+      // Typing forward (like typing on a keyboard from left to right)
+      timeout = setTimeout(() => {
+        setCharIndex((prev) => prev + 1);
+      }, 55);
+    } else if (!isDeleting && charIndex === currentSentence.length) {
+      // Pause at full sentence
+      timeout = setTimeout(() => {
+        setIsDeleting(true);
+      }, 2400);
+    } else if (isDeleting && charIndex > 0) {
+      // Smooth backspace deletion
+      timeout = setTimeout(() => {
+        setCharIndex((prev) => prev - 1);
+      }, 25);
+    } else if (isDeleting && charIndex === 0) {
+      // Move to next sentence
+      setIsDeleting(false);
+      setSentenceIndex((prev) => (prev + 1) % ANIMATED_SENTENCES.length);
+    }
 
-  const currentSentence = ANIMATED_SENTENCES[index];
+    return () => clearTimeout(timeout);
+  }, [charIndex, isDeleting, sentenceIndex]);
+
+  const currentSentence = ANIMATED_SENTENCES[sentenceIndex];
+  const displayedText = currentSentence.slice(0, charIndex);
 
   return (
-    <div className="w-full flex flex-col items-center select-none pt-6 pb-2 px-4">
-      {/* ── Dynamic Animated Sentence Hero ── */}
-      <div className="text-center max-w-2xl mx-auto min-h-[58px] flex flex-col items-center justify-center">
-        <h1
-          className="text-xl sm:text-2xl md:text-3xl font-black uppercase tracking-wider text-white font-['Anton',sans-serif] transition-all duration-300 transform flex items-center justify-center gap-1.5"
-          style={{
-            opacity: isFading ? 0 : 1,
-            transform: isFading ? 'translateY(6px)' : 'translateY(0px)',
-          }}
-        >
-          <span>{currentSentence}</span>
-          <span className="inline-block w-2 h-5 bg-[#f97316] animate-pulse ml-1" />
+    <div className="w-full flex flex-col items-center select-none pt-10 sm:pt-14 pb-2 px-4">
+      {/* ── Typewriter Sentence Hero — Single Horizontal Line ── */}
+      <div className="text-center w-full max-w-4xl mx-auto min-h-[50px] flex items-center justify-center overflow-hidden">
+        <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black uppercase tracking-wider text-white font-['Anton',sans-serif] whitespace-nowrap overflow-hidden text-ellipsis flex items-center justify-center">
+          <span className="text-white">
+            {displayedText}
+          </span>
+          <span className="inline-block w-1.5 sm:w-2 h-6 sm:h-8 bg-[#38bdf8] ml-1.5 animate-pulse" />
         </h1>
       </div>
     </div>
   );
 }
 
-export function StudioLandingFooter({
-  onSelectTemplate,
-  onLaunchTemplate,
-}: {
-  onSelectTemplate: (prompt: string) => void;
-  onLaunchTemplate: (event: React.UIEvent, prompt: string) => void;
-}) {
+export function StudioLandingFooter() {
   return null;
 }

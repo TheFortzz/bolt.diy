@@ -13,8 +13,8 @@ html,
 body {
   height: 100%;
   width: 100%;
-  background-color: #121929 !important;
-  background-image: radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.08) 0%, transparent 60%) !important;
+  background-color: #14243b !important;
+  background-image: radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.12) 0%, transparent 60%) !important;
   color: #ffffff;
   overflow: hidden;
 }
@@ -42,10 +42,10 @@ select,
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #121929;
+  background: #14243b;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2a3854;
+  background: #254168;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #38bdf8;
