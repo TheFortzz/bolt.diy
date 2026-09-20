@@ -103,7 +103,7 @@ function getFromLocalStorage(id: string): ChatHistoryItem | undefined {
   return undefined;
 }
 
-function getAllFromLocalStorage(): ChatHistoryItem[] {
+export function getAllFromLocalStorage(): ChatHistoryItem[] {
   if (typeof window === 'undefined') return [];
   try {
     const ids = getLocalStorageIndex();
@@ -121,6 +121,28 @@ function getAllFromLocalStorage(): ChatHistoryItem[] {
   } catch {
     return [];
   }
+}
+
+if (typeof window !== 'undefined') {
+  // Request saved chats from parent window on boot
+  if (window.parent && window.parent !== window) {
+    try {
+      window.parent.postMessage({ type: 'thefortz-chats-request' }, '*');
+    } catch {}
+  }
+
+  window.addEventListener('message', (event) => {
+    if (!event.data || typeof event.data !== 'object') return;
+
+    if (event.data.type === 'thefortz-chats-sync' && Array.isArray(event.data.chats)) {
+      for (const chat of event.data.chats) {
+        if (chat && (chat.id || chat.urlId)) {
+          saveToLocalStorage(chat);
+        }
+      }
+      window.dispatchEvent(new CustomEvent('thefortz-chats-updated'));
+    }
+  });
 }
 
 export async function getAll(db?: IDBDatabase): Promise<ChatHistoryItem[]> {
@@ -172,7 +194,17 @@ export async function setMessages(
   // 1. Guaranteed instantaneous sync into localStorage
   saveToLocalStorage(chatItem);
 
-  // 2. Also save to IndexedDB if available
+  // 2. Dispatch local event and notify parent window
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('thefortz-chats-updated', { detail: { chat: chatItem } }));
+    if (window.parent && window.parent !== window) {
+      try {
+        window.parent.postMessage({ type: 'thefortz-chat-saved', chat: chatItem }, '*');
+      } catch {}
+    }
+  }
+
+  // 3. Also save to IndexedDB if available
   if (!db) {
     return;
   }
@@ -244,6 +276,15 @@ export async function getMessagesById(db: IDBDatabase, id: string): Promise<Chat
 
 export async function deleteById(db: IDBDatabase | undefined, id: string): Promise<void> {
   removeFromLocalStorageIndex(id);
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('thefortz-chats-updated', { detail: { id } }));
+    if (window.parent && window.parent !== window) {
+      try {
+        window.parent.postMessage({ type: 'thefortz-chat-deleted', id }, '*');
+      } catch {}
+    }
+  }
 
   if (!db) return;
 

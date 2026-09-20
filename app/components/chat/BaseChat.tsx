@@ -34,7 +34,7 @@ import { ModelSelector } from '~/components/chat/ModelSelector';
 import { SpeechRecognitionButton } from '~/components/chat/SpeechRecognition';
 import type { IProviderSetting, ProviderInfo } from '~/types/model';
 
-const TEXTAREA_MIN_HEIGHT = 88;
+const TEXTAREA_MIN_HEIGHT = 110;
 
 interface BaseChatProps {
   textareaRef?: React.RefObject<HTMLTextAreaElement> | undefined;
@@ -435,7 +435,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
             <div
               className={classNames('pt-2 px-2 sm:px-4 flex-1 flex flex-col', {
                 'min-h-full': chatStarted,
-                'justify-center items-center pb-8': !chatStarted,
+                'justify-between items-center pb-1': !chatStarted,
               })}
             >
               <ClientOnly>
@@ -444,8 +444,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     <Messages
                       ref={messageRef}
                       className={classNames(
-                        'flex flex-col w-full flex-1 pb-6 mx-auto z-1',
-                        isWorkbenchActive ? 'max-w-full px-1' : 'max-w-chat',
+                        'flex flex-col w-full flex-1 pb-4 mx-auto z-1',
+                        isWorkbenchActive ? 'max-w-full px-1' : 'max-w-[65rem]',
                       )}
                       messages={messages}
                       isStreaming={isStreaming}
@@ -456,9 +456,9 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
 
               {!chatStarted && (
                 <div
-                  className="w-full mx-auto px-2 sm:px-0 mb-3"
+                  className="w-full mx-auto px-2 sm:px-0 my-auto pt-2 pb-1"
                   style={{
-                    maxWidth: isWorkbenchActive ? '100%' : '56rem',
+                    maxWidth: isWorkbenchActive ? '100%' : '65rem',
                   }}
                 >
                   <StudioLandingSection
@@ -472,14 +472,14 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
 
               <div
                 className={classNames(
-                  'relative w-full mx-auto z-prompt mb-4 px-2 sm:px-0 transition-all duration-300',
+                  'relative w-full mx-auto z-prompt mb-1 px-2 sm:px-0 transition-all duration-300',
                   {
-                    'sticky bottom-2': chatStarted,
-                    'mt-0': !chatStarted,
+                    'sticky bottom-1': chatStarted,
+                    'mt-auto': !chatStarted,
                   },
                 )}
                 style={{
-                  maxWidth: isWorkbenchActive ? '100%' : '56rem',
+                  maxWidth: isWorkbenchActive ? '100%' : '65rem',
                 }}
               >
                 <div className={isModelSettingsCollapsed ? 'hidden' : ''}>
@@ -512,13 +512,18 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     background: '#1a0e2e',
                   }}
                   className={classNames(
-                    'relative border border-purple-500/40 border-r-2 border-b-[5px] border-r-[#0f071f] border-b-[#0f071f] focus-within:border-purple-400 focus-within:ring-1 focus-within:ring-purple-500/30 transition-all',
+                    'group/inputbox relative border border-purple-500/40 border-r-2 border-b-[5px] border-r-[#0f071f] border-b-[#0f071f] transition-all duration-300',
+                    'focus-within:border-[#c084fc] focus-within:ring-2 focus-within:ring-[#8340ed]/50 focus-within:shadow-[0_0_30px_rgba(192,132,252,0.4),0_5px_0_0_#0f071f,0_16px_36px_rgba(0,0,0,0.65)] focus-within:bg-[#20103a]',
+                    { 'border-[#c084fc]/90 shadow-[0_0_24px_rgba(192,132,252,0.3),0_5px_0_0_#0f071f]': input.length > 0 },
                   )}
                 >
+                  {/* Automatic dynamic neon active glow strip that illuminates when active */}
+                  <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#c084fc] to-[#38bdf8] opacity-0 group-focus-within/inputbox:opacity-100 transition-opacity duration-300 pointer-events-none z-10" />
+                  <div className="absolute top-0 right-0 bottom-0 w-[2px] bg-gradient-to-b from-[#c084fc] via-[#38bdf8] to-transparent opacity-0 group-focus-within/inputbox:opacity-80 transition-opacity duration-300 pointer-events-none z-10" />
                   <textarea
                     ref={textareaRef}
                     className={classNames(
-                      'w-full pl-5 pt-4.5 pr-16 focus:outline-none resize-none text-white placeholder-purple-300/40 bg-transparent text-[15px]',
+                      'w-full pl-5 pt-5 pb-3 pr-16 focus:outline-none resize-none text-white placeholder-purple-300/40 bg-transparent text-[15.5px]',
                       'transition-all duration-200',
                     )}
                     onDragEnter={(e) => {
@@ -633,15 +638,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         disabled={isStreaming}
                       />
                       {chatStarted && <ClientOnly>{() => <ExportChatButton exportChat={exportChat} />}</ClientOnly>}
-
-                      {/* Community Games Gallery icon button */}
-                      <IconButton
-                        title="Community Games Gallery"
-                        className="transition-all text-sky-300 hover:text-white hover:bg-sky-500/20"
-                        onClick={() => isGalleryOpen.set(true)}
-                      >
-                        <div className="i-ph:game-controller-duotone text-xl text-[#38bdf8]" />
-                      </IconButton>
 
                       {/* Configure AI icon button */}
                       <IconButton

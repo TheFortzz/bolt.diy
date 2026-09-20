@@ -4,7 +4,7 @@ import { toast } from 'react-toastify';
 import { Dialog, DialogButton, DialogDescription, DialogRoot, DialogTitle } from '~/components/ui/Dialog';
 import { ThemeSwitch } from '~/components/ui/ThemeSwitch';
 import { SettingsWindow } from '~/components/settings/SettingsWindow';
-import { db, dbPromise, deleteById, getAll, chatId, type ChatHistoryItem, useChatHistory } from '~/lib/persistence';
+import { db, dbPromise, deleteById, getAll, getAllFromLocalStorage, chatId, type ChatHistoryItem, useChatHistory } from '~/lib/persistence';
 import { cubicEasingFn } from '~/utils/easings';
 import { logger } from '~/utils/logger';
 import { HistoryItem } from './HistoryItem';
@@ -70,19 +70,24 @@ export const Menu = () => {
         }));
     };
 
+    // 1. Immediately hydrate from localStorage / cache so project list is never empty
+    const initialItems = getAllFromLocalStorage();
+    if (initialItems.length > 0) {
+      setList(processItems(initialItems));
+    }
+
+    // 2. Fetch merged list from IndexedDB / Storage
     if (db) {
       getAll(db)
         .then(processItems)
         .then(setList)
-        .catch((error) => toast.error(error.message));
+        .catch(() => {});
     } else {
       dbPromise.then((database) => {
-        if (database) {
-          getAll(database)
-            .then(processItems)
-            .then(setList)
-            .catch((error) => toast.error(error.message));
-        }
+        getAll(database)
+          .then(processItems)
+          .then(setList)
+          .catch(() => {});
       });
     }
   }, []);
@@ -113,6 +118,15 @@ export const Menu = () => {
 
   useEffect(() => {
     loadEntries();
+
+    const handleUpdate = () => loadEntries();
+    window.addEventListener('thefortz-chats-updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+
+    return () => {
+      window.removeEventListener('thefortz-chats-updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
   }, [loadEntries]);
 
   const handleDeleteClick = (event: React.UIEvent, item: ChatHistoryItem) => {
@@ -141,7 +155,7 @@ export const Menu = () => {
           borderRadius: 0,
           background: 'linear-gradient(180deg, rgb(46, 153, 0) 0%, rgb(1, 161, 19) 55%, rgb(5, 121, 0) 100%)',
         }}
-        className="flex selection-accent flex-col side-menu fixed top-0 left-0 h-full border-r border-[#4ade80]/40 z-sidebar text-xs overflow-hidden select-none shadow-2xl"
+        className="flex selection-accent flex-col side-menu fixed top-0 left-0 h-full border-r-2 border-[#38bdf8] z-sidebar text-xs overflow-hidden select-none shadow-[2px_0_15px_rgba(56,189,248,0.35)]"
       >
         {/* ── Top Header Brand / Toggle ── */}
         <div
@@ -182,18 +196,18 @@ export const Menu = () => {
           )}
         </div>
 
-        {/* ── Action Buttons: New Game, Builder Box, Created, Analytics ── */}
+        {/* ── Action Buttons: New Game, Builder Box, Created, Analytics (All top bar purple) ── */}
         <div className={`flex flex-col gap-1.5 ${open ? 'p-2' : 'p-1.5 items-center'}`}>
           {/* New Game Button */}
           <a
             href="/"
-            style={{ borderRadius: 0 }}
+            style={{ borderRadius: 0, background: 'rgb(131, 64, 237)' }}
             title="Create New Game"
-            className={`transition-all active:translate-y-0.5 no-underline flex items-center justify-center bg-[#f97316] hover:bg-[#ea580c] text-white font-bold border border-orange-400/50 shadow-md ${
+            className={`transition-all active:translate-y-0.5 no-underline flex items-center justify-center hover:brightness-110 text-white font-bold border border-purple-300/50 shadow-md ${
               open ? 'py-1.5 px-2 gap-1.5 text-xs' : 'w-9 h-9'
             }`}
           >
-            <div className="i-ph:plus-bold text-sm" />
+            <div className="i-ph:plus-bold text-sm text-white" />
             {open && <span>New Game</span>}
           </a>
 
@@ -203,17 +217,13 @@ export const Menu = () => {
             onClick={() => {
               workbenchStore.showWorkbench.set(!showWorkbench);
             }}
-            style={{ borderRadius: 0 }}
+            style={{ borderRadius: 0, background: 'rgb(131, 64, 237)' }}
             title={showWorkbench ? 'Close Builder Box' : 'Open Builder Box (Code & Preview)'}
-            className={`transition-all flex items-center justify-center font-bold cursor-pointer border ${
-              showWorkbench
-                ? 'bg-[#7c3aed] hover:bg-[#6d28d9] text-white border-purple-300/60 shadow-md'
-                : 'bg-[#25103e] hover:bg-[#38185c] text-purple-200 hover:text-white border-purple-400/40 shadow-sm'
-            } ${
+            className={`transition-all active:translate-y-0.5 flex items-center justify-center hover:brightness-110 text-white font-bold border border-purple-300/50 shadow-md cursor-pointer ${
               open ? 'py-1.5 px-2 gap-1.5 text-xs' : 'w-9 h-9'
             }`}
           >
-            <div className={`i-ph:code-bold text-sm ${showWorkbench ? 'text-white' : 'text-purple-300'}`} />
+            <div className="i-ph:code-bold text-sm text-white" />
             {open && <span>{showWorkbench ? 'Close Builder' : 'Builder Box'}</span>}
           </button>
 
@@ -221,13 +231,13 @@ export const Menu = () => {
           <button
             type="button"
             onClick={() => isGalleryOpen.set(true)}
-            style={{ borderRadius: 0 }}
+            style={{ borderRadius: 0, background: 'rgb(131, 64, 237)' }}
             title="Open Created Games & Community Projects"
-            className={`transition-all flex items-center justify-center bg-[#0f2c4e] hover:bg-[#163f6d] text-sky-100 hover:text-white font-bold border border-cyan-400/40 shadow-sm cursor-pointer ${
+            className={`transition-all active:translate-y-0.5 flex items-center justify-center hover:brightness-110 text-white font-bold border border-purple-300/50 shadow-md cursor-pointer ${
               open ? 'py-1.5 px-2 gap-1.5 text-xs' : 'w-9 h-9'
             }`}
           >
-            <div className="i-ph:squares-four-fill text-sm text-cyan-300" />
+            <div className="i-ph:squares-four-fill text-sm text-white" />
             {open && <span>Created</span>}
           </button>
 
@@ -235,13 +245,13 @@ export const Menu = () => {
           <button
             type="button"
             onClick={() => setIsAnalyticsOpen(true)}
-            style={{ borderRadius: 0 }}
+            style={{ borderRadius: 0, background: 'rgb(131, 64, 237)' }}
             title="Studio Analytics & Appwrite Status"
-            className={`transition-all flex items-center justify-center bg-[#1e1b4b] hover:bg-[#2d2870] text-indigo-100 hover:text-white font-bold border border-indigo-400/45 shadow-sm cursor-pointer ${
+            className={`transition-all active:translate-y-0.5 flex items-center justify-center hover:brightness-110 text-white font-bold border border-purple-300/50 shadow-md cursor-pointer ${
               open ? 'py-1.5 px-2 gap-1.5 text-xs' : 'w-9 h-9'
             }`}
           >
-            <div className="i-ph:chart-bar-fill text-sm text-indigo-300" />
+            <div className="i-ph:chart-bar-fill text-sm text-white" />
             {open && <span>Analytics</span>}
           </button>
         </div>
