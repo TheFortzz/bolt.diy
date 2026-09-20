@@ -1,27 +1,27 @@
 :root,
 :root[data-theme='light'] {
-  --bolt-elements-borderColor: rgba(255, 255, 255, 0.12);
-  --bolt-elements-borderColorActive: #10b981;
+  --bolt-elements-borderColor: rgba(56, 189, 248, 0.22);
+  --bolt-elements-borderColorActive: #38bdf8;
 
-  /* Replit Developer Palette — Dark graphite base with Cyber Green, Orange, and Purple */
-  --bolt-elements-bg-depth-1: #090d16;
-  --bolt-elements-bg-depth-2: #0e1422;
-  --bolt-elements-bg-depth-3: #141b2d;
-  --bolt-elements-bg-depth-4: #1b243b;
+  /* Replit Modern Palette — Light Slate Base with Electric Light Blue & Vibrant Orange */
+  --bolt-elements-bg-depth-1: #121929;
+  --bolt-elements-bg-depth-2: #182238;
+  --bolt-elements-bg-depth-3: #202c48;
+  --bolt-elements-bg-depth-4: #28375a;
 
   --bolt-elements-textPrimary: #ffffff;
   --bolt-elements-textSecondary: #cbd5e1;
   --bolt-elements-textTertiary: #94a3b8;
 
-  --bolt-elements-code-background: #060910;
-  --bolt-elements-code-text: #34d399;
+  --bolt-elements-code-background: #0f1422;
+  --bolt-elements-code-text: #38bdf8;
 
   --bolt-elements-button-primary-background: #f97316;
   --bolt-elements-button-primary-backgroundHover: #ea580c;
   --bolt-elements-button-primary-text: #ffffff;
 
-  --bolt-elements-button-secondary-background: rgba(139, 92, 246, 0.25);
-  --bolt-elements-button-secondary-backgroundHover: rgba(139, 92, 246, 0.4);
+  --bolt-elements-button-secondary-background: rgba(56, 189, 248, 0.2);
+  --bolt-elements-button-secondary-backgroundHover: rgba(56, 189, 248, 0.35);
   --bolt-elements-button-secondary-text: #ffffff;
 
   --bolt-elements-button-danger-background: #ef4444;
@@ -30,30 +30,30 @@
 
   --bolt-elements-item-contentDefault: rgba(255, 255, 255, 0.9);
   --bolt-elements-item-contentActive: #ffffff;
-  --bolt-elements-item-contentAccent: #10b981;
+  --bolt-elements-item-contentAccent: #38bdf8;
   --bolt-elements-item-contentDanger: #ef4444;
   --bolt-elements-item-backgroundDefault: transparent;
-  --bolt-elements-item-backgroundActive: rgba(16, 185, 129, 0.12);
-  --bolt-elements-item-backgroundAccent: rgba(16, 185, 129, 0.18);
+  --bolt-elements-item-backgroundActive: rgba(56, 189, 248, 0.15);
+  --bolt-elements-item-backgroundAccent: rgba(249, 115, 22, 0.18);
   --bolt-elements-item-backgroundDanger: rgba(239, 68, 68, 0.22);
 
   --bolt-elements-loader-background: rgba(255, 255, 255, 0.1);
-  --bolt-elements-loader-progress: #10b981;
+  --bolt-elements-loader-progress: #f97316;
 
-  --bolt-elements-artifacts-background: #0c101c;
-  --bolt-elements-artifacts-backgroundHover: #101626;
-  --bolt-elements-artifacts-borderColor: rgba(16, 185, 129, 0.25);
-  --bolt-elements-artifacts-inlineCode-background: rgba(139, 92, 246, 0.2);
-  --bolt-elements-artifacts-inlineCode-text: #34d399;
+  --bolt-elements-artifacts-background: #161f33;
+  --bolt-elements-artifacts-backgroundHover: #1c2740;
+  --bolt-elements-artifacts-borderColor: rgba(56, 189, 248, 0.3);
+  --bolt-elements-artifacts-inlineCode-background: rgba(56, 189, 248, 0.15);
+  --bolt-elements-artifacts-inlineCode-text: #38bdf8;
 
-  --bolt-elements-actions-background: #101626;
-  --bolt-elements-actions-code-background: #060910;
+  --bolt-elements-actions-background: #182238;
+  --bolt-elements-actions-code-background: #0f1422;
 
-  --bolt-elements-messages-background: #0e1422;
-  --bolt-elements-messages-linkColor: #34d399;
-  --bolt-elements-messages-code-background: #060910;
-  --bolt-elements-messages-inlineCode-background: rgba(139, 92, 246, 0.2);
-  --bolt-elements-messages-inlineCode-text: #34d399;
+  --bolt-elements-messages-background: #161f33;
+  --bolt-elements-messages-linkColor: #38bdf8;
+  --bolt-elements-messages-code-background: #0f1422;
+  --bolt-elements-messages-inlineCode-background: rgba(56, 189, 248, 0.15);
+  --bolt-elements-messages-inlineCode-text: #38bdf8;
 
   --bolt-elements-icon-success: #10b981;
   --bolt-elements-icon-error: #ef4444;
@@ -63,21 +63,21 @@
 
   --bolt-elements-dividerColor: rgba(255, 255, 255, 0.12);
 
-  --bolt-elements-prompt-background: #0b0f19;
+  --bolt-elements-prompt-background: #182238;
 
   --bolt-elements-sidebar-dropdownShadow: none;
-  --bolt-elements-sidebar-buttonBackgroundDefault: rgba(139, 92, 246, 0.25);
-  --bolt-elements-sidebar-buttonBackgroundHover: rgba(139, 92, 246, 0.4);
+  --bolt-elements-sidebar-buttonBackgroundDefault: rgba(56, 189, 248, 0.2);
+  --bolt-elements-sidebar-buttonBackgroundHover: rgba(56, 189, 248, 0.35);
   --bolt-elements-sidebar-buttonText: #ffffff;
 
-  --bolt-elements-preview-addressBar-background: #090d16;
-  --bolt-elements-preview-addressBar-backgroundHover: #0e1422;
-  --bolt-elements-preview-addressBar-backgroundActive: #141b2d;
-  --bolt-elements-preview-addressBar-text: #cbd5e1;
-  --bolt-elements-preview-addressBar-textActive: #34d399;
+  --bolt-elements-preview-addressBar-background: #182238;
+  --bolt-elements-preview-addressBar-backgroundHover: #202c48;
+  --bolt-elements-preview-addressBar-backgroundActive: #28375a;
+  --bolt-elements-preview-addressBar-text: #e2e8f0;
+  --bolt-elements-preview-addressBar-textActive: #38bdf8;
 
-  --bolt-elements-terminals-background: #060910;
-  --bolt-elements-terminals-buttonBackground: #141b2d;
+  --bolt-elements-terminals-background: #0f1422;
+  --bolt-elements-terminals-buttonBackground: #202c48;
 
   --bolt-elements-cta-background: #f97316;
   --bolt-elements-cta-text: #ffffff;
@@ -85,12 +85,12 @@
   /* Terminal Colors */
   --bolt-terminal-background: var(--bolt-elements-terminals-background);
   --bolt-terminal-foreground: #e2e8f0;
-  --bolt-terminal-selection-background: #10b98140;
+  --bolt-terminal-selection-background: #38bdf840;
   --bolt-terminal-black: #000000;
   --bolt-terminal-red: #ef4444;
   --bolt-terminal-green: #10b981;
   --bolt-terminal-yellow: #f59e0b;
-  --bolt-terminal-blue: #3b82f6;
+  --bolt-terminal-blue: #38bdf8;
   --bolt-terminal-magenta: #a855f7;
   --bolt-terminal-cyan: #06b6d4;
   --bolt-terminal-white: #e2e8f0;
@@ -107,28 +107,28 @@
 /* Color Tokens Dark Theme */
 :root,
 :root[data-theme='dark'] {
-  --bolt-elements-borderColor: rgba(255, 255, 255, 0.12);
-  --bolt-elements-borderColorActive: #10b981;
+  --bolt-elements-borderColor: rgba(56, 189, 248, 0.22);
+  --bolt-elements-borderColorActive: #38bdf8;
 
-  /* Replit Developer Palette — Dark graphite base with Cyber Green, Orange, and Purple */
-  --bolt-elements-bg-depth-1: #090d16;
-  --bolt-elements-bg-depth-2: #0e1422;
-  --bolt-elements-bg-depth-3: #141b2d;
-  --bolt-elements-bg-depth-4: #1b243b;
+  /* Replit Modern Palette — Light Slate Base with Electric Light Blue & Vibrant Orange */
+  --bolt-elements-bg-depth-1: #121929;
+  --bolt-elements-bg-depth-2: #182238;
+  --bolt-elements-bg-depth-3: #202c48;
+  --bolt-elements-bg-depth-4: #28375a;
 
   --bolt-elements-textPrimary: #ffffff;
   --bolt-elements-textSecondary: #cbd5e1;
   --bolt-elements-textTertiary: #94a3b8;
 
-  --bolt-elements-code-background: #060910;
-  --bolt-elements-code-text: #34d399;
+  --bolt-elements-code-background: #0f1422;
+  --bolt-elements-code-text: #38bdf8;
 
   --bolt-elements-button-primary-background: #f97316;
   --bolt-elements-button-primary-backgroundHover: #ea580c;
   --bolt-elements-button-primary-text: #ffffff;
 
-  --bolt-elements-button-secondary-background: rgba(139, 92, 246, 0.25);
-  --bolt-elements-button-secondary-backgroundHover: rgba(139, 92, 246, 0.4);
+  --bolt-elements-button-secondary-background: rgba(56, 189, 248, 0.2);
+  --bolt-elements-button-secondary-backgroundHover: rgba(56, 189, 248, 0.35);
   --bolt-elements-button-secondary-text: #ffffff;
 
   --bolt-elements-button-danger-background: #ef4444;
@@ -137,30 +137,30 @@
 
   --bolt-elements-item-contentDefault: rgba(255, 255, 255, 0.9);
   --bolt-elements-item-contentActive: #ffffff;
-  --bolt-elements-item-contentAccent: #10b981;
+  --bolt-elements-item-contentAccent: #38bdf8;
   --bolt-elements-item-contentDanger: #ef4444;
   --bolt-elements-item-backgroundDefault: transparent;
-  --bolt-elements-item-backgroundActive: rgba(16, 185, 129, 0.12);
-  --bolt-elements-item-backgroundAccent: rgba(16, 185, 129, 0.18);
+  --bolt-elements-item-backgroundActive: rgba(56, 189, 248, 0.15);
+  --bolt-elements-item-backgroundAccent: rgba(249, 115, 22, 0.18);
   --bolt-elements-item-backgroundDanger: rgba(239, 68, 68, 0.22);
 
   --bolt-elements-loader-background: rgba(255, 255, 255, 0.1);
-  --bolt-elements-loader-progress: #10b981;
+  --bolt-elements-loader-progress: #f97316;
 
-  --bolt-elements-artifacts-background: #0c101c;
-  --bolt-elements-artifacts-backgroundHover: #101626;
-  --bolt-elements-artifacts-borderColor: rgba(16, 185, 129, 0.25);
-  --bolt-elements-artifacts-inlineCode-background: rgba(139, 92, 246, 0.2);
-  --bolt-elements-artifacts-inlineCode-text: #34d399;
+  --bolt-elements-artifacts-background: #161f33;
+  --bolt-elements-artifacts-backgroundHover: #1c2740;
+  --bolt-elements-artifacts-borderColor: rgba(56, 189, 248, 0.3);
+  --bolt-elements-artifacts-inlineCode-background: rgba(56, 189, 248, 0.15);
+  --bolt-elements-artifacts-inlineCode-text: #38bdf8;
 
-  --bolt-elements-actions-background: #101626;
-  --bolt-elements-actions-code-background: #060910;
+  --bolt-elements-actions-background: #182238;
+  --bolt-elements-actions-code-background: #0f1422;
 
-  --bolt-elements-messages-background: #0e1422;
-  --bolt-elements-messages-linkColor: #34d399;
-  --bolt-elements-messages-code-background: #060910;
-  --bolt-elements-messages-inlineCode-background: rgba(139, 92, 246, 0.2);
-  --bolt-elements-messages-inlineCode-text: #34d399;
+  --bolt-elements-messages-background: #161f33;
+  --bolt-elements-messages-linkColor: #38bdf8;
+  --bolt-elements-messages-code-background: #0f1422;
+  --bolt-elements-messages-inlineCode-background: rgba(56, 189, 248, 0.15);
+  --bolt-elements-messages-inlineCode-text: #38bdf8;
 
   --bolt-elements-icon-success: #10b981;
   --bolt-elements-icon-error: #ef4444;
@@ -170,21 +170,21 @@
 
   --bolt-elements-dividerColor: rgba(255, 255, 255, 0.12);
 
-  --bolt-elements-prompt-background: #0b0f19;
+  --bolt-elements-prompt-background: #182238;
 
   --bolt-elements-sidebar-dropdownShadow: none;
-  --bolt-elements-sidebar-buttonBackgroundDefault: rgba(139, 92, 246, 0.25);
-  --bolt-elements-sidebar-buttonBackgroundHover: rgba(139, 92, 246, 0.4);
+  --bolt-elements-sidebar-buttonBackgroundDefault: rgba(56, 189, 248, 0.2);
+  --bolt-elements-sidebar-buttonBackgroundHover: rgba(56, 189, 248, 0.35);
   --bolt-elements-sidebar-buttonText: #ffffff;
 
-  --bolt-elements-preview-addressBar-background: #090d16;
-  --bolt-elements-preview-addressBar-backgroundHover: #0e1422;
-  --bolt-elements-preview-addressBar-backgroundActive: #141b2d;
-  --bolt-elements-preview-addressBar-text: #cbd5e1;
-  --bolt-elements-preview-addressBar-textActive: #34d399;
+  --bolt-elements-preview-addressBar-background: #182238;
+  --bolt-elements-preview-addressBar-backgroundHover: #202c48;
+  --bolt-elements-preview-addressBar-backgroundActive: #28375a;
+  --bolt-elements-preview-addressBar-text: #e2e8f0;
+  --bolt-elements-preview-addressBar-textActive: #38bdf8;
 
-  --bolt-elements-terminals-background: #060910;
-  --bolt-elements-terminals-buttonBackground: #141b2d;
+  --bolt-elements-terminals-background: #0f1422;
+  --bolt-elements-terminals-buttonBackground: #202c48;
 
   --bolt-elements-cta-background: #f97316;
   --bolt-elements-cta-text: #ffffff;

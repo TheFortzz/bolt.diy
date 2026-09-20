@@ -71,20 +71,11 @@ export default async function handleRequest(
 
   responseHeaders.set('Content-Type', 'text/html');
 
-  // Only set isolation headers when NOT embedded in an iframe.
-  // When Sec-Fetch-Dest is 'iframe' the page is cross-origin embedded (e.g. thefortz.me),
-  // and COEP:require-corp would block loading entirely.
-  const secFetchDest = request.headers.get('Sec-Fetch-Dest') ?? '';
-  const isIframeRequest = secFetchDest === 'iframe';
-
-  if (!isIframeRequest) {
-    responseHeaders.set('Cross-Origin-Embedder-Policy', 'require-corp');
-    responseHeaders.set('Cross-Origin-Opener-Policy', 'same-origin');
-  } else {
-    // Allow embedding in cross-origin iframes
-    responseHeaders.set('Cross-Origin-Embedder-Policy', 'unsafe-none');
-    responseHeaders.set('X-Frame-Options', 'ALLOWALL');
-  }
+  // Cross-Origin Isolation headers for WebContainer & SharedArrayBuffer
+  // Use credentialless + CORP:cross-origin so it isolates both standalone and in credentialless iframes
+  responseHeaders.set('Cross-Origin-Embedder-Policy', 'credentialless');
+  responseHeaders.set('Cross-Origin-Opener-Policy', 'same-origin');
+  responseHeaders.set('Cross-Origin-Resource-Policy', 'cross-origin');
 
   return new Response(body, {
     headers: responseHeaders,

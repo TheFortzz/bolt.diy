@@ -106,11 +106,29 @@ if (typeof window !== 'undefined') {
 export async function checkAuthSession(): Promise<AppwriteUser | null> {
   if (typeof window === 'undefined') return null;
 
-  // 1. If embedded in iframe, request auth from parent
+  // 1. If embedded in iframe, rely entirely on parent window auth sync to prevent CORS errors
   if (window.parent && window.parent !== window) {
     try {
       window.parent.postMessage({ type: 'thefortz-auth-request' }, '*');
     } catch {}
+
+    // Check cached synced user
+    try {
+      const cached = localStorage.getItem('thefortz_synced_user');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && parsed.$id) {
+          authStore.set({
+            user: parsed,
+            loading: false,
+            initialized: true,
+          });
+          return parsed;
+        }
+      }
+    } catch {}
+
+    return authStore.get().user;
   }
 
   // 2. Check local cached synced user first for instant hydration
@@ -136,7 +154,7 @@ export async function checkAuthSession(): Promise<AppwriteUser | null> {
     await handleOAuthCallback();
 
     const acc = getAppwriteAccount();
-    const current = await acc.get<Models.Preferences>();
+    const current = await acc.get<Models.Preferences>().catch(() => null);
 
     if (current && current.$id) {
       const userObj: AppwriteUser = {

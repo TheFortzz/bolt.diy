@@ -70,7 +70,7 @@ const TEMPLATES: TemplateCard[] = [
   },
 ];
 
-const QUICK_PILLS = [
+export const QUICK_PILLS = [
   { icon: '🕹️', label: '2D Platformer', id: 'platformer' },
   { icon: '🚀', label: 'Space Shooter', id: 'space-shooter' },
   { icon: '⚔️', label: 'Dungeon RPG', id: 'metroidvania' },
@@ -98,46 +98,26 @@ export function StudioLandingSection({
   fortzBalance,
 }: StudioLandingSectionProps) {
   return (
-    <div className="w-full flex flex-col items-center select-none pb-12">
-      {/* ── 1. Hero Brand Header ── */}
-      <div className="text-center px-4 pt-8 pb-4 max-w-4xl mx-auto">
-        {/* Replit-style Developer Engine Badge */}
-        <div className="flex items-center justify-center gap-2 mb-4">
-          <span
-            style={{ borderRadius: 0 }}
-            className="px-2.5 py-0.5 text-[10px] font-mono font-bold tracking-widest uppercase bg-[#131f33] text-emerald-400 border border-emerald-500/40 flex items-center gap-1.5 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
-          >
-            <span className="w-1.5 h-1.5 bg-emerald-400 animate-ping" />
-            <span>AI GAME STUDIO • READY</span>
-          </span>
-          <span
-            style={{ borderRadius: 0 }}
-            className="px-2 py-0.5 text-[10px] font-mono font-bold tracking-widest uppercase bg-[#22173b] text-purple-300 border border-purple-500/40"
-          >
-            v2.4 IDE
-          </span>
+    <div className="w-full flex flex-col items-center select-none pt-4 pb-2 px-4">
+      {/* ── Compact Replit-Style Search Hero ── */}
+      <div className="text-center max-w-3xl mx-auto mb-3">
+        <div className="inline-flex items-center gap-2 mb-2 px-2.5 py-1 bg-[#1a233a] border border-[#38bdf8]/30 text-[11px] font-mono font-bold tracking-wider">
+          <span className="text-[#f97316]">⚡</span>
+          <span className="text-[#38bdf8]">THEFORTZ STUDIO</span>
+          <span className="text-slate-400">•</span>
+          <span className="text-slate-300">AI GAME ENGINE</span>
         </div>
 
-        {/* Hero Title */}
         <h1
-          className="animate-fade-in leading-tight tracking-wider uppercase text-white mb-3"
-          style={{
-            fontFamily: "'Luckiest Guy', cursive, sans-serif",
-            fontSize: 'clamp(34px, 6vw, 64px)',
-            textShadow: '0 4px 0 #052e16, 0 8px 0 #021a0d, 0 12px 30px rgba(16, 185, 129, 0.35)',
-          }}
+          className="text-2xl sm:text-3xl font-black uppercase tracking-wider text-white font-['Anton',sans-serif] mb-1"
         >
-          Make Your Game Possible
+          What do you want to <span className="text-[#f97316]">build</span>?
         </h1>
 
-        {/* Hero Subtitle */}
-        <p className="text-sm sm:text-base text-slate-300 max-w-2xl mx-auto leading-relaxed font-medium font-sans">
-          Create, code, and test complete 2D &amp; 3D browser games with instant AI code generation.
-          100% free client-side WebAssembly hosting with 1-click publishing to the live TheFortz feed.
+        <p className="text-xs sm:text-sm text-slate-300 max-w-xl mx-auto font-medium">
+          Type any game prompt below. The AI creates, compiles, and tests your game live in your browser.
         </p>
       </div>
-
-      {/* Note: The Prompt Input is rendered directly below this in BaseChat */}
     </div>
   );
 }

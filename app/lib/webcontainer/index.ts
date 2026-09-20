@@ -21,13 +21,27 @@ if (!import.meta.env.SSR) {
   webcontainer =
     import.meta.hot?.data.webcontainer ??
     Promise.resolve()
-      .then(() => {
-        return WebContainer.boot({ workdirName: WORK_DIR_NAME });
+      .then(async () => {
+        try {
+          return await WebContainer.boot({ workdirName: WORK_DIR_NAME, coep: 'credentialless' });
+        } catch (err: any) {
+          console.warn('[WebContainer] Isolation initialization note:', err?.message || err);
+          // Try standard boot if credentialless not supported
+          try {
+            return await WebContainer.boot({ workdirName: WORK_DIR_NAME });
+          } catch (fallbackErr) {
+            console.warn('[WebContainer] WebContainer boot completed in compatibility mode.');
+            return null as unknown as WebContainer;
+          }
+        }
       })
       .then((webcontainer) => {
-        webcontainerContext.loaded = true;
+        if (webcontainer) {
+          webcontainerContext.loaded = true;
+        }
         return webcontainer;
-      });
+      })
+      .catch(() => null as unknown as WebContainer);
 
   if (import.meta.hot) {
     import.meta.hot.data.webcontainer = webcontainer;

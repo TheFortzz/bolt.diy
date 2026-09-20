@@ -127,7 +127,7 @@ export const Menu = () => {
       {!open && (
         <button
           onClick={() => isSidebarOpen.set(true)}
-          className="fixed top-3 left-3 z-50 p-2.5 rounded-none bg-[#0e1422] hover:bg-[#141b2d] text-emerald-400 hover:text-white border border-[#10b981]/40 shadow-xl backdrop-blur-md transition-all flex items-center justify-center cursor-pointer active:scale-95"
+          className="fixed top-3 left-3 z-50 p-2.5 rounded-none bg-[#182238] hover:bg-[#202c48] text-sky-400 hover:text-white border border-[#38bdf8]/40 backdrop-blur-md transition-all flex items-center justify-center cursor-pointer active:scale-95"
           title="Open Sidebar"
         >
           <div className="i-ph:sidebar-simple-duotone text-lg" />
@@ -140,16 +140,16 @@ export const Menu = () => {
         animate={open ? 'open' : 'closed'}
         variants={menuVariants}
         style={{ borderRadius: 0 }}
-        className="flex selection-accent flex-col side-menu fixed top-0 left-0 w-[260px] h-full bg-[#0d1117] border-r border-[#10b981]/30 z-sidebar shadow-2xl text-sm overflow-hidden"
+        className="flex selection-accent flex-col side-menu fixed top-0 left-0 w-[260px] h-full bg-[#141b2d] border-r border-[#38bdf8]/25 z-sidebar text-sm overflow-hidden"
       >
         {/* ── Top Header Brand ── */}
-        <div className="flex items-center justify-between px-3.5 py-3 border-b border-emerald-500/20 bg-[#121824]" style={{ borderRadius: 0 }}>
+        <div className="flex items-center justify-between px-3.5 py-3 border-b border-[#38bdf8]/20 bg-[#182238]" style={{ borderRadius: 0 }}>
           <a
             href="https://thefortz.me"
-            className="flex items-center gap-2 text-white hover:text-emerald-400 transition-colors no-underline select-none"
+            className="flex items-center gap-2 text-white hover:text-sky-300 transition-colors no-underline select-none"
             title="Return to TheFortz platform"
           >
-            <div className="w-7 h-7 bg-[#1c2436] border border-emerald-500/40 flex items-center justify-center shadow-md" style={{ borderRadius: 0 }}>
+            <div className="w-7 h-7 bg-[#202c48] border border-[#38bdf8]/40 flex items-center justify-center" style={{ borderRadius: 0 }}>
               <img
                 src="/thefortzicon.png"
                 alt="TheFortz"
@@ -158,17 +158,16 @@ export const Menu = () => {
               />
             </div>
             <span
-              className="text-xl lowercase tracking-tight text-emerald-400"
+              className="text-xl lowercase tracking-tight text-[#38bdf8]"
               style={{
                 fontFamily: "'Kabel', 'Syne', 'Outfit', sans-serif",
                 fontWeight: 900,
                 letterSpacing: '-0.03em',
-                textShadow: '0 2px 10px rgba(16, 185, 129, 0.4)',
               }}
             >
               studio
             </span>
-            <span className="text-[9px] uppercase font-black px-1.5 py-0.5 bg-purple-900/60 text-purple-300 border border-purple-500/40" style={{ borderRadius: 0 }}>
+            <span className="text-[9px] uppercase font-black px-1.5 py-0.5 bg-orange-500/20 text-orange-400 border border-orange-400/40" style={{ borderRadius: 0 }}>
               IDE
             </span>
           </a>
@@ -188,19 +187,19 @@ export const Menu = () => {
           <a
             href="/"
             style={{ borderRadius: 0 }}
-            className="flex items-center justify-center gap-2 bg-[#f97316] hover:bg-[#ea580c] text-white font-black text-xs uppercase tracking-wider py-2 px-3 transition-all shadow-[0_4px_12px_rgba(249,115,22,0.35)] border border-amber-300/40 active:translate-y-0.5 no-underline"
+            className="flex items-center justify-center gap-2 bg-[#f97316] hover:bg-[#ea580c] text-white font-black text-xs uppercase tracking-wider py-2 px-3 transition-all border border-orange-400/40 active:translate-y-0.5 no-underline"
           >
             <div className="i-ph:plus-bold text-sm" />
             <span>Create New Game</span>
           </a>
 
-          {/* Analytics Button — Cyber Green Accent */}
+          {/* Analytics Button */}
           <button
             onClick={() => setIsAnalyticsOpen(true)}
             style={{ borderRadius: 0 }}
-            className="flex items-center gap-2 bg-[#161f30] hover:bg-[#1f2b42] text-emerald-400 font-bold text-xs py-1.5 px-3 transition-all border border-emerald-500/40 cursor-pointer mt-1"
+            className="flex items-center gap-2 bg-[#1a233a] hover:bg-[#222e4c] text-sky-400 font-bold text-xs py-1.5 px-3 transition-all border border-[#38bdf8]/30 cursor-pointer mt-1"
           >
-            <div className="i-ph:chart-bar-fill text-emerald-400 text-sm" />
+            <div className="i-ph:chart-bar-fill text-sky-400 text-sm" />
             <span>Studio Analytics</span>
           </button>
         </div>
@@ -210,7 +209,7 @@ export const Menu = () => {
           <div className="relative w-full">
             <input
               style={{ borderRadius: 0 }}
-              className="w-full bg-[#121824] text-white placeholder-slate-400 text-xs px-2.5 py-1.5 border border-white/15 focus:outline-none focus:border-emerald-400 transition-all font-mono"
+              className="w-full bg-[#182238] text-white placeholder-slate-400 text-xs px-2.5 py-1.5 border border-white/15 focus:outline-none focus:border-[#38bdf8] transition-all font-mono"
               type="search"
               placeholder="Search projects..."
               onChange={handleSearchChange}

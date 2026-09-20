@@ -24,7 +24,7 @@ import GitCloneButton from './GitCloneButton';
 import { toast } from 'react-toastify';
 import { SettingsWindow } from '~/components/settings/SettingsWindow';
 import { HeaderActionButtons } from '~/components/header/HeaderActionButtons.client';
-import { StudioLandingSection, StudioLandingFooter } from './StudioLandingSection';
+import { StudioLandingSection, QUICK_PILLS } from './StudioLandingSection';
 
 import { isSidebarOpen } from '~/lib/stores/sidebar';
 import { authStore, isAuthModalOpen, checkAuthSession } from '~/lib/auth/appwrite';
@@ -436,65 +436,21 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 }}
               </ClientOnly>
 
-              {/* ── Lane of action/import buttons directly on top of the prompt input ── */}
-              {!chatStarted && (
-                <div className="flex justify-center items-center gap-2.5 flex-wrap max-w-[54rem] mx-auto mb-3.5 px-2 select-none animate-fade-in">
-                  {ImportButtons(importChat)}
-                  <GitCloneButton importChat={importChat} />
-                  <button
-                    onClick={() => setIsSettingsOpen(true)}
-                    style={{ borderRadius: 0 }}
-                    className="px-3.5 py-1.5 border border-emerald-500/40 bg-[#161f30] hover:bg-[#1f2b42] text-emerald-300 transition-all flex items-center gap-2 cursor-pointer text-xs font-bold shadow-sm active:translate-y-0.5"
-                    title="Configure Claude, OpenAI, Ollama and other AI providers"
-                  >
-                    <div className="i-ph:gear-six-fill text-sm text-emerald-400" />
-                    <span>Configure AI</span>
-                  </button>
-                </div>
-              )}
-
               <div
                 className={classNames(
-                  'p-3.5 relative w-full mx-auto z-prompt mb-6 transition-all duration-300',
+                  'p-3.5 relative w-full mx-auto z-prompt mb-4 transition-all duration-300',
                   {
                     'sticky bottom-2': chatStarted,
                   },
                 )}
                 style={{
-                  maxWidth: chatStarted ? '42rem' : '54rem',
+                  maxWidth: chatStarted ? '42rem' : '52rem',
                   borderRadius: 0,
-                  background: '#0d1117',
-                  border: '1px solid #232d3f',
-                  borderTop: '3px solid #10b981',
-                  boxShadow: '0 20px 50px rgba(0, 0, 0, 0.75), 0 0 25px rgba(16, 185, 129, 0.15)',
+                  background: '#182238',
+                  border: '1.5px solid rgba(56, 189, 248, 0.45)',
+                  boxShadow: 'none',
                 }}
               >
-                <svg className={classNames(styles.PromptEffectContainer)}>
-                  <defs>
-                    <linearGradient
-                      id="line-gradient"
-                      x1="20%"
-                      y1="0%"
-                      x2="-14%"
-                      y2="10%"
-                      gradientUnits="userSpaceOnUse"
-                      gradientTransform="rotate(-45)"
-                    >
-                      <stop offset="0%" stopColor="#10b981" stopOpacity="0%"></stop>
-                      <stop offset="40%" stopColor="#10b981" stopOpacity="80%"></stop>
-                      <stop offset="50%" stopColor="#10b981" stopOpacity="80%"></stop>
-                      <stop offset="100%" stopColor="#10b981" stopOpacity="0%"></stop>
-                    </linearGradient>
-                    <linearGradient id="shine-gradient">
-                      <stop offset="0%" stopColor="white" stopOpacity="0%"></stop>
-                      <stop offset="40%" stopColor="#ffffff" stopOpacity="80%"></stop>
-                      <stop offset="50%" stopColor="#ffffff" stopOpacity="80%"></stop>
-                      <stop offset="100%" stopColor="white" stopOpacity="0%"></stop>
-                    </linearGradient>
-                  </defs>
-                  <rect className={classNames(styles.PromptEffectLine)} pathLength="100" strokeLinecap="round"></rect>
-                  <rect className={classNames(styles.PromptShine)} x="48" y="24" width="70" height="1"></rect>
-                </svg>
                 <div>
                   <div className={isModelSettingsCollapsed ? 'hidden' : ''}>
                     {/* Hidden model selector — auto-configured */}
@@ -521,20 +477,20 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   }}
                 />
                 {/* ── TheFortz Prompt Balance & Token HUD ── */}
-                <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-white/10 px-1 select-none">
+                <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10 px-1 select-none">
                   <div className="flex items-center gap-2">
                     <div
                       style={{ borderRadius: 0 }}
-                      className="flex items-center gap-1.5 px-3 py-1 bg-[#161f30] border border-amber-400/50 text-amber-300 shadow-sm text-xs font-bold tracking-wide"
+                      className="flex items-center gap-1.5 px-2.5 py-1 bg-[#121929] border border-amber-400/50 text-amber-300 text-xs font-bold tracking-wide"
                     >
                       <span className="text-sm">🪙</span>
-                      <span style={{ fontFamily: '"Lilita One", Anton, sans-serif' }}>
+                      <span>
                         {fortzBalance.toLocaleString()} FORTZ
                       </span>
                     </div>
                     <span
                       style={{ borderRadius: 0 }}
-                      className="text-[11px] font-bold text-emerald-300 bg-[#0f241a] px-2 py-0.5 border border-emerald-500/40"
+                      className="text-[11px] font-bold text-sky-300 bg-[#121929] px-2 py-0.5 border border-sky-400/40"
                     >
                       ⚡ 10 Fortz / Prompt
                     </span>
@@ -556,7 +512,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 {fortzBalance < FORTZ_PROMPT_COST && (
                   <div
                     style={{ borderRadius: 0 }}
-                    className="mb-2.5 px-3 py-1.5 bg-rose-950/80 border border-rose-500/60 text-rose-200 text-xs font-semibold flex items-center justify-between shadow-inner"
+                    className="mb-2.5 px-3 py-1.5 bg-rose-950/80 border border-rose-500/60 text-rose-200 text-xs font-semibold flex items-center justify-between"
                   >
                     <div className="flex items-center gap-2">
                       <span className="text-base">⚠️</span>
@@ -576,13 +532,13 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 <div
                   style={{ borderRadius: 0 }}
                   className={classNames(
-                    'relative border border-[#232d3f] bg-[#090d16] focus-within:border-emerald-500 transition-colors',
+                    'relative border border-white/15 bg-[#121929] focus-within:border-[#f97316] transition-colors',
                   )}
                 >
                   <textarea
                     ref={textareaRef}
                     className={classNames(
-                      'w-full pl-4 pt-4 pr-16 focus:outline-none resize-none text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary bg-transparent text-sm',
+                      'w-full pl-4 pt-4 pr-16 focus:outline-none resize-none text-white placeholder-slate-400 bg-transparent text-sm',
                       'transition-all duration-200',
                       'hover:border-bolt-elements-focus',
                     )}
@@ -733,6 +689,41 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   </div>
                 </div>
               </div>
+
+              {!chatStarted && (
+                <>
+                  {/* Quick-start template pills directly under search box */}
+                  <div className="flex justify-center items-center gap-2 flex-wrap max-w-[52rem] mx-auto mb-3 px-2 select-none">
+                    {QUICK_PILLS.map((pill) => (
+                      <button
+                        key={pill.id}
+                        type="button"
+                        onClick={() => handleSelectTemplate(pill.prompt || `Build a complete ${pill.label} game with smooth physics and audio in HTML5 canvas`)}
+                        className="px-3 py-1.5 bg-[#182238] hover:bg-[#202c48] text-sky-300 hover:text-white border border-[#38bdf8]/30 hover:border-[#f97316] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                        style={{ borderRadius: 0 }}
+                      >
+                        <span>{pill.icon}</span>
+                        <span>{pill.label}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Secondary developer actions: Import & AI Configuration */}
+                  <div className="flex justify-center items-center gap-2.5 flex-wrap max-w-[52rem] mx-auto mb-6 px-2 select-none">
+                    {ImportButtons(importChat)}
+                    <GitCloneButton importChat={importChat} />
+                    <button
+                      onClick={() => setIsSettingsOpen(true)}
+                      style={{ borderRadius: 0 }}
+                      className="px-3 py-1.5 border border-[#38bdf8]/30 bg-[#182238] hover:bg-[#202c48] text-sky-300 hover:text-white transition-all flex items-center gap-2 cursor-pointer text-xs font-bold"
+                      title="Configure AI models and providers"
+                    >
+                      <div className="i-ph:gear-six-fill text-sm text-[#f97316]" />
+                      <span>Configure AI</span>
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
           <ClientOnly>{() => <Workbench chatStarted={chatStarted} isStreaming={isStreaming} />}</ClientOnly>
