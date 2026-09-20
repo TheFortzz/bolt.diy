@@ -193,6 +193,26 @@ export const Menu = () => {
             {open && <span>New Game</span>}
           </a>
 
+          {/* Builder Box (Code & Preview) Button */}
+          <button
+            type="button"
+            onClick={() => {
+              workbenchStore.showWorkbench.set(!showWorkbench);
+            }}
+            style={{ borderRadius: 0 }}
+            title={showWorkbench ? 'Close Builder Box' : 'Open Builder Box (Code & Preview)'}
+            className={`transition-all flex items-center justify-center font-bold cursor-pointer border ${
+              showWorkbench
+                ? 'bg-[#8b5cf6] hover:bg-[#7c3aed] text-white border-purple-400/50 shadow-sm'
+                : 'bg-[#1a0e2e] hover:bg-[#251342] text-purple-300 hover:text-white border-purple-500/35'
+            } ${
+              open ? 'py-1.5 px-2 gap-1.5 text-xs' : 'w-9 h-9'
+            }`}
+          >
+            <div className={`i-ph:code-bold text-sm ${showWorkbench ? 'text-white' : 'text-purple-400'}`} />
+            {open && <span>{showWorkbench ? 'Close Builder' : 'Builder Box'}</span>}
+          </button>
+
           {/* Community Games Gallery Button */}
           <button
             type="button"

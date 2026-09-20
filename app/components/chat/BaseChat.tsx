@@ -20,9 +20,10 @@ import styles from './BaseChat.module.scss';
 import { ExportChatButton } from '~/components/chat/chatExportAndImport/ExportChatButton';
 import { toast } from 'react-toastify';
 import { SettingsWindow } from '~/components/settings/SettingsWindow';
-import { HeaderActionButtons } from '~/components/header/HeaderActionButtons.client';
 import { StudioLandingSection } from './StudioLandingSection';
 import { CommunityGalleryModal } from '~/components/gallery/CommunityGalleryModal';
+import { workbenchStore } from '~/lib/stores/workbench';
+import useViewport from '~/lib/hooks';
 
 import { isSidebarOpen, isGalleryOpen } from '~/lib/stores/sidebar';
 import { authStore, isAuthModalOpen, checkAuthSession } from '~/lib/auth/appwrite';
@@ -119,21 +120,26 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     // Use safe SSR defaults; real values are hydrated client-side via useEffect
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [galleryOpen, setGalleryOpen] = useState(false);
+    const [showWorkbench, setShowWorkbench] = useState(false);
     const [auth, setAuth] = useState<{ user: any }>({ user: null });
+    const isSmallViewport = useViewport(1024);
 
     useEffect(() => {
       // Subscribe to nanostores after hydration to avoid SSR mismatch (#418/#425)
       setSidebarOpen(isSidebarOpen.get());
       setGalleryOpen(isGalleryOpen.get());
+      setShowWorkbench(workbenchStore.showWorkbench.get());
       setAuth(authStore.get());
       const unsubSidebar = isSidebarOpen.subscribe((v) => setSidebarOpen(v));
       const unsubGallery = isGalleryOpen.subscribe((v) => setGalleryOpen(v));
+      const unsubWorkbench = workbenchStore.showWorkbench.subscribe((v) => setShowWorkbench(v));
       const unsubAuth = authStore.subscribe((v) => setAuth(v));
       // Kick off auth session check (client-only)
       checkAuthSession();
       return () => {
         unsubSidebar();
         unsubGallery();
+        unsubWorkbench();
         unsubAuth();
       };
     }, []);
@@ -389,26 +395,43 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       }
     };
 
+    const isWorkbenchActive = showWorkbench && !isSmallViewport;
+    const sidebarWidth = sidebarOpen ? 200 : 54;
+    const chatCompactWidth = 340;
+
     const baseChat = (
       <div
         ref={ref}
         className={classNames(styles.BaseChat, 'relative flex h-full w-full overflow-hidden')}
         data-chat-visible={showChat}
+        style={{
+          '--sidebar-width': `${sidebarWidth}px`,
+          '--chat-compact-width': `${chatCompactWidth}px`,
+          '--workbench-inner-width': isSmallViewport
+            ? '100%'
+            : `calc(100% - ${sidebarWidth}px - ${chatCompactWidth}px - 0.75rem)`,
+          '--workbench-left': isSmallViewport
+            ? '0px'
+            : `${sidebarWidth + chatCompactWidth}px`,
+        } as React.CSSProperties}
       >
         <ClientOnly>{() => <Menu />}</ClientOnly>
         <div
           ref={scrollRef}
           className={classNames(
-            'flex flex-col lg:flex-row overflow-y-auto w-full h-full transition-[padding] duration-200 ease-in-out',
+            'flex flex-row overflow-y-auto w-full h-full transition-[padding] duration-200 ease-in-out',
             sidebarOpen ? 'pl-[200px]' : 'pl-[54px]',
           )}
         >
-          <div className={classNames(styles.Chat, 'flex flex-col flex-grow lg:min-w-[var(--chat-min-width)] h-full relative')}>
-            {chatStarted && (
-              <div className="absolute top-3 right-4 z-20">
-                <ClientOnly>{() => <HeaderActionButtons />}</ClientOnly>
-              </div>
+          <div
+            className={classNames(
+              styles.Chat,
+              'flex flex-col h-full relative transition-[width,max-width] duration-200 ease-in-out',
+              isWorkbenchActive
+                ? 'w-[340px] max-w-[340px] min-w-[340px] flex-shrink-0 border-r border-purple-500/20'
+                : 'w-full flex-grow',
             )}
+          >
             {!chatStarted && (
               <StudioLandingSection
                 onSelectTemplate={handleSelectTemplate}
@@ -418,7 +441,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               />
             )}
             <div
-              className={classNames('pt-2 px-2 sm:px-6 flex-1 flex flex-col', {
+              className={classNames('pt-2 px-2 sm:px-4 flex-1 flex flex-col', {
                 'h-full': chatStarted,
                 'justify-center pb-8': !chatStarted,
               })}
@@ -428,7 +451,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   return chatStarted ? (
                     <Messages
                       ref={messageRef}
-                      className="flex flex-col w-full flex-1 max-w-chat pb-6 mx-auto z-1"
+                      className={classNames(
+                        'flex flex-col w-full flex-1 pb-6 mx-auto z-1',
+                        isWorkbenchActive ? 'max-w-full px-1' : 'max-w-chat',
+                      )}
                       messages={messages}
                       isStreaming={isStreaming}
                     />
@@ -445,7 +471,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   },
                 )}
                 style={{
-                  maxWidth: chatStarted ? '42rem' : '48rem',
+                  maxWidth: isWorkbenchActive ? '100%' : (chatStarted ? '42rem' : '48rem'),
                 }}
               >
                 <div className={isModelSettingsCollapsed ? 'hidden' : ''}>
@@ -652,7 +678,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               </div>
             </div>
           </div>
-          <ClientOnly>{() => <Workbench chatStarted={chatStarted} isStreaming={isStreaming} />}</ClientOnly>
+          <ClientOnly>{() => <Workbench chatStarted={chatStarted || showWorkbench} isStreaming={isStreaming} />}</ClientOnly>
         </div>
         <AppwriteAuthModal />
         <SettingsWindow
