@@ -420,6 +420,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
             <div
               className={classNames('pt-2 px-2 sm:px-6 flex-1 flex flex-col', {
                 'h-full': chatStarted,
+                'justify-center pb-8': !chatStarted,
               })}
             >
               <ClientOnly>
@@ -440,7 +441,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   'p-4 relative w-full mx-auto z-prompt mb-4 transition-all duration-300',
                   {
                     'sticky bottom-2': chatStarted,
-                    'mt-16 sm:mt-24 md:mt-32': !chatStarted,
+                    'mt-4 sm:mt-6': !chatStarted,
                   },
                 )}
                 style={{

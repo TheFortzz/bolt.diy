@@ -113,7 +113,10 @@ export const Menu = () => {
     loadEntries();
   };
 
-  const avatarUrl = auth.user?.prefs?.photoURL || auth.user?.photoURL;
+  const rawAvatarUrl = auth.user?.prefs?.photoURL || auth.user?.photoURL;
+  const [avatarFailed, setAvatarFailed] = useState(false);
+  const isBrokenAvatar = !rawAvatarUrl || rawAvatarUrl.includes('ACg8ocI7E0sGHKxAEMLVFYsJCbtuiNchyDJ') || rawAvatarUrl.includes('/avatars/initials');
+  const avatarUrl = isBrokenAvatar || avatarFailed ? '' : rawAvatarUrl;
 
   return (
     <>
@@ -321,8 +324,8 @@ export const Menu = () => {
                         src={avatarUrl}
                         alt={auth.user.name}
                         className="w-7 h-7 rounded-full object-cover flex-shrink-0 border border-[#38bdf8]"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLElement).style.display = 'none';
+                        onError={() => {
+                          setAvatarFailed(true);
                         }}
                       />
                     ) : (
@@ -358,8 +361,8 @@ export const Menu = () => {
                       src={avatarUrl}
                       alt={auth.user.name}
                       className="w-7 h-7 rounded-full object-cover border border-[#38bdf8]"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLElement).style.display = 'none';
+                      onError={() => {
+                        setAvatarFailed(true);
                       }}
                     />
                   ) : (

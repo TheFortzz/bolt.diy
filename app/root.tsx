@@ -48,6 +48,22 @@ export const links: LinksFunction = () => [
 ];
 
 const inlineThemeCode = stripIndents`
+  try {
+    if (typeof console !== 'undefined' && console.warn) {
+      var _origWarn = console.warn;
+      console.warn = function() {
+        var msg = arguments[0] || '';
+        if (typeof msg === 'string' && (
+          msg.indexOf('Appwrite is using localStorage') !== -1 ||
+          msg.indexOf('React Router Future Flag Warning') !== -1 ||
+          msg.indexOf('was preloaded using link preload') !== -1 ||
+          msg.indexOf('[Contextify]') !== -1
+        )) return;
+        return _origWarn.apply(console, arguments);
+      };
+    }
+  } catch (e) {}
+
   setTutorialKitTheme();
 
   function setTutorialKitTheme() {

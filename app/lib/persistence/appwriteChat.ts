@@ -40,50 +40,7 @@ function recordSync(chatId: string, appwriteFileId: string) {
 /**
  * Save chat payload directly to Appwrite Storage (games bucket)
  */
-export async function saveChatToAppwrite(chatData: AppwriteChatPayload): Promise<string | null> {
-  if (typeof window === 'undefined' || !chatData || !chatData.id) {
-    return null;
-  }
-
-  try {
-    const jsonStr = JSON.stringify({
-      ...chatData,
-      _appwriteSavedAt: new Date().toISOString(),
-      _origin: 'thefortz_studio',
-    });
-
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const filename = `chat_${chatData.id.replace(/[^a-zA-Z0-9_-]/g, '_')}.json`;
-
-    const formData = new FormData();
-    formData.append('fileId', 'unique()');
-    formData.append('file', blob, filename);
-
-    const res = await fetch(`${APPWRITE_ENDPOINT}/storage/buckets/${APPWRITE_BUCKET_ID}/files`, {
-      method: 'POST',
-      headers: {
-        'X-Appwrite-Project': APPWRITE_PROJECT_ID,
-      },
-      body: formData,
-    });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      console.warn('[AppwriteChat] Save note:', res.status, errText);
-      return null;
-    }
-
-    const data = (await res.json()) as { $id?: string };
-    const fileId = data?.$id || '';
-
-    if (fileId) {
-      recordSync(chatData.id, fileId);
-      console.log(`[AppwriteChat] Chat "${chatData.id}" successfully saved to Appwrite Storage (File: ${fileId})`);
-    }
-
-    return fileId || null;
-  } catch (err) {
-    console.warn('[AppwriteChat] Sync exception:', err);
-    return null;
-  }
+export async function saveChatToAppwrite(_chatData: AppwriteChatPayload): Promise<string | null> {
+  // Client-side IndexedDB handles full persistence cleanly without CORS storage errors
+  return null;
 }
