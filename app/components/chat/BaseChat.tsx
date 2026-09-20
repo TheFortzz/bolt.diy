@@ -606,6 +606,25 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         disabled={isStreaming}
                       />
                       {chatStarted && <ClientOnly>{() => <ExportChatButton exportChat={exportChat} />}</ClientOnly>}
+
+                      {/* Community Games Gallery icon button */}
+                      <IconButton
+                        title="Community Games Gallery"
+                        className="transition-all text-sky-400 hover:text-white"
+                        onClick={() => isGalleryOpen.set(true)}
+                      >
+                        <div className="i-ph:game-controller-duotone text-xl text-[#38bdf8]" />
+                      </IconButton>
+
+                      {/* Configure AI icon button */}
+                      <IconButton
+                        title="Configure AI & Providers"
+                        className="transition-all text-orange-400 hover:text-white"
+                        onClick={() => setIsSettingsOpen(true)}
+                      >
+                        <div className="i-ph:gear-six text-xl text-[#f97316]" />
+                      </IconButton>
+
                       <IconButton
                         title="Model Settings"
                         className={classNames('transition-all flex items-center gap-1', {
@@ -643,32 +662,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   </div>
                 </div>
               </div>
-
-              {!chatStarted && (
-                <div className="flex justify-center items-center gap-3 flex-wrap max-w-[52rem] mx-auto mb-8 px-2 select-none">
-                  <button
-                    type="button"
-                    onClick={() => isGalleryOpen.set(true)}
-                    style={{ borderRadius: 0 }}
-                    className="px-4 py-2 bg-[#1a3050] hover:bg-[#213d66] active:bg-[#284b7c] text-sky-200 hover:text-white border border-[#38bdf8]/40 hover:border-[#38bdf8] text-xs font-semibold tracking-wide transition-all flex items-center gap-2 cursor-pointer shadow-sm"
-                    title="Browse community games gallery and remix them"
-                  >
-                    <div className="i-ph:game-controller-duotone text-base text-[#38bdf8]" />
-                    <span>Community Games Gallery</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsSettingsOpen(true)}
-                    style={{ borderRadius: 0 }}
-                    className="px-4 py-2 bg-[#1a3050] hover:bg-[#213d66] active:bg-[#284b7c] text-sky-200 hover:text-white border border-[#38bdf8]/40 hover:border-[#38bdf8] text-xs font-semibold tracking-wide transition-all flex items-center gap-2 cursor-pointer shadow-sm"
-                    title="Configure AI models and providers"
-                  >
-                    <div className="i-ph:gear-six-fill text-base text-[#f97316]" />
-                    <span>Configure AI</span>
-                  </button>
-                </div>
-              )}
             </div>
           </div>
           <ClientOnly>{() => <Workbench chatStarted={chatStarted} isStreaming={isStreaming} />}</ClientOnly>
