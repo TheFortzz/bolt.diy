@@ -45,11 +45,89 @@ export function getAppwriteAccount(): Account {
   return account;
 }
 
+if (typeof window !== 'undefined') {
+  // Listen for real-time auth sync from thefortz.me parent window
+  window.addEventListener('message', (event) => {
+    if (!event.data || typeof event.data !== 'object') return;
+
+    if (event.data.type === 'thefortz-auth-sync') {
+      const { user, balance } = event.data;
+      if (user) {
+        const userObj: AppwriteUser = {
+          $id: user.$id || user.id || 'usr_synced',
+          name: user.name || user.displayName || 'Creator',
+          email: user.email || '',
+          photoURL: user.photoURL || user.prefs?.photoURL || '',
+          prefs: {
+            ...(user.prefs || {}),
+            fortz_balance: typeof balance === 'number' ? balance : (user.prefs?.fortz_balance ?? 100),
+            photoURL: user.photoURL || user.prefs?.photoURL || '',
+          },
+        };
+
+        authStore.set({
+          user: userObj,
+          loading: false,
+          initialized: true,
+        });
+
+        try {
+          localStorage.setItem('thefortz_synced_user', JSON.stringify(userObj));
+          if (typeof balance === 'number') {
+            localStorage.setItem('thefortz_fortz_balance', String(balance));
+            window.dispatchEvent(new CustomEvent('thefortz-balance-updated', { detail: { balance } }));
+          }
+        } catch {}
+      } else {
+        // Parent indicates user is logged out
+        authStore.set({
+          user: null,
+          loading: false,
+          initialized: true,
+        });
+        try {
+          localStorage.removeItem('thefortz_synced_user');
+        } catch {}
+      }
+    }
+  });
+
+  // Request sync immediately if inside iframe
+  if (window.parent && window.parent !== window) {
+    try {
+      window.parent.postMessage({ type: 'thefortz-auth-request' }, '*');
+    } catch {}
+  }
+}
+
 /**
- * Check if the user already has an active Appwrite session
+ * Check if the user already has an active Appwrite session or synced session
  */
 export async function checkAuthSession(): Promise<AppwriteUser | null> {
   if (typeof window === 'undefined') return null;
+
+  // 1. If embedded in iframe, request auth from parent
+  if (window.parent && window.parent !== window) {
+    try {
+      window.parent.postMessage({ type: 'thefortz-auth-request' }, '*');
+    } catch {}
+  }
+
+  // 2. Check local cached synced user first for instant hydration
+  try {
+    const cached = localStorage.getItem('thefortz_synced_user');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed && parsed.$id) {
+        authStore.set({
+          user: parsed,
+          loading: false,
+          initialized: true,
+        });
+        return parsed;
+      }
+    }
+  } catch {}
 
   try {
     authStore.set({ ...authStore.get(), loading: true });
@@ -72,7 +150,7 @@ export async function checkAuthSession(): Promise<AppwriteUser | null> {
       const userBalance = (current.prefs as Record<string, any>)?.fortz_balance;
       if (typeof userBalance === 'number') {
         localStorage.setItem('thefortz_fortz_balance', String(userBalance));
-        window.dispatchEvent(new CustomEvent('thefortz-balance-updated'));
+        window.dispatchEvent(new CustomEvent('thefortz-balance-updated', { detail: { balance: userBalance } }));
       }
 
       authStore.set({
@@ -87,13 +165,17 @@ export async function checkAuthSession(): Promise<AppwriteUser | null> {
     // User is not signed in or session expired
   }
 
-  authStore.set({
-    user: null,
-    loading: false,
-    initialized: true,
-  });
+  // Preserve existing synced user if set by postMessage
+  const currentVal = authStore.get();
+  if (!currentVal.user) {
+    authStore.set({
+      user: null,
+      loading: false,
+      initialized: true,
+    });
+  }
 
-  return null;
+  return authStore.get().user;
 }
 
 /**
@@ -243,6 +325,10 @@ export async function appwriteLogout(): Promise<void> {
   } catch (e) {
     console.warn('[Appwrite] Logout notice:', e);
   }
+
+  try {
+    localStorage.removeItem('thefortz_synced_user');
+  } catch {}
 
   authStore.set({
     user: null,

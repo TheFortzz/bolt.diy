@@ -199,6 +199,9 @@ export const ChatImpl = memo(
 
       const auth = authStore.get();
       if (!auth.user) {
+        if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'thefortz-open-login' }, '*');
+        }
         isAuthModalOpen.set(true);
         return;
       }

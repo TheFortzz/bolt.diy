@@ -8,6 +8,8 @@ import { db, chatId } from '~/lib/persistence/useChatHistory';
 import { forkChat } from '~/lib/persistence/db';
 import { toast } from 'react-toastify';
 import WithTooltip from '~/components/ui/Tooltip';
+import { useStore } from '@nanostores/react';
+import { authStore } from '~/lib/auth/appwrite';
 
 interface MessagesProps {
   id?: string;
@@ -19,6 +21,8 @@ interface MessagesProps {
 export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: MessagesProps, ref) => {
   const { id, isStreaming = false, messages = [] } = props;
   const location = useLocation();
+  const auth = useStore(authStore);
+  const userPhoto = auth.user?.prefs?.photoURL || auth.user?.photoURL;
 
   const handleRewind = (messageId: string) => {
     const searchParams = new URLSearchParams(location.search);
@@ -60,8 +64,23 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
                 })}
               >
                 {isUserMessage && (
-                  <div className="flex items-center justify-center w-[34px] h-[34px] overflow-hidden bg-white text-gray-600 rounded-full shrink-0 self-start">
-                    <div className="i-ph:user-fill text-xl"></div>
+                  <div className="flex items-center justify-center w-[34px] h-[34px] overflow-hidden bg-[#101e74] text-gray-300 rounded-full shrink-0 self-start border border-cyan-400/40 shadow-sm">
+                    {userPhoto ? (
+                      <img
+                        src={userPhoto}
+                        alt={auth.user?.name || 'User'}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    ) : auth.user?.name ? (
+                      <div className="w-full h-full bg-gradient-to-tr from-cyan-400 to-blue-600 flex items-center justify-center text-white font-bold text-xs">
+                        {auth.user.name.charAt(0).toUpperCase()}
+                      </div>
+                    ) : (
+                      <div className="i-ph:user-fill text-xl"></div>
+                    )}
                   </div>
                 )}
                 <div className="grid grid-col-1 w-full">

@@ -324,7 +324,12 @@ export const Menu = () => {
             </div>
           ) : (
             <button
-              onClick={() => isAuthModalOpen.set(true)}
+              onClick={() => {
+                if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+                  window.parent.postMessage({ type: 'thefortz-open-login' }, '*');
+                }
+                isAuthModalOpen.set(true);
+              }}
               className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg bg-gradient-to-r from-cyan-500/20 to-blue-600/20 hover:from-cyan-500/30 hover:to-blue-600/30 border border-cyan-400/40 text-xs font-bold text-cyan-300 hover:text-white transition-all cursor-pointer shadow-sm"
             >
               <div className="flex items-center gap-2">

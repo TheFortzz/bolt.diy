@@ -260,6 +260,9 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       const currentAuth = authStore.get();
       if (!currentAuth.user) {
         toast.info('🔒 Please sign in or create an account with THEFORTZ to start building your game!');
+        if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'thefortz-open-login' }, '*');
+        }
         isAuthModalOpen.set(true);
         return;
       }
