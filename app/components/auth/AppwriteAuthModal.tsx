@@ -46,10 +46,10 @@ export function AppwriteAuthModal() {
       setLoading(true);
       if (mode === 'login') {
         await appwriteLogin(email, password);
-        toast.success('Welcome back to THEFORTZ Studio!');
+        toast.success('Welcome back to Studio!');
       } else {
         await appwriteSignup(name, email, password);
-        toast.success('Account created! Welcome to THEFORTZ Studio!');
+        toast.success('Account created! Welcome to Studio!');
       }
     } catch (err: any) {
       console.error('[AuthModal] Error:', err);
@@ -65,10 +65,8 @@ export function AppwriteAuthModal() {
       onClick={() => isAuthModalOpen.set(false)}
     >
       <div
-        className="w-full max-w-md bg-[#0e1422] border border-[#10b981]/40 rounded-none p-6 sm:p-7 text-white shadow-2xl relative overflow-hidden"
-        style={{
-          boxShadow: '0 25px 60px -12px rgba(0, 0, 0, 0.9), 0 0 30px rgba(16, 185, 129, 0.15)',
-        }}
+        className="w-full max-w-md bg-[#121929] border border-[#38bdf8]/40 rounded-none p-6 sm:p-7 text-white relative overflow-hidden"
+        style={{ borderRadius: 0 }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}
@@ -82,33 +80,18 @@ export function AppwriteAuthModal() {
 
         {/* Brand Header */}
         <div className="flex flex-col items-center text-center mb-5">
-          <div className="w-14 h-14 rounded-none flex items-center justify-center mb-3 bg-[#090d16] border border-[#10b981]/40">
-            <img
-              src="/thefortzicon.png"
-              alt="TheFortz"
-              className="w-10 h-10 object-contain"
-              onError={(e) => {
-                const el = e.currentTarget as HTMLImageElement;
-                el.style.display = 'none';
-                const parent = el.parentElement;
-                if (parent) {
-                  parent.style.background = 'linear-gradient(135deg, #10b981, #8b5cf6)';
-                  parent.textContent = '🎮';
-                  parent.style.fontSize = '28px';
-                }
-              }}
-            />
+          <div className="w-12 h-12 rounded-none flex items-center justify-center mb-3 bg-[#182238] border border-[#38bdf8]/40 text-[#38bdf8] text-2xl">
+            ⚡
           </div>
           <h2
-            className="text-2xl font-black uppercase tracking-wider text-emerald-400 font-['Anton',sans-serif]"
-            style={{ textShadow: '0 2px 10px rgba(16,185,129,0.3)' }}
+            className="text-2xl font-black uppercase tracking-wider text-white font-['Anton',sans-serif]"
           >
-            {mode === 'login' ? 'Sign In to THEFORTZ' : 'Create Creator Account'}
+            {mode === 'login' ? 'Sign In' : 'Create Account'}
           </h2>
           <p className="text-xs text-slate-400 mt-1 max-w-xs">
             {mode === 'login'
-              ? 'Connect your account to create games, sync progress, and publish to the live network.'
-              : 'Join THEFORTZ to start building games with AI and earn creator rewards.'}
+              ? 'Connect your account to create games, sync progress, and compile live.'
+              : 'Join Studio to start building games with AI.'}
           </p>
         </div>
 
@@ -242,7 +225,7 @@ export function AppwriteAuthModal() {
 
         <div className="text-center mt-4">
           <p className="text-[11px] text-white/50">
-            Connected to THEFORTZ Network (Appwrite Cloud)
+            Connected to Cloud Network (Appwrite Cloud)
           </p>
         </div>
       </div>

@@ -259,7 +259,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
 
       const currentAuth = authStore.get();
       if (!currentAuth.user) {
-        toast.info('🔒 Please sign in or create an account with THEFORTZ to start building your game!');
+        toast.info('🔒 Please sign in to start building your game!');
         if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
           window.parent.postMessage({ type: 'thefortz-open-login' }, '*');
         }
@@ -268,10 +268,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       }
 
       if (fortzBalance < FORTZ_PROMPT_COST) {
-        toast.error(
-          `⚠️ Insufficient Fortz! Each AI game prompt costs ${FORTZ_PROMPT_COST} Fortz. Your balance is ${fortzBalance} Fortz. Visit TheFortz to refill your balance.`,
-          { autoClose: 7000 }
-        );
+        toast.error('⚠️ Insufficient balance to send prompt (requires 10F).');
         return;
       }
 
@@ -476,63 +473,13 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     setImageDataList?.(imageDataList.filter((_, i) => i !== index));
                   }}
                 />
-                {/* ── TheFortz Prompt Balance & Token HUD ── */}
-                <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10 px-1 select-none">
-                  <div className="flex items-center gap-2">
-                    <div
-                      style={{ borderRadius: 0 }}
-                      className="flex items-center gap-1.5 px-2.5 py-1 bg-[#121929] border border-amber-400/50 text-amber-300 text-xs font-bold tracking-wide"
-                    >
-                      <span className="text-sm">🪙</span>
-                      <span>
-                        {fortzBalance.toLocaleString()} FORTZ
-                      </span>
-                    </div>
-                    <span
-                      style={{ borderRadius: 0 }}
-                      className="text-[11px] font-bold text-sky-300 bg-[#121929] px-2 py-0.5 border border-sky-400/40"
-                    >
-                      ⚡ 10 Fortz / Prompt
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <a
-                      href="https://thefortz.me"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[11px] font-bold text-amber-400 hover:text-amber-200 transition-colors flex items-center gap-1 hover:underline"
-                      title="Refill Fortz tokens on TheFortz"
-                    >
-                      <span>Refill</span>
-                      <span className="text-xs">↗</span>
-                    </a>
-                  </div>
-                </div>
-
-                {fortzBalance < FORTZ_PROMPT_COST && (
-                  <div
-                    style={{ borderRadius: 0 }}
-                    className="mb-2.5 px-3 py-1.5 bg-rose-950/80 border border-rose-500/60 text-rose-200 text-xs font-semibold flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-base">⚠️</span>
-                      <span>Insufficient Fortz (requires 10 Fortz per prompt). Balance: {fortzBalance}</span>
-                    </div>
-                    <a
-                      href="https://thefortz.me"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline text-amber-300 font-bold hover:text-white"
-                    >
-                      Get Fortz →
-                    </a>
-                  </div>
-                )}
-
                 <div
-                  style={{ borderRadius: 0 }}
+                  style={{
+                    borderRadius: 0,
+                    boxShadow: '0 6px 0 0 #070b13, 0 10px 24px rgba(0,0,0,0.5)',
+                  }}
                   className={classNames(
-                    'relative border border-white/15 bg-[#121929] focus-within:border-[#f97316] transition-colors',
+                    'relative mt-4 sm:mt-6 border-t border-l border-white/20 border-r-2 border-b-[5px] border-r-[#070b13] border-b-[#070b13] bg-[#121929] focus-within:border-t-[#38bdf8] focus-within:border-l-[#38bdf8] transition-all',
                   )}
                 >
                   <textarea
@@ -597,7 +544,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       minHeight: TEXTAREA_MIN_HEIGHT,
                       maxHeight: TEXTAREA_MAX_HEIGHT,
                     }}
-                    placeholder="How can THEFORTZ help you build a game today?"
+                    placeholder="What do you want to build today?"
                     translate="no"
                   />
                   <ClientOnly>
@@ -671,10 +618,14 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         {isModelSettingsCollapsed ? <span className="text-xs">{model}</span> : <span />}
                       </IconButton>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-blue-200/70">
-                      <span className="font-semibold text-yellow-300/90 flex items-center gap-1">
+                    <div className="flex items-center gap-2 text-xs text-slate-300 select-none">
+                      <span
+                        style={{ borderRadius: 0 }}
+                        className="px-2 py-0.5 font-mono font-bold bg-[#182238] border border-white/15 text-amber-400 flex items-center gap-1"
+                        title="10 Tokens per prompt"
+                      >
                         <span>🪙</span>
-                        <span>10 Fortz</span>
+                        <span>10F</span>
                       </span>
                       {input.length > 3 && (
                         <>
@@ -692,14 +643,14 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
 
               {!chatStarted && (
                 <>
-                  {/* Quick-start template pills directly under search box */}
-                  <div className="flex justify-center items-center gap-2 flex-wrap max-w-[52rem] mx-auto mb-3 px-2 select-none">
+                  {/* Quick-start template presets in one horizontal row only */}
+                  <div className="flex flex-row flex-nowrap items-center justify-center gap-2 overflow-x-auto no-scrollbar max-w-[52rem] mx-auto mb-3 px-2 select-none">
                     {QUICK_PILLS.map((pill) => (
                       <button
                         key={pill.id}
                         type="button"
-                        onClick={() => handleSelectTemplate(pill.prompt || `Build a complete ${pill.label} game with smooth physics and audio in HTML5 canvas`)}
-                        className="px-3 py-1.5 bg-[#182238] hover:bg-[#202c48] text-sky-300 hover:text-white border border-[#38bdf8]/30 hover:border-[#f97316] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                        onClick={() => handleSelectTemplate(`Build a complete ${pill.label} game with smooth physics and audio in HTML5 canvas`)}
+                        className="px-3 py-1 bg-[#182238] hover:bg-[#202c48] text-sky-300 hover:text-white border border-[#38bdf8]/30 hover:border-[#f97316] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap flex-shrink-0"
                         style={{ borderRadius: 0 }}
                       >
                         <span>{pill.icon}</span>

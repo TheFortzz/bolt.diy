@@ -14,7 +14,7 @@ export function PublishButton() {
     try {
       setIsExporting(true);
       await workbenchStore.downloadZip();
-      toast.success('Game package downloaded! Upload this ZIP on TheFortz to publish.', {
+      toast.success('Game package downloaded! Ready to publish.', {
         autoClose: 6000,
       });
     } catch (err: any) {
@@ -33,7 +33,7 @@ export function PublishButton() {
     // Also download the zip for them so they have the file ready to drag-and-drop
     await handleExportZip();
 
-    // If standalone, open thefortz.me in a new tab
+    // If standalone, open the live platform in a new tab
     if (typeof window !== 'undefined' && window.location.hostname !== 'thefortz.me') {
       window.open('https://thefortz.me', '_blank', 'noopener,noreferrer');
     }
@@ -44,7 +44,7 @@ export function PublishButton() {
       <button
         onClick={() => setIsOpen(true)}
         className="flex items-center gap-1.5 text-xs font-extrabold text-white bg-[#10b981] hover:bg-[#059669] px-3 py-1.5 rounded-none border border-emerald-300/40 transition-all cursor-pointer uppercase tracking-wider"
-        title="Publish your game to TheFortz feed"
+        title="Publish your game"
       >
         <span>🚀</span>
         <span>PUBLISH GAME</span>
@@ -63,7 +63,7 @@ export function PublishButton() {
               <div className="flex items-center gap-2">
                 <span className="text-xl">🎮</span>
                 <h3 className="font-extrabold text-lg tracking-wider uppercase text-emerald-400 font-['Anton',sans-serif]">
-                  Publish to THEFORTZ
+                  Publish Game
                 </h3>
               </div>
               <button
@@ -75,7 +75,7 @@ export function PublishButton() {
             </div>
 
             <p className="text-xs text-slate-300 mb-5 leading-relaxed font-medium">
-              Publish your game to the live TheFortz feed! Anyone can play it directly in their browser for free.
+              Publish your game to the live feed! Anyone can play it directly in their browser for free.
             </p>
 
             <div className="flex flex-col gap-3">
@@ -85,7 +85,7 @@ export function PublishButton() {
                 className="w-full flex items-center justify-center gap-2 py-2.5 px-4 font-bold text-xs uppercase tracking-wider text-black bg-[#10b981] hover:bg-[#059669] rounded-none border border-emerald-300/60 cursor-pointer transition-all disabled:opacity-50 font-extrabold"
               >
                 <span>{isExporting ? '⏳' : '🚀'}</span>
-                <span>{isExporting ? 'Packaging Game...' : 'Publish to TheFortz Feed'}</span>
+                <span>{isExporting ? 'Packaging Game...' : 'Publish Game Feed'}</span>
               </button>
 
               <button
