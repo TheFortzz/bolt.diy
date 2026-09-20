@@ -43,7 +43,7 @@ export function PublishButton() {
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="flex items-center gap-1.5 text-xs font-extrabold text-white bg-gradient-to-r from-emerald-600 via-green-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 px-3 py-1.5 rounded-lg border border-emerald-300 transition-all cursor-pointer uppercase tracking-wider"
+        className="flex items-center gap-1.5 text-xs font-extrabold text-white bg-[#10b981] hover:bg-[#059669] px-3 py-1.5 rounded-none border border-emerald-300/40 transition-all cursor-pointer uppercase tracking-wider"
         title="Publish your game to TheFortz feed"
       >
         <span>🚀</span>
@@ -52,29 +52,29 @@ export function PublishButton() {
 
       {isOpen && (
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in"
           onClick={() => setIsOpen(false)}
         >
           <div
-            className="w-full max-w-md bg-[#2244d4] border border-white/30 rounded-xl p-6 text-white relative"
+            className="w-full max-w-md bg-[#0e1422] border border-[#10b981]/40 rounded-none p-6 text-white relative shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-white/15 pb-3 mb-4">
               <div className="flex items-center gap-2">
                 <span className="text-xl">🎮</span>
-                <h3 className="font-extrabold text-lg tracking-wider uppercase text-white font-['Anton',sans-serif]">
+                <h3 className="font-extrabold text-lg tracking-wider uppercase text-emerald-400 font-['Anton',sans-serif]">
                   Publish to THEFORTZ
                 </h3>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
-                className="text-white/70 hover:text-white px-2 py-1 text-sm rounded-lg border border-transparent hover:border-white/20 transition-all cursor-pointer"
+                className="text-white/70 hover:text-white px-2 py-1 text-sm rounded-none border border-transparent hover:border-white/20 transition-all cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <p className="text-xs text-white/90 mb-5 leading-relaxed font-medium">
+            <p className="text-xs text-slate-300 mb-5 leading-relaxed font-medium">
               Publish your game to the live TheFortz feed! Anyone can play it directly in their browser for free.
             </p>
 
@@ -82,7 +82,7 @@ export function PublishButton() {
               <button
                 onClick={handlePublishToTheFortz}
                 disabled={isExporting}
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 font-bold text-xs uppercase tracking-wider text-white bg-gradient-to-r from-emerald-600 via-green-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-lg border border-emerald-300 cursor-pointer transition-all disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 font-bold text-xs uppercase tracking-wider text-black bg-[#10b981] hover:bg-[#059669] rounded-none border border-emerald-300/60 cursor-pointer transition-all disabled:opacity-50 font-extrabold"
               >
                 <span>{isExporting ? '⏳' : '🚀'}</span>
                 <span>{isExporting ? 'Packaging Game...' : 'Publish to TheFortz Feed'}</span>
@@ -91,7 +91,7 @@ export function PublishButton() {
               <button
                 onClick={handleExportZip}
                 disabled={isExporting || !hasFiles}
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 font-bold text-xs uppercase tracking-wider text-white bg-[#e26e03] hover:bg-[#d76400] rounded-lg border border-orange-300 cursor-pointer transition-all disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 font-bold text-xs uppercase tracking-wider text-white bg-[#f97316] hover:bg-[#ea580c] rounded-none border border-orange-400/40 cursor-pointer transition-all disabled:opacity-50 font-extrabold"
               >
                 <span>📥</span>
                 <span>Export Game ZIP (.zip)</span>

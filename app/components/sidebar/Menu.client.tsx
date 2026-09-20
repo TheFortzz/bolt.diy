@@ -127,7 +127,7 @@ export const Menu = () => {
       {!open && (
         <button
           onClick={() => isSidebarOpen.set(true)}
-          className="fixed top-3 left-3 z-50 p-2.5 rounded-xl bg-[#162a9c]/90 hover:bg-[#1d37ba] text-cyan-300 hover:text-white border border-cyan-400/40 shadow-xl backdrop-blur-md transition-all flex items-center justify-center cursor-pointer active:scale-95"
+          className="fixed top-3 left-3 z-50 p-2.5 rounded-none bg-[#0e1422] hover:bg-[#141b2d] text-emerald-400 hover:text-white border border-[#10b981]/40 shadow-xl backdrop-blur-md transition-all flex items-center justify-center cursor-pointer active:scale-95"
           title="Open Sidebar"
         >
           <div className="i-ph:sidebar-simple-duotone text-lg" />
@@ -240,7 +240,7 @@ export const Menu = () => {
           <DialogRoot open={dialogContent !== null}>
             {binDates(filteredList).map(({ category, items }) => (
               <div key={category} className="mt-3 first:mt-1 space-y-1">
-                <div className="text-[11px] font-bold text-blue-200/50 uppercase tracking-wider sticky top-0 z-1 bg-[#162a9c] px-2 py-0.5">
+                <div className="text-[11px] font-bold text-emerald-400/80 uppercase tracking-wider sticky top-0 z-1 bg-[#0d1117] border-b border-white/5 px-2 py-0.5">
                   {category}
                 </div>
                 {items.map((item) => (
@@ -266,7 +266,7 @@ export const Menu = () => {
                       <p className="mt-1">Are you sure you want to permanently delete this project?</p>
                     </div>
                   </DialogDescription>
-                  <div className="px-5 pb-4 bg-[#162a9c] flex gap-2 justify-end">
+                  <div className="px-5 pb-4 bg-[#0e1422] flex gap-2 justify-end">
                     <DialogButton type="secondary" onClick={closeDialog}>
                       Cancel
                     </DialogButton>
@@ -387,57 +387,57 @@ export const Menu = () => {
           onClick={() => setIsAnalyticsOpen(false)}
         >
           <div
-            className="w-full max-w-md bg-[#162a9c] border border-white/30 rounded-xl p-6 text-white shadow-2xl relative"
+            className="w-full max-w-md bg-[#0e1422] border border-[#10b981]/40 rounded-none p-6 text-white shadow-2xl relative"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-white/15 pb-3 mb-4">
               <div className="flex items-center gap-2">
-                <div className="i-ph:chart-bar-fill text-2xl text-cyan-400" />
-                <h3 className="font-extrabold text-lg uppercase tracking-wider font-['Anton',sans-serif]">
+                <div className="i-ph:chart-bar-fill text-2xl text-emerald-400" />
+                <h3 className="font-extrabold text-lg uppercase tracking-wider text-emerald-400 font-['Anton',sans-serif]">
                   Studio Analytics
                 </h3>
               </div>
               <button
                 onClick={() => setIsAnalyticsOpen(false)}
-                className="text-white/70 hover:text-white px-2 py-1 text-sm rounded border border-transparent hover:border-white/20 transition-all cursor-pointer"
+                className="text-white/70 hover:text-white px-2 py-1 text-sm rounded-none border border-transparent hover:border-white/20 transition-all cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
             <div className="grid grid-cols-2 gap-3 mb-5">
-              <div className="p-3 bg-[#101e74] rounded-lg border border-white/15">
-                <div className="text-[11px] text-blue-200/70 uppercase font-semibold">Total Projects</div>
-                <div className="text-2xl font-black text-cyan-300 mt-0.5">{list.length}</div>
+              <div className="p-3 bg-[#060910] rounded-none border border-white/10">
+                <div className="text-[11px] text-slate-400 uppercase font-semibold">Total Projects</div>
+                <div className="text-2xl font-black text-emerald-400 mt-0.5">{list.length}</div>
               </div>
-              <div className="p-3 bg-[#101e74] rounded-lg border border-white/15">
-                <div className="text-[11px] text-blue-200/70 uppercase font-semibold">Engine Runtime</div>
+              <div className="p-3 bg-[#060910] rounded-none border border-white/10">
+                <div className="text-[11px] text-slate-400 uppercase font-semibold">Engine Runtime</div>
                 <div className="text-sm font-bold text-emerald-400 mt-1 flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                   Online
                 </div>
               </div>
-              <div className="p-3 bg-[#101e74] rounded-lg border border-white/15">
-                <div className="text-[11px] text-blue-200/70 uppercase font-semibold">Default AI Model</div>
+              <div className="p-3 bg-[#060910] rounded-none border border-white/10">
+                <div className="text-[11px] text-slate-400 uppercase font-semibold">Default AI Model</div>
                 <div className="text-xs font-bold text-white mt-1 truncate" title="Azure Fortz AI (gpt-oss-120b)">
                   gpt-oss-120b
                 </div>
               </div>
-              <div className="p-3 bg-[#101e74] rounded-lg border border-white/15">
-                <div className="text-[11px] text-blue-200/70 uppercase font-semibold">Cloud Sync</div>
-                <div className="text-xs font-bold text-cyan-300 mt-1 flex items-center gap-1">
+              <div className="p-3 bg-[#060910] rounded-none border border-white/10">
+                <div className="text-[11px] text-slate-400 uppercase font-semibold">Cloud Sync</div>
+                <div className="text-xs font-bold text-emerald-400 mt-1 flex items-center gap-1">
                   <span>✓</span> Appwrite Live
                 </div>
               </div>
             </div>
 
-            <p className="text-xs text-blue-200/80 leading-relaxed mb-4">
+            <p className="text-xs text-slate-400 leading-relaxed mb-4">
               All games packaged and published here automatically sync to the public TheFortz feed for players worldwide.
             </p>
 
             <button
               onClick={() => setIsAnalyticsOpen(false)}
-              className="w-full py-2 bg-[#e26e03] hover:bg-[#d76400] text-white font-bold text-xs uppercase tracking-wider rounded-lg transition-all cursor-pointer"
+              className="w-full py-2 bg-[#f97316] hover:bg-[#ea580c] text-white font-bold text-xs uppercase tracking-wider rounded-none transition-all cursor-pointer"
             >
               Close Analytics
             </button>

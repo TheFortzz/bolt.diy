@@ -56,15 +56,16 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
             return (
               <div
                 key={index}
-                className={classNames('flex gap-4 p-6 w-full rounded-[calc(0.75rem-1px)]', {
-                  'bg-bolt-elements-messages-background': isUserMessage || !isStreaming || (isStreaming && !isLast),
+                className={classNames('flex gap-4 p-6 w-full rounded-none border border-white/5', {
+                  'bg-bolt-elements-messages-background border-l-2 border-l-[#10b981]': isUserMessage,
+                  'bg-bolt-elements-messages-background': !isUserMessage && (!isStreaming || (isStreaming && !isLast)),
                   'bg-gradient-to-b from-bolt-elements-messages-background from-30% to-transparent':
                     isStreaming && isLast,
                   'mt-4': !isFirst,
                 })}
               >
                 {isUserMessage && (
-                  <div className="flex items-center justify-center w-[34px] h-[34px] overflow-hidden bg-[#101e74] text-gray-300 rounded-full shrink-0 self-start border border-cyan-400/40 shadow-sm">
+                  <div className="flex items-center justify-center w-[34px] h-[34px] overflow-hidden bg-[#060910] text-gray-300 rounded-none shrink-0 self-start border border-[#10b981]/40 shadow-sm">
                     {userPhoto ? (
                       <img
                         src={userPhoto}
@@ -75,11 +76,11 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
                         }}
                       />
                     ) : auth.user?.name ? (
-                      <div className="w-full h-full bg-gradient-to-tr from-cyan-400 to-blue-600 flex items-center justify-center text-white font-bold text-xs">
+                      <div className="w-full h-full bg-[#10b981] flex items-center justify-center text-black font-extrabold text-xs">
                         {auth.user.name.charAt(0).toUpperCase()}
                       </div>
                     ) : (
-                      <div className="i-ph:user-fill text-xl"></div>
+                      <div className="i-ph:user-fill text-xl text-emerald-400"></div>
                     )}
                   </div>
                 )}

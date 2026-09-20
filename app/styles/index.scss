@@ -13,18 +13,54 @@ html,
 body {
   height: 100%;
   width: 100%;
-  background-color: #101e74 !important;
-  background-image: none !important;
+  background-color: #090d16 !important;
+  background-image: radial-gradient(circle at 50% 0%, rgba(16, 185, 129, 0.08) 0%, transparent 60%) !important;
   color: #ffffff;
   overflow: hidden;
 }
 
+/* Replit Developer aesthetic: Sharp 0px corners on every element across the studio */
+*,
+*::before,
+*::after,
+button,
+input,
+textarea,
+select,
+[class*='rounded-'],
+.side-menu,
+.panel-container,
+.dialog-content {
+  border-radius: 0px !important;
+}
+
+/* Developer IDE Cyber Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #090d16;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #10b981;
+}
+
+::selection {
+  background-color: rgba(16, 185, 129, 0.35);
+  color: #ffffff;
+}
+
 :root {
-  --thefortz-blue: #101e74;
-  --thefortz-orange: #e26e03;
-  --thefortz-purple: #8340ed;
-  --thefortz-green: #22c55e;
-  --primary-color: #e26e03;
-  --secondary-color: #8340ed;
-  --accent-color: #22c55e;
+  --thefortz-dark: #090d16;
+  --thefortz-surface: #0e1422;
+  --thefortz-orange: #f97316;
+  --thefortz-purple: #8b5cf6;
+  --thefortz-green: #10b981;
+  --primary-color: #f97316;
+  --secondary-color: #8b5cf6;
+  --accent-color: #10b981;
 }
