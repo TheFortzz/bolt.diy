@@ -27,7 +27,7 @@ const menuVariants = {
     },
   },
   open: {
-    width: 200,
+    width: 215,
     x: 0,
     opacity: 1,
     transition: {
@@ -157,41 +157,38 @@ export const Menu = () => {
         }}
         className="flex selection-accent flex-col side-menu fixed top-0 left-0 h-full border-r-2 border-[#38bdf8] z-sidebar text-xs overflow-hidden select-none shadow-[2px_0_15px_rgba(56,189,248,0.35)]"
       >
-        {/* ── Top Header Brand / Toggle ── */}
+        {/* ── Top Header Brand / Toggle (No background box, big title, pure icon button) ── */}
         <div
-          className={`flex items-center border-b border-[#4ade80]/30 bg-[#083000]/75 backdrop-blur-sm transition-all ${
-            open ? 'justify-between px-3 py-2.5' : 'justify-center p-2'
+          className={`flex items-center transition-all ${
+            open ? 'justify-between px-3 pt-3 pb-1' : 'justify-center py-2.5'
           }`}
-          style={{ borderRadius: 0, height: 42 }}
         >
           {open ? (
             <>
               <a
                 href="/"
-                className="flex items-center text-emerald-100 hover:text-white transition-colors no-underline select-none"
+                className="flex items-center text-white hover:text-emerald-100 transition-colors no-underline select-none"
                 title="Studio"
               >
-                <span className="text-sm font-bold tracking-wider uppercase text-white font-['Anton',sans-serif]">
+                <span className="text-3xl sm:text-4xl font-black tracking-wide uppercase text-white font-['Anton',sans-serif] drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)] leading-none">
                   Studio
                 </span>
               </a>
               <button
                 onClick={() => isSidebarOpen.set(false)}
-                className="w-7 h-7 flex items-center justify-center bg-[#072403] hover:bg-[#0c3d05] text-[#38bdf8] hover:text-white border border-[#38bdf8]/50 shadow-[0_0_8px_rgba(56,189,248,0.25)] transition-all cursor-pointer"
-                style={{ borderRadius: 0 }}
+                className="p-1 flex items-center justify-center text-white/80 hover:text-white hover:scale-110 active:scale-95 transition-all cursor-pointer bg-transparent border-0"
                 title="Collapse to icons"
               >
-                <div className="i-ph:sidebar-simple-duotone text-base" />
+                <div className="i-ph:sidebar-simple-duotone text-2xl text-white" />
               </button>
             </>
           ) : (
             <button
               onClick={() => isSidebarOpen.set(true)}
-              className="w-9 h-9 flex items-center justify-center bg-[#072403] hover:bg-[#0c3d05] text-[#38bdf8] hover:text-white border border-[#38bdf8]/60 shadow-[0_0_12px_rgba(56,189,248,0.4)] transition-all cursor-pointer group"
-              style={{ borderRadius: 0 }}
+              className="p-1.5 flex items-center justify-center text-white/80 hover:text-white hover:scale-110 active:scale-95 transition-all cursor-pointer bg-transparent border-0 group"
               title="Expand Sidebar"
             >
-              <div className="i-ph:sidebar-simple-duotone text-xl text-[#38bdf8] group-hover:scale-110 transition-transform" />
+              <div className="i-ph:sidebar-simple-duotone text-2xl text-white group-hover:scale-110 transition-transform" />
             </button>
           )}
         </div>
@@ -278,10 +275,7 @@ export const Menu = () => {
 
               <DialogRoot open={dialogContent !== null}>
                 {binDates(list).map(({ category, items }) => (
-                  <div key={category} className="mt-2.5 first:mt-0 space-y-0.5">
-                    <div className="text-[10px] font-bold text-sky-200 uppercase tracking-wider sticky top-0 z-1 bg-[#0b1626]/95 border-b border-white/10 px-2 py-0.5">
-                      {category}
-                    </div>
+                  <div key={category} className="space-y-0.5">
                     {items.map((item) => (
                       <HistoryItem
                         key={item.id}
@@ -362,59 +356,65 @@ export const Menu = () => {
           )}
         </div>
 
-        {/* ── Bottom Section: Settings & Profile Very Under ── */}
-        <div className="border-t border-white/15 bg-[#0b1320] flex flex-col select-none" style={{ borderRadius: 0 }}>
+        {/* ── Bottom Section: Settings & Profile (No background boxes, pure icons & round avatar) ── */}
+        <div className="border-t border-white/20 flex flex-col select-none bg-transparent pt-1 pb-2">
           {/* Settings & Theme Switch */}
-          <div className={`flex items-center border-b border-white/10 ${open ? 'justify-between px-2 py-1.5' : 'justify-center p-1.5'}`}>
+          <div className={`flex items-center ${open ? 'justify-between px-3 py-1' : 'justify-center py-1'}`}>
             <button
               onClick={() => {
                 setSettingsTab('providers');
                 setIsSettingsOpen(true);
               }}
-              style={{ borderRadius: 0 }}
-              className={`flex items-center bg-[#132034] hover:bg-[#1a2d48] text-sky-200 hover:text-white border border-sky-400/30 transition-colors cursor-pointer ${
-                open ? 'gap-1.5 text-xs py-1 px-2' : 'w-8 h-8 justify-center'
+              className={`flex items-center text-white/80 hover:text-white hover:scale-105 active:scale-95 transition-all cursor-pointer bg-transparent border-0 ${
+                open ? 'gap-2 text-xs font-bold py-1 px-1' : 'p-1.5 justify-center'
               }`}
               title="Configure AI Settings"
             >
-              <div className="i-ph:gear-six text-base text-[#38bdf8]" />
-              {open && <span>Settings</span>}
+              <div className={`${open ? 'text-xl' : 'text-2xl'} i-ph:gear-six text-white`} />
+              {open && <span className="text-white text-xs font-semibold">Settings</span>}
             </button>
             {open && <ThemeSwitch />}
           </div>
 
-          {/* Profile Box - Very Under */}
-          <div className={`${open ? 'p-2' : 'p-1.5 flex justify-center'} bg-[#070d18]`}>
+          {/* Profile Section - No background box, round profile avatar, text as button */}
+          <div className={`${open ? 'px-3 py-1' : 'py-1 flex justify-center'}`}>
             {auth.user ? (
               open ? (
-                <div className="w-full flex items-center justify-between px-2 py-1.5 bg-[#121c2d] border border-sky-400/35 text-xs text-white" style={{ borderRadius: 0 }}>
-                  <div className="flex items-center gap-1.5 overflow-hidden">
+                <div className="flex items-center justify-between gap-1.5 py-1">
+                  <div className="flex items-center gap-2 overflow-hidden min-w-0">
                     {avatarUrl ? (
                       <img
                         src={avatarUrl}
                         alt={auth.user.name}
-                        className="w-7 h-7 rounded-full object-cover flex-shrink-0 border border-sky-400"
+                        className="w-8 h-8 rounded-full object-cover flex-shrink-0 border-2 border-white/60 shadow-md"
                         onError={() => {
                           setAvatarFailed(true);
                         }}
                       />
                     ) : (
-                      <div className="i-ph:user-circle-fill text-xl text-[#38bdf8] flex-shrink-0" />
+                      <div className="w-8 h-8 rounded-full bg-white/20 border-2 border-white/60 flex items-center justify-center text-white flex-shrink-0 shadow-md font-bold text-xs uppercase">
+                        {auth.user.name?.charAt(0) || <div className="i-ph:user-bold text-sm" />}
+                      </div>
                     )}
-                    <span className="font-bold truncate text-white leading-tight text-[11px]">
+                    <button
+                      onClick={() => {
+                        toast.info(`Signed in as ${auth.user?.name || 'User'}`);
+                      }}
+                      className="font-bold truncate text-white hover:text-emerald-100 text-xs text-left bg-transparent border-0 cursor-pointer transition-colors p-0"
+                      title={auth.user?.name}
+                    >
                       {auth.user.name}
-                    </span>
+                    </button>
                   </div>
                   <button
                     onClick={() => {
                       appwriteLogout();
                       toast.info('Signed out');
                     }}
-                    className="p-1 text-slate-400 hover:text-rose-400 hover:bg-white/10 transition-all cursor-pointer flex-shrink-0"
-                    style={{ borderRadius: 0 }}
+                    className="p-1 text-white/70 hover:text-rose-300 hover:scale-110 transition-all cursor-pointer bg-transparent border-0 flex-shrink-0"
                     title="Sign out"
                   >
-                    <div className="i-ph:sign-out-bold text-xs" />
+                    <div className="i-ph:sign-out-bold text-base" />
                   </button>
                 </div>
               ) : (
@@ -423,20 +423,22 @@ export const Menu = () => {
                     appwriteLogout();
                     toast.info('Signed out');
                   }}
-                  className="w-9 h-9 flex items-center justify-center hover:bg-white/10 transition-colors cursor-pointer relative group"
+                  className="w-8 h-8 flex items-center justify-center hover:scale-105 transition-transform cursor-pointer relative bg-transparent border-0 p-0"
                   title={`${auth.user.name} (Click to Sign Out)`}
                 >
                   {avatarUrl ? (
                     <img
                       src={avatarUrl}
                       alt={auth.user.name}
-                      className="w-7 h-7 rounded-full object-cover border border-sky-400"
+                      className="w-8 h-8 rounded-full object-cover border-2 border-white/60 shadow-md"
                       onError={() => {
                         setAvatarFailed(true);
                       }}
                     />
                   ) : (
-                    <div className="i-ph:user-circle-fill text-2xl text-[#38bdf8]" />
+                    <div className="w-8 h-8 rounded-full bg-white/20 border-2 border-white/60 flex items-center justify-center text-white flex-shrink-0 shadow-md font-bold text-xs uppercase">
+                      {auth.user.name?.charAt(0) || <div className="i-ph:user-bold text-sm" />}
+                    </div>
                   )}
                 </button>
               )
@@ -448,14 +450,12 @@ export const Menu = () => {
                   }
                   isAuthModalOpen.set(true);
                 }}
-                style={{ borderRadius: 0 }}
-                className="w-full flex items-center justify-between px-2.5 py-1.5 bg-[#121c2d] hover:bg-[#18263e] border border-sky-400/40 text-xs font-bold text-sky-200 hover:text-white transition-all cursor-pointer"
+                className="flex items-center gap-2 py-1 px-1 text-white/90 hover:text-white font-bold text-xs transition-all cursor-pointer bg-transparent border-0 hover:translate-x-0.5"
               >
-                <div className="flex items-center gap-1.5">
-                  <div className="i-ph:user-circle-fill text-base text-[#38bdf8]" />
-                  <span className="text-[11px]">Sign In</span>
+                <div className="w-7 h-7 rounded-full bg-white/20 border border-white/50 flex items-center justify-center text-white flex-shrink-0 shadow-sm">
+                  <div className="i-ph:user-bold text-xs" />
                 </div>
-                <div className="i-ph:arrow-square-out text-[#38bdf8] text-xs" />
+                <span className="text-white font-bold text-xs">Sign In</span>
               </button>
             ) : (
               <button
@@ -465,10 +465,12 @@ export const Menu = () => {
                   }
                   isAuthModalOpen.set(true);
                 }}
-                className="w-9 h-9 flex items-center justify-center hover:bg-white/10 transition-colors cursor-pointer"
+                className="w-8 h-8 flex items-center justify-center hover:scale-110 text-white transition-transform cursor-pointer bg-transparent border-0 p-0"
                 title="Sign In"
               >
-                <div className="i-ph:user-circle-fill text-2xl text-[#38bdf8]" />
+                <div className="w-8 h-8 rounded-full bg-white/20 border border-white/50 flex items-center justify-center text-white shadow-sm">
+                  <div className="i-ph:user-bold text-xs" />
+                </div>
               </button>
             )}
           </div>
