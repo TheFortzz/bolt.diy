@@ -162,7 +162,10 @@ export function getModel(
     case 'Google':
       return getGoogleModel(apiKey, model);
     case 'OpenAILike': {
-      const targetModel = (model === 'fortz-ai' || model === 'Fortz AI' || !model) ? 'gpt-oss-120b' : model;
+      const targetModel =
+        model === 'fortz-ai' || model === 'Fortz AI' || model === 'gpt-oss-120b' || !model
+          ? 'gpt-4.1-mini'
+          : model;
       return getOpenAILikeModel(baseURL, apiKey, targetModel);
     }
     case 'Together':

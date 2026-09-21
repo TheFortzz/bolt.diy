@@ -54,13 +54,13 @@ const PROVIDER_LIST: ProviderInfo[] = [
     staticModels: [
       {
         name: 'fortz-ai',
-        label: 'Fortz AI',
+        label: 'Fortz AI (GPT 4.1 Mini)',
         provider: 'OpenAILike',
         maxTokenAllowed: 8000,
       },
       {
-        name: 'gpt-oss-120b',
-        label: 'Fortz AI (gpt-oss-120b)',
+        name: 'gpt-4.1-mini',
+        label: 'GPT 4.1 Mini',
         provider: 'OpenAILike',
         maxTokenAllowed: 8000,
       },
