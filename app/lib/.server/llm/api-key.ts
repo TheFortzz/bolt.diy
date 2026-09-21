@@ -86,7 +86,7 @@ export function getBaseURL(cloudflareEnv: Env, provider: string) {
         env.OPENAI_LIKE_API_BASE_URL ||
         cloudflareEnv.OPENAI_LIKE_API_BASE_URL ||
         (cloudflareEnv as any).AZURE_OPENAI_API_BASE_URL ||
-        'https://fortz-ai-resource.services.ai.azure.com/openai/v1'
+        'https://fortz-ai-resource.services.ai.azure.com/api/projects/fortz-ai/openai/v1'
       );
     case 'LMStudio':
       return env.LMSTUDIO_API_BASE_URL || cloudflareEnv.LMSTUDIO_API_BASE_URL || 'http://localhost:1234';

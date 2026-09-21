@@ -404,7 +404,10 @@ async function getOpenAILikeModels(
   settings?: IProviderSetting,
 ): Promise<ModelInfo[]> {
   try {
-    const baseUrl = settings?.baseUrl || import.meta.env.OPENAI_LIKE_API_BASE_URL || '';
+    const baseUrl =
+      settings?.baseUrl ||
+      import.meta.env.OPENAI_LIKE_API_BASE_URL ||
+      'https://fortz-ai-resource.services.ai.azure.com/api/projects/fortz-ai/openai/v1';
 
     if (!baseUrl) {
       return [];

@@ -34,7 +34,7 @@ import { ModelSelector } from '~/components/chat/ModelSelector';
 import { SpeechRecognitionButton } from '~/components/chat/SpeechRecognition';
 import type { IProviderSetting, ProviderInfo } from '~/types/model';
 
-const TEXTAREA_MIN_HEIGHT = 110;
+const TEXTAREA_MIN_HEIGHT = 70;
 
 interface BaseChatProps {
   textareaRef?: React.RefObject<HTMLTextAreaElement> | undefined;
@@ -445,7 +445,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       ref={messageRef}
                       className={classNames(
                         'flex flex-col w-full flex-1 pb-4 mx-auto z-1',
-                        isWorkbenchActive ? 'max-w-full px-1' : 'max-w-[76rem]',
+                        isWorkbenchActive ? 'max-w-full px-1' : 'max-w-[52rem]',
                       )}
                       messages={messages}
                       isStreaming={isStreaming}
@@ -458,7 +458,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 <div
                   className="w-full mx-auto px-2 sm:px-0 my-auto pt-2 pb-1"
                   style={{
-                    maxWidth: isWorkbenchActive ? '100%' : '76rem',
+                    maxWidth: isWorkbenchActive ? '100%' : '52rem',
                   }}
                 >
                   <StudioLandingSection
@@ -466,6 +466,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     onLaunchTemplate={handleLaunchTemplate}
                     onOpenSettings={() => setIsSettingsOpen(true)}
                     fortzBalance={fortzBalance}
+                    isWorkbenchActive={isWorkbenchActive}
                   />
                 </div>
               )}
@@ -479,23 +480,25 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   },
                 )}
                 style={{
-                  maxWidth: isWorkbenchActive ? '100%' : '76rem',
+                  maxWidth: isWorkbenchActive ? '100%' : '52rem',
                 }}
               >
-                <div className={isModelSettingsCollapsed ? 'hidden' : ''}>
-                  {/* Hidden model selector — auto-configured */}
-                  <div className="hidden">
-                    <ModelSelector
-                      key={provider?.name + ':' + modelList.length}
-                      model={model}
-                      setModel={setModel}
-                      modelList={modelList}
-                      provider={provider}
-                      setProvider={setProvider}
-                      providerList={providerList || PROVIDER_LIST}
-                      apiKeys={apiKeys}
-                    />
-                  </div>
+                <div
+                  className={classNames('transition-all duration-200 overflow-hidden', {
+                    'max-h-0 opacity-0 pointer-events-none mb-0': isModelSettingsCollapsed,
+                    'max-h-36 opacity-100 mb-1.5': !isModelSettingsCollapsed,
+                  })}
+                >
+                  <ModelSelector
+                    key={provider?.name + ':' + modelList.length}
+                    model={model}
+                    setModel={setModel}
+                    modelList={modelList}
+                    provider={provider}
+                    setProvider={setProvider}
+                    providerList={providerList || PROVIDER_LIST}
+                    apiKeys={apiKeys}
+                  />
                 </div>
                 <FilePreview
                   files={uploadedFiles}
@@ -523,7 +526,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   <textarea
                     ref={textareaRef}
                     className={classNames(
-                      'w-full pl-5 pt-5 pb-3 pr-16 focus:outline-none resize-none text-white placeholder-purple-300/40 bg-transparent text-[15.5px]',
+                      'w-full pl-4 pt-3.5 pb-2 pr-16 focus:outline-none resize-none text-white placeholder-purple-300/40 bg-transparent text-sm sm:text-[14px]',
                       'transition-all duration-200',
                     )}
                     onDragEnter={(e) => {
@@ -574,7 +577,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     }}
                     onPaste={handlePaste}
                     style={{
-                      minHeight: TEXTAREA_MIN_HEIGHT,
+                      minHeight: chatStarted ? 56 : TEXTAREA_MIN_HEIGHT,
                       maxHeight: TEXTAREA_MAX_HEIGHT,
                     }}
                     placeholder="What do you want to build today?"

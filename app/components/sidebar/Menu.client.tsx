@@ -177,21 +177,21 @@ export const Menu = () => {
               </a>
               <button
                 onClick={() => isSidebarOpen.set(false)}
-                className="p-1 text-emerald-200/80 hover:text-white hover:bg-black/20 transition-colors cursor-pointer"
+                className="w-7 h-7 flex items-center justify-center bg-[#072403] hover:bg-[#0c3d05] text-[#38bdf8] hover:text-white border border-[#38bdf8]/50 shadow-[0_0_8px_rgba(56,189,248,0.25)] transition-all cursor-pointer"
                 style={{ borderRadius: 0 }}
                 title="Collapse to icons"
               >
-                <div className="i-ph:sidebar-simple-duotone text-base text-[#4ade80]" />
+                <div className="i-ph:sidebar-simple-duotone text-base" />
               </button>
             </>
           ) : (
             <button
               onClick={() => isSidebarOpen.set(true)}
-              className="w-8 h-8 flex items-center justify-center text-emerald-200 hover:text-white hover:bg-black/20 transition-colors cursor-pointer"
+              className="w-9 h-9 flex items-center justify-center bg-[#072403] hover:bg-[#0c3d05] text-[#38bdf8] hover:text-white border border-[#38bdf8]/60 shadow-[0_0_12px_rgba(56,189,248,0.4)] transition-all cursor-pointer group"
               style={{ borderRadius: 0 }}
               title="Expand Sidebar"
             >
-              <div className="i-ph:sidebar-simple-duotone text-lg text-[#4ade80]" />
+              <div className="i-ph:sidebar-simple-duotone text-xl text-[#38bdf8] group-hover:scale-110 transition-transform" />
             </button>
           )}
         </div>
@@ -328,11 +328,12 @@ export const Menu = () => {
             <div className="flex flex-col items-center gap-1 pt-1 overflow-y-auto no-scrollbar">
               <button
                 type="button"
-                className="w-8 h-8 flex items-center justify-center text-emerald-200 hover:text-white transition-colors cursor-pointer mb-1 border-b border-white/10 pb-1"
+                className="w-9 h-9 flex items-center justify-center bg-[#072403] border border-white/20 text-emerald-200 hover:text-white hover:border-[#38bdf8] transition-all cursor-pointer mb-1 shadow-sm"
+                style={{ borderRadius: 0 }}
                 title={`${list.length} Saved Projects (Click to expand sidebar)`}
                 onClick={() => isSidebarOpen.set(true)}
               >
-                <div className="i-ph:folder-fill text-base text-amber-300" />
+                <div className="i-ph:folder-notch-open-fill text-base text-amber-300" />
               </button>
               {list.map((item) => {
                 const projectTitle = item.description || 'Project ' + (item.urlId || item.id);

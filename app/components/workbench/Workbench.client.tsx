@@ -80,6 +80,12 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
   }, [hasPreview]);
 
   useEffect(() => {
+    if (showWorkbench) {
+      setSelectedView('preview');
+    }
+  }, [showWorkbench]);
+
+  useEffect(() => {
     workbenchStore.setDocuments(files);
   }, [files]);
 
@@ -147,83 +153,85 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
               <div className="flex items-center px-3 py-2 border-b border-bolt-elements-borderColor">
                 <Slider selected={selectedView} options={sliderOptions} setSelected={setSelectedView} />
                 <div className="ml-auto" />
-                {selectedView === 'code' && (
-                  <div className="flex overflow-y-auto">
-                    <PanelHeaderButton
-                      className="mr-1 text-sm"
-                      onClick={() => {
-                        workbenchStore.downloadZip();
-                      }}
-                    >
-                      <div className="i-ph:code" />
-                      Download Code
-                    </PanelHeaderButton>
-                    <PanelHeaderButton className="mr-1 text-sm" onClick={handleSyncFiles} disabled={isSyncing}>
-                      {isSyncing ? <div className="i-ph:spinner" /> : <div className="i-ph:cloud-arrow-down" />}
-                      {isSyncing ? 'Syncing...' : 'Sync Files'}
-                    </PanelHeaderButton>
-                    <PanelHeaderButton
-                      className="mr-1 text-sm"
-                      onClick={() => {
-                        workbenchStore.toggleTerminal(!workbenchStore.showTerminal.get());
-                      }}
-                    >
-                      <div className="i-ph:terminal" />
-                      Toggle Terminal
-                    </PanelHeaderButton>
-                    <PanelHeaderButton
-                      className="mr-1 text-sm"
-                      onClick={() => {
-                        const repoName = prompt(
-                          'Please enter a name for your new GitHub repository:',
-                          'bolt-generated-project',
-                        );
+                <div className="flex items-center overflow-x-auto no-scrollbar gap-1 mr-2">
+                  <PanelHeaderButton
+                    className="mr-1 text-xs sm:text-sm"
+                    title="Download Code"
+                    onClick={() => {
+                      workbenchStore.downloadZip();
+                    }}
+                  >
+                    <div className="i-ph:code" />
+                    Download Code
+                  </PanelHeaderButton>
+                  <PanelHeaderButton className="mr-1 text-xs sm:text-sm" title="Sync Files" onClick={handleSyncFiles} disabled={isSyncing}>
+                    {isSyncing ? <div className="i-ph:spinner" /> : <div className="i-ph:cloud-arrow-down" />}
+                    {isSyncing ? 'Syncing...' : 'Sync Files'}
+                  </PanelHeaderButton>
+                  <PanelHeaderButton
+                    className="mr-1 text-xs sm:text-sm"
+                    title="Toggle Terminal"
+                    onClick={() => {
+                      workbenchStore.toggleTerminal(!workbenchStore.showTerminal.get());
+                    }}
+                  >
+                    <div className="i-ph:terminal" />
+                    Toggle Terminal
+                  </PanelHeaderButton>
+                  <PanelHeaderButton
+                    className="mr-1 text-xs sm:text-sm"
+                    title="Push to GitHub"
+                    onClick={() => {
+                      const repoName = prompt(
+                        'Please enter a name for your new GitHub repository:',
+                        'bolt-generated-project',
+                      );
 
-                        if (!repoName) {
-                          alert('Repository name is required. Push to GitHub cancelled.');
+                      if (!repoName) {
+                        alert('Repository name is required. Push to GitHub cancelled.');
+                        return;
+                      }
+
+                      const githubUsername = Cookies.get('githubUsername');
+                      const githubToken = Cookies.get('githubToken');
+
+                      if (!githubUsername || !githubToken) {
+                        const usernameInput = prompt('Please enter your GitHub username:');
+                        const tokenInput = prompt('Please enter your GitHub personal access token:');
+
+                        if (!usernameInput || !tokenInput) {
+                          alert('GitHub username and token are required. Push to GitHub cancelled.');
                           return;
                         }
 
-                        const githubUsername = Cookies.get('githubUsername');
-                        const githubToken = Cookies.get('githubToken');
-
-                        if (!githubUsername || !githubToken) {
-                          const usernameInput = prompt('Please enter your GitHub username:');
-                          const tokenInput = prompt('Please enter your GitHub personal access token:');
-
-                          if (!usernameInput || !tokenInput) {
-                            alert('GitHub username and token are required. Push to GitHub cancelled.');
-                            return;
-                          }
-
-                          workbenchStore.pushToGitHub(repoName, usernameInput, tokenInput);
-                        } else {
-                          workbenchStore.pushToGitHub(repoName, githubUsername, githubToken);
+                        workbenchStore.pushToGitHub(repoName, usernameInput, tokenInput);
+                      } else {
+                        workbenchStore.pushToGitHub(repoName, githubUsername, githubToken);
+                      }
+                    }}
+                  >
+                    <div className="i-ph:github-logo" />
+                    Push to GitHub
+                  </PanelHeaderButton>
+                  <PanelHeaderButton
+                    className="mr-1 text-xs sm:text-sm"
+                    title="Publish Game"
+                    onClick={async () => {
+                      try {
+                        await workbenchStore.downloadZip();
+                        toast.success('Game package downloaded! Upload this ZIP on TheFortz to publish.', { autoClose: 6000 });
+                        if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+                          window.parent.postMessage({ type: 'fortz-open-upload' }, '*');
                         }
-                      }}
-                    >
-                      <div className="i-ph:github-logo" />
-                      Push to GitHub
-                    </PanelHeaderButton>
-                    <PanelHeaderButton
-                      className="mr-1 text-sm"
-                      onClick={async () => {
-                        try {
-                          await workbenchStore.downloadZip();
-                          toast.success('Game package downloaded! Upload this ZIP on TheFortz to publish.', { autoClose: 6000 });
-                          if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
-                            window.parent.postMessage({ type: 'fortz-open-upload' }, '*');
-                          }
-                        } catch (err: any) {
-                          toast.error('Failed to package game: ' + (err?.message || 'Unknown error'));
-                        }
-                      }}
-                    >
-                      <div className="i-ph:rocket-launch" />
-                      Publish Game
-                    </PanelHeaderButton>
-                  </div>
-                )}
+                      } catch (err: any) {
+                        toast.error('Failed to package game: ' + (err?.message || 'Unknown error'));
+                      }
+                    }}
+                  >
+                    <div className="i-ph:rocket-launch" />
+                    Publish Game
+                  </PanelHeaderButton>
+                </div>
                 <IconButton
                   icon="i-ph:x-circle"
                   className="-mr-1"

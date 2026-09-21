@@ -81,54 +81,71 @@ export const ModelSelector = ({
 
   if (enabledProviders.length === 0) {
     return (
-      <div className="mb-2 p-4 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-prompt-background text-bolt-elements-textPrimary">
+      <div
+        style={{ borderRadius: 0 }}
+        className="mb-1.5 p-2 border border-purple-500/40 bg-[#130b22] text-purple-200 text-xs"
+      >
         <p className="text-center">
-          No providers are currently enabled. Please enable at least one provider in the settings to start using the
-          chat.
+          No AI providers enabled. Click the gear icon to configure providers or API keys.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="mb-2 flex gap-2 flex-col sm:flex-row">
-      <select
-        value={provider?.name ?? ''}
-        onChange={(e) => {
-          const newProvider = enabledProviders.find((p: ProviderInfo) => p.name === e.target.value);
+    <div
+      style={{ borderRadius: 0 }}
+      className="mb-1.5 flex gap-2 flex-col sm:flex-row p-1.5 bg-[#140b24]/95 border border-purple-500/40 shadow-sm items-center"
+    >
+      <div className="flex items-center gap-1.5 flex-1 min-w-0 w-full">
+        <span className="text-[10.5px] font-bold text-purple-300 uppercase tracking-wider flex-shrink-0">
+          Provider:
+        </span>
+        <select
+          value={provider?.name ?? ''}
+          onChange={(e) => {
+            const newProvider = enabledProviders.find((p: ProviderInfo) => p.name === e.target.value);
 
-          if (newProvider && setProvider) {
-            setProvider(newProvider);
-          }
+            if (newProvider && setProvider) {
+              setProvider(newProvider);
+            }
 
-          const firstModel = [...modelList].find((m) => m.provider === e.target.value);
+            const firstModel = [...modelList].find((m) => m.provider === e.target.value);
 
-          if (firstModel && setModel) {
-            setModel(firstModel.name);
-          }
-        }}
-        className="flex-1 p-2 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-prompt-background text-bolt-elements-textPrimary focus:outline-none focus:ring-2 focus:ring-bolt-elements-focus transition-all"
-      >
-        {enabledProviders.map((provider: ProviderInfo) => (
-          <option key={provider.name} value={provider.name}>
-            {provider.name}
-          </option>
-        ))}
-      </select>
-      <select
-        key={provider?.name}
-        value={model}
-        onChange={(e) => setModel?.(e.target.value)}
-        className="flex-1 p-2 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-prompt-background text-bolt-elements-textPrimary focus:outline-none focus:ring-2 focus:ring-bolt-elements-focus transition-all lg:max-w-[70%]"
-      >
-        {[...modelList]
-          .filter((e) => e.provider == provider?.name && e.name)
-          .map((modelOption, index) => (
-            <option key={index} value={modelOption.name}>
-              {modelOption.label}
+            if (firstModel && setModel) {
+              setModel(firstModel.name);
+            }
+          }}
+          style={{ borderRadius: 0 }}
+          className="flex-1 py-1 px-2 border border-purple-400/30 bg-[#1a0e2e] text-purple-100 text-xs focus:outline-none focus:border-[#c084fc] transition-colors"
+        >
+          {enabledProviders.map((provider: ProviderInfo) => (
+            <option key={provider.name} value={provider.name} className="bg-[#1a0e2e] text-white">
+              {provider.name}
             </option>
           ))}
-      </select>
+        </select>
+      </div>
+      <div className="flex items-center gap-1.5 flex-1 min-w-0 w-full">
+        <span className="text-[10.5px] font-bold text-purple-300 uppercase tracking-wider flex-shrink-0">
+          Model:
+        </span>
+        <select
+          key={provider?.name}
+          value={model}
+          onChange={(e) => setModel?.(e.target.value)}
+          style={{ borderRadius: 0 }}
+          className="flex-1 py-1 px-2 border border-purple-400/30 bg-[#1a0e2e] text-purple-100 text-xs focus:outline-none focus:border-[#c084fc] transition-colors"
+        >
+          {[...modelList]
+            .filter((e) => e.provider == provider?.name && e.name)
+            .map((modelOption, index) => (
+              <option key={index} value={modelOption.name} className="bg-[#1a0e2e] text-white">
+                {modelOption.label}
+              </option>
+            ))}
+        </select>
+      </div>
     </div>
   );
 };

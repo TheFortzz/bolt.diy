@@ -5,6 +5,7 @@ interface StudioLandingSectionProps {
   onLaunchTemplate?: (event: React.UIEvent, prompt: string) => void;
   onOpenSettings?: () => void;
   fortzBalance?: number;
+  isWorkbenchActive?: boolean;
 }
 
 const ANIMATED_SENTENCES = [
@@ -17,7 +18,7 @@ const ANIMATED_SENTENCES = [
   'Prompt, build, and play directly in your browser.',
 ];
 
-export function StudioLandingSection({}: StudioLandingSectionProps) {
+export function StudioLandingSection({ isWorkbenchActive }: StudioLandingSectionProps) {
   const [sentenceIndex, setSentenceIndex] = useState(0);
   const [charIndex, setCharIndex] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -55,13 +56,19 @@ export function StudioLandingSection({}: StudioLandingSectionProps) {
 
   return (
     <div className="w-full flex flex-col items-center select-none p-0 mb-1">
-      {/* ── Typewriter Sentence Hero — Single Horizontal Line ── */}
-      <div className="text-center w-full mx-auto min-h-[40px] flex items-center justify-center overflow-hidden">
-        <h1 className="text-base sm:text-xl md:text-2xl font-black uppercase tracking-wider text-white font-['Anton',sans-serif] whitespace-nowrap overflow-hidden text-ellipsis flex items-center justify-center">
+      {/* ── Typewriter Sentence Hero — Clean and never hidden ── */}
+      <div className="text-center w-full mx-auto min-h-[34px] flex items-center justify-center">
+        <h1
+          className={`font-black uppercase text-white font-['Anton',sans-serif] flex items-center justify-center transition-all ${
+            isWorkbenchActive
+              ? 'text-xs sm:text-sm tracking-normal px-2 break-words leading-tight text-center'
+              : 'text-sm sm:text-base md:text-xl tracking-wider whitespace-nowrap overflow-hidden text-ellipsis'
+          }`}
+        >
           <span className="text-white">
             {displayedText}
           </span>
-          <span className="inline-block w-1.5 h-5 sm:h-6 bg-[#c084fc] ml-1.5 animate-pulse" />
+          <span className={`inline-block bg-[#c084fc] ml-1.5 animate-pulse ${isWorkbenchActive ? 'w-1 h-3.5' : 'w-1.5 h-5 sm:h-6'}`} />
         </h1>
       </div>
     </div>
