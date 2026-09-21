@@ -439,10 +439,13 @@ export const Menu = () => {
             ) : open ? (
               <button
                 onClick={() => {
-                  if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
-                    window.parent.postMessage({ type: 'thefortz-open-login' }, '*');
+                  if (typeof window !== 'undefined') {
+                    if (window.parent && window.parent !== window) {
+                      window.parent.postMessage({ type: 'thefortz-open-login' }, '*');
+                    } else {
+                      window.dispatchEvent(new CustomEvent('thefortz-open-login'));
+                    }
                   }
-                  isAuthModalOpen.set(true);
                 }}
                 className="flex items-center gap-2 py-1 px-1 text-white/90 hover:text-white font-bold text-xs transition-all cursor-pointer bg-transparent border-0 hover:translate-x-0.5"
               >
@@ -454,10 +457,13 @@ export const Menu = () => {
             ) : (
               <button
                 onClick={() => {
-                  if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
-                    window.parent.postMessage({ type: 'thefortz-open-login' }, '*');
+                  if (typeof window !== 'undefined') {
+                    if (window.parent && window.parent !== window) {
+                      window.parent.postMessage({ type: 'thefortz-open-login' }, '*');
+                    } else {
+                      window.dispatchEvent(new CustomEvent('thefortz-open-login'));
+                    }
                   }
-                  isAuthModalOpen.set(true);
                 }}
                 className="w-8 h-8 flex items-center justify-center hover:scale-110 text-white transition-transform cursor-pointer bg-transparent border-0 p-0"
                 title="Sign In"
