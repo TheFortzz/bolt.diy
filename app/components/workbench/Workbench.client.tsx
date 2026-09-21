@@ -147,10 +147,20 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
         >
           <div className="absolute inset-0 pl-1 pr-3">
             <div
-              style={{ borderRadius: 0 }}
-              className="h-full flex flex-col bg-bolt-elements-background-depth-2 border border-purple-500/30 shadow-md rounded-none overflow-hidden"
+              style={{
+                borderRadius: 0,
+                borderColor: '#e26e03',
+                boxShadow: '0 0 24px rgba(226, 110, 3, 0.35)',
+              }}
+              className="h-full flex flex-col bg-bolt-elements-background-depth-2 border-2 rounded-none overflow-hidden"
             >
-              <div className="flex items-center px-3 py-2 border-b border-bolt-elements-borderColor">
+              <div
+                style={{
+                  background: 'linear-gradient(rgb(226 110 3) 0%, rgb(215 100 0) 55%, rgb(229 100 0) 100%)',
+                  borderBottom: '2px solid #b45309',
+                }}
+                className="flex items-center px-3 py-2 text-white shadow-sm"
+              >
                 <Slider selected={selectedView} options={sliderOptions} setSelected={setSelectedView} />
                 <div className="ml-auto" />
                 <div className="flex items-center overflow-x-auto no-scrollbar gap-1 mr-2">

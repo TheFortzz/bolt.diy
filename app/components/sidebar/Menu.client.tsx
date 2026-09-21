@@ -216,10 +216,10 @@ export const Menu = () => {
               workbenchStore.showWorkbench.set(!showWorkbench);
             }}
             title={showWorkbench ? 'Close Builder Box' : 'Open Builder Box (Code & Preview)'}
-            className={`button-53 ${!open ? 'button-53-rail' : 'gap-2'}`}
+            className={`button-53 button-53-orange ${!open ? 'button-53-rail' : 'gap-2'}`}
           >
             <div className="i-ph:code-bold text-base text-[#15803d] flex-shrink-0" />
-            {open && <span className="text-[#4c1d95] font-black text-xs tracking-wide uppercase">{showWorkbench ? 'Close Builder' : 'Builder Box'}</span>}
+            {open && <span className="font-black text-xs tracking-wide uppercase">{showWorkbench ? 'Close Builder' : 'Builder Box'}</span>}
           </button>
 
           {/* Created Projects & Showcase Button */}
