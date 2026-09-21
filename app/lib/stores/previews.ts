@@ -22,6 +22,10 @@ export class PreviewsStore {
   async #init() {
     const webcontainer = await this.#webcontainer;
 
+    if (!webcontainer || typeof webcontainer.on !== 'function') {
+      return;
+    }
+
     webcontainer.on('port', (port, type, url) => {
       let previewInfo = this.#availablePreviews.get(port);
 

@@ -23,16 +23,13 @@ if (!import.meta.env.SSR) {
     Promise.resolve()
       .then(async () => {
         try {
+          if (typeof window !== 'undefined' && window.crossOriginIsolated) {
+            return await WebContainer.boot({ workdirName: WORK_DIR_NAME });
+          }
           return await WebContainer.boot({ workdirName: WORK_DIR_NAME, coep: 'credentialless' });
         } catch (err: any) {
           console.warn('[WebContainer] Isolation initialization note:', err?.message || err);
-          // Try standard boot if credentialless not supported
-          try {
-            return await WebContainer.boot({ workdirName: WORK_DIR_NAME });
-          } catch (fallbackErr) {
-            console.warn('[WebContainer] WebContainer boot completed in compatibility mode.');
-            return null as unknown as WebContainer;
-          }
+          return null as unknown as WebContainer;
         }
       })
       .then((webcontainer) => {
