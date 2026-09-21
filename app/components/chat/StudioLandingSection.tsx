@@ -55,9 +55,9 @@ export function StudioLandingSection({ isWorkbenchActive }: StudioLandingSection
   const displayedText = currentSentence.slice(0, charIndex);
 
   return (
-    <div className="w-full flex flex-col items-center select-none p-0 mb-1">
-      {/* ── Typewriter Sentence Hero — Clean and never hidden ── */}
-      <div className="text-center w-full mx-auto min-h-[34px] flex items-center justify-center">
+    <div className="w-full flex flex-col items-center select-none p-0 mb-0">
+      {/* ── Typewriter Sentence Hero — Clean and close to input ── */}
+      <div className="text-center w-full mx-auto min-h-[28px] flex items-center justify-center">
         <h1
           className={`font-black uppercase text-white font-['Anton',sans-serif] flex items-center justify-center transition-all ${
             isWorkbenchActive

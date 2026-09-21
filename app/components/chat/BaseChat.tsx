@@ -435,7 +435,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
             <div
               className={classNames('pt-2 px-2 sm:px-4 flex-1 flex flex-col', {
                 'min-h-full': chatStarted,
-                'justify-between items-center pb-1': !chatStarted,
+                'justify-end': isWorkbenchActive && !chatStarted,
+                'justify-center items-center my-auto pb-10 sm:pb-16': !chatStarted && !isWorkbenchActive,
               })}
             >
               <ClientOnly>
@@ -454,11 +455,11 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 }}
               </ClientOnly>
 
-              {!chatStarted && (
+              {!chatStarted && !isWorkbenchActive && (
                 <div
-                  className="w-full mx-auto px-2 sm:px-0 my-auto pt-2 pb-1"
+                  className="w-full mx-auto px-2 sm:px-0 mb-2.5"
                   style={{
-                    maxWidth: isWorkbenchActive ? '100%' : '52rem',
+                    maxWidth: '52rem',
                   }}
                 >
                   <StudioLandingSection
@@ -466,7 +467,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     onLaunchTemplate={handleLaunchTemplate}
                     onOpenSettings={() => setIsSettingsOpen(true)}
                     fortzBalance={fortzBalance}
-                    isWorkbenchActive={isWorkbenchActive}
+                    isWorkbenchActive={false}
                   />
                 </div>
               )}
@@ -476,7 +477,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   'relative w-full mx-auto z-prompt mb-1 px-2 sm:px-0 transition-all duration-300',
                   {
                     'sticky bottom-1': chatStarted,
-                    'mt-auto': !chatStarted,
+                    'mt-auto': isWorkbenchActive && !chatStarted,
                   },
                 )}
                 style={{
