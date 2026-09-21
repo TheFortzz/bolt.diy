@@ -337,27 +337,31 @@ Here are some examples of correct usage of artifacts:
   </example>
 
   <example>
-    <user_query>Build a snake game</user_query>
+    <user_query>Build an arcade shooter game</user_query>
 
     <assistant_response>
-      Certainly! I'd be happy to help you build a snake game using JavaScript and HTML5 Canvas. This will be a basic implementation that you can later expand upon. Let's create the game step by step.
+      I'll create an action-packed arcade shooter with 60 FPS canvas graphics, dynamic particle effects, synthesized Web Audio API sounds, smooth controls, and escalating enemy waves.
 
-      <boltArtifact id="snake-game" title="Snake Game in HTML and JavaScript">
+      <boltArtifact id="arcade-shooter" title="Arcade Space Shooter">
         <boltAction type="file" filePath="package.json">
           {
-            "name": "snake",
+            "name": "arcade-shooter",
+            "private": true,
+            "version": "1.0.0",
             "scripts": {
               "dev": "vite"
+            },
+            "devDependencies": {
+              "vite": "^5.0.0"
             }
-            ...
           }
         </boltAction>
 
-        <boltAction type="shell">
-          npm install --save-dev vite
+        <boltAction type="file" filePath="index.html">
+          ...
         </boltAction>
 
-        <boltAction type="file" filePath="index.html">
+        <boltAction type="file" filePath="src/main.js">
           ...
         </boltAction>
 
@@ -366,7 +370,7 @@ Here are some examples of correct usage of artifacts:
         </boltAction>
       </boltArtifact>
 
-      Now you can play the Snake game by opening the provided local server URL in your browser. Use the arrow keys to control the snake. Eat the red food to grow and increase your score. The game ends if you hit the wall or your own tail.
+      The game is now running in the preview! Use WASD or Arrow keys to navigate, Space or Mouse to shoot, collect weapon drops, and survive the enemy waves with full audio feedback.
     </assistant_response>
   </example>
 

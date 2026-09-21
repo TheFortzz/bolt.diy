@@ -83,11 +83,12 @@ export const Preview = memo(() => {
       if (!baseName) continue;
 
       const linkRegex = new RegExp(
-        `<link[^>]*href=["'][^"']*?(${escapeRegex(fileName)}|${escapeRegex(baseName)})["'][^>]*>`,
+        `<link[^>]*href=["'][^"']*?(${escapeRegex(fileName)}|${escapeRegex(baseName)})["'][^>]*\\/?>`,
         'gi',
       );
-      if (linkRegex.test(bundled)) {
-        bundled = bundled.replace(linkRegex, `<style data-file="${baseName}">\n${dirent.content}\n</style>`);
+      const prevCssBundled = bundled;
+      bundled = bundled.replace(linkRegex, `<style data-file="${baseName}">\n${dirent.content}\n</style>`);
+      if (bundled !== prevCssBundled) {
         handledCss.add(filePath);
       }
     }
@@ -124,14 +125,15 @@ export const Preview = memo(() => {
       if (!baseName) continue;
 
       const scriptRegex = new RegExp(
-        `<script[^>]*src=["'][^"']*?(${escapeRegex(fileName)}|${escapeRegex(baseName)})["'][^>]*>\\s*<\\/script>`,
+        `<script[^>]*src=["'][^"']*?(${escapeRegex(fileName)}|${escapeRegex(baseName)})["'][^>]*>(?:\\s*<\\/script>)?`,
         'gi',
       );
-      if (scriptRegex.test(bundled)) {
-        bundled = bundled.replace(
-          scriptRegex,
-          `<script type="module" data-file="${baseName}">\n${dirent.content}\n</script>`,
-        );
+      const prevJsBundled = bundled;
+      bundled = bundled.replace(
+        scriptRegex,
+        `<script type="module" data-file="${baseName}">\n${dirent.content}\n</script>`,
+      );
+      if (bundled !== prevJsBundled) {
         handledJs.add(filePath);
       }
     }
@@ -169,11 +171,11 @@ export const Preview = memo(() => {
 
     // 3. Neutralize any dangling local relative scripts or links that would 404 against the host
     bundled = bundled.replace(
-      /<script[^>]*src=["'](\/|\.\/)[^"']+["'][^>]*>\s*<\/script>/gi,
+      /<script[^>]*src=["'](?!https?:\/\/|\/\/|data:|blob:)[^"']+["'][^>]*>(?:\s*<\/script>)?/gi,
       '<!-- removed missing local script -->',
     );
     bundled = bundled.replace(
-      /<link[^>]*href=["'](\/|\.\/)[^"']+\.css["'][^>]*>/gi,
+      /<link[^>]*href=["'](?!https?:\/\/|\/\/|data:|blob:)[^"']+["'][^>]*\/?>/gi,
       '<!-- removed missing local stylesheet -->',
     );
 

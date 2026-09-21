@@ -98,8 +98,12 @@ export class StreamingMessageParser {
 
             let content = currentAction.content.trim();
 
-            if (content.startsWith('<![CDATA[') && content.endsWith(']]>')) {
-              content = content.slice(9, -3).trim();
+            if (content.startsWith('<![CDATA[')) {
+              content = content.slice(9);
+              if (content.endsWith(']]>')) {
+                content = content.slice(0, -3);
+              }
+              content = content.trim();
             }
 
             if ('type' in currentAction && currentAction.type === 'file') {
