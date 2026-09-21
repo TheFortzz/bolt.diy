@@ -141,7 +141,7 @@ export const Menu = () => {
 
   const rawAvatarUrl = auth.user?.prefs?.photoURL || auth.user?.photoURL;
   const [avatarFailed, setAvatarFailed] = useState(false);
-  const isBrokenAvatar = !rawAvatarUrl || rawAvatarUrl.includes('ACg8ocI7E0sGHKxAEMLVFYsJCbtuiNchyDJ') || rawAvatarUrl.includes('/avatars/initials');
+  const isBrokenAvatar = !rawAvatarUrl || rawAvatarUrl.includes('/avatars/initials');
   const avatarUrl = isBrokenAvatar || avatarFailed ? '' : rawAvatarUrl;
 
   return (
