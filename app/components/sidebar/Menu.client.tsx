@@ -202,10 +202,10 @@ export const Menu = () => {
             href="/"
             role="button"
             title="Create New Game"
-            className={`button-53 ${!open ? 'button-53-rail' : 'gap-1.5'}`}
+            className={`button-53 ${!open ? 'button-53-rail' : 'gap-2'}`}
           >
-            <div className="i-ph:plus-bold text-sm text-black flex-shrink-0" />
-            {open && <span>New Game</span>}
+            <div className="i-ph:plus-bold text-base text-[#15803d] flex-shrink-0" />
+            {open && <span className="text-[#4c1d95] font-black text-xs tracking-wide uppercase">New Game</span>}
           </a>
 
           {/* Builder Box (Code & Preview) Button */}
@@ -216,10 +216,10 @@ export const Menu = () => {
               workbenchStore.showWorkbench.set(!showWorkbench);
             }}
             title={showWorkbench ? 'Close Builder Box' : 'Open Builder Box (Code & Preview)'}
-            className={`button-53 ${!open ? 'button-53-rail' : 'gap-1.5'}`}
+            className={`button-53 ${!open ? 'button-53-rail' : 'gap-2'}`}
           >
-            <div className="i-ph:code-bold text-sm text-black flex-shrink-0" />
-            {open && <span>{showWorkbench ? 'Close Builder' : 'Builder Box'}</span>}
+            <div className="i-ph:code-bold text-base text-[#15803d] flex-shrink-0" />
+            {open && <span className="text-[#4c1d95] font-black text-xs tracking-wide uppercase">{showWorkbench ? 'Close Builder' : 'Builder Box'}</span>}
           </button>
 
           {/* Created Projects & Showcase Button */}
@@ -228,10 +228,10 @@ export const Menu = () => {
             role="button"
             onClick={() => isGalleryOpen.set(true)}
             title="Open Created Games & Community Projects"
-            className={`button-53 ${!open ? 'button-53-rail' : 'gap-1.5'}`}
+            className={`button-53 ${!open ? 'button-53-rail' : 'gap-2'}`}
           >
-            <div className="i-ph:squares-four-fill text-sm text-black flex-shrink-0" />
-            {open && <span>Created</span>}
+            <div className="i-ph:squares-four-fill text-base text-[#15803d] flex-shrink-0" />
+            {open && <span className="text-[#4c1d95] font-black text-xs tracking-wide uppercase">Created</span>}
           </button>
 
           {/* Analytics Button */}
@@ -240,29 +240,29 @@ export const Menu = () => {
             role="button"
             onClick={() => setIsAnalyticsOpen(true)}
             title="Studio Analytics & Appwrite Status"
-            className={`button-53 ${!open ? 'button-53-rail' : 'gap-1.5'}`}
+            className={`button-53 ${!open ? 'button-53-rail' : 'gap-2'}`}
           >
-            <div className="i-ph:chart-bar-fill text-sm text-black flex-shrink-0" />
-            {open && <span>Analytics</span>}
+            <div className="i-ph:chart-bar-fill text-base text-[#15803d] flex-shrink-0" />
+            {open && <span className="text-[#4c1d95] font-black text-xs tracking-wide uppercase">Analytics</span>}
           </button>
         </div>
 
-        {/* ── Projects / History List ── */}
+        {/* ── Projects / History List (Orange themed, no shadows) ── */}
         <div className="flex-1 overflow-y-auto px-1 pb-3 space-y-1">
           {open ? (
             <>
-              <div className="flex items-center justify-between px-2 pt-2 pb-1 text-[11px] font-bold text-emerald-100/90 uppercase tracking-wider select-none">
+              <div className="flex items-center justify-between px-2 pt-2 pb-1 text-[11px] font-bold text-orange-200 uppercase tracking-wider select-none">
                 <div className="flex items-center gap-1.5">
-                  <div className="i-ph:folder-fill text-amber-300 text-xs" />
+                  <div className="i-ph:folder-fill text-[#f97316] text-xs" />
                   <span>Projects</span>
                 </div>
-                <span className="text-[10px] font-semibold bg-black/30 px-1.5 py-0.2 text-emerald-200 border border-[#4ade80]/30" style={{ borderRadius: 0 }}>
+                <span className="text-[10px] font-bold bg-[#7c2d12]/70 px-1.5 py-0.2 text-orange-300 border border-orange-500/50" style={{ borderRadius: 0 }}>
                   {list.length}
                 </span>
               </div>
 
               {list.length === 0 && (
-                <div className="p-3 text-center text-[11px] text-emerald-200/70 italic">
+                <div className="p-3 text-center text-[11px] text-orange-200/70 italic">
                   No projects yet
                 </div>
               )}
@@ -293,7 +293,7 @@ export const Menu = () => {
                           <p className="mt-1">Are you sure you want to delete this project?</p>
                         </div>
                       </DialogDescription>
-                      <div className="px-5 pb-4 bg-[#0a2612] flex gap-2 justify-end" style={{ borderRadius: 0 }}>
+                      <div className="px-5 pb-4 bg-[#230e05] flex gap-2 justify-end" style={{ borderRadius: 0 }}>
                         <DialogButton type="secondary" onClick={closeDialog}>
                           Cancel
                         </DialogButton>
@@ -316,16 +316,16 @@ export const Menu = () => {
             <div className="flex flex-col items-center gap-1 pt-1 overflow-y-auto no-scrollbar">
               <button
                 type="button"
-                className="w-9 h-9 flex items-center justify-center bg-[#072403] border border-white/20 text-emerald-200 hover:text-white hover:border-[#38bdf8] transition-all cursor-pointer mb-1 shadow-sm"
+                className="w-9 h-9 flex items-center justify-center bg-[#431407]/90 border border-orange-500/40 text-orange-300 hover:text-white hover:bg-[#ea580c] transition-all cursor-pointer mb-1"
                 style={{ borderRadius: 0 }}
                 title={`${list.length} Saved Projects (Click to expand sidebar)`}
                 onClick={() => isSidebarOpen.set(true)}
               >
-                <div className="i-ph:folder-notch-open-fill text-base text-amber-300" />
+                <div className="i-ph:folder-notch-open-fill text-base text-[#f97316]" />
               </button>
               {list.map((item) => {
                 const projectTitle = item.description || 'Project ' + (item.urlId || item.id);
-                const { icon, color } = getProjectIcon(projectTitle);
+                const { icon } = getProjectIcon(projectTitle);
                 const isCurrent =
                   chatId.get() === item.id ||
                   (item.urlId && typeof window !== 'undefined' && window.location.pathname.includes(item.urlId));
@@ -337,12 +337,12 @@ export const Menu = () => {
                     title={projectTitle}
                     className={`w-9 h-9 flex items-center justify-center transition-all cursor-pointer no-underline border flex-shrink-0 ${
                       isCurrent
-                        ? 'bg-[#12253f] border-[#38bdf8] text-white shadow-sm'
-                        : 'bg-black/25 border-transparent hover:bg-black/45 text-slate-200 hover:text-white'
+                        ? 'bg-[#7c2d12] border-orange-400 text-white'
+                        : 'bg-black/25 border-transparent hover:bg-orange-950/60 text-orange-300 hover:text-white hover:border-orange-500/30'
                     }`}
                     style={{ borderRadius: 0 }}
                   >
-                    <div className={`${icon} ${color} text-base`} />
+                    <div className={`${icon} ${isCurrent ? 'text-white' : 'text-orange-400'} text-base`} />
                   </a>
                 );
               })}

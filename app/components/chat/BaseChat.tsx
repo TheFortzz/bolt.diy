@@ -650,24 +650,28 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         <div className="i-ph:gear-six text-xl text-[#38bdf8]" />
                       </IconButton>
 
-                      {/* Active Engine Badge — Fortz AI */}
+                      {/* Active Engine Badge — gpt 4.1 mini */}
                       <div
                         style={{ borderRadius: 0 }}
                         className="flex items-center gap-1.5 px-2.5 py-1 border border-[#38bdf8]/40 bg-[#0c1f36] text-sky-200 text-xs font-semibold select-none shadow-sm"
-                        title="Active AI Model: Fortz AI"
+                        title="Active AI Model: gpt 4.1 mini"
                       >
                         <span className="w-1.5 h-1.5 bg-[#4ade80] rounded-full animate-pulse" />
-                        <span className="font-mono">Fortz AI</span>
+                        <span className="font-mono">gpt 4.1 mini</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-sky-200/80 select-none">
                       <span
                         style={{ borderRadius: 0 }}
-                        className="px-2.5 py-0.5 font-mono font-bold bg-[#071526] border border-[#38bdf8]/40 text-amber-300 flex items-center gap-1"
-                        title="10 Tokens per prompt"
+                        className="px-2 py-0.5 font-mono font-bold bg-[#071526] border border-[#38bdf8]/40 text-amber-300 flex items-center gap-1.5"
+                        title="10 FortzCoins per prompt"
                       >
-                        <span>🪙</span>
-                        <span>10F</span>
+                        <img
+                          src="/fortz-coin.png"
+                          alt="FortzCoin"
+                          className="w-4 h-4 object-contain"
+                        />
+                        <span>10</span>
                       </span>
                       {input.length > 3 && (
                         <>

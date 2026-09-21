@@ -47,20 +47,20 @@ export function HistoryItem({ item, onDelete, onDuplicate, exportChat }: History
     <div
       style={{ borderRadius: 0 }}
       className={classNames(
-        'group rounded-none text-slate-100 hover:text-white hover:bg-black/30 overflow-hidden flex justify-between items-center px-2 py-1 transition-colors',
-        { '[&&]:text-white bg-[#0e1b2d] border-l-2 border-[#38bdf8]': isActiveChat },
+        'group rounded-none text-slate-100 hover:text-white hover:bg-orange-500/20 border border-transparent hover:border-orange-500/40 overflow-hidden flex justify-between items-center px-2 py-1.5 transition-colors',
+        { '[&&]:text-white bg-[#7c2d12]/50 border-l-4 border-l-[#f97316] border-orange-500/50 font-semibold': isActiveChat },
       )}
     >
       {editing ? (
         renderDescriptionForm
       ) : (
         <a href={`/chat/${item.urlId}`} className="flex items-center gap-1.5 w-full relative truncate block no-underline text-inherit">
-          <div className={`${getProjectIcon(currentDescription).icon} ${getProjectIcon(currentDescription).color} text-xs flex-shrink-0`} />
+          <div className={`${getProjectIcon(currentDescription).icon} text-orange-400 text-xs flex-shrink-0`} />
           <span className="truncate text-xs">{currentDescription}</span>
           <div
             className={classNames(
-              'absolute right-0 z-1 top-0 bottom-0 bg-gradient-to-l from-[#0e1b2d] group-hover:from-[#0b1523] box-content pl-3 to-transparent w-10 flex justify-end group-hover:w-22 group-hover:from-99%',
-              { 'from-[#0e1b2d] w-10 ': isActiveChat },
+              'absolute right-0 z-1 top-0 bottom-0 bg-gradient-to-l from-[#230e05] group-hover:from-[#351508] box-content pl-3 to-transparent w-10 flex justify-end group-hover:w-22 group-hover:from-99%',
+              { 'from-[#230e05] w-10 ': isActiveChat },
             )}
           >
             <div className="flex items-center p-1 text-bolt-elements-textSecondary opacity-0 group-hover:opacity-100 transition-opacity">
