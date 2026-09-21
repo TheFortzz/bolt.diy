@@ -53,15 +53,28 @@ if (typeof window !== 'undefined') {
     if (event.data.type === 'thefortz-auth-sync') {
       const { user, balance } = event.data;
       if (user) {
+        const rawPhoto = user.photoURL || user.prefs?.photoURL || '';
+        const cleanPhoto = (function(url: string) {
+          if (!url || typeof url !== 'string') return '';
+          const trimmed = url.trim();
+          if (trimmed.includes('/avatars/initials') || trimmed.includes('ui-avatars.com')) return '';
+          if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) return trimmed;
+          if (trimmed.includes('346f7ce283c24a248b435f41acd3a081') || /^[a-f0-9]{32}/i.test(trimmed)) {
+            const cleanHash = trimmed.startsWith('/') ? trimmed.slice(1) : trimmed;
+            return `https://cdn.discordapp.com/avatars/1440344883914080280/${cleanHash}`;
+          }
+          return '';
+        })(rawPhoto);
+
         const userObj: AppwriteUser = {
           $id: user.$id || user.id || 'usr_synced',
           name: user.name || user.displayName || 'Creator',
           email: user.email || '',
-          photoURL: user.photoURL || user.prefs?.photoURL || '',
+          photoURL: cleanPhoto,
           prefs: {
             ...(user.prefs || {}),
             fortz_balance: typeof balance === 'number' ? balance : (user.prefs?.fortz_balance ?? 100),
-            photoURL: user.photoURL || user.prefs?.photoURL || '',
+            photoURL: cleanPhoto,
           },
         };
 

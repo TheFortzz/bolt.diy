@@ -49,24 +49,29 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
     const options: StreamingOptions = {
       toolChoice: 'none',
       onFinish: async ({ text: content, finishReason }) => {
-        if (finishReason !== 'length') {
-          return stream.close();
+        try {
+          if (finishReason !== 'length' || !content || content.trim().length === 0) {
+            return stream.close();
+          }
+
+          if (stream.switches >= MAX_RESPONSE_SEGMENTS) {
+            console.log(`Maximum continuation segments reached (${MAX_RESPONSE_SEGMENTS}), closing stream.`);
+            return stream.close();
+          }
+
+          const switchesLeft = MAX_RESPONSE_SEGMENTS - stream.switches;
+          console.log(`Reached max token limit: Continuing message (${switchesLeft} switches left)`);
+
+          messages.push({ role: 'assistant', content });
+          messages.push({ role: 'user', content: CONTINUE_PROMPT });
+
+          const result = await streamText({ messages, env: context.cloudflare.env, options, apiKeys, providerSettings });
+
+          return stream.switchSource(result.toAIStream());
+        } catch (err) {
+          console.error('Error during onFinish stream continuation:', err);
+          stream.close();
         }
-
-        if (stream.switches >= MAX_RESPONSE_SEGMENTS) {
-          throw Error('Cannot continue message: Maximum segments reached');
-        }
-
-        const switchesLeft = MAX_RESPONSE_SEGMENTS - stream.switches;
-
-        console.log(`Reached max token limit (${MAX_TOKENS}): Continuing message (${switchesLeft} switches left)`);
-
-        messages.push({ role: 'assistant', content });
-        messages.push({ role: 'user', content: CONTINUE_PROMPT });
-
-        const result = await streamText({ messages, env: context.cloudflare.env, options, apiKeys, providerSettings });
-
-        return stream.switchSource(result.toAIStream());
       },
     };
 

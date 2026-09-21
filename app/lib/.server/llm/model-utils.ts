@@ -78,5 +78,13 @@ export function getModelContextWindow(model: string, modelInfo?: ModelInfo): num
  * Determines if a model should use the simplified prompt template
  */
 export function shouldUseSimplifiedPrompt(model: string, modelInfo?: ModelInfo): boolean {
+  const modelLower = model.toLowerCase();
+  if (
+    modelLower.includes('fortz') ||
+    modelLower.includes('gpt-oss') ||
+    modelLower.includes('openailike')
+  ) {
+    return true;
+  }
   return isSmallModel(model, modelInfo);
 }

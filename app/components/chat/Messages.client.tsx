@@ -10,6 +10,7 @@ import { toast } from 'react-toastify';
 import WithTooltip from '~/components/ui/Tooltip';
 import { useStore } from '@nanostores/react';
 import { authStore } from '~/lib/auth/appwrite';
+import { normalizeAvatarUrl } from '~/utils/avatar';
 
 interface MessagesProps {
   id?: string;
@@ -22,7 +23,8 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
   const { id, isStreaming = false, messages = [] } = props;
   const location = useLocation();
   const auth = useStore(authStore);
-  const userPhoto = auth.user?.prefs?.photoURL || auth.user?.photoURL;
+  const rawUserPhoto = auth.user?.prefs?.photoURL || auth.user?.photoURL;
+  const userPhoto = normalizeAvatarUrl(rawUserPhoto);
 
   const handleRewind = (messageId: string) => {
     const searchParams = new URLSearchParams(location.search);
@@ -70,6 +72,7 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
                       <img
                         src={userPhoto}
                         alt={auth.user?.name || 'User'}
+                        referrerPolicy="no-referrer"
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           (e.currentTarget as HTMLImageElement).style.display = 'none';

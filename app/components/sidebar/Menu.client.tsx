@@ -14,6 +14,7 @@ import { isSidebarOpen, isGalleryOpen } from '~/lib/stores/sidebar';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { authStore, isAuthModalOpen, appwriteLogout } from '~/lib/auth/appwrite';
 import { getProjectIcon } from '~/utils/projectIcons';
+import { normalizeAvatarUrl } from '~/utils/avatar';
 import { StudioAnalyticsModal } from './StudioAnalyticsModal';
 
 const menuVariants = {
@@ -141,8 +142,8 @@ export const Menu = () => {
 
   const rawAvatarUrl = auth.user?.prefs?.photoURL || auth.user?.photoURL;
   const [avatarFailed, setAvatarFailed] = useState(false);
-  const isBrokenAvatar = !rawAvatarUrl || rawAvatarUrl.includes('/avatars/initials');
-  const avatarUrl = isBrokenAvatar || avatarFailed ? '' : rawAvatarUrl;
+  const normalizedAvatar = normalizeAvatarUrl(rawAvatarUrl);
+  const avatarUrl = avatarFailed ? '' : normalizedAvatar;
 
   return (
     <>
@@ -380,6 +381,7 @@ export const Menu = () => {
                       <img
                         src={avatarUrl}
                         alt={auth.user.name}
+                        referrerPolicy="no-referrer"
                         className="w-8 h-8 rounded-full object-cover flex-shrink-0 border-2 border-white/60 shadow-md"
                         onError={() => {
                           setAvatarFailed(true);
@@ -424,6 +426,7 @@ export const Menu = () => {
                     <img
                       src={avatarUrl}
                       alt={auth.user.name}
+                      referrerPolicy="no-referrer"
                       className="w-8 h-8 rounded-full object-cover border-2 border-white/60 shadow-md"
                       onError={() => {
                         setAvatarFailed(true);

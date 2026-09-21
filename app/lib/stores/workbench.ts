@@ -45,6 +45,7 @@ export class WorkbenchStore {
   modifiedFiles = new Set<string>();
   artifactIdList: string[] = [];
   #globalExecutionQueue = Promise.resolve();
+  #staticServerStarted = false;
   constructor() {
     if (import.meta.hot) {
       import.meta.hot.data.artifacts = this.artifacts;
@@ -265,27 +266,68 @@ export class WorkbenchStore {
   }
 
   async startStaticPreviewServer() {
+    if (this.#staticServerStarted) {
+      return;
+    }
     try {
+      this.#staticServerStarted = true;
       const wc = await webcontainer;
       const serveCode = `
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const mimes = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml' };
+const mimes = {
+  '.html': 'text/html',
+  '.js': 'text/javascript',
+  '.mjs': 'text/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.wasm': 'application/wasm'
+};
+
+const baseDir = fs.existsSync('/home/project') ? '/home/project' : process.cwd();
+
 http.createServer((req, res) => {
-  let file = path.join(process.cwd(), req.url === '/' ? 'index.html' : req.url.split('?')[0]);
-  if (fs.existsSync(file) && fs.statSync(file).isFile()) {
-    res.writeHead(200, { 'Content-Type': mimes[path.extname(file).toLowerCase()] || 'application/octet-stream' });
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  let cleanUrl = (req.url || '/').split('?')[0].replace(/^\\/+/, '');
+  if (!cleanUrl) cleanUrl = 'index.html';
+
+  const candidates = [
+    path.join(baseDir, cleanUrl),
+    path.join(process.cwd(), cleanUrl),
+    path.join(baseDir, 'src', cleanUrl),
+    path.join(baseDir, 'public', cleanUrl),
+    path.join(baseDir, 'dist', cleanUrl),
+  ];
+
+  let file = candidates.find(p => {
+    try { return fs.existsSync(p) && fs.statSync(p).isFile(); } catch (e) { return false; }
+  });
+
+  if (!file && (cleanUrl.endsWith('.html') || !path.extname(cleanUrl))) {
+    const defaultIndex = path.join(baseDir, 'index.html');
+    if (fs.existsSync(defaultIndex)) file = defaultIndex;
+  }
+
+  if (file) {
+    const ext = path.extname(file).toLowerCase();
+    res.writeHead(200, { 'Content-Type': mimes[ext] || 'application/octet-stream' });
     fs.createReadStream(file).pipe(res);
   } else {
-    res.writeHead(404); res.end('Not Found');
+    res.writeHead(404);
+    res.end('Not Found');
   }
 }).listen(5173);
 `;
       await wc.fs.writeFile('/.static_server.cjs', serveCode);
       await wc.spawn('node', ['/.static_server.cjs']);
     } catch (e) {
-      // ignore
+      this.#staticServerStarted = false;
     }
   }
 

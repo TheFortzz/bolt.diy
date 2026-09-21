@@ -39,29 +39,143 @@ export const Preview = memo(() => {
         }
       }
     }
+
+    // If no HTML file is found, but code files exist, synthesize an HTML5 canvas game container
+    const hasCode = Object.entries(files).some(
+      ([p, d]) => d?.type === 'file' && Boolean(d.content) && (p.endsWith('.js') || p.endsWith('.ts') || p.endsWith('.css')),
+    );
+    if (!htmlContent && hasCode) {
+      htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Game Preview</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0b0f19; display: flex; align-items: center; justify-content: center; color: #fff; font-family: sans-serif; }
+    canvas { display: block; max-width: 100%; max-height: 100%; }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+</body>
+</html>`;
+    }
+
     if (!htmlContent) {
       return undefined;
     }
 
     let bundled = htmlContent;
-    for (const [filePath, dirent] of Object.entries(files)) {
-      if (dirent?.type !== 'file' || !dirent.content) {
-        continue;
-      }
-      const fileName = filePath.replace(/^\/+/, '');
-      const baseName = fileName.split('/').pop() || '';
-      if (!baseName) {
-        continue;
-      }
+    const handledCss = new Set<string>();
+    const handledJs = new Set<string>();
 
-      if (fileName.endsWith('.css')) {
-        const linkRegex = new RegExp(`<link[^>]+href=["'](\\./)?${baseName}["'][^>]*>`, 'gi');
-        bundled = bundled.replace(linkRegex, `<style>\n${dirent.content}\n</style>`);
-      } else if (fileName.endsWith('.js')) {
-        const scriptRegex = new RegExp(`<script[^>]+src=["'](\\./)?${baseName}["'][^>]*>\\s*</script>`, 'gi');
-        bundled = bundled.replace(scriptRegex, `<script>\n${dirent.content}\n</script>`);
+    const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    // 1. Process CSS files and replace matching <link> tags or inject them
+    for (const [filePath, dirent] of Object.entries(files)) {
+      if (dirent?.type !== 'file' || !dirent.content || !filePath.endsWith('.css')) {
+        continue;
+      }
+      const fileName = filePath.replace(/^\/+/, '').replace(/^home\/project\//, '');
+      const baseName = fileName.split('/').pop() || '';
+      if (!baseName) continue;
+
+      const linkRegex = new RegExp(
+        `<link[^>]*href=["'][^"']*?(${escapeRegex(fileName)}|${escapeRegex(baseName)})["'][^>]*>`,
+        'gi',
+      );
+      if (linkRegex.test(bundled)) {
+        bundled = bundled.replace(linkRegex, `<style data-file="${baseName}">\n${dirent.content}\n</style>`);
+        handledCss.add(filePath);
       }
     }
+
+    // Inject any CSS files not yet included in the HTML
+    let extraCss = '';
+    for (const [filePath, dirent] of Object.entries(files)) {
+      if (dirent?.type !== 'file' || !dirent.content || !filePath.endsWith('.css')) {
+        continue;
+      }
+      if (!handledCss.has(filePath)) {
+        extraCss += `<style data-file="${filePath.split('/').pop()}">\n${dirent.content}\n</style>\n`;
+      }
+    }
+    if (extraCss) {
+      if (bundled.includes('</head>')) {
+        bundled = bundled.replace('</head>', `${extraCss}</head>`);
+      } else {
+        bundled = extraCss + bundled;
+      }
+    }
+
+    // 2. Process JS / TS files and replace matching <script> tags
+    for (const [filePath, dirent] of Object.entries(files)) {
+      if (
+        dirent?.type !== 'file' ||
+        !dirent.content ||
+        (!filePath.endsWith('.js') && !filePath.endsWith('.ts') && !filePath.endsWith('.mjs'))
+      ) {
+        continue;
+      }
+      const fileName = filePath.replace(/^\/+/, '').replace(/^home\/project\//, '');
+      const baseName = fileName.split('/').pop() || '';
+      if (!baseName) continue;
+
+      const scriptRegex = new RegExp(
+        `<script[^>]*src=["'][^"']*?(${escapeRegex(fileName)}|${escapeRegex(baseName)})["'][^>]*>\\s*<\\/script>`,
+        'gi',
+      );
+      if (scriptRegex.test(bundled)) {
+        bundled = bundled.replace(
+          scriptRegex,
+          `<script type="module" data-file="${baseName}">\n${dirent.content}\n</script>`,
+        );
+        handledJs.add(filePath);
+      }
+    }
+
+    // Inject any main JS files not yet included
+    let extraJs = '';
+    for (const [filePath, dirent] of Object.entries(files)) {
+      if (
+        dirent?.type !== 'file' ||
+        !dirent.content ||
+        (!filePath.endsWith('.js') && !filePath.endsWith('.ts') && !filePath.endsWith('.mjs'))
+      ) {
+        continue;
+      }
+      if (!handledJs.has(filePath)) {
+        const base = filePath.split('/').pop() || '';
+        if (
+          base === 'main.js' ||
+          base === 'index.js' ||
+          base === 'game.js' ||
+          base === 'app.js' ||
+          Object.keys(files).length < 6
+        ) {
+          extraJs += `<script type="module" data-file="${base}">\n${dirent.content}\n</script>\n`;
+        }
+      }
+    }
+    if (extraJs) {
+      if (bundled.includes('</body>')) {
+        bundled = bundled.replace('</body>', `${extraJs}</body>`);
+      } else {
+        bundled = bundled + extraJs;
+      }
+    }
+
+    // 3. Neutralize any dangling local relative scripts or links that would 404 against the host
+    bundled = bundled.replace(
+      /<script[^>]*src=["'](\/|\.\/)[^"']+["'][^>]*>\s*<\/script>/gi,
+      '<!-- removed missing local script -->',
+    );
+    bundled = bundled.replace(
+      /<link[^>]*href=["'](\/|\.\/)[^"']+\.css["'][^>]*>/gi,
+      '<!-- removed missing local stylesheet -->',
+    );
 
     return bundled;
   }, [activePreview, files]);
