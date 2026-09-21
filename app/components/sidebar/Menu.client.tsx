@@ -153,7 +153,7 @@ export const Menu = () => {
         variants={menuVariants}
         style={{
           borderRadius: 0,
-          background: 'linear-gradient(180deg, rgb(77 255 0 / 57%) 0%, rgb(0 255 29 / 61%) 55%, rgb(11 255 0 / 60%) 100%)',
+          background: 'linear-gradient(180deg, rgb(0 166 255 / 63%) 0%, rgb(0 193 202 / 81%) 55%, rgb(0 255 255 / 75%) 100%)',
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
         }}

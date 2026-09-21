@@ -508,18 +508,20 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 <div
                   style={{
                     borderRadius: 0,
-                    boxShadow: '0 5px 0 0 #0f071f, 0 12px 28px rgba(0,0,0,0.45)',
-                    background: '#1a0e2e',
+                    boxShadow: '0 0 30px rgba(192, 132, 252, 0.4), 0 5px 0 0 #0f071f, 0 16px 36px rgba(0,0,0,0.65)',
+                    background: '#20103a',
                   }}
                   className={classNames(
-                    'group/inputbox relative border border-purple-500/40 border-r-2 border-b-[5px] border-r-[#0f071f] border-b-[#0f071f] transition-all duration-300',
-                    'focus-within:border-[#c084fc] focus-within:ring-2 focus-within:ring-[#8340ed]/50 focus-within:shadow-[0_0_30px_rgba(192,132,252,0.4),0_5px_0_0_#0f071f,0_16px_36px_rgba(0,0,0,0.65)] focus-within:bg-[#20103a]',
-                    { 'border-[#c084fc]/90 shadow-[0_0_24px_rgba(192,132,252,0.3),0_5px_0_0_#0f071f]': input.length > 0 },
+                    'group/inputbox relative border-2 border-[#c084fc] ring-2 ring-[#8340ed]/50 border-r-2 border-b-[5px] border-r-[#0f071f] border-b-[#0f071f] transition-all duration-300',
+                    'shadow-[0_0_30px_rgba(192,132,252,0.4),0_5px_0_0_#0f071f,0_16px_36px_rgba(0,0,0,0.65)] bg-[#20103a]',
+                    'focus-within:border-[#e9d5ff] focus-within:ring-2 focus-within:ring-[#c084fc]/70 focus-within:shadow-[0_0_42px_rgba(192,132,252,0.6),0_5px_0_0_#0f071f,0_18px_40px_rgba(0,0,0,0.75)]',
                   )}
                 >
-                  {/* Automatic dynamic neon active glow strip that illuminates when active */}
-                  <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#c084fc] to-[#38bdf8] opacity-0 group-focus-within/inputbox:opacity-100 transition-opacity duration-300 pointer-events-none z-10" />
-                  <div className="absolute top-0 right-0 bottom-0 w-[2px] bg-gradient-to-b from-[#c084fc] via-[#38bdf8] to-transparent opacity-0 group-focus-within/inputbox:opacity-80 transition-opacity duration-300 pointer-events-none z-10" />
+                  {/* Permanent vibrant purple edge line strips always active even when not clicked */}
+                  <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-[#8b5cf6] via-[#c084fc] to-[#8b5cf6] opacity-100 shadow-[0_0_12px_#c084fc] pointer-events-none z-10" />
+                  <div className="absolute top-0 right-0 bottom-0 w-[2.5px] bg-gradient-to-b from-[#c084fc] via-[#8b5cf6] to-transparent opacity-100 shadow-[0_0_12px_#c084fc] pointer-events-none z-10" />
+                  <div className="absolute top-0 left-0 bottom-0 w-[2.5px] bg-gradient-to-b from-[#c084fc] via-[#8b5cf6] to-transparent opacity-100 shadow-[0_0_12px_#c084fc] pointer-events-none z-10" />
+                  <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#8b5cf6] via-[#c084fc] to-[#8b5cf6] opacity-90 shadow-[0_0_12px_#c084fc] pointer-events-none z-10" />
                   <textarea
                     ref={textareaRef}
                     className={classNames(
