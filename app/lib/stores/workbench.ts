@@ -253,6 +253,40 @@ export class WorkbenchStore {
         }
       }
     }
+
+    // If no active preview port is open and HTML exists, start static server
+    if (this.previews.get().length === 0 && this.#filesStore.filesCount > 0) {
+      const files = this.#filesStore.files.get();
+      const hasHtml = Object.keys(files).some((p) => p.endsWith('.html'));
+      if (hasHtml) {
+        this.startStaticPreviewServer().catch(() => {});
+      }
+    }
+  }
+
+  async startStaticPreviewServer() {
+    try {
+      const wc = await webcontainer;
+      const serveCode = `
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const mimes = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml' };
+http.createServer((req, res) => {
+  let file = path.join(process.cwd(), req.url === '/' ? 'index.html' : req.url.split('?')[0]);
+  if (fs.existsSync(file) && fs.statSync(file).isFile()) {
+    res.writeHead(200, { 'Content-Type': mimes[path.extname(file).toLowerCase()] || 'application/octet-stream' });
+    fs.createReadStream(file).pipe(res);
+  } else {
+    res.writeHead(404); res.end('Not Found');
+  }
+}).listen(5173);
+`;
+      await wc.fs.writeFile('/.static_server.cjs', serveCode);
+      await wc.spawn('node', ['/.static_server.cjs']);
+    } catch (e) {
+      // ignore
+    }
   }
 
   addArtifact({ messageId, title, id, type }: ArtifactCallbackData) {

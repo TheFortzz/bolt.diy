@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { IconButton } from '~/components/ui/IconButton';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { PortDropdown } from './PortDropdown';
@@ -16,7 +16,55 @@ export const Preview = memo(() => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const hasSelectedPreview = useRef(false);
   const previews = useStore(workbenchStore.previews);
+  const files = useStore(workbenchStore.files);
   const activePreview = previews[activePreviewIndex];
+
+  const fallbackHtml = useMemo(() => {
+    if (activePreview) {
+      return undefined;
+    }
+
+    let htmlContent: string | undefined;
+    for (const [path, dirent] of Object.entries(files)) {
+      if (dirent?.type === 'file' && dirent.content && (path.endsWith('/index.html') || path === 'index.html')) {
+        htmlContent = dirent.content;
+        break;
+      }
+    }
+    if (!htmlContent) {
+      for (const [path, dirent] of Object.entries(files)) {
+        if (dirent?.type === 'file' && dirent.content && path.endsWith('.html')) {
+          htmlContent = dirent.content;
+          break;
+        }
+      }
+    }
+    if (!htmlContent) {
+      return undefined;
+    }
+
+    let bundled = htmlContent;
+    for (const [filePath, dirent] of Object.entries(files)) {
+      if (dirent?.type !== 'file' || !dirent.content) {
+        continue;
+      }
+      const fileName = filePath.replace(/^\/+/, '');
+      const baseName = fileName.split('/').pop() || '';
+      if (!baseName) {
+        continue;
+      }
+
+      if (fileName.endsWith('.css')) {
+        const linkRegex = new RegExp(`<link[^>]+href=["'](\\./)?${baseName}["'][^>]*>`, 'gi');
+        bundled = bundled.replace(linkRegex, `<style>\n${dirent.content}\n</style>`);
+      } else if (fileName.endsWith('.js')) {
+        const scriptRegex = new RegExp(`<script[^>]+src=["'](\\./)?${baseName}["'][^>]*>\\s*</script>`, 'gi');
+        bundled = bundled.replace(scriptRegex, `<script>\n${dirent.content}\n</script>`);
+      }
+    }
+
+    return bundled;
+  }, [activePreview, files]);
 
   const [url, setUrl] = useState('');
   const [iframeUrl, setIframeUrl] = useState<string | undefined>();
@@ -39,17 +87,18 @@ export const Preview = memo(() => {
   const SCALING_FACTOR = 2; // Adjust this value to increase/decrease sensitivity
 
   useEffect(() => {
-    if (!activePreview) {
+    if (activePreview) {
+      const { baseUrl } = activePreview;
+      setUrl(baseUrl);
+      setIframeUrl(baseUrl);
+    } else if (fallbackHtml) {
+      setUrl('http://localhost:5173/ (Live Game Preview)');
+      setIframeUrl(undefined);
+    } else {
       setUrl('');
       setIframeUrl(undefined);
-
-      return;
     }
-
-    const { baseUrl } = activePreview;
-    setUrl(baseUrl);
-    setIframeUrl(baseUrl);
-  }, [activePreview]);
+  }, [activePreview, fallbackHtml]);
 
   const validateUrl = useCallback(
     (value: string) => {
@@ -87,7 +136,11 @@ export const Preview = memo(() => {
 
   const reloadPreview = () => {
     if (iframeRef.current) {
-      iframeRef.current.src = iframeRef.current.src;
+      if (activePreview) {
+        iframeRef.current.src = iframeRef.current.src;
+      } else if (fallbackHtml) {
+        iframeRef.current.srcdoc = fallbackHtml;
+      }
     }
   };
 
@@ -285,11 +338,23 @@ export const Preview = memo(() => {
               ref={iframeRef}
               className="border-none w-full h-full bg-white"
               src={iframeUrl}
-              allow="cross-origin-isolated; autoplay; camera; microphone; clipboard-write; clipboard-read; fullscreen; encrypted-media; display-capture; geolocation; pointer-lock"
+              allow="cross-origin-isolated; autoplay; camera; microphone; clipboard-write; clipboard-read; fullscreen; encrypted-media; display-capture; geolocation"
+              allowFullScreen
+            />
+          ) : fallbackHtml ? (
+            <iframe
+              ref={iframeRef}
+              className="border-none w-full h-full bg-white"
+              srcDoc={fallbackHtml}
+              allow="cross-origin-isolated; autoplay; camera; microphone; clipboard-write; clipboard-read; fullscreen; encrypted-media; display-capture; geolocation"
               allowFullScreen
             />
           ) : (
-            <div className="flex w-full h-full justify-center items-center bg-white">No preview available</div>
+            <div className="flex flex-col w-full h-full justify-center items-center bg-[#0d1527] text-slate-300 gap-3 p-6 text-center select-none">
+              <div className="w-10 h-10 border-2 border-[#38bdf8] border-t-transparent animate-spin rounded-full" />
+              <div className="text-sm font-semibold text-white">Starting Game Preview…</div>
+              <div className="text-xs text-slate-400 max-w-sm">Generating game code and launching preview server. Your game will appear here automatically.</div>
+            </div>
           )}
 
           {isDeviceModeOn && (

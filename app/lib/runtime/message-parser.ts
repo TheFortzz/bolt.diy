@@ -10,6 +10,10 @@ const ARTIFACT_ACTION_TAG_CLOSE = '</boltAction>';
 
 const logger = createScopedLogger('MessageParser');
 
+function indexOfIgnoreCase(source: string, search: string, fromIndex: number = 0): number {
+  return source.toLowerCase().indexOf(search.toLowerCase(), fromIndex);
+}
+
 export interface ArtifactCallbackData extends BoltArtifactData {
   messageId: string;
 }
@@ -85,7 +89,7 @@ export class StreamingMessageParser {
         }
 
         if (state.insideAction) {
-          const closeIndex = input.indexOf(ARTIFACT_ACTION_TAG_CLOSE, i);
+          const closeIndex = indexOfIgnoreCase(input, ARTIFACT_ACTION_TAG_CLOSE, i);
 
           const currentAction = state.currentAction;
 
@@ -137,8 +141,8 @@ export class StreamingMessageParser {
             break;
           }
         } else {
-          const actionOpenIndex = input.indexOf(ARTIFACT_ACTION_TAG_OPEN, i);
-          const artifactCloseIndex = input.indexOf(ARTIFACT_TAG_CLOSE, i);
+          const actionOpenIndex = indexOfIgnoreCase(input, ARTIFACT_ACTION_TAG_OPEN, i);
+          const artifactCloseIndex = indexOfIgnoreCase(input, ARTIFACT_TAG_CLOSE, i);
 
           if (actionOpenIndex !== -1 && (artifactCloseIndex === -1 || actionOpenIndex < artifactCloseIndex)) {
             const actionEndIndex = input.indexOf('>', actionOpenIndex);
@@ -177,10 +181,10 @@ export class StreamingMessageParser {
         while (j < input.length && potentialTag.length < ARTIFACT_TAG_OPEN.length) {
           potentialTag += input[j];
 
-          if (potentialTag === ARTIFACT_TAG_OPEN) {
+          if (potentialTag.toLowerCase() === ARTIFACT_TAG_OPEN.toLowerCase()) {
             const nextChar = input[j + 1];
 
-            if (nextChar && nextChar !== '>' && nextChar !== ' ') {
+            if (nextChar && nextChar !== '>' && nextChar !== ' ' && nextChar !== '\n' && nextChar !== '\r') {
               output += input.slice(i, j + 1);
               i = j + 1;
               break;
@@ -191,17 +195,11 @@ export class StreamingMessageParser {
             if (openTagEnd !== -1) {
               const artifactTag = input.slice(i, openTagEnd + 1);
 
-              const artifactTitle = this.#extractAttribute(artifactTag, 'title') as string;
-              const type = this.#extractAttribute(artifactTag, 'type') as string;
-              const artifactId = this.#extractAttribute(artifactTag, 'id') as string;
-
-              if (!artifactTitle) {
-                logger.warn('Artifact title missing');
-              }
-
-              if (!artifactId) {
-                logger.warn('Artifact id missing');
-              }
+              const rawTitle = this.#extractAttribute(artifactTag, 'title');
+              const rawId = this.#extractAttribute(artifactTag, 'id');
+              const artifactTitle = rawTitle || 'Game Project';
+              const type = (this.#extractAttribute(artifactTag, 'type') as string) || 'bundled';
+              const artifactId = rawId || `project-${messageId}`;
 
               state.insideArtifact = true;
 
@@ -225,7 +223,7 @@ export class StreamingMessageParser {
             }
 
             break;
-          } else if (!ARTIFACT_TAG_OPEN.startsWith(potentialTag)) {
+          } else if (!ARTIFACT_TAG_OPEN.toLowerCase().startsWith(potentialTag.toLowerCase())) {
             output += input.slice(i, j + 1);
             i = j + 1;
             break;
@@ -259,7 +257,8 @@ export class StreamingMessageParser {
   #parseActionTag(input: string, actionOpenIndex: number, actionEndIndex: number) {
     const actionTag = input.slice(actionOpenIndex, actionEndIndex + 1);
 
-    const actionType = this.#extractAttribute(actionTag, 'type') as ActionType;
+    const rawType = this.#extractAttribute(actionTag, 'type');
+    const actionType = (rawType?.toLowerCase() || 'file') as ActionType;
 
     const actionAttributes = {
       type: actionType,
@@ -267,10 +266,14 @@ export class StreamingMessageParser {
     };
 
     if (actionType === 'file') {
-      const filePath = this.#extractAttribute(actionTag, 'filePath') as string;
+      let filePath =
+        this.#extractAttribute(actionTag, 'filePath') ||
+        this.#extractAttribute(actionTag, 'path') ||
+        this.#extractAttribute(actionTag, 'filepath') as string;
 
       if (!filePath) {
-        logger.debug('File path not specified');
+        logger.debug('File path not specified, defaulting to index.html');
+        filePath = 'index.html';
       }
 
       (actionAttributes as FileAction).filePath = filePath;
@@ -282,7 +285,9 @@ export class StreamingMessageParser {
   }
 
   #extractAttribute(tag: string, attributeName: string): string | undefined {
-    const match = tag.match(new RegExp(`${attributeName}="([^"]*)"`, 'i'));
+    const match =
+      tag.match(new RegExp(`${attributeName}\\s*=\\s*["']([^"']*)["']`, 'i')) ||
+      tag.match(new RegExp(`${attributeName}\\s*=\\s*([^\\s>]+)`, 'i'));
     return match ? match[1] : undefined;
   }
 }
