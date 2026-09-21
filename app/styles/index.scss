@@ -66,3 +66,125 @@ select,
   --secondary-color: #38bdf8;
   --accent-color: #f97316;
 }
+
+/* Overrides for explicit circular profile avatars */
+.rounded-full,
+[class*='rounded-full'] {
+  border-radius: 9999px !important;
+}
+
+/* From Uiverse.io by Spacious74 - Glowing Publish Button in Box */
+.publish-glow-container {
+  position: relative;
+  padding: 2.5px !important;
+  background: linear-gradient(90deg, #03a9f4, #f441a5) !important;
+  border-radius: 0.7em !important;
+  transition: all 0.4s ease;
+  display: inline-flex;
+  align-items: center;
+}
+
+.publish-glow-container::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  margin: auto !important;
+  border-radius: 0.7em !important;
+  z-index: 0 !important;
+  filter: blur(0);
+  transition: filter 0.4s ease, background 0.4s ease;
+  pointer-events: none;
+}
+
+.publish-glow-container:hover::before {
+  background: linear-gradient(90deg, #03a9f4, #f441a5) !important;
+  filter: blur(0.9em) !important;
+}
+
+.publish-glow-container:active::before {
+  filter: blur(0.2em) !important;
+}
+
+.publish-glow-button {
+  font-size: 0.8rem !important;
+  padding: 0.35em 0.8em !important;
+  border-radius: 0.45em !important;
+  border: none !important;
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  cursor: pointer !important;
+  box-shadow: 2px 2px 3px #000000b4 !important;
+  font-weight: 700 !important;
+  position: relative !important;
+  z-index: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.35em !important;
+  user-select: none !important;
+  transition: transform 0.15s ease !important;
+}
+
+.publish-glow-button:active {
+  transform: scale(0.97);
+}
+
+/* Button 53 from user specification */
+.button-53 {
+  background-color: #3DD1E7 !important;
+  border: 0 solid #E5E7EB !important;
+  box-sizing: border-box !important;
+  color: #000000 !important;
+  display: flex !important;
+  font-family: ui-sans-serif, system-ui, -apple-system, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji" !important;
+  font-size: 0.85rem !important;
+  font-weight: 700 !important;
+  justify-content: center !important;
+  align-items: center !important;
+  line-height: 1.25rem !important;
+  padding: 0.45rem 0.85rem !important;
+  position: relative !important;
+  text-align: center !important;
+  text-decoration: none #000000 solid !important;
+  text-decoration-thickness: auto !important;
+  width: 100% !important;
+  max-width: 460px !important;
+  cursor: pointer !important;
+  transform: rotate(-2deg);
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  touch-action: manipulation;
+  border-radius: 0px !important;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.button-53:focus {
+  outline: 0 !important;
+}
+
+.button-53::after {
+  content: '' !important;
+  position: absolute !important;
+  border: 1.5px solid #000000 !important;
+  bottom: 4px !important;
+  left: 4px !important;
+  width: calc(100% - 1px) !important;
+  height: calc(100% - 1px) !important;
+  pointer-events: none !important;
+  transition: all 0.15s ease;
+}
+
+.button-53:hover::after {
+  bottom: 2px !important;
+  left: 2px !important;
+}
+
+.button-53:active {
+  transform: rotate(-2deg) translateY(1px) !important;
+}
+
+.button-53-rail {
+  width: 36px !important;
+  height: 36px !important;
+  padding: 0 !important;
+}
+

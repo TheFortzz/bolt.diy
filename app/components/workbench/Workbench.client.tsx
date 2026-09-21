@@ -213,24 +213,27 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
                     <div className="i-ph:github-logo" />
                     Push to GitHub
                   </PanelHeaderButton>
-                  <PanelHeaderButton
-                    className="mr-1 text-xs sm:text-sm"
-                    title="Publish Game"
-                    onClick={async () => {
-                      try {
-                        await workbenchStore.downloadZip();
-                        toast.success('Game package downloaded! Upload this ZIP on TheFortz to publish.', { autoClose: 6000 });
-                        if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
-                          window.parent.postMessage({ type: 'fortz-open-upload' }, '*');
+                  <div className="publish-glow-container mr-1.5">
+                    <button
+                      type="button"
+                      className="publish-glow-button"
+                      title="Publish Game"
+                      onClick={async () => {
+                        try {
+                          await workbenchStore.downloadZip();
+                          toast.success('Game package downloaded! Upload this ZIP on TheFortz to publish.', { autoClose: 6000 });
+                          if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+                            window.parent.postMessage({ type: 'fortz-open-upload' }, '*');
+                          }
+                        } catch (err: any) {
+                          toast.error('Failed to package game: ' + (err?.message || 'Unknown error'));
                         }
-                      } catch (err: any) {
-                        toast.error('Failed to package game: ' + (err?.message || 'Unknown error'));
-                      }
-                    }}
-                  >
-                    <div className="i-ph:rocket-launch" />
-                    Publish Game
-                  </PanelHeaderButton>
+                      }}
+                    >
+                      <div className="i-ph:rocket-launch text-[#03a9f4] text-xs" />
+                      <span>Publish Game</span>
+                    </button>
+                  </div>
                 </div>
                 <IconButton
                   icon="i-ph:x-circle"

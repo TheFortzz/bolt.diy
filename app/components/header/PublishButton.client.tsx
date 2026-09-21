@@ -41,14 +41,17 @@ export function PublishButton() {
 
   return (
     <>
-      <button
-        onClick={() => setIsOpen(true)}
-        className="flex items-center gap-1.5 text-xs font-extrabold text-white bg-[#10b981] hover:bg-[#059669] px-3 py-1.5 rounded-none border border-emerald-300/40 transition-all cursor-pointer uppercase tracking-wider"
-        title="Publish your game"
-      >
-        <span>🚀</span>
-        <span>PUBLISH GAME</span>
-      </button>
+      <div className="publish-glow-container">
+        <button
+          type="button"
+          onClick={() => setIsOpen(true)}
+          className="publish-glow-button"
+          title="Publish your game"
+        >
+          <div className="i-ph:rocket-launch text-[#03a9f4] text-xs" />
+          <span>PUBLISH GAME</span>
+        </button>
+      </div>
 
       {isOpen && (
         <div

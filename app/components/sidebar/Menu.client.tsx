@@ -153,9 +153,11 @@ export const Menu = () => {
         variants={menuVariants}
         style={{
           borderRadius: 0,
-          background: 'linear-gradient(180deg, rgb(46, 153, 0) 0%, rgb(1, 161, 19) 55%, rgb(5, 121, 0) 100%)',
+          background: 'linear-gradient(180deg, rgb(77 255 0 / 57%) 0%, rgb(0 255 29 / 61%) 55%, rgb(11 255 0 / 60%) 100%)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
         }}
-        className="flex selection-accent flex-col side-menu fixed top-0 left-0 h-full border-r-2 border-[#38bdf8] z-sidebar text-xs overflow-hidden select-none shadow-[2px_0_15px_rgba(56,189,248,0.35)]"
+        className="flex selection-accent flex-col side-menu fixed top-0 left-0 h-full border-r-2 border-[#38bdf8] z-sidebar text-xs overflow-hidden select-none shadow-[2px_0_15px_rgba(56,189,248,0.35)] backdrop-blur-md"
       >
         {/* ── Top Header Brand / Toggle (No background box, big title, pure icon button) ── */}
         <div
@@ -193,62 +195,54 @@ export const Menu = () => {
           )}
         </div>
 
-        {/* ── Action Buttons: New Game, Builder Box, Created, Analytics (All top bar purple) ── */}
-        <div className={`flex flex-col gap-1.5 ${open ? 'p-2' : 'p-1.5 items-center'}`}>
+        {/* ── Action Buttons: New Game, Builder Box, Created, Analytics (Styled as Button 53) ── */}
+        <div className={`flex flex-col gap-3 my-2 ${open ? 'px-3 py-1' : 'py-1 items-center'}`}>
           {/* New Game Button */}
           <a
             href="/"
-            style={{ borderRadius: 0, background: 'rgb(131, 64, 237)' }}
+            role="button"
             title="Create New Game"
-            className={`transition-all active:translate-y-0.5 no-underline flex items-center justify-center hover:brightness-110 text-white font-bold border border-purple-300/50 shadow-md ${
-              open ? 'py-1.5 px-2 gap-1.5 text-xs' : 'w-9 h-9'
-            }`}
+            className={`button-53 ${!open ? 'button-53-rail' : 'gap-1.5'}`}
           >
-            <div className="i-ph:plus-bold text-sm text-white" />
+            <div className="i-ph:plus-bold text-sm text-black flex-shrink-0" />
             {open && <span>New Game</span>}
           </a>
 
           {/* Builder Box (Code & Preview) Button */}
           <button
             type="button"
+            role="button"
             onClick={() => {
               workbenchStore.showWorkbench.set(!showWorkbench);
             }}
-            style={{ borderRadius: 0, background: 'rgb(131, 64, 237)' }}
             title={showWorkbench ? 'Close Builder Box' : 'Open Builder Box (Code & Preview)'}
-            className={`transition-all active:translate-y-0.5 flex items-center justify-center hover:brightness-110 text-white font-bold border border-purple-300/50 shadow-md cursor-pointer ${
-              open ? 'py-1.5 px-2 gap-1.5 text-xs' : 'w-9 h-9'
-            }`}
+            className={`button-53 ${!open ? 'button-53-rail' : 'gap-1.5'}`}
           >
-            <div className="i-ph:code-bold text-sm text-white" />
+            <div className="i-ph:code-bold text-sm text-black flex-shrink-0" />
             {open && <span>{showWorkbench ? 'Close Builder' : 'Builder Box'}</span>}
           </button>
 
           {/* Created Projects & Showcase Button */}
           <button
             type="button"
+            role="button"
             onClick={() => isGalleryOpen.set(true)}
-            style={{ borderRadius: 0, background: 'rgb(131, 64, 237)' }}
             title="Open Created Games & Community Projects"
-            className={`transition-all active:translate-y-0.5 flex items-center justify-center hover:brightness-110 text-white font-bold border border-purple-300/50 shadow-md cursor-pointer ${
-              open ? 'py-1.5 px-2 gap-1.5 text-xs' : 'w-9 h-9'
-            }`}
+            className={`button-53 ${!open ? 'button-53-rail' : 'gap-1.5'}`}
           >
-            <div className="i-ph:squares-four-fill text-sm text-white" />
+            <div className="i-ph:squares-four-fill text-sm text-black flex-shrink-0" />
             {open && <span>Created</span>}
           </button>
 
           {/* Analytics Button */}
           <button
             type="button"
+            role="button"
             onClick={() => setIsAnalyticsOpen(true)}
-            style={{ borderRadius: 0, background: 'rgb(131, 64, 237)' }}
             title="Studio Analytics & Appwrite Status"
-            className={`transition-all active:translate-y-0.5 flex items-center justify-center hover:brightness-110 text-white font-bold border border-purple-300/50 shadow-md cursor-pointer ${
-              open ? 'py-1.5 px-2 gap-1.5 text-xs' : 'w-9 h-9'
-            }`}
+            className={`button-53 ${!open ? 'button-53-rail' : 'gap-1.5'}`}
           >
-            <div className="i-ph:chart-bar-fill text-sm text-white" />
+            <div className="i-ph:chart-bar-fill text-sm text-black flex-shrink-0" />
             {open && <span>Analytics</span>}
           </button>
         </div>
