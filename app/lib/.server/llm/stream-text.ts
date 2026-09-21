@@ -91,7 +91,7 @@ export async function streamText(props: {
   const hasKey = getAPIKey(env, currentProvider, apiKeys);
   if (!hasKey && currentProvider !== 'OpenAILike') {
     currentProvider = 'OpenAILike';
-    currentModel = 'gpt-oss-120b';
+    currentModel = 'fortz-ai';
   }
 
   const modelDetails = MODEL_LIST.find((m) => m.name === currentModel);

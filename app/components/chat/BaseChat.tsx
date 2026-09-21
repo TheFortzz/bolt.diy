@@ -483,12 +483,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   maxWidth: isWorkbenchActive ? '100%' : '52rem',
                 }}
               >
-                <div
-                  className={classNames('transition-all duration-200 overflow-hidden', {
-                    'max-h-0 opacity-0 pointer-events-none mb-0': isModelSettingsCollapsed,
-                    'max-h-36 opacity-100 mb-1.5': !isModelSettingsCollapsed,
-                  })}
-                >
+                {/* Provider and model selector box kept hidden per user request */}
+                <div className="hidden">
                   <ModelSelector
                     key={provider?.name + ':' + modelList.length}
                     model={model}
@@ -651,18 +647,15 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         <div className="i-ph:gear-six text-xl text-[#38bdf8]" />
                       </IconButton>
 
-                      <IconButton
-                        title="Model Settings"
-                        className={classNames('rounded-none transition-all flex items-center gap-1 border border-[#38bdf8]/35 bg-[#14335c] text-sky-200 hover:bg-[#1b467e] px-2.5 py-1', {
-                          'opacity-80': isModelSettingsCollapsed,
-                          'bg-[#1e4e8c] border-[#38bdf8]/60': !isModelSettingsCollapsed,
-                        })}
-                        onClick={() => setIsModelSettingsCollapsed(!isModelSettingsCollapsed)}
-                        disabled={!providerList || providerList.length === 0}
+                      {/* Active Engine Badge — Fortz AI */}
+                      <div
+                        style={{ borderRadius: 0 }}
+                        className="flex items-center gap-1.5 px-2.5 py-1 border border-[#38bdf8]/40 bg-[#0c1f36] text-sky-200 text-xs font-semibold select-none shadow-sm"
+                        title="Active AI Model: Fortz AI"
                       >
-                        <div className={`i-ph:caret-${isModelSettingsCollapsed ? 'right' : 'down'} text-lg text-[#38bdf8]`} />
-                        {isModelSettingsCollapsed ? <span className="text-xs font-mono">{model}</span> : <span />}
-                      </IconButton>
+                        <span className="w-1.5 h-1.5 bg-[#4ade80] rounded-full animate-pulse" />
+                        <span className="font-mono">Fortz AI</span>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-sky-200/80 select-none">
                       <span

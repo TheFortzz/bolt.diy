@@ -143,7 +143,7 @@ export function getModel(
   let apiKey = getAPIKey(env, provider, apiKeys);
   if (!apiKey && provider !== 'OpenAILike') {
     provider = 'OpenAILike';
-    model = 'gpt-oss-120b';
+    model = 'fortz-ai';
     apiKey = getAPIKey(env, provider, apiKeys);
   }
   const baseURL = (providerSettings?.[provider]?.baseUrl || '').trim() || getBaseURL(env, provider);
@@ -161,8 +161,10 @@ export function getModel(
       return getOpenRouterModel(apiKey, model);
     case 'Google':
       return getGoogleModel(apiKey, model);
-    case 'OpenAILike':
-      return getOpenAILikeModel(baseURL, apiKey, model);
+    case 'OpenAILike': {
+      const targetModel = (model === 'fortz-ai' || model === 'Fortz AI' || !model) ? 'gpt-oss-120b' : model;
+      return getOpenAILikeModel(baseURL, apiKey, targetModel);
+    }
     case 'Together':
       return getOpenAILikeModel(baseURL, apiKey, model);
     case 'Deepseek':

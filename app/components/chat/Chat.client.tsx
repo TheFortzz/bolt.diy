@@ -97,8 +97,17 @@ export const ChatImpl = memo(
 
     const [model, setModel] = useState(() => {
       const savedModel = Cookies.get('selectedModel');
-      return (!savedModel || savedModel === 'claude-3-5-sonnet-latest') ? DEFAULT_MODEL : savedModel;
+      return (!savedModel || savedModel === 'claude-3-5-sonnet-latest' || savedModel === 'gpt-oss-120b') ? DEFAULT_MODEL : savedModel;
     });
+
+    useEffect(() => {
+      const savedModel = Cookies.get('selectedModel');
+      if (savedModel === 'gpt-oss-120b' || savedModel === 'claude-3-5-sonnet-latest') {
+        Cookies.set('selectedModel', DEFAULT_MODEL);
+        setModel(DEFAULT_MODEL);
+      }
+    }, []);
+
     const [provider, setProvider] = useState(() => {
       const savedProvider = Cookies.get('selectedProvider');
       if (!savedProvider || savedProvider === 'Anthropic') {

@@ -8,7 +8,7 @@ export const WORK_DIR = `/home/${WORK_DIR_NAME}`;
 export const MODIFICATIONS_TAG_NAME = 'bolt_file_modifications';
 export const MODEL_REGEX = /^\[Model: (.*?)\]\n\n/;
 export const PROVIDER_REGEX = /\[Provider: (.*?)\]\n\n/;
-export const DEFAULT_MODEL = 'gpt-oss-120b';
+export const DEFAULT_MODEL = 'fortz-ai';
 export const PROMPT_COOKIE_KEY = 'cachedPrompt';
 
 const logger = createScopedLogger('Constants');
@@ -53,8 +53,14 @@ const PROVIDER_LIST: ProviderInfo[] = [
     name: 'OpenAILike',
     staticModels: [
       {
+        name: 'fortz-ai',
+        label: 'Fortz AI',
+        provider: 'OpenAILike',
+        maxTokenAllowed: 8000,
+      },
+      {
         name: 'gpt-oss-120b',
-        label: 'Azure Fortz AI (gpt-oss-120b)',
+        label: 'Fortz AI (gpt-oss-120b)',
         provider: 'OpenAILike',
         maxTokenAllowed: 8000,
       },
