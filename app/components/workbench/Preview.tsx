@@ -184,6 +184,38 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
 
   const stableFallbackHtml = isStreaming ? undefined : fallbackHtml;
 
+  const fallbackSyntaxError = useMemo(() => {
+    if (!stableFallbackHtml) {
+      return undefined;
+    }
+
+    const scriptPattern = /<script([^>]*)>([\s\S]*?)<\/script>/gi;
+    let match: RegExpExecArray | null;
+
+    while ((match = scriptPattern.exec(stableFallbackHtml))) {
+      const attributes = match[1] || '';
+      const script = match[2] || '';
+
+      if (!script.trim() || /type=["']application\/json["']/i.test(attributes)) {
+        continue;
+      }
+
+      const source = script
+        .replace(/^\s*import[\s\S]*?;\s*$/gm, '')
+        .replace(/^\s*export\s+(default\s+)?/gm, '')
+        .replace(/^\s*export\s*\{[\s\S]*?\};?\s*$/gm, '');
+
+      try {
+        // Compile only; never execute generated preview code in the parent window.
+        new Function(source);
+      } catch (error) {
+        return error instanceof SyntaxError ? error.message : 'Generated script is invalid';
+      }
+    }
+
+    return undefined;
+  }, [stableFallbackHtml]);
+
   const [url, setUrl] = useState('');
   const [iframeUrl, setIframeUrl] = useState<string | undefined>();
 
@@ -256,8 +288,8 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     if (iframeRef.current) {
       if (activePreview) {
         iframeRef.current.src = iframeRef.current.src;
-      } else if (fallbackHtml) {
-        iframeRef.current.srcdoc = fallbackHtml;
+      } else if (stableFallbackHtml && !fallbackSyntaxError) {
+        iframeRef.current.srcdoc = stableFallbackHtml;
       }
     }
   };
@@ -458,7 +490,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
               src={iframeUrl}
               allow="cross-origin-isolated; autoplay; camera; microphone; clipboard-write; clipboard-read; fullscreen; encrypted-media; display-capture; geolocation"
             />
-          ) : stableFallbackHtml ? (
+          ) : stableFallbackHtml && !fallbackSyntaxError ? (
             <iframe
               ref={iframeRef}
               className="border-none w-full h-full bg-white"
@@ -468,8 +500,14 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
           ) : (
             <div className="flex flex-col w-full h-full justify-center items-center bg-[#0d1527] text-slate-300 gap-3 p-6 text-center select-none">
               <div className="w-10 h-10 border-2 border-[#38bdf8] border-t-transparent animate-spin rounded-full" />
-              <div className="text-sm font-semibold text-white">Starting Game Preview…</div>
-              <div className="text-xs text-slate-400 max-w-sm">Generating game code and launching preview server. Your game will appear here automatically.</div>
+              <div className="text-sm font-semibold text-white">
+                {fallbackSyntaxError ? 'Waiting for valid game code' : 'Starting Game Preview…'}
+              </div>
+              <div className="text-xs text-slate-400 max-w-sm">
+                {fallbackSyntaxError
+                  ? 'The latest AI edit is incomplete, so the preview is paused until the file is valid.'
+                  : 'Generating game code and launching preview server. Your game will appear here automatically.'}
+              </div>
             </div>
           )}
 
