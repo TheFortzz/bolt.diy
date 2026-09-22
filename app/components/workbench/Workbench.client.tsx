@@ -64,6 +64,7 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
   const selectedFile = useStore(workbenchStore.selectedFile);
   const currentDocument = useStore(workbenchStore.currentDocument);
   const unsavedFiles = useStore(workbenchStore.unsavedFiles);
+  const completedFiles = useStore(workbenchStore.completedFiles);
   const files = useStore(workbenchStore.files);
   const selectedView = useStore(workbenchStore.currentView);
 
@@ -265,6 +266,7 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
                     selectedFile={selectedFile}
                     files={files}
                     unsavedFiles={unsavedFiles}
+                    completedFiles={completedFiles}
                     onFileSelect={onFileSelect}
                     onEditorScroll={onEditorScroll}
                     onEditorChange={onEditorChange}
@@ -276,7 +278,7 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
                   initial={{ x: selectedView === 'preview' ? 0 : '100%' }}
                   animate={{ x: selectedView === 'preview' ? 0 : '100%' }}
                 >
-                  <Preview />
+                  <Preview isStreaming={isStreaming} />
                 </View>
               </div>
             </div>

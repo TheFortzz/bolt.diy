@@ -18,6 +18,7 @@ interface Props {
   allowFolderSelection?: boolean;
   hiddenFiles?: Array<string | RegExp>;
   unsavedFiles?: Set<string>;
+  completedFiles?: Set<string>;
   className?: string;
 }
 
@@ -33,6 +34,7 @@ export const FileTree = memo(
     hiddenFiles,
     className,
     unsavedFiles,
+    completedFiles,
   }: Props) => {
     renderLogger.trace('FileTree');
 
@@ -121,6 +123,7 @@ export const FileTree = memo(
                   selected={selectedFile === fileOrFolder.fullPath}
                   file={fileOrFolder}
                   unsavedChanges={unsavedFiles?.has(fileOrFolder.fullPath)}
+                  completed={completedFiles?.has(fileOrFolder.fullPath)}
                   onClick={() => {
                     onFileSelect?.(fileOrFolder.fullPath);
                   }}
@@ -183,10 +186,11 @@ interface FileProps {
   file: FileNode;
   selected: boolean;
   unsavedChanges?: boolean;
+  completed?: boolean;
   onClick: () => void;
 }
 
-function File({ file: { depth, name }, onClick, selected, unsavedChanges = false }: FileProps) {
+function File({ file: { depth, name }, onClick, selected, unsavedChanges = false, completed = false }: FileProps) {
   return (
     <NodeButton
       className={classNames('group', {
@@ -206,6 +210,7 @@ function File({ file: { depth, name }, onClick, selected, unsavedChanges = false
       >
         <div className="flex-1 truncate pr-2">{name}</div>
         {unsavedChanges && <span className="i-ph:circle-fill scale-68 shrink-0 text-orange-500" />}
+        {completed && !unsavedChanges && <span className="i-ph:check-circle-fill shrink-0 text-emerald-400" title="AI edit complete" />}
       </div>
     </NodeButton>
   );

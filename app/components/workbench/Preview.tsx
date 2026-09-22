@@ -6,7 +6,7 @@ import { PortDropdown } from './PortDropdown';
 
 type ResizeSide = 'left' | 'right' | null;
 
-export const Preview = memo(() => {
+export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -182,6 +182,8 @@ export const Preview = memo(() => {
     return bundled;
   }, [activePreview, files]);
 
+  const stableFallbackHtml = isStreaming ? undefined : fallbackHtml;
+
   const [url, setUrl] = useState('');
   const [iframeUrl, setIframeUrl] = useState<string | undefined>();
 
@@ -207,14 +209,14 @@ export const Preview = memo(() => {
       const { baseUrl } = activePreview;
       setUrl(baseUrl);
       setIframeUrl(baseUrl);
-    } else if (fallbackHtml) {
+    } else if (stableFallbackHtml) {
       setUrl('http://localhost:5173/ (Live Game Preview)');
       setIframeUrl(undefined);
     } else {
       setUrl('');
       setIframeUrl(undefined);
     }
-  }, [activePreview, fallbackHtml]);
+  }, [activePreview, stableFallbackHtml]);
 
   const validateUrl = useCallback(
     (value: string) => {
@@ -455,15 +457,13 @@ export const Preview = memo(() => {
               className="border-none w-full h-full bg-white"
               src={iframeUrl}
               allow="cross-origin-isolated; autoplay; camera; microphone; clipboard-write; clipboard-read; fullscreen; encrypted-media; display-capture; geolocation"
-              allowFullScreen
             />
-          ) : fallbackHtml ? (
+          ) : stableFallbackHtml ? (
             <iframe
               ref={iframeRef}
               className="border-none w-full h-full bg-white"
-              srcDoc={fallbackHtml}
+              srcDoc={stableFallbackHtml}
               allow="cross-origin-isolated; autoplay; camera; microphone; clipboard-write; clipboard-read; fullscreen; encrypted-media; display-capture; geolocation"
-              allowFullScreen
             />
           ) : (
             <div className="flex flex-col w-full h-full justify-center items-center bg-[#0d1527] text-slate-300 gap-3 p-6 text-center select-none">

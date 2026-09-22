@@ -22,6 +22,8 @@ export const SendButton = ({ show, isStreaming, disabled, onClick }: SendButtonP
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 10 }}
           disabled={disabled}
+          aria-label={isStreaming ? 'Stop AI generation' : 'Send message'}
+          title={isStreaming ? 'Stop AI generation' : 'Send message'}
           onClick={(event) => {
             event.preventDefault();
 

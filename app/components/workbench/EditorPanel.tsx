@@ -24,6 +24,7 @@ import { workbenchStore } from '~/lib/stores/workbench';
 interface EditorPanelProps {
   files?: FileMap;
   unsavedFiles?: Set<string>;
+  completedFiles?: Set<string>;
   editorDocument?: EditorDocument;
   selectedFile?: string | undefined;
   isStreaming?: boolean;
@@ -42,6 +43,7 @@ export const EditorPanel = memo(
   ({
     files,
     unsavedFiles,
+    completedFiles,
     editorDocument,
     selectedFile,
     isStreaming,
@@ -83,6 +85,7 @@ export const EditorPanel = memo(
                   files={files}
                   hideRoot
                   unsavedFiles={unsavedFiles}
+                  completedFiles={completedFiles}
                   rootFolder={WORK_DIR}
                   selectedFile={selectedFile}
                   onFileSelect={onFileSelect}

@@ -42,6 +42,7 @@ export class WorkbenchStore {
   showWorkbench: WritableAtom<boolean> = import.meta.hot?.data.showWorkbench ?? atom(false);
   currentView: WritableAtom<WorkbenchViewType> = import.meta.hot?.data.currentView ?? atom('preview');
   unsavedFiles: WritableAtom<Set<string>> = import.meta.hot?.data.unsavedFiles ?? atom(new Set<string>());
+  completedFiles: WritableAtom<Set<string>> = import.meta.hot?.data.completedFiles ?? atom(new Set<string>());
   modifiedFiles = new Set<string>();
   artifactIdList: string[] = [];
   #globalExecutionQueue = Promise.resolve();
@@ -50,6 +51,7 @@ export class WorkbenchStore {
     if (import.meta.hot) {
       import.meta.hot.data.artifacts = this.artifacts;
       import.meta.hot.data.unsavedFiles = this.unsavedFiles;
+      import.meta.hot.data.completedFiles = this.completedFiles;
       import.meta.hot.data.showWorkbench = this.showWorkbench;
       import.meta.hot.data.currentView = this.currentView;
     }
@@ -415,6 +417,9 @@ http.createServer((req, res) => {
 
       if (!isStreaming) {
         await artifact.runner.runAction(data);
+        const completedFiles = new Set(this.completedFiles.get());
+        completedFiles.add(fullPath);
+        this.completedFiles.set(completedFiles);
         this.resetAllFileModifications();
       }
     } else {
