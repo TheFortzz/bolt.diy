@@ -245,6 +245,10 @@ export class ActionRunner {
 
     const webcontainer = await Promise.race([this.#webcontainer, wcTimeout]);
 
+    if (!webcontainer) {
+      throw new Error('WebContainer is unavailable. Reload the studio with cross-origin isolation enabled.');
+    }
+
     let folder = nodePath.dirname(action.filePath);
 
     // remove trailing slashes

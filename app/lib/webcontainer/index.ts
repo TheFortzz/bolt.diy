@@ -17,6 +17,16 @@ export let webcontainer: Promise<WebContainer> = new Promise(() => {
   // noop for ssr
 });
 
+export async function getWebContainer(): Promise<WebContainer> {
+  const instance = await webcontainer;
+
+  if (!instance) {
+    throw new Error('WebContainer is unavailable. Reload the studio with cross-origin isolation enabled.');
+  }
+
+  return instance;
+}
+
 if (!import.meta.env.SSR) {
   webcontainer =
     import.meta.hot?.data.webcontainer ??
