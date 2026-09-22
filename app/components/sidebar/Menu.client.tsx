@@ -209,18 +209,23 @@ export const Menu = () => {
             {open && <span className="text-[#4c1d95] font-black text-xs tracking-wide uppercase">New Game</span>}
           </a>
 
-          {/* Builder Box (Code & Preview) Button */}
+          {/* Workspace (Code & Preview) Button */}
           <button
             type="button"
             role="button"
             onClick={() => {
               workbenchStore.showWorkbench.set(!showWorkbench);
             }}
-            title={showWorkbench ? 'Close Builder Box' : 'Open Builder Box (Code & Preview)'}
+            title={showWorkbench ? 'Close Workspace' : 'Open Workspace (Code & Preview)'}
             className={`button-53 button-53-orange ${!open ? 'button-53-rail' : 'gap-2'}`}
+            style={{
+              background: 'linear-gradient(180deg, rgba(255, 154, 0, 0.9), rgba(234, 88, 12, 0.92))',
+              border: '1px solid rgba(120, 53, 15, 0.8)',
+              color: '#fff7ed',
+            }}
           >
-            <div className="i-ph:code-bold text-base text-[#15803d] flex-shrink-0" />
-            {open && <span className="font-black text-xs tracking-wide uppercase">{showWorkbench ? 'Close Builder' : 'Builder Box'}</span>}
+            <div className="i-ph:code-bold text-base text-white flex-shrink-0" />
+            {open && <span className="font-black text-xs tracking-wide uppercase text-white">{showWorkbench ? 'Close Workspace' : 'Workspace'}</span>}
           </button>
 
           {/* Created Projects & Showcase Button */}
@@ -230,9 +235,14 @@ export const Menu = () => {
             onClick={() => isGalleryOpen.set(true)}
             title="Open Created Games & Community Projects"
             className={`button-53 ${!open ? 'button-53-rail' : 'gap-2'}`}
+            style={{
+              background: 'linear-gradient(180deg, rgba(34, 197, 94, 0.9), rgba(22, 163, 74, 0.96))',
+              border: '1px solid rgba(20, 83, 45, 0.8)',
+              color: '#ecfdf5',
+            }}
           >
-            <div className="i-ph:squares-four-fill text-base text-[#15803d] flex-shrink-0" />
-            {open && <span className="text-[#4c1d95] font-black text-xs tracking-wide uppercase">Created</span>}
+            <div className="i-ph:squares-four-fill text-base text-white flex-shrink-0" />
+            {open && <span className="font-black text-xs tracking-wide uppercase text-white">Created</span>}
           </button>
 
           {/* Analytics Button */}
@@ -242,9 +252,14 @@ export const Menu = () => {
             onClick={() => setIsAnalyticsOpen(true)}
             title="Studio Analytics & Appwrite Status"
             className={`button-53 ${!open ? 'button-53-rail' : 'gap-2'}`}
+            style={{
+              background: 'linear-gradient(180deg, rgba(250, 204, 21, 0.9), rgba(202, 138, 4, 0.96))',
+              border: '1px solid rgba(120, 53, 15, 0.75)',
+              color: '#fff7ed',
+            }}
           >
-            <div className="i-ph:chart-bar-fill text-base text-[#15803d] flex-shrink-0" />
-            {open && <span className="text-[#4c1d95] font-black text-xs tracking-wide uppercase">Analytics</span>}
+            <div className="i-ph:chart-bar-fill text-base text-white flex-shrink-0" />
+            {open && <span className="font-black text-xs tracking-wide uppercase text-white">Analytics</span>}
           </button>
         </div>
 
