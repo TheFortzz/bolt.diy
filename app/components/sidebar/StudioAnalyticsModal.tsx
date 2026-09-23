@@ -140,7 +140,7 @@ export function StudioAnalyticsModal({
                   </div>
                   <div className="text-3xl font-black text-amber-300 mt-2 font-mono">~{totalEstimatedMessages}</div>
                   <div className="text-[10px] text-slate-400 mt-1 font-mono">
-                    Engine: Fortz AI
+                    Engine: GPT 6 Luna
                   </div>
                 </div>
 
