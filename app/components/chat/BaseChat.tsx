@@ -653,14 +653,14 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         <div className="i-ph:gear-six text-xl text-[#38bdf8]" />
                       </IconButton>
 
-                      {/* Active Engine Badge — gpt 4.1 mini */}
+                      {/* Active Engine Badge — gpt 6 luna */}
                       <div
                         style={{ borderRadius: 0 }}
                         className="flex items-center gap-1.5 px-2.5 py-1 border border-[#38bdf8]/40 bg-[#0c1f36] text-sky-200 text-xs font-semibold select-none shadow-sm"
-                        title="Active AI Model: gpt 4.1 mini"
+                        title="Active AI Model: gpt 6 luna"
                       >
                         <span className="w-1.5 h-1.5 bg-[#4ade80] rounded-full animate-pulse" />
-                        <span className="font-mono">gpt 4.1 mini</span>
+                        <span className="font-mono">gpt 6 luna</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-sky-200/80 select-none">

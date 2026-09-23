@@ -17,7 +17,7 @@ export const AssistantMessage = memo(({ content }: AssistantMessageProps) => {
           >
             <div className="i-ph:sparkle-fill text-xs text-amber-300" />
           </div>
-          <span className="text-[11px] font-bold uppercase tracking-wider text-purple-200 font-mono">gpt 4.1 mini</span>
+          <span className="text-[11px] font-bold uppercase tracking-wider text-purple-200 font-mono">gpt 6 luna</span>
           <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">• Studio Architect</span>
         </div>
         <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-mono">
