@@ -49,8 +49,16 @@ export const Terminal = memo(
         terminal.open(element);
 
         const resizeObserver = new ResizeObserver(() => {
-          fitAddon.fit();
-          onTerminalResize?.(terminal.cols, terminal.rows);
+          if (element.clientWidth === 0 || element.clientHeight === 0) {
+            return;
+          }
+
+          try {
+            fitAddon.fit();
+            onTerminalResize?.(terminal.cols, terminal.rows);
+          } catch {
+            // Fit can fail while the panel is collapsing/animating.
+          }
         });
 
         resizeObserver.observe(element);

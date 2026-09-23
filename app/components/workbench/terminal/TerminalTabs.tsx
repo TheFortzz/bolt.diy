@@ -85,8 +85,8 @@ export const TerminalTabs = memo(() => {
       }}
     >
       <div className="h-full">
-        <div className="bg-bolt-elements-terminals-background h-full flex flex-col">
-          <div className="flex items-center bg-bolt-elements-background-depth-2 border-y border-bolt-elements-borderColor gap-1.5 min-h-[34px] p-2">
+        <div className="bg-bolt-elements-terminals-background h-full flex flex-col min-h-0">
+          <div className="flex items-center bg-bolt-elements-background-depth-2 border-y border-bolt-elements-borderColor gap-1.5 min-h-[34px] p-2 shrink-0">
             {Array.from({ length: terminalCount + 1 }, (_, index) => {
               const isActive = activeTerminal === index;
 
@@ -140,45 +140,47 @@ export const TerminalTabs = memo(() => {
               onClick={() => workbenchStore.toggleTerminal(false)}
             />
           </div>
-          {Array.from({ length: terminalCount + 1 }, (_, index) => {
-            const isActive = activeTerminal === index;
+          <div className="flex-1 min-h-0 overflow-hidden relative">
+            {Array.from({ length: terminalCount + 1 }, (_, index) => {
+              const isActive = activeTerminal === index;
 
-            logger.debug(`Starting bolt terminal [${index}]`);
+              logger.debug(`Starting bolt terminal [${index}]`);
 
-            if (index == 0) {
-              return (
-                <Terminal
-                  key={index}
-                  id={`terminal_${index}`}
-                  className={classNames('h-full overflow-hidden', {
-                    hidden: !isActive,
-                  })}
-                  ref={(ref) => {
-                    terminalRefs.current.push(ref);
-                  }}
-                  onTerminalReady={(terminal) => workbenchStore.attachBoltTerminal(terminal)}
-                  onTerminalResize={(cols, rows) => workbenchStore.onTerminalResize(cols, rows)}
-                  theme={theme}
-                />
-              );
-            } else {
-              return (
-                <Terminal
-                  key={index}
-                  id={`terminal_${index}`}
-                  className={classNames('h-full overflow-hidden', {
-                    hidden: !isActive,
-                  })}
-                  ref={(ref) => {
-                    terminalRefs.current.push(ref);
-                  }}
-                  onTerminalReady={(terminal) => workbenchStore.attachTerminal(terminal)}
-                  onTerminalResize={(cols, rows) => workbenchStore.onTerminalResize(cols, rows)}
-                  theme={theme}
-                />
-              );
-            }
-          })}
+              if (index == 0) {
+                return (
+                  <Terminal
+                    key={index}
+                    id={`terminal_${index}`}
+                    className={classNames('h-full w-full overflow-hidden', {
+                      hidden: !isActive,
+                    })}
+                    ref={(ref) => {
+                      terminalRefs.current.push(ref);
+                    }}
+                    onTerminalReady={(terminal) => workbenchStore.attachBoltTerminal(terminal)}
+                    onTerminalResize={(cols, rows) => workbenchStore.onTerminalResize(cols, rows)}
+                    theme={theme}
+                  />
+                );
+              } else {
+                return (
+                  <Terminal
+                    key={index}
+                    id={`terminal_${index}`}
+                    className={classNames('h-full w-full overflow-hidden', {
+                      hidden: !isActive,
+                    })}
+                    ref={(ref) => {
+                      terminalRefs.current.push(ref);
+                    }}
+                    onTerminalReady={(terminal) => workbenchStore.attachTerminal(terminal)}
+                    onTerminalResize={(cols, rows) => workbenchStore.onTerminalResize(cols, rows)}
+                    theme={theme}
+                  />
+                );
+              }
+            })}
+          </div>
         </div>
       </div>
     </Panel>
