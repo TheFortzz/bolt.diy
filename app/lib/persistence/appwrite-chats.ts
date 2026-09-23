@@ -2,12 +2,12 @@
  * Persist Studio AI chats to Appwrite (collection: studio_chats).
  * IndexedDB remains the fast local cache; Appwrite is the cloud backup.
  *
- * Document-level permissions on this collection only allow `any` / `guests`
- * (not Role.user). Embedded iframe sessions are parent-synced and usually
- * have no Appwrite cookie — skip cloud writes there to avoid 401/429 spam.
+ * Embedded Studio (iframe inside thefortz.me) has NO Appwrite cookie — auth is
+ * parent-synced via postMessage. Never call Account.get() there (causes endless 401s).
+ * Document permissions on this collection only allow `any` / `guests`.
  */
 import { Databases, ID, Query, Permission, Role } from 'appwrite';
-import { getAppwriteClient, getAppwriteAccount, authStore } from '~/lib/auth/appwrite';
+import { getAppwriteClient, authStore } from '~/lib/auth/appwrite';
 import type { Message } from 'ai';
 
 export const STUDIO_CHATS_COLLECTION = '6ab390a600047e7f3e69';
@@ -15,20 +15,15 @@ export const STUDIO_CHATS_DATABASE = 'fortz_db';
 
 let cloudSyncCooldownUntil = 0;
 
+function isEmbeddedStudio(): boolean {
+  return typeof window !== 'undefined' && Boolean(window.parent && window.parent !== window);
+}
+
 function getDatabases(): Databases | null {
   try {
     return new Databases(getAppwriteClient());
   } catch {
     return null;
-  }
-}
-
-async function hasRealAppwriteSession(): Promise<boolean> {
-  try {
-    const user = await getAppwriteAccount().get();
-    return Boolean(user?.$id);
-  } catch {
-    return false;
   }
 }
 
@@ -47,6 +42,11 @@ export async function upsertStudioChat(params: {
   description?: string;
   messages: Message[];
 }): Promise<void> {
+  // Never hit Appwrite Account/DB from the embedded iframe — local + parent sync only.
+  if (isEmbeddedStudio()) {
+    return;
+  }
+
   if (Date.now() < cloudSyncCooldownUntil) {
     return;
   }
@@ -54,14 +54,6 @@ export async function upsertStudioChat(params: {
   const user = authStore.get().user;
   if (!user?.$id || user.$id === 'usr_synced') {
     return;
-  }
-
-  // Parent-synced iframe users have no Appwrite cookie — local + parent sync is enough.
-  if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
-    const sessionOk = await hasRealAppwriteSession();
-    if (!sessionOk) {
-      return;
-    }
   }
 
   const databases = getDatabases();
@@ -93,7 +85,6 @@ export async function upsertStudioChat(params: {
       const code = err?.code || err?.response?.code;
       const message = String(err?.message || err || '');
 
-      // Back off hard on rate limits / auth / permission misconfig so AI chat isn't flooded
       if (code === 429 || /rate limit/i.test(message)) {
         cloudSyncCooldownUntil = Date.now() + 60_000;
       } else if (code === 401 || code === 403 || /Permissions must be one of/i.test(message)) {
@@ -108,17 +99,16 @@ export async function upsertStudioChat(params: {
 export async function listStudioChats(limit = 40): Promise<
   Array<{ chatId: string; urlId: string; title: string; updatedAt: number; messages: Message[] }>
 > {
+  if (isEmbeddedStudio()) {
+    return [];
+  }
+
   if (Date.now() < cloudSyncCooldownUntil) {
     return [];
   }
 
   const user = authStore.get().user;
   if (!user?.$id || user.$id === 'usr_synced') return [];
-
-  if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
-    const sessionOk = await hasRealAppwriteSession();
-    if (!sessionOk) return [];
-  }
 
   const databases = getDatabases();
   if (!databases) return [];
