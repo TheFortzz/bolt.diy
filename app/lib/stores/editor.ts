@@ -79,6 +79,13 @@ export class EditorStore {
     const documentState = documents[filePath];
 
     if (!documentState) {
+      // Create a soft document during streaming so the editor can show progress
+      // without waiting for WebContainer file-watcher roundtrips.
+      this.documents.setKey(filePath, {
+        value: newContent,
+        filePath,
+        isBinary: false,
+      });
       return;
     }
 

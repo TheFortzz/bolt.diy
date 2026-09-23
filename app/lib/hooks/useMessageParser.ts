@@ -3,8 +3,13 @@ import { useCallback, useState } from 'react';
 import { StreamingMessageParser } from '~/lib/runtime/message-parser';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { createScopedLogger } from '~/utils/logger';
+import { throttle } from '~/utils/throttle';
 
 const logger = createScopedLogger('useMessageParser');
+
+const throttledStreamAction = throttle((data: Parameters<typeof workbenchStore.runAction>[0]) => {
+  workbenchStore.runAction(data, true);
+}, 120);
 
 const messageParser = new StreamingMessageParser({
   callbacks: {
@@ -34,11 +39,12 @@ const messageParser = new StreamingMessageParser({
         workbenchStore.addAction(data);
       }
 
+      // Final write — bypass stream throttle so the complete file lands in WebContainer.
       workbenchStore.runAction(data);
     },
     onActionStream: (data) => {
       logger.trace('onActionStream', data.action);
-      workbenchStore.runAction(data, true);
+      throttledStreamAction(data);
     },
   },
 });

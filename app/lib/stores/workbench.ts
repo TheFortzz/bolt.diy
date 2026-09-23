@@ -399,6 +399,16 @@ http.createServer((req, res) => {
       const wc = await getWebContainer();
       const fullPath = nodePath.join(wc.workdir, data.action.filePath);
 
+      // During streaming: editor-only updates (no WebContainer I/O) to avoid lag.
+      if (isStreaming) {
+        if (this.selectedFile.value !== fullPath) {
+          this.setSelectedFile(fullPath);
+        }
+
+        this.#editorStore.updateFile(fullPath, data.action.content);
+        return;
+      }
+
       if (this.selectedFile.value !== fullPath) {
         this.setSelectedFile(fullPath);
       }
@@ -407,21 +417,13 @@ http.createServer((req, res) => {
         this.currentView.set('code');
       }
 
-      const doc = this.#editorStore.documents.get()[fullPath];
-
-      if (!doc) {
-        await artifact.runner.runAction(data, isStreaming);
-      }
-
       this.#editorStore.updateFile(fullPath, data.action.content);
+      await artifact.runner.runAction(data);
 
-      if (!isStreaming) {
-        await artifact.runner.runAction(data);
-        const completedFiles = new Set(this.completedFiles.get());
-        completedFiles.add(fullPath);
-        this.completedFiles.set(completedFiles);
-        this.resetAllFileModifications();
-      }
+      const completedFiles = new Set(this.completedFiles.get());
+      completedFiles.add(fullPath);
+      this.completedFiles.set(completedFiles);
+      this.resetAllFileModifications();
     } else {
       await artifact.runner.runAction(data);
     }

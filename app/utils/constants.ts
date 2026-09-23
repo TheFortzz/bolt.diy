@@ -54,13 +54,13 @@ const PROVIDER_LIST: ProviderInfo[] = [
     staticModels: [
       {
         name: 'fortz-ai',
-        label: 'Fortz AI (GPT 4.1 Mini)',
+        label: 'Fortz AI (GPT 6 Luna)',
         provider: 'OpenAILike',
         maxTokenAllowed: 8000,
       },
       {
-        name: 'gpt-4.1-mini',
-        label: 'GPT 4.1 Mini',
+        name: 'gpt-6-luna',
+        label: 'GPT 6 Luna',
         provider: 'OpenAILike',
         maxTokenAllowed: 8000,
       },
@@ -425,22 +425,28 @@ async function getOpenAILikeModels(
       apiKey = apiKeys.OpenAILike;
     }
 
-    const response = await fetch(`${baseUrl}/models`, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
-    });
-    const res = (await response.json()) as any;
+    // Prefer static Fortz models — live /models listing is optional and often unavailable
+    // on Azure AI Foundry Responses deployments.
+    try {
+      const response = await fetch(`${baseUrl.replace(/\/responses\/?$/, '')}/models`, {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+      });
+      const res = (await response.json()) as any;
 
-    if (!res || !res.data || !Array.isArray(res.data)) {
-      return [];
+      if (res && res.data && Array.isArray(res.data)) {
+        return res.data.map((model: any) => ({
+          name: model.id,
+          label: model.id,
+          provider: 'OpenAILike',
+        }));
+      }
+    } catch (e) {
+      console.warn('Failed to get OpenAILike models:', e);
     }
 
-    return res.data.map((model: any) => ({
-      name: model.id,
-      label: model.id,
-      provider: 'OpenAILike',
-    }));
+    return [];
   } catch (e) {
     console.warn('Failed to get OpenAILike models:', e);
     return [];

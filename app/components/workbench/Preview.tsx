@@ -20,7 +20,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
   const activePreview = previews[activePreviewIndex];
 
   const fallbackHtml = useMemo(() => {
-    if (activePreview) {
+    if (activePreview || isStreaming) {
       return undefined;
     }
 
@@ -112,6 +112,15 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     }
 
     // 2. Process JS / TS files and replace matching <script> tags
+    const toClassicScript = (source: string) =>
+      source
+        .replace(/^\s*import\s+[\s\S]*?;\s*$/gm, '')
+        .replace(/^\s*export\s+default\s+/gm, '')
+        .replace(/^\s*export\s+(?:const|let|var|function|class|async\s+function)\s+/gm, (m) =>
+          m.replace(/^\s*export\s+/, ''),
+        )
+        .replace(/^\s*export\s*\{[\s\S]*?\};?\s*$/gm, '');
+
     for (const [filePath, dirent] of Object.entries(files)) {
       if (
         dirent?.type !== 'file' ||
@@ -131,7 +140,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       const prevJsBundled = bundled;
       bundled = bundled.replace(
         scriptRegex,
-        `<script type="module" data-file="${baseName}">\n${dirent.content}\n</script>`,
+        `<script data-file="${baseName}">\n${toClassicScript(dirent.content)}\n</script>`,
       );
       if (bundled !== prevJsBundled) {
         handledJs.add(filePath);
@@ -157,7 +166,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
           base === 'app.js' ||
           Object.keys(files).length < 6
         ) {
-          extraJs += `<script type="module" data-file="${base}">\n${dirent.content}\n</script>\n`;
+          extraJs += `<script data-file="${base}">\n${toClassicScript(dirent.content)}\n</script>\n`;
         }
       }
     }
@@ -168,6 +177,9 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
         bundled = bundled + extraJs;
       }
     }
+
+    // Also neutralize type=module on remaining inline scripts (blob preview has no module graph)
+    bundled = bundled.replace(/<script([^>]*?)\stype=["']module["']([^>]*)>/gi, '<script$1$2>');
 
     // 3. Neutralize any dangling local relative scripts or links that would 404 against the host
     bundled = bundled.replace(
@@ -180,13 +192,24 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     );
 
     return bundled;
-  }, [activePreview, files]);
+  }, [activePreview, files, isStreaming]);
 
   const stableFallbackHtml = isStreaming ? undefined : fallbackHtml;
 
   const fallbackSyntaxError = useMemo(() => {
     if (!stableFallbackHtml) {
       return undefined;
+    }
+
+    // Detect clearly truncated streams (raw HTML source / half-written files).
+    // Avoid `new Function` — it rejects valid modern JS modules and false-blocks previews.
+    const openHtml = (stableFallbackHtml.match(/<html\b/gi) || []).length;
+    const closeHtml = (stableFallbackHtml.match(/<\/html>/gi) || []).length;
+    const openScript = (stableFallbackHtml.match(/<script\b/gi) || []).length;
+    const closeScript = (stableFallbackHtml.match(/<\/script>/gi) || []).length;
+
+    if (openHtml > closeHtml || openScript > closeScript) {
+      return 'Generated markup is incomplete';
     }
 
     const scriptPattern = /<script([^>]*)>([\s\S]*?)<\/script>/gi;
@@ -200,16 +223,13 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
         continue;
       }
 
-      const source = script
-        .replace(/^\s*import[\s\S]*?;\s*$/gm, '')
-        .replace(/^\s*export\s+(default\s+)?/gm, '')
-        .replace(/^\s*export\s*\{[\s\S]*?\};?\s*$/gm, '');
+      const openBraces = (script.match(/\{/g) || []).length;
+      const closeBraces = (script.match(/\}/g) || []).length;
+      const openParens = (script.match(/\(/g) || []).length;
+      const closeParens = (script.match(/\)/g) || []).length;
 
-      try {
-        // Compile only; never execute generated preview code in the parent window.
-        new Function(source);
-      } catch (error) {
-        return error instanceof SyntaxError ? error.message : 'Generated script is invalid';
+      if (openBraces > closeBraces + 1 || openParens > closeParens + 1) {
+        return 'Generated script is incomplete';
       }
     }
 
@@ -218,6 +238,34 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
 
   const [url, setUrl] = useState('');
   const [iframeUrl, setIframeUrl] = useState<string | undefined>();
+  const [fallbackBlobUrl, setFallbackBlobUrl] = useState<string | undefined>();
+  const fallbackBlobUrlRef = useRef<string | undefined>();
+
+  // Serve fallback preview as a proper text/html blob so browsers render it
+  // instead of showing raw HTML source (srcDoc edge-cases / MIME issues).
+  useEffect(() => {
+    if (fallbackBlobUrlRef.current) {
+      URL.revokeObjectURL(fallbackBlobUrlRef.current);
+      fallbackBlobUrlRef.current = undefined;
+    }
+
+    if (!stableFallbackHtml || fallbackSyntaxError || activePreview) {
+      setFallbackBlobUrl(undefined);
+      return;
+    }
+
+    const blob = new Blob([stableFallbackHtml], { type: 'text/html;charset=utf-8' });
+    const objectUrl = URL.createObjectURL(blob);
+    fallbackBlobUrlRef.current = objectUrl;
+    setFallbackBlobUrl(objectUrl);
+
+    return () => {
+      if (fallbackBlobUrlRef.current) {
+        URL.revokeObjectURL(fallbackBlobUrlRef.current);
+        fallbackBlobUrlRef.current = undefined;
+      }
+    };
+  }, [stableFallbackHtml, fallbackSyntaxError, activePreview]);
 
   // Toggle between responsive mode and device mode
   const [isDeviceModeOn, setIsDeviceModeOn] = useState(false);
@@ -241,14 +289,14 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       const { baseUrl } = activePreview;
       setUrl(baseUrl);
       setIframeUrl(baseUrl);
-    } else if (stableFallbackHtml) {
+    } else if (fallbackBlobUrl) {
       setUrl('http://localhost:5173/ (Live Game Preview)');
-      setIframeUrl(undefined);
+      setIframeUrl(fallbackBlobUrl);
     } else {
       setUrl('');
       setIframeUrl(undefined);
     }
-  }, [activePreview, stableFallbackHtml]);
+  }, [activePreview, fallbackBlobUrl]);
 
   const validateUrl = useCallback(
     (value: string) => {
@@ -286,10 +334,8 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
 
   const reloadPreview = () => {
     if (iframeRef.current) {
-      if (activePreview) {
+      if (activePreview || fallbackBlobUrl) {
         iframeRef.current.src = iframeRef.current.src;
-      } else if (stableFallbackHtml && !fallbackSyntaxError) {
-        iframeRef.current.srcdoc = stableFallbackHtml;
       }
     }
   };
@@ -483,18 +529,12 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
             display: 'flex',
           }}
         >
-          {activePreview ? (
+          {activePreview || (fallbackBlobUrl && !fallbackSyntaxError) ? (
             <iframe
               ref={iframeRef}
               className="border-none w-full h-full bg-white"
               src={iframeUrl}
-              allow="cross-origin-isolated; autoplay; camera; microphone; clipboard-write; clipboard-read; fullscreen; encrypted-media; display-capture; geolocation"
-            />
-          ) : stableFallbackHtml && !fallbackSyntaxError ? (
-            <iframe
-              ref={iframeRef}
-              className="border-none w-full h-full bg-white"
-              srcDoc={stableFallbackHtml}
+              sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-pointer-lock"
               allow="cross-origin-isolated; autoplay; camera; microphone; clipboard-write; clipboard-read; fullscreen; encrypted-media; display-capture; geolocation"
             />
           ) : (

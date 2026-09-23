@@ -82,6 +82,8 @@ export function shouldUseSimplifiedPrompt(model: string, modelInfo?: ModelInfo):
   if (
     modelLower.includes('fortz') ||
     modelLower.includes('gpt-4.1') ||
+    modelLower.includes('gpt-6-luna') ||
+    modelLower.includes('luna') ||
     modelLower.includes('gpt-oss') ||
     modelLower.includes('openailike')
   ) {

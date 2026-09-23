@@ -12,6 +12,7 @@ import { createMistral } from '@ai-sdk/mistral';
 import { createCohere } from '@ai-sdk/cohere';
 import type { LanguageModelV1 } from 'ai';
 import type { IProviderSetting } from '~/types/model';
+import { createAzureResponsesModel, FORTZ_DEPLOYMENT_MODEL } from '~/lib/.server/llm/azure-responses-model';
 
 export const DEFAULT_NUM_CTX = process.env.DEFAULT_NUM_CTX ? parseInt(process.env.DEFAULT_NUM_CTX, 10) : 32768;
 
@@ -163,10 +164,18 @@ export function getModel(
       return getGoogleModel(apiKey, model);
     case 'OpenAILike': {
       const targetModel =
-        model === 'fortz-ai' || model === 'Fortz AI' || model === 'gpt-oss-120b' || !model
-          ? 'gpt-4.1-mini'
-          : model;
-      return getOpenAILikeModel(baseURL, apiKey, targetModel);
+        model === 'fortz-ai' ||
+        model === 'Fortz AI' ||
+        model === 'gpt-6-luna' ||
+        model === 'gpt-oss-120b' ||
+        !model
+          ? FORTZ_DEPLOYMENT_MODEL
+          : model === 'gpt-4.1-mini'
+            ? FORTZ_DEPLOYMENT_MODEL
+            : model;
+
+      // Use Azure Responses API (not legacy chat/completions) for Fortz AI.
+      return createAzureResponsesModel(apiKey || '', targetModel);
     }
     case 'Together':
       return getOpenAILikeModel(baseURL, apiKey, model);
