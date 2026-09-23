@@ -75,16 +75,17 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
   };
 
   useEffect(() => {
-    if (hasPreview) {
+    // Prefer Code while the AI is writing files; flip to Preview only when a live server exists.
+    if (hasPreview && !isStreaming) {
       setSelectedView('preview');
     }
-  }, [hasPreview]);
+  }, [hasPreview, isStreaming]);
 
   useEffect(() => {
-    if (showWorkbench) {
-      setSelectedView('preview');
+    if (showWorkbench && isStreaming) {
+      setSelectedView('code');
     }
-  }, [showWorkbench]);
+  }, [showWorkbench, isStreaming]);
 
   useEffect(() => {
     workbenchStore.setDocuments(files);

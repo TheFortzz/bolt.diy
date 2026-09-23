@@ -137,6 +137,19 @@ export function useChatHistory() {
       const effectiveId = (chatId.get() || activeUrlId) as string;
       const effectiveUrlId = activeUrlId || effectiveId;
       await setMessages(activeDb, effectiveId, messages, effectiveUrlId, currentDesc || 'Project ' + effectiveId);
+
+      // Cloud backup to Appwrite (best-effort)
+      try {
+        const { upsertStudioChat } = await import('./appwrite-chats');
+        await upsertStudioChat({
+          chatId: effectiveId,
+          urlId: effectiveUrlId,
+          description: currentDesc || 'Project ' + effectiveId,
+          messages,
+        });
+      } catch (e) {
+        console.warn('Appwrite chat sync skipped:', e);
+      }
     },
     duplicateCurrentChat: async (listItemId: string) => {
       const activeDb = db || (await dbPromise);

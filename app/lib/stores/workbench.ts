@@ -405,6 +405,10 @@ http.createServer((req, res) => {
           this.setSelectedFile(fullPath);
         }
 
+        if (this.currentView.value !== 'code') {
+          this.currentView.set('code');
+        }
+
         this.#editorStore.updateFile(fullPath, data.action.content);
         this.#filesStore.files.setKey(fullPath, {
           type: 'file',

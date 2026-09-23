@@ -62,7 +62,21 @@ export class StreamingMessageParser {
   constructor(private _options: StreamingMessageParserOptions = {}) {}
 
   parse(messageId: string, input: string) {
+    // Unwrap ``` fences the model sometimes wraps around <boltArtifact> so files
+    // land in the Studio workbench instead of rendering as chat code blocks.
+    const cleaned = input
+      .replace(/```(?:xml|html|bolt|tsx?|jsx?|javascript|typescript)?\s*(?=<boltArtifact\b)/gi, '')
+      .replace(/(<\/boltArtifact>)\s*```/gi, '$1');
+
     let state = this.#messages.get(messageId);
+
+    // If cleaning shortened content behind our cursor, reparse this message cleanly.
+    if (state && cleaned.length < state.position) {
+      this.#messages.delete(messageId);
+      state = undefined;
+    }
+
+    input = cleaned;
 
     if (!state) {
       state = {

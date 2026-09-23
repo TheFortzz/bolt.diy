@@ -375,9 +375,18 @@ export const ChatImpl = memo(
             return message;
           }
 
+          const parsed = parsedMessages[i];
+          // While streaming, keep showing prior parsed content rather than flashing empty/raw dumps.
+          const content =
+            typeof parsed === 'string' && parsed.length > 0
+              ? parsed
+              : typeof message.content === 'string' && !message.content.includes('<boltArtifact')
+                ? message.content
+                : parsed || '';
+
           return {
             ...message,
-            content: parsedMessages[i] || '',
+            content,
           };
         })}
         enhancePrompt={() => {
