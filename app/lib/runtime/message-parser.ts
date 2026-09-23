@@ -62,11 +62,25 @@ export class StreamingMessageParser {
   constructor(private _options: StreamingMessageParserOptions = {}) {}
 
   parse(messageId: string, input: string) {
-    // Unwrap ``` fences the model sometimes wraps around <boltArtifact> so files
-    // land in the Studio workbench instead of rendering as chat code blocks.
+    // Normalise common model hallucinations before doing anything else.
+    // 1. Strip ``` fences around boltArtifact blocks.
+    // 2. Convert square-bracket tag variants the model sometimes emits:
+    //    [boltArtifact ...] → <boltArtifact ...>
+    //    [boltAction ...] → <boltAction ...>
+    //    [/boltArtifact] → </boltArtifact>
+    //    [/boltAction] → </boltAction>
+    // 3. Fix type=file (no quotes) → type="file", filePath=foo → filePath="foo"
     const cleaned = input
       .replace(/```(?:xml|html|bolt|tsx?|jsx?|javascript|typescript)?\s*(?=<boltArtifact\b)/gi, '')
-      .replace(/(<\/boltArtifact>)\s*```/gi, '$1');
+      .replace(/(<\/boltArtifact>)\s*```/gi, '$1')
+      // square-bracket open tags: [boltArtifact ...] and [boltAction ...]
+      .replace(/\[boltArtifact(\s[^\]]*?)?\]/gi, (_, attrs = '') => `<boltArtifact${attrs}>`)
+      .replace(/\[boltAction(\s[^\]]*?)?\]/gi, (_, attrs = '') => `<boltAction${attrs}>`)
+      // square-bracket close tags
+      .replace(/\[\/boltArtifact\]/gi, '</boltArtifact>')
+      .replace(/\[\/boltAction\]/gi, '</boltAction>')
+      // unquoted attribute values: type=file → type="file", filePath=foo.js → filePath="foo.js"
+      .replace(/\b(type|filePath|id|title)=([^\s"'>]+)/gi, (_, k, v) => `${k}="${v}"`);
 
     let state = this.#messages.get(messageId);
 
