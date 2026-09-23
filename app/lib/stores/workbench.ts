@@ -174,6 +174,26 @@ export class WorkbenchStore {
     this.#editorStore.setSelectedFile(filePath);
   }
 
+  async createFile(filePath: string, content = '') {
+    const absolutePath = await this.#filesStore.createFile(filePath, content);
+    this.setSelectedFile(absolutePath);
+    return absolutePath;
+  }
+
+  async createFolder(folderPath: string) {
+    return this.#filesStore.createFolder(folderPath);
+  }
+
+  async uploadFiles(fileList: FileList | File[], targetFolder?: string) {
+    const created = await this.#filesStore.uploadFiles(fileList, targetFolder);
+
+    if (created.length > 0) {
+      this.setSelectedFile(created[0]);
+    }
+
+    return created;
+  }
+
   async saveFile(filePath: string) {
     const documents = this.#editorStore.documents.get();
     const document = documents[filePath];

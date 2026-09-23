@@ -1,6 +1,7 @@
 import { useStore } from '@nanostores/react';
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useRef } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+import { toast } from 'react-toastify';
 import {
   CodeMirrorEditor,
   type EditorDocument,
@@ -9,6 +10,7 @@ import {
   type OnSaveCallback as OnEditorSave,
   type OnScrollCallback as OnEditorScroll,
 } from '~/components/editor/codemirror/CodeMirrorEditor';
+import { IconButton } from '~/components/ui/IconButton';
 import { PanelHeader } from '~/components/ui/PanelHeader';
 import { PanelHeaderButton } from '~/components/ui/PanelHeaderButton';
 import type { FileMap } from '~/lib/stores/files';
@@ -39,6 +41,14 @@ const DEFAULT_EDITOR_SIZE = 100 - DEFAULT_TERMINAL_SIZE;
 
 const editorSettings: EditorSettings = { tabSize: 2 };
 
+function parentFolderOf(selectedFile?: string) {
+  if (!selectedFile) return WORK_DIR;
+  const parts = selectedFile.replace(/\/+$/, '').split('/');
+  parts.pop();
+  const parent = parts.join('/');
+  return parent || WORK_DIR;
+}
+
 export const EditorPanel = memo(
   ({
     files,
@@ -57,6 +67,7 @@ export const EditorPanel = memo(
 
     const theme = useStore(themeStore);
     const showTerminal = useStore(workbenchStore.showTerminal);
+    const uploadInputRef = useRef<HTMLInputElement>(null);
 
     const activeFileSegments = useMemo(() => {
       if (!editorDocument) {
@@ -70,14 +81,92 @@ export const EditorPanel = memo(
       return editorDocument !== undefined && unsavedFiles?.has(editorDocument.filePath);
     }, [editorDocument, unsavedFiles]);
 
+    const handleAddFile = async () => {
+      const folder = parentFolderOf(selectedFile);
+      const name = window.prompt('New file name', 'untitled.js');
+      if (!name?.trim()) return;
+
+      try {
+        const path = await workbenchStore.createFile(`${folder}/${name.trim()}`, '');
+        onFileSelect?.(path);
+        toast.success(`Created ${name.trim()}`);
+      } catch (err: any) {
+        toast.error(err?.message || 'Failed to create file');
+      }
+    };
+
+    const handleAddFolder = async () => {
+      const folder = parentFolderOf(selectedFile);
+      const name = window.prompt('New folder name', 'new-folder');
+      if (!name?.trim()) return;
+
+      try {
+        await workbenchStore.createFolder(`${folder}/${name.trim()}`);
+        toast.success(`Created folder ${name.trim()}`);
+      } catch (err: any) {
+        toast.error(err?.message || 'Failed to create folder');
+      }
+    };
+
+    const handleUploadClick = () => {
+      uploadInputRef.current?.click();
+    };
+
+    const handleUploadChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const list = event.target.files;
+      if (!list || list.length === 0) return;
+
+      try {
+        const created = await workbenchStore.uploadFiles(list, parentFolderOf(selectedFile));
+        if (created[0]) onFileSelect?.(created[0]);
+        toast.success(created.length === 1 ? 'File uploaded' : `${created.length} files uploaded`);
+      } catch (err: any) {
+        toast.error(err?.message || 'Upload failed');
+      } finally {
+        event.target.value = '';
+      }
+    };
+
     return (
       <PanelGroup direction="horizontal" className="h-full">
         {/* Files: full height down the left of the workspace */}
         <Panel defaultSize={22} minSize={12} collapsible>
           <div className="flex flex-col border-r border-bolt-elements-borderColor h-full min-h-0">
-            <PanelHeader>
-              <div className="i-ph:tree-structure-duotone shrink-0" />
-              Files
+            <PanelHeader className="justify-between gap-1 pr-1.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="i-ph:tree-structure-duotone shrink-0" />
+                <span className="truncate">Files</span>
+              </div>
+              <div className="flex items-center gap-0.5 shrink-0">
+                <IconButton
+                  title="Upload file"
+                  className="text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary"
+                  onClick={handleUploadClick}
+                >
+                  <div className="i-ph:upload-simple text-base" />
+                </IconButton>
+                <IconButton
+                  title="New File"
+                  className="text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary"
+                  onClick={handleAddFile}
+                >
+                  <div className="i-ph:file-plus text-base" />
+                </IconButton>
+                <IconButton
+                  title="New Folder"
+                  className="text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary"
+                  onClick={handleAddFolder}
+                >
+                  <div className="i-ph:folder-plus text-base" />
+                </IconButton>
+                <input
+                  ref={uploadInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={handleUploadChange}
+                />
+              </div>
             </PanelHeader>
             <div className="flex-1 min-h-0 overflow-auto">
               <FileTree

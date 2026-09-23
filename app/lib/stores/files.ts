@@ -80,6 +80,77 @@ export class FilesStore {
     this.#modifiedFiles.clear();
   }
 
+  #toAbsolutePath(filePath: string) {
+    if (filePath.startsWith(WORK_DIR)) {
+      return filePath.replace(/\/+$/g, '');
+    }
+
+    return nodePath.posix.join(WORK_DIR, filePath.replace(/^\/+/, '')).replace(/\/+$/g, '');
+  }
+
+  async createFile(filePath: string, content = '') {
+    const webcontainer = await this.#webcontainer;
+    const absolutePath = this.#toAbsolutePath(filePath);
+    const relativePath = nodePath.relative(webcontainer.workdir, absolutePath);
+
+    if (!relativePath || relativePath.startsWith('..')) {
+      throw new Error(`EINVAL: invalid file path, write '${filePath}'`);
+    }
+
+    const folder = nodePath.dirname(relativePath);
+
+    if (folder && folder !== '.') {
+      await webcontainer.fs.mkdir(folder, { recursive: true });
+    }
+
+    await webcontainer.fs.writeFile(relativePath, content);
+    this.#size++;
+    this.files.setKey(absolutePath, { type: 'file', content, isBinary: false });
+
+    return absolutePath;
+  }
+
+  async createFolder(folderPath: string) {
+    const webcontainer = await this.#webcontainer;
+    const absolutePath = this.#toAbsolutePath(folderPath);
+    const relativePath = nodePath.relative(webcontainer.workdir, absolutePath);
+
+    if (!relativePath || relativePath.startsWith('..')) {
+      throw new Error(`EINVAL: invalid folder path, mkdir '${folderPath}'`);
+    }
+
+    await webcontainer.fs.mkdir(relativePath, { recursive: true });
+    this.files.setKey(absolutePath, { type: 'folder' });
+
+    return absolutePath;
+  }
+
+  async uploadFiles(fileList: FileList | File[], targetFolder?: string) {
+    const created: string[] = [];
+    const base = targetFolder ? this.#toAbsolutePath(targetFolder) : WORK_DIR;
+
+    for (const file of Array.from(fileList)) {
+      const absolutePath = this.#toAbsolutePath(nodePath.posix.join(base, file.name));
+      const buffer = new Uint8Array(await file.arrayBuffer());
+      const isBinary = isBinaryFile(buffer);
+      const content = isBinary ? '' : this.#decodeFileContent(buffer);
+      const webcontainer = await this.#webcontainer;
+      const relativePath = nodePath.relative(webcontainer.workdir, absolutePath);
+      const folder = nodePath.dirname(relativePath);
+
+      if (folder && folder !== '.') {
+        await webcontainer.fs.mkdir(folder, { recursive: true });
+      }
+
+      await webcontainer.fs.writeFile(relativePath, isBinary ? buffer : content);
+      this.#size++;
+      this.files.setKey(absolutePath, { type: 'file', content: isBinary ? '' : content, isBinary });
+      created.push(absolutePath);
+    }
+
+    return created;
+  }
+
   async saveFile(filePath: string, content: string) {
     const webcontainer = await this.#webcontainer;
 
