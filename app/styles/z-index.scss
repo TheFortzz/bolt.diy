@@ -17,7 +17,12 @@ $zIndexMax: 999;
 }
 
 .z-prompt {
-  z-index: 2;
+  /* Keep chat input above the fixed workbench so it never gets buried */
+  z-index: 20;
+}
+
+.z-chat {
+  z-index: 10;
 }
 
 .z-workbench {

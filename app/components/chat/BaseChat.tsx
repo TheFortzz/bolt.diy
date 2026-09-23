@@ -412,32 +412,32 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
           '--chat-compact-width': `${chatCompactWidth}px`,
           '--workbench-inner-width': isSmallViewport
             ? '100%'
-            : `calc(100% - ${sidebarWidth}px - ${chatCompactWidth}px - 0.75rem)`,
+            : `calc(100% - ${sidebarWidth}px - ${chatCompactWidth}px - 1.1rem)`,
           '--workbench-left': isSmallViewport
             ? '0px'
-            : `${sidebarWidth + chatCompactWidth}px`,
+            : `${sidebarWidth + chatCompactWidth + 6}px`,
         } as React.CSSProperties}
       >
         <ClientOnly>{() => <Menu />}</ClientOnly>
         <div
           ref={scrollRef}
           className={classNames(
-            'flex flex-row overflow-y-auto w-full h-full transition-[padding] duration-200 ease-in-out',
+            'flex flex-row overflow-hidden w-full h-full transition-[padding] duration-200 ease-in-out',
             sidebarOpen ? 'pl-[200px]' : 'pl-[54px]',
           )}
         >
           <div
             className={classNames(
               styles.Chat,
-              'flex flex-col min-h-full relative transition-[width,max-width] duration-200 ease-in-out',
+              'z-chat flex flex-col h-full min-h-0 relative transition-[width,max-width] duration-200 ease-in-out',
               isWorkbenchActive
                 ? 'w-[420px] max-w-[420px] min-w-[420px] flex-shrink-0 border-r border-purple-500/20'
-                : 'w-full flex-grow',
+                : 'w-full flex-grow overflow-y-auto',
             )}
           >
             <div
-              className={classNames('pt-2 px-2 sm:px-4 flex-1 flex flex-col', {
-                'min-h-full': chatStarted,
+              className={classNames('pt-2 px-2 sm:px-4 flex-1 flex flex-col min-h-0', {
+                'h-full': isWorkbenchActive || chatStarted,
                 'justify-end': isWorkbenchActive && !chatStarted,
                 'justify-center items-center my-auto pb-10 sm:pb-16': !chatStarted && !isWorkbenchActive,
               })}
@@ -448,7 +448,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     <Messages
                       ref={messageRef}
                       className={classNames(
-                        'flex flex-col w-full flex-1 pb-4 mx-auto z-1',
+                        'flex flex-col w-full flex-1 min-h-0 overflow-y-auto pb-4 mx-auto z-1',
                         isWorkbenchActive ? 'max-w-full px-1' : 'max-w-[52rem]',
                       )}
                       messages={messages}
@@ -477,9 +477,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
 
               <div
                 className={classNames(
-                  'relative w-full mx-auto z-prompt mb-1 px-2 sm:px-0 transition-all duration-300',
+                  'relative w-full mx-auto z-prompt mb-1 px-2 sm:px-0 transition-all duration-300 flex-shrink-0',
                   {
-                    'sticky bottom-1': chatStarted,
                     'mt-auto': isWorkbenchActive && !chatStarted,
                   },
                 )}

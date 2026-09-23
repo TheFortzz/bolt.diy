@@ -71,65 +71,71 @@ export const EditorPanel = memo(
     }, [editorDocument, unsavedFiles]);
 
     return (
-      <PanelGroup direction="vertical">
-        <Panel defaultSize={showTerminal ? DEFAULT_EDITOR_SIZE : 100} minSize={20}>
-          <PanelGroup direction="horizontal">
-            <Panel defaultSize={20} minSize={10} collapsible>
-              <div className="flex flex-col border-r border-bolt-elements-borderColor h-full">
-                <PanelHeader>
-                  <div className="i-ph:tree-structure-duotone shrink-0" />
-                  Files
+      <PanelGroup direction="horizontal" className="h-full">
+        {/* Files: full height down the left of the workspace */}
+        <Panel defaultSize={22} minSize={12} collapsible>
+          <div className="flex flex-col border-r border-bolt-elements-borderColor h-full min-h-0">
+            <PanelHeader>
+              <div className="i-ph:tree-structure-duotone shrink-0" />
+              Files
+            </PanelHeader>
+            <div className="flex-1 min-h-0 overflow-auto">
+              <FileTree
+                className="h-full"
+                files={files}
+                hideRoot
+                unsavedFiles={unsavedFiles}
+                completedFiles={completedFiles}
+                rootFolder={WORK_DIR}
+                selectedFile={selectedFile}
+                onFileSelect={onFileSelect}
+              />
+            </div>
+          </div>
+        </Panel>
+        <PanelResizeHandle />
+        {/* Editor + Terminal stacked on the right */}
+        <Panel defaultSize={78} minSize={30}>
+          <PanelGroup direction="vertical" className="h-full">
+            <Panel defaultSize={showTerminal ? DEFAULT_EDITOR_SIZE : 100} minSize={20}>
+              <div className="flex flex-col h-full min-h-0">
+                <PanelHeader className="overflow-x-auto">
+                  {activeFileSegments?.length && (
+                    <div className="flex items-center flex-1 text-sm">
+                      <FileBreadcrumb pathSegments={activeFileSegments} files={files} onFileSelect={onFileSelect} />
+                      {activeFileUnsaved && (
+                        <div className="flex gap-1 ml-auto -mr-1.5">
+                          <PanelHeaderButton onClick={onFileSave}>
+                            <div className="i-ph:floppy-disk-duotone" />
+                            Save
+                          </PanelHeaderButton>
+                          <PanelHeaderButton onClick={onFileReset}>
+                            <div className="i-ph:clock-counter-clockwise-duotone" />
+                            Reset
+                          </PanelHeaderButton>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </PanelHeader>
-                <FileTree
-                  className="h-full"
-                  files={files}
-                  hideRoot
-                  unsavedFiles={unsavedFiles}
-                  completedFiles={completedFiles}
-                  rootFolder={WORK_DIR}
-                  selectedFile={selectedFile}
-                  onFileSelect={onFileSelect}
-                />
+                <div className="h-full flex-1 overflow-hidden min-h-0">
+                  <CodeMirrorEditor
+                    theme={theme}
+                    editable={!isStreaming && editorDocument !== undefined}
+                    settings={editorSettings}
+                    doc={editorDocument}
+                    autoFocusOnDocumentChange={!isMobile()}
+                    onScroll={onEditorScroll}
+                    onChange={onEditorChange}
+                    onSave={onFileSave}
+                  />
+                </div>
               </div>
             </Panel>
             <PanelResizeHandle />
-            <Panel className="flex flex-col" defaultSize={80} minSize={20}>
-              <PanelHeader className="overflow-x-auto">
-                {activeFileSegments?.length && (
-                  <div className="flex items-center flex-1 text-sm">
-                    <FileBreadcrumb pathSegments={activeFileSegments} files={files} onFileSelect={onFileSelect} />
-                    {activeFileUnsaved && (
-                      <div className="flex gap-1 ml-auto -mr-1.5">
-                        <PanelHeaderButton onClick={onFileSave}>
-                          <div className="i-ph:floppy-disk-duotone" />
-                          Save
-                        </PanelHeaderButton>
-                        <PanelHeaderButton onClick={onFileReset}>
-                          <div className="i-ph:clock-counter-clockwise-duotone" />
-                          Reset
-                        </PanelHeaderButton>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </PanelHeader>
-              <div className="h-full flex-1 overflow-hidden">
-                <CodeMirrorEditor
-                  theme={theme}
-                  editable={!isStreaming && editorDocument !== undefined}
-                  settings={editorSettings}
-                  doc={editorDocument}
-                  autoFocusOnDocumentChange={!isMobile()}
-                  onScroll={onEditorScroll}
-                  onChange={onEditorChange}
-                  onSave={onFileSave}
-                />
-              </div>
-            </Panel>
+            <TerminalTabs />
           </PanelGroup>
         </Panel>
-        <PanelResizeHandle />
-        <TerminalTabs />
       </PanelGroup>
     );
   },
