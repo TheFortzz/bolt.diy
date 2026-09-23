@@ -32,28 +32,36 @@ export class EditorStore {
   setDocuments(files: FileMap) {
     const previousDocuments = this.documents.value;
 
-    this.documents.set(
-      Object.fromEntries<EditorDocument>(
-        Object.entries(files)
-          .map(([filePath, dirent]) => {
-            if (dirent === undefined || dirent.type === 'folder') {
-              return undefined;
-            }
+    const nextDocuments = Object.fromEntries<EditorDocument>(
+      Object.entries(files)
+        .map(([filePath, dirent]) => {
+          if (dirent === undefined || dirent.type === 'folder') {
+            return undefined;
+          }
 
-            const previousDocument = previousDocuments?.[filePath];
+          const previousDocument = previousDocuments?.[filePath];
 
-            return [
+          return [
+            filePath,
+            {
+              value: dirent.content,
               filePath,
-              {
-                value: dirent.content,
-                filePath,
-                scroll: previousDocument?.scroll,
-              },
-            ] as [string, EditorDocument];
-          })
-          .filter(Boolean) as Array<[string, EditorDocument]>,
-      ),
+              isBinary: dirent.isBinary,
+              scroll: previousDocument?.scroll,
+            },
+          ] as [string, EditorDocument];
+        })
+        .filter(Boolean) as Array<[string, EditorDocument]>,
     );
+
+    // Keep soft streaming documents that aren't in the WebContainer file map yet.
+    for (const [filePath, doc] of Object.entries(previousDocuments || {})) {
+      if (!nextDocuments[filePath] && doc && !doc.isBinary) {
+        nextDocuments[filePath] = doc;
+      }
+    }
+
+    this.documents.set(nextDocuments);
   }
 
   setSelectedFile(filePath: string | undefined) {

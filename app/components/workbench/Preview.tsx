@@ -20,13 +20,13 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
   const activePreview = previews[activePreviewIndex];
 
   const fallbackHtml = useMemo(() => {
-    if (activePreview || isStreaming) {
+    if (activePreview) {
       return undefined;
     }
 
     let htmlContent: string | undefined;
     for (const [path, dirent] of Object.entries(files)) {
-      if (dirent?.type === 'file' && dirent.content && (path.endsWith('/index.html') || path === 'index.html')) {
+      if (dirent?.type === 'file' && dirent.content && (path.endsWith('/index.html') || path === 'index.html' || path.endsWith('index.html'))) {
         htmlContent = dirent.content;
         break;
       }
@@ -192,30 +192,26 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     );
 
     return bundled;
-  }, [activePreview, files, isStreaming]);
+  }, [activePreview, files]);
 
-  const stableFallbackHtml = isStreaming ? undefined : fallbackHtml;
-
-  const fallbackSyntaxError = useMemo(() => {
-    if (!stableFallbackHtml) {
-      return undefined;
+  const fallbackIncomplete = useMemo(() => {
+    if (!fallbackHtml) {
+      return false;
     }
 
-    // Detect clearly truncated streams (raw HTML source / half-written files).
-    // Avoid `new Function` — it rejects valid modern JS modules and false-blocks previews.
-    const openHtml = (stableFallbackHtml.match(/<html\b/gi) || []).length;
-    const closeHtml = (stableFallbackHtml.match(/<\/html>/gi) || []).length;
-    const openScript = (stableFallbackHtml.match(/<script\b/gi) || []).length;
-    const closeScript = (stableFallbackHtml.match(/<\/script>/gi) || []).length;
+    const openHtml = (fallbackHtml.match(/<html\b/gi) || []).length;
+    const closeHtml = (fallbackHtml.match(/<\/html>/gi) || []).length;
+    const openScript = (fallbackHtml.match(/<script\b/gi) || []).length;
+    const closeScript = (fallbackHtml.match(/<\/script>/gi) || []).length;
 
     if (openHtml > closeHtml || openScript > closeScript) {
-      return 'Generated markup is incomplete';
+      return true;
     }
 
     const scriptPattern = /<script([^>]*)>([\s\S]*?)<\/script>/gi;
     let match: RegExpExecArray | null;
 
-    while ((match = scriptPattern.exec(stableFallbackHtml))) {
+    while ((match = scriptPattern.exec(fallbackHtml))) {
       const attributes = match[1] || '';
       const script = match[2] || '';
 
@@ -229,12 +225,32 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       const closeParens = (script.match(/\)/g) || []).length;
 
       if (openBraces > closeBraces + 1 || openParens > closeParens + 1) {
-        return 'Generated script is incomplete';
+        return true;
       }
     }
 
-    return undefined;
-  }, [stableFallbackHtml]);
+    return false;
+  }, [fallbackHtml]);
+
+  // Keep last good preview while AI is streaming incomplete files.
+  const lastGoodHtmlRef = useRef<string | undefined>();
+  const displayFallbackHtml = useMemo(() => {
+    if (activePreview) {
+      return undefined;
+    }
+
+    if (fallbackHtml && !fallbackIncomplete) {
+      lastGoodHtmlRef.current = fallbackHtml;
+      return fallbackHtml;
+    }
+
+    // While AI works (or briefly incomplete), keep showing the last good build.
+    if (isStreaming || fallbackIncomplete) {
+      return lastGoodHtmlRef.current;
+    }
+
+    return fallbackHtml;
+  }, [activePreview, fallbackHtml, fallbackIncomplete, isStreaming]);
 
   const [url, setUrl] = useState('');
   const [iframeUrl, setIframeUrl] = useState<string | undefined>();
@@ -244,28 +260,43 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
   // Serve fallback preview as a proper text/html blob so browsers render it
   // instead of showing raw HTML source (srcDoc edge-cases / MIME issues).
   useEffect(() => {
+    if (!displayFallbackHtml || activePreview) {
+      return;
+    }
+
     if (fallbackBlobUrlRef.current) {
       URL.revokeObjectURL(fallbackBlobUrlRef.current);
       fallbackBlobUrlRef.current = undefined;
     }
 
-    if (!stableFallbackHtml || fallbackSyntaxError || activePreview) {
-      setFallbackBlobUrl(undefined);
-      return;
-    }
-
-    const blob = new Blob([stableFallbackHtml], { type: 'text/html;charset=utf-8' });
+    const blob = new Blob([displayFallbackHtml], { type: 'text/html;charset=utf-8' });
     const objectUrl = URL.createObjectURL(blob);
     fallbackBlobUrlRef.current = objectUrl;
     setFallbackBlobUrl(objectUrl);
 
     return () => {
+      if (fallbackBlobUrlRef.current === objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+        fallbackBlobUrlRef.current = undefined;
+      }
+    };
+  }, [displayFallbackHtml, activePreview]);
+
+  // Clear cached blob when project is empty and idle.
+  useEffect(() => {
+    const hasFiles = Object.values(files).some((d) => d?.type === 'file' && Boolean(d.content));
+
+    if (!hasFiles && !isStreaming && !activePreview) {
+      lastGoodHtmlRef.current = undefined;
+
       if (fallbackBlobUrlRef.current) {
         URL.revokeObjectURL(fallbackBlobUrlRef.current);
         fallbackBlobUrlRef.current = undefined;
       }
-    };
-  }, [stableFallbackHtml, fallbackSyntaxError, activePreview]);
+
+      setFallbackBlobUrl(undefined);
+    }
+  }, [files, isStreaming, activePreview]);
 
   // Toggle between responsive mode and device mode
   const [isDeviceModeOn, setIsDeviceModeOn] = useState(false);
@@ -529,24 +560,40 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
             display: 'flex',
           }}
         >
-          {activePreview || (fallbackBlobUrl && !fallbackSyntaxError) ? (
-            <iframe
-              ref={iframeRef}
-              className="border-none w-full h-full bg-white"
-              src={iframeUrl}
-              sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-pointer-lock"
-              allow="cross-origin-isolated; autoplay; camera; microphone; clipboard-write; clipboard-read; fullscreen; encrypted-media; display-capture; geolocation"
-            />
-          ) : (
+          {activePreview || fallbackBlobUrl ? (
+            <>
+              <iframe
+                ref={iframeRef}
+                className="border-none w-full h-full bg-white"
+                src={iframeUrl}
+                sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-pointer-lock"
+                allow="cross-origin-isolated; autoplay; camera; microphone; clipboard-write; clipboard-read; fullscreen; encrypted-media; display-capture; geolocation"
+              />
+              {isStreaming && (
+                <div className="absolute top-3 right-3 z-10 flex items-center gap-2 px-3 py-1.5 bg-[#0c1f36]/95 border border-[#38bdf8]/40 text-sky-200 text-xs font-semibold shadow-lg select-none">
+                  <span className="w-3.5 h-3.5 border-2 border-sky-300 border-t-transparent rounded-full animate-spin" />
+                  AI updating…
+                </div>
+              )}
+            </>
+          ) : isStreaming ? (
             <div className="flex flex-col w-full h-full justify-center items-center bg-[#0d1527] text-slate-300 gap-3 p-6 text-center select-none">
               <div className="w-10 h-10 border-2 border-[#38bdf8] border-t-transparent animate-spin rounded-full" />
-              <div className="text-sm font-semibold text-white">
-                {fallbackSyntaxError ? 'Waiting for valid game code' : 'Starting Game Preview…'}
-              </div>
+              <div className="text-sm font-semibold text-white">AI is building your game…</div>
               <div className="text-xs text-slate-400 max-w-sm">
-                {fallbackSyntaxError
-                  ? 'The latest AI edit is incomplete, so the preview is paused until the file is valid.'
-                  : 'Generating game code and launching preview server. Your game will appear here automatically.'}
+                Preview will appear here as soon as the first playable files are ready.
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col w-full h-full justify-center items-center bg-[#0d1527] text-slate-300 gap-4 p-6 text-center select-none">
+              <div className="w-14 h-14 border border-[#38bdf8]/35 bg-[#0c1f36] flex items-center justify-center">
+                <div className="i-ph:play-circle text-3xl text-[#38bdf8]" />
+              </div>
+              <div className="space-y-1.5">
+                <div className="text-sm font-semibold text-white">Preview ready</div>
+                <div className="text-xs text-slate-400 max-w-sm leading-relaxed">
+                  Describe a game in chat and Fortz AI will build it here. No loading until generation starts.
+                </div>
               </div>
             </div>
           )}

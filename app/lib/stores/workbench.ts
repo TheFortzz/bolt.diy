@@ -399,13 +399,18 @@ http.createServer((req, res) => {
       const wc = await getWebContainer();
       const fullPath = nodePath.join(wc.workdir, data.action.filePath);
 
-      // During streaming: editor-only updates (no WebContainer I/O) to avoid lag.
+      // During streaming: in-memory updates only (no WebContainer I/O) to avoid lag.
       if (isStreaming) {
         if (this.selectedFile.value !== fullPath) {
           this.setSelectedFile(fullPath);
         }
 
         this.#editorStore.updateFile(fullPath, data.action.content);
+        this.#filesStore.files.setKey(fullPath, {
+          type: 'file',
+          content: data.action.content,
+          isBinary: false,
+        });
         return;
       }
 
