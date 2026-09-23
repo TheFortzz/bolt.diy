@@ -291,9 +291,12 @@ export class WorkbenchStore {
     if (this.#staticServerStarted) {
       return;
     }
+    this.#staticServerStarted = true;
     try {
-      this.#staticServerStarted = true;
-      const wc = await getWebContainer();
+      const wc = await Promise.race([
+        getWebContainer(),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('WC timeout')), 15000)),
+      ]);
       const serveCode = `
 const http = require('http');
 const fs = require('fs');

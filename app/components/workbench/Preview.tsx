@@ -298,6 +298,35 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     }
   }, [files, isStreaming, activePreview]);
 
+  // After streaming ends, if no vite/npm preview appeared within 4 s, force the
+  // static-server fallback so the game always becomes visible.
+  const postStreamTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (postStreamTimerRef.current) {
+      clearTimeout(postStreamTimerRef.current);
+      postStreamTimerRef.current = null;
+    }
+
+    if (!isStreaming && !activePreview) {
+      const hasHtml = Object.values(files).some(
+        (d) => d?.type === 'file' && Boolean(d.content) && (d.content.includes('<!DOCTYPE') || d.content.includes('<html')),
+      );
+      if (hasHtml) {
+        postStreamTimerRef.current = setTimeout(() => {
+          // Poke the workbench to kick the static server if it hasn't started yet
+          workbenchStore.startStaticPreviewServer().catch(() => {});
+        }, 4000);
+      }
+    }
+
+    return () => {
+      if (postStreamTimerRef.current) {
+        clearTimeout(postStreamTimerRef.current);
+        postStreamTimerRef.current = null;
+      }
+    };
+  }, [isStreaming, activePreview, files]);
+
   // Toggle between responsive mode and device mode
   const [isDeviceModeOn, setIsDeviceModeOn] = useState(false);
 
