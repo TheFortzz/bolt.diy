@@ -6,7 +6,7 @@ import { Databases, ID, Query, Permission, Role } from 'appwrite';
 import { getAppwriteClient, authStore } from '~/lib/auth/appwrite';
 import type { Message } from 'ai';
 
-export const STUDIO_CHATS_COLLECTION = 'studio_chats';
+export const STUDIO_CHATS_COLLECTION = '6ab390a600047e7f3e69';
 export const STUDIO_CHATS_DATABASE = 'fortz_db';
 
 function getDatabases(): Databases | null {
