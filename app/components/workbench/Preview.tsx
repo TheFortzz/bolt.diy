@@ -218,6 +218,49 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       }
     }
 
+    // Auto-focus helper + click/touch-to-start support for "Press any key" games
+    const focusHelper = `<script id="bolt-game-focus-helper">
+(function() {
+  function focusGame() {
+    try {
+      window.focus();
+      const canvas = document.querySelector('canvas');
+      if (canvas) {
+        if (!canvas.hasAttribute('tabindex')) {
+          canvas.setAttribute('tabindex', '0');
+        }
+        canvas.focus();
+      }
+    } catch (e) {}
+  }
+  focusGame();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', focusGame);
+  }
+  window.addEventListener('load', focusGame);
+  window.addEventListener('mouseenter', focusGame);
+
+  // If a game is waiting for 'Press any key to start', clicking or tapping also starts it!
+  window.addEventListener('pointerdown', function() {
+    focusGame();
+    try {
+      const enterEvt = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true });
+      window.dispatchEvent(enterEvt);
+      document.dispatchEvent(enterEvt);
+      const spaceEvt = new KeyboardEvent('keydown', { key: ' ', code: 'Space', keyCode: 32, which: 32, bubbles: true, cancelable: true });
+      window.dispatchEvent(spaceEvt);
+      document.dispatchEvent(spaceEvt);
+    } catch (e) {}
+  }, { passive: true });
+})();
+</script>`;
+
+    if (bundled.includes('</body>')) {
+      bundled = bundled.replace('</body>', `${focusHelper}\n</body>`);
+    } else {
+      bundled = bundled + '\n' + focusHelper;
+    }
+
     return bundled;
   }, [activePreview, files]);
 
@@ -333,6 +376,62 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       }
     };
   }, [isStreaming, activePreview, files]);
+
+  // Forward keyboard events to iframe so user can play immediately without hunting for iframe focus
+  useEffect(() => {
+    const forwardKeyEvent = (type: 'keydown' | 'keyup') => (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      if (
+        activeEl &&
+        (activeEl.tagName === 'INPUT' ||
+          activeEl.tagName === 'TEXTAREA' ||
+          activeEl.getAttribute('contenteditable') === 'true')
+      ) {
+        return;
+      }
+
+      const iframe = iframeRef.current;
+      if (!iframe || !iframe.contentWindow) {
+        return;
+      }
+
+      try {
+        const eventInit: KeyboardEventInit = {
+          key: e.key,
+          code: e.code,
+          location: e.location,
+          ctrlKey: e.ctrlKey,
+          shiftKey: e.shiftKey,
+          altKey: e.altKey,
+          metaKey: e.metaKey,
+          repeat: e.repeat,
+          bubbles: true,
+          cancelable: true,
+        };
+        const evt = new KeyboardEvent(type, eventInit);
+        iframe.contentWindow.dispatchEvent(evt);
+        if (iframe.contentWindow.document) {
+          iframe.contentWindow.document.dispatchEvent(evt);
+        }
+      } catch (err) {
+        try {
+          iframe.focus();
+          iframe.contentWindow.focus();
+        } catch (_) {}
+      }
+    };
+
+    const onKeyDown = forwardKeyEvent('keydown');
+    const onKeyUp = forwardKeyEvent('keyup');
+
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, []);
 
   // Toggle between responsive mode and device mode
   const [isDeviceModeOn, setIsDeviceModeOn] = useState(false);
@@ -532,7 +631,22 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
   );
 
   return (
-    <div ref={containerRef} className="w-full h-full flex flex-col relative">
+    <div
+      ref={containerRef}
+      className="w-full h-full flex flex-col relative"
+      onMouseEnter={() => {
+        try {
+          iframeRef.current?.focus();
+          iframeRef.current?.contentWindow?.focus();
+        } catch (e) {}
+      }}
+      onClick={() => {
+        try {
+          iframeRef.current?.focus();
+          iframeRef.current?.contentWindow?.focus();
+        } catch (e) {}
+      }}
+    >
       {isPortDropdownOpen && (
         <div className="z-iframe-overlay w-full h-full absolute" onClick={() => setIsPortDropdownOpen(false)} />
       )}
@@ -612,6 +726,12 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
                 srcDoc={!activePreview && !fallbackBlobUrl ? displayFallbackHtml : undefined}
                 sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-pointer-lock"
                 allow="cross-origin-isolated; autoplay; camera; microphone; clipboard-write; clipboard-read; fullscreen; encrypted-media; display-capture; geolocation"
+                onLoad={() => {
+                  try {
+                    iframeRef.current?.focus();
+                    iframeRef.current?.contentWindow?.focus();
+                  } catch (e) {}
+                }}
               />
               {isStreaming && (
                 <div className="absolute top-3 right-3 z-10 flex items-center gap-2 px-3 py-1.5 bg-[#0c1f36]/95 border border-[#38bdf8]/40 text-sky-200 text-xs font-semibold shadow-lg select-none">
