@@ -46,6 +46,10 @@ export default class SwitchableStream extends TransformStream {
 
         this._controller.enqueue(value);
       }
+
+      // Source exhausted naturally — close the writable side so the client
+      // sees a clean end-of-stream and useChat fires its onFinish callback.
+      this._controller.terminate();
     } catch (error) {
       console.log(error);
       this._controller.error(error);

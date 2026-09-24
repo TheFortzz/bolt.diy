@@ -126,9 +126,6 @@ export const ChatImpl = memo(
 
     const { messages, isLoading, input, handleInputChange, setInput, stop, append } = useChat({
       api: '/api/chat',
-      // The server returns a raw text stream (toAIStream), not the Vercel data
-      // stream protocol, so useChat must read it as plain text.
-      streamProtocol: 'text',
       body: {
         apiKeys,
       },
