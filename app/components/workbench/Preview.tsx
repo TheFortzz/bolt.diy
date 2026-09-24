@@ -17,7 +17,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
   const hasSelectedPreview = useRef(false);
   const previews = useStore(workbenchStore.previews);
   const files = useStore(workbenchStore.files);
-  const activePreview = previews[activePreviewIndex];
+  const activePreview = previews[activePreviewIndex] ?? previews.find((preview) => preview.ready) ?? previews[0];
 
   const fallbackHtml = useMemo(() => {
     if (activePreview) {
@@ -26,7 +26,11 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
 
     let htmlContent: string | undefined;
     for (const [path, dirent] of Object.entries(files)) {
-      if (dirent?.type === 'file' && dirent.content && (path.endsWith('/index.html') || path === 'index.html' || path.endsWith('index.html'))) {
+      if (
+        dirent?.type === 'file' &&
+        dirent.content &&
+        (path.endsWith('/index.html') || path === 'index.html' || path.endsWith('index.html'))
+      ) {
         htmlContent = dirent.content;
         break;
       }
@@ -40,162 +44,36 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       }
     }
 
-    // If no HTML file is found, but code files exist, synthesize an HTML5 canvas game container
-    const hasCode = Object.entries(files).some(
-      ([p, d]) => d?.type === 'file' && Boolean(d.content) && (p.endsWith('.js') || p.endsWith('.ts') || p.endsWith('.css')),
-    );
-    if (!htmlContent && hasCode) {
-      htmlContent = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Game Preview</title>
-  <style>
-    * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0b0f19; display: flex; align-items: center; justify-content: center; color: #fff; font-family: sans-serif; }
-    canvas { display: block; max-width: 100%; max-height: 100%; }
-  </style>
-</head>
-<body>
-  <canvas id="canvas"></canvas>
-</body>
-</html>`;
-    }
-
     if (!htmlContent) {
       return undefined;
     }
 
     // Strip markdown code fences if wrapped by the model
     let cleanContent = htmlContent.trim();
-    cleanContent = cleanContent.replace(/^```(?:html|xml)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    cleanContent = cleanContent
+      .replace(/^```(?:html|xml)?\s*/i, '')
+      .replace(/\s*```\s*$/i, '')
+      .trim();
+
+    /**
+     * A blob URL has no project filesystem or module graph. Only use the
+     * in-memory fallback for a genuinely self-contained document. Real
+     * projects are served from WebContainer instead of being rewritten into
+     * a misleading generic canvas page.
+     */
+    const hasLocalScript = /<script\b[^>]*\bsrc\s*=\s*["'](?!https?:\/\/|\/\/|data:|blob:)[^"']+["']/i.test(
+      cleanContent,
+    );
+    const hasLocalStylesheet = /<link\b[^>]*\bhref\s*=\s*["'](?!https?:\/\/|\/\/|data:|blob:)[^"']+["']/i.test(
+      cleanContent,
+    );
+    const hasModuleScript = /<script\b[^>]*\btype\s*=\s*["']module["']/i.test(cleanContent);
+
+    if (hasLocalScript || hasLocalStylesheet || hasModuleScript) {
+      return undefined;
+    }
 
     let bundled = cleanContent;
-    const handledCss = new Set<string>();
-    const handledJs = new Set<string>();
-
-    const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-    // 1. Process CSS files and replace matching <link> tags or inject them
-    for (const [filePath, dirent] of Object.entries(files)) {
-      if (dirent?.type !== 'file' || !dirent.content || !filePath.endsWith('.css')) {
-        continue;
-      }
-      const fileName = filePath.replace(/^\/+/, '').replace(/^home\/project\//, '');
-      const baseName = fileName.split('/').pop() || '';
-      if (!baseName) continue;
-
-      const linkRegex = new RegExp(
-        `<link[^>]*href=["'][^"']*?(${escapeRegex(fileName)}|${escapeRegex(baseName)})["'][^>]*\\/?>`,
-        'gi',
-      );
-      const prevCssBundled = bundled;
-      bundled = bundled.replace(linkRegex, `<style data-file="${baseName}">\n${dirent.content}\n</style>`);
-      if (bundled !== prevCssBundled) {
-        handledCss.add(filePath);
-      }
-    }
-
-    // Inject any CSS files not yet included in the HTML
-    let extraCss = '';
-    for (const [filePath, dirent] of Object.entries(files)) {
-      if (dirent?.type !== 'file' || !dirent.content || !filePath.endsWith('.css')) {
-        continue;
-      }
-      if (!handledCss.has(filePath)) {
-        extraCss += `<style data-file="${filePath.split('/').pop()}">\n${dirent.content}\n</style>\n`;
-      }
-    }
-    if (extraCss) {
-      if (bundled.includes('</head>')) {
-        bundled = bundled.replace('</head>', `${extraCss}</head>`);
-      } else if (bundled.includes('<body')) {
-        bundled = bundled.replace('<body', `${extraCss}\n<body`);
-      } else {
-        bundled = bundled + '\n' + extraCss;
-      }
-    }
-
-    // 2. Process JS / TS files and replace matching <script> tags
-    const toClassicScript = (source: string) =>
-      source
-        .replace(/^\s*import\s+[\s\S]*?;\s*$/gm, '')
-        .replace(/^\s*export\s+default\s+/gm, '')
-        .replace(/^\s*export\s+(?:const|let|var|function|class|async\s+function)\s+/gm, (m) =>
-          m.replace(/^\s*export\s+/, ''),
-        )
-        .replace(/^\s*export\s*\{[\s\S]*?\};?\s*$/gm, '');
-
-    for (const [filePath, dirent] of Object.entries(files)) {
-      if (
-        dirent?.type !== 'file' ||
-        !dirent.content ||
-        (!filePath.endsWith('.js') && !filePath.endsWith('.ts') && !filePath.endsWith('.mjs'))
-      ) {
-        continue;
-      }
-      const fileName = filePath.replace(/^\/+/, '').replace(/^home\/project\//, '');
-      const baseName = fileName.split('/').pop() || '';
-      if (!baseName) continue;
-
-      const scriptRegex = new RegExp(
-        `<script[^>]*src=["'][^"']*?(${escapeRegex(fileName)}|${escapeRegex(baseName)})["'][^>]*>(?:\\s*<\\/script>)?`,
-        'gi',
-      );
-      const prevJsBundled = bundled;
-      bundled = bundled.replace(
-        scriptRegex,
-        `<script data-file="${baseName}">\n${toClassicScript(dirent.content)}\n</script>`,
-      );
-      if (bundled !== prevJsBundled) {
-        handledJs.add(filePath);
-      }
-    }
-
-    // Inject any main JS files not yet included
-    let extraJs = '';
-    for (const [filePath, dirent] of Object.entries(files)) {
-      if (
-        dirent?.type !== 'file' ||
-        !dirent.content ||
-        (!filePath.endsWith('.js') && !filePath.endsWith('.ts') && !filePath.endsWith('.mjs'))
-      ) {
-        continue;
-      }
-      if (!handledJs.has(filePath)) {
-        const base = filePath.split('/').pop() || '';
-        if (
-          base === 'main.js' ||
-          base === 'index.js' ||
-          base === 'game.js' ||
-          base === 'app.js' ||
-          Object.keys(files).length < 6
-        ) {
-          extraJs += `<script data-file="${base}">\n${toClassicScript(dirent.content)}\n</script>\n`;
-        }
-      }
-    }
-    if (extraJs) {
-      if (bundled.includes('</body>')) {
-        bundled = bundled.replace('</body>', `${extraJs}</body>`);
-      } else {
-        bundled = bundled + extraJs;
-      }
-    }
-
-    // Also neutralize type=module on remaining inline scripts (blob preview has no module graph)
-    bundled = bundled.replace(/<script([^>]*?)\stype=["']module["']([^>]*)>/gi, '<script$1$2>');
-
-    // 3. Neutralize any dangling local relative scripts or links that would 404 against the host
-    bundled = bundled.replace(
-      /<script[^>]*src=["'](?!https?:\/\/|\/\/|data:|blob:)[^"']+["'][^>]*>(?:\s*<\/script>)?/gi,
-      '<!-- removed missing local script -->',
-    );
-    bundled = bundled.replace(
-      /<link[^>]*href=["'](?!https?:\/\/|\/\/|data:|blob:)[^"']+["'][^>]*\/?>/gi,
-      '<!-- removed missing local stylesheet -->',
-    );
 
     // CRITICAL: Guarantee Strict Standards Mode (Never Quirks Mode)
     // <!DOCTYPE html> MUST be at index 0 of the document.
@@ -218,7 +96,8 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       }
     }
 
-    // Auto-focus helper + click/touch-to-start support for "Press any key" games
+    // Focus the actual game surface without fabricating key presses. The
+    // parent forwards real keyboard events, so clicks only restore focus.
     const focusHelper = `<script id="bolt-game-focus-helper">
 (function() {
   function focusGame() {
@@ -239,19 +118,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
   }
   window.addEventListener('load', focusGame);
   window.addEventListener('mouseenter', focusGame);
-
-  // If a game is waiting for 'Press any key to start', clicking or tapping also starts it!
-  window.addEventListener('pointerdown', function() {
-    focusGame();
-    try {
-      const enterEvt = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true });
-      window.dispatchEvent(enterEvt);
-      document.dispatchEvent(enterEvt);
-      const spaceEvt = new KeyboardEvent('keydown', { key: ' ', code: 'Space', keyCode: 32, which: 32, bubbles: true, cancelable: true });
-      window.dispatchEvent(spaceEvt);
-      document.dispatchEvent(spaceEvt);
-    } catch (e) {}
-  }, { passive: true });
+  window.addEventListener('pointerdown', focusGame, { passive: true });
 })();
 </script>`;
 
@@ -352,28 +219,43 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     }
   }, [files, isStreaming, activePreview]);
 
-  // After streaming ends, start static server immediately so preview is ready
-  const postStreamTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Start a real project server after generation. Do not race Vite by
+  // occupying port 5173 while the model's start action is still pending.
   useEffect(() => {
-    if (postStreamTimerRef.current) {
-      clearTimeout(postStreamTimerRef.current);
-      postStreamTimerRef.current = null;
+    if (isStreaming || activePreview) {
+      return;
     }
 
-    if (!isStreaming && !activePreview) {
-      const hasHtml = Object.values(files).some(
-        (d) => d?.type === 'file' && Boolean(d.content) && (d.content.includes('<!DOCTYPE') || d.content.includes('<html')),
-      );
-      if (hasHtml) {
-        workbenchStore.startStaticPreviewServer().catch(() => {});
-      }
+    const projectFiles = Object.entries(files).filter(
+      ([, dirent]) => dirent?.type === 'file' && Boolean(dirent.content),
+    );
+    if (projectFiles.length === 0) {
+      return;
     }
+
+    const hasPackageJson = projectFiles.some(([filePath]) => filePath.endsWith('package.json'));
+    const latestMessageId = workbenchStore.artifactIdList[workbenchStore.artifactIdList.length - 1];
+    const latestArtifact = latestMessageId ? workbenchStore.artifacts.get()[latestMessageId] : undefined;
+    const hasStartAction = latestArtifact
+      ? Object.values(latestArtifact.runner.actions.get()).some((action) => action.type === 'start')
+      : false;
+
+    if (hasPackageJson && hasStartAction) {
+      return;
+    }
+
+    let cancelled = false;
+    workbenchStore
+      .waitForExecutionQueue()
+      .then(() => {
+        if (!cancelled && workbenchStore.previews.get().length === 0) {
+          return workbenchStore.startStaticPreviewServer();
+        }
+      })
+      .catch(() => {});
 
     return () => {
-      if (postStreamTimerRef.current) {
-        clearTimeout(postStreamTimerRef.current);
-        postStreamTimerRef.current = null;
-      }
+      cancelled = true;
     };
   }, [isStreaming, activePreview, files]);
 
@@ -490,18 +372,32 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     [],
   );
 
-  // When previews change, display the lowest port if user hasn't selected a preview
+  // Keep the selected port valid and prefer a server that has reported ready.
   useEffect(() => {
-    if (previews.length > 1 && !hasSelectedPreview.current) {
-      const minPortIndex = previews.reduce(findMinPortIndex, 0);
-      setActivePreviewIndex(minPortIndex);
+    if (previews.length === 0) {
+      if (activePreviewIndex !== 0) {
+        setActivePreviewIndex(0);
+      }
+      return;
     }
-  }, [previews, findMinPortIndex]);
+
+    if (!previews[activePreviewIndex]) {
+      const readyIndex = previews.findIndex((preview) => preview.ready);
+      setActivePreviewIndex(readyIndex >= 0 ? readyIndex : 0);
+      return;
+    }
+
+    if (previews.length > 1 && !hasSelectedPreview.current) {
+      const readyIndex = previews.findIndex((preview) => preview.ready);
+      const minPortIndex = previews.reduce(findMinPortIndex, 0);
+      setActivePreviewIndex(readyIndex >= 0 ? readyIndex : minPortIndex);
+    }
+  }, [previews, activePreviewIndex, findMinPortIndex]);
 
   const reloadPreview = () => {
     if (iframeRef.current) {
       if (activePreview) {
-        iframeRef.current.src = activePreview.baseUrl;
+        iframeRef.current.src = iframeUrl || activePreview.baseUrl;
       } else if (fallbackBlobUrl) {
         iframeRef.current.src = fallbackBlobUrl;
       } else if (displayFallbackHtml) {
@@ -722,7 +618,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
               <iframe
                 ref={iframeRef}
                 className="border-none w-full h-full bg-white"
-                src={activePreview ? activePreview.baseUrl : fallbackBlobUrl}
+                src={activePreview ? iframeUrl : fallbackBlobUrl}
                 srcDoc={!activePreview && !fallbackBlobUrl ? displayFallbackHtml : undefined}
                 sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-pointer-lock"
                 allow="cross-origin-isolated; autoplay; camera; microphone; clipboard-write; clipboard-read; fullscreen; encrypted-media; display-capture; geolocation"

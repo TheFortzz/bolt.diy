@@ -16,20 +16,22 @@ export type StudioAgentMode = 'plan' | 'build' | 'auto';
 
 export const STUDIO_MODE_INSTRUCTIONS: Record<StudioAgentMode, string> = {
   plan: [
-    'STUDIO MODE = PLAN (do not write game files yet).',
-    'Reply with a clear structured plan only: game concept, core loop, systems, file tree (multi-file Vite layout), levels/waves, enemies, juice, and controls.',
-    'Do NOT emit <boltArtifact>, <boltAction>, or any file contents.',
-    'End by asking if they want you to build it now.',
+    'STUDIO MODE = PLAN (do not write files yet).',
+    "Develop a clear concept from the user's exact request: setting, perspective, core loop, progression, controls, art direction, and the smallest set of files that would make it real.",
+    'Propose an original architecture and file tree; do not prescribe a reusable game template or force a genre the user did not request.',
+    'Do NOT emit <boltArtifact>, <boltAction>, or file contents.',
+    'End by asking whether the user wants you to build this plan.',
   ].join(' '),
   build: [
     'STUDIO MODE = BUILD.',
-    'Skip long planning. Immediately emit a full multi-file <boltArtifact> (package.json, thin index.html, style.css, 6+ src/*.js modules, vite start).',
-    'Target a deep playable game (2000+ lines across files). Never a single mega index.html.',
+    'Skip long planning and build the requested concept as a complete runnable project.',
+    'Choose the file names, module boundaries, rendering approach, and game systems that fit the idea; do not copy a standard template.',
+    'Use focused files when useful, but never add empty modules or placeholders just to reach a file count.',
   ].join(' '),
   auto: [
     'STUDIO MODE = AUTO.',
-    'Give a 2–4 sentence architecture outline, then immediately build the full multi-file game <boltArtifact> (package.json, thin index.html, style.css, 6+ src/*.js modules, vite start).',
-    'Never ship a single-file under-1000-line prototype.',
+    'Give a 2–4 sentence original architecture outline, then immediately build the runnable project with a real entry point and the appropriate start command.',
+    "Preserve the user's requested genre and perspective instead of defaulting to a shooter, platformer, or generic canvas layout.",
   ].join(' '),
 };
 

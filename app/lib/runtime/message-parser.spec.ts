@@ -136,6 +136,32 @@ describe('StreamingMessageParser', () => {
     });
   });
 
+  describe('streaming file actions', () => {
+    it('should send cumulative content while a file is being written', () => {
+      const snapshots: string[] = [];
+      const parser = new StreamingMessageParser({
+        artifactElement: () => '',
+        callbacks: {
+          onActionStream: (data) => {
+            snapshots.push(data.action.content);
+          },
+        },
+      });
+
+      let message = '';
+      for (const chunk of [
+        '<boltArtifact id="demo" title="Demo"><boltAction type="file" filePath="src/demo.js">const value',
+        ' = 42;',
+        '</boltAction></boltArtifact>',
+      ]) {
+        message += chunk;
+        parser.parse('stream-message', message);
+      }
+
+      expect(snapshots).toEqual(['const value', 'const value = 42;']);
+    });
+  });
+
   describe('valid artifacts with actions', () => {
     it.each<[string | string[], ExpectedResult | string]>([
       [

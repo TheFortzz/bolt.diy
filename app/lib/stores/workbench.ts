@@ -32,6 +32,33 @@ type Artifacts = MapStore<Record<string, ArtifactState>>;
 
 export type WorkbenchViewType = 'code' | 'preview';
 
+function resolveWorkDirPath(filePath: string) {
+  const isWorkDirPath = filePath === WORK_DIR || filePath.startsWith(`${WORK_DIR}/`);
+  const relativePath = (isWorkDirPath ? filePath.slice(WORK_DIR.length) : filePath).replace(/^\/+/, '');
+  const resolvedPath = nodePath.posix.normalize(nodePath.posix.join(WORK_DIR, relativePath));
+
+  if (resolvedPath !== WORK_DIR && !resolvedPath.startsWith(`${WORK_DIR}/`)) {
+    console.warn(`Blocked file path outside the project: ${filePath}`);
+    return nodePath.posix.join(WORK_DIR, '__blocked__', 'invalid-file');
+  }
+
+  return resolvedPath;
+}
+
+function normalizeActionData(data: ActionCallbackData): ActionCallbackData {
+  if (data.action.type !== 'file') {
+    return data;
+  }
+
+  return {
+    ...data,
+    action: {
+      ...data.action,
+      filePath: resolveWorkDirPath(data.action.filePath),
+    },
+  };
+}
+
 export class WorkbenchStore {
   #previewsStore = new PreviewsStore(webcontainer);
   #filesStore = new FilesStore(webcontainer);
@@ -42,6 +69,8 @@ export class WorkbenchStore {
 
   showWorkbench: WritableAtom<boolean> = import.meta.hot?.data.showWorkbench ?? atom(false);
   currentView: WritableAtom<WorkbenchViewType> = import.meta.hot?.data.currentView ?? atom('preview');
+  /** File currently receiving streamed content, if any. */
+  streamingFile: WritableAtom<string | undefined> = import.meta.hot?.data.streamingFile ?? atom(undefined);
   /** When true, file-write actions must not yank the user off the Play tab. */
   preferPlayView: WritableAtom<boolean> = import.meta.hot?.data.preferPlayView ?? atom(false);
   unsavedFiles: WritableAtom<Set<string>> = import.meta.hot?.data.unsavedFiles ?? atom(new Set<string>());
@@ -57,6 +86,7 @@ export class WorkbenchStore {
       import.meta.hot.data.completedFiles = this.completedFiles;
       import.meta.hot.data.showWorkbench = this.showWorkbench;
       import.meta.hot.data.currentView = this.currentView;
+      import.meta.hot.data.streamingFile = this.streamingFile;
       import.meta.hot.data.preferPlayView = this.preferPlayView;
     }
   }
@@ -72,7 +102,13 @@ export class WorkbenchStore {
   }
 
   addToExecutionQueue(callback: () => Promise<void>) {
-    this.#globalExecutionQueue = this.#globalExecutionQueue.then(() => callback());
+    const next = this.#globalExecutionQueue.then(() => callback());
+    this.#globalExecutionQueue = next.catch(() => {});
+    return next;
+  }
+
+  async waitForExecutionQueue() {
+    await this.#globalExecutionQueue;
   }
 
   get previews() {
@@ -139,9 +175,7 @@ export class WorkbenchStore {
     this.showWorkbench.set(show);
   }
 
-  setCurrentDocumentContent(newContent: string) {
-    const filePath = this.currentDocument.get()?.filePath;
-
+  setCurrentDocumentContent(newContent: string, filePath = this.currentDocument.get()?.filePath) {
     if (!filePath) {
       return;
     }
@@ -151,25 +185,27 @@ export class WorkbenchStore {
 
     this.#editorStore.updateFile(filePath, newContent);
 
+    // A debounced edit can finish after the user selected another file. Keep
+    // the write attached to its source path and only update the visible file's
+    // unsaved marker when it is still selected.
     const currentDocument = this.currentDocument.get();
-
-    if (currentDocument) {
-      const previousUnsavedFiles = this.unsavedFiles.get();
-
-      if (unsavedChanges && previousUnsavedFiles.has(currentDocument.filePath)) {
-        return;
-      }
-
-      const newUnsavedFiles = new Set(previousUnsavedFiles);
-
-      if (unsavedChanges) {
-        newUnsavedFiles.add(currentDocument.filePath);
-      } else {
-        newUnsavedFiles.delete(currentDocument.filePath);
-      }
-
-      this.unsavedFiles.set(newUnsavedFiles);
+    if (!currentDocument || currentDocument.filePath !== filePath) {
+      return;
     }
+
+    const previousUnsavedFiles = this.unsavedFiles.get();
+    if (unsavedChanges && previousUnsavedFiles.has(filePath)) {
+      return;
+    }
+
+    const newUnsavedFiles = new Set(previousUnsavedFiles);
+    if (unsavedChanges) {
+      newUnsavedFiles.add(filePath);
+    } else {
+      newUnsavedFiles.delete(filePath);
+    }
+
+    this.unsavedFiles.set(newUnsavedFiles);
   }
 
   setCurrentDocumentScrollPosition(position: ScrollPosition) {
@@ -283,22 +319,17 @@ export class WorkbenchStore {
     for (const artifact of Object.values(artifacts)) {
       const runner = artifact.runner;
       if (!runner) continue;
-      const actions = runner.actions.get();
-      for (const [actionId, action] of Object.entries(actions)) {
-        if (action.status === 'pending' || action.status === 'running') {
-          runner.actions.setKey(actionId, { ...action, status: 'complete', executed: true });
+
+      for (const [actionId, action] of Object.entries(runner.actions.get())) {
+        // A streamed action without a close callback is incomplete. Do not
+        // claim that its partial file was written or mark it executable.
+        if ((action.status === 'pending' || action.status === 'running') && !action.executed) {
+          runner.actions.setKey(actionId, { ...action, status: 'aborted', executed: false });
         }
       }
     }
 
-    // If no active preview port is open and HTML exists, start static server
-    if (this.previews.get().length === 0 && this.#filesStore.filesCount > 0) {
-      const files = this.#filesStore.files.get();
-      const hasHtml = Object.keys(files).some((p) => p.endsWith('.html'));
-      if (hasHtml) {
-        this.startStaticPreviewServer().catch(() => {});
-      }
-    }
+    this.streamingFile.set(undefined);
   }
 
   async startStaticPreviewServer() {
@@ -316,19 +347,24 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const mimes = {
-  '.html': 'text/html',
-  '.js': 'text/javascript',
-  '.mjs': 'text/javascript',
-  '.css': 'text/css',
-  '.json': 'application/json',
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
-  '.wasm': 'application/wasm'
+  '.wasm': 'application/wasm',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2'
 };
 
-const baseDir = fs.existsSync('/home/project') ? '/home/project' : process.cwd();
+const baseDir = path.resolve(fs.existsSync('/home/project') ? '/home/project' : process.cwd());
 
 http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -336,16 +372,23 @@ http.createServer((req, res) => {
   let cleanUrl = (req.url || '/').split('?')[0].replace(/^\\/+/, '');
   if (!cleanUrl) cleanUrl = 'index.html';
 
-  const candidates = [
-    path.join(baseDir, cleanUrl),
-    path.join(process.cwd(), cleanUrl),
-    path.join(baseDir, 'src', cleanUrl),
-    path.join(baseDir, 'public', cleanUrl),
-    path.join(baseDir, 'dist', cleanUrl),
-  ];
+  const requestedPath = path.resolve(baseDir, cleanUrl);
+  if (requestedPath !== baseDir && !requestedPath.startsWith(baseDir + path.sep)) {
+    res.writeHead(403);
+    res.end('Forbidden');
+    return;
+  }
 
-  let file = candidates.find(p => {
-    try { return fs.existsSync(p) && fs.statSync(p).isFile(); } catch (e) { return false; }
+  const candidates = [
+    requestedPath,
+    path.resolve(baseDir, 'src', cleanUrl),
+    path.resolve(baseDir, 'public', cleanUrl),
+    path.resolve(baseDir, 'dist', cleanUrl),
+  ].map((candidate) => path.resolve(candidate));
+
+  let file = candidates.find((candidate) => {
+    if (candidate !== baseDir && !candidate.startsWith(baseDir + path.sep)) return false;
+    try { return fs.existsSync(candidate) && fs.statSync(candidate).isFile(); } catch (e) { return false; }
   });
 
   if (!file && (cleanUrl.endsWith('.html') || !path.extname(cleanUrl))) {
@@ -361,10 +404,18 @@ http.createServer((req, res) => {
     res.writeHead(404);
     res.end('Not Found');
   }
-}).listen(5173);
+}).listen(0, '0.0.0.0');
 `;
       await wc.fs.writeFile('/.static_server.cjs', serveCode);
-      await wc.spawn('node', ['/.static_server.cjs']);
+      const process = await wc.spawn('node', ['/.static_server.cjs']);
+      void process.exit.then(
+        () => {
+          this.#staticServerStarted = false;
+        },
+        () => {
+          this.#staticServerStarted = false;
+        },
+      );
     } catch (e) {
       this.#staticServerStarted = false;
     }
@@ -400,10 +451,11 @@ http.createServer((req, res) => {
     this.artifacts.setKey(messageId, { ...artifact, ...state });
   }
   addAction(data: ActionCallbackData) {
-    if (data.action.type === 'file') {
-      const fullPath = data.action.filePath.startsWith(WORK_DIR)
-        ? data.action.filePath
-        : nodePath.posix.join(WORK_DIR, data.action.filePath.replace(/^\/+/, ''));
+    const normalizedData = normalizeActionData(data);
+
+    if (normalizedData.action.type === 'file') {
+      const fullPath = normalizedData.action.filePath;
+      this.streamingFile.set(fullPath);
 
       if (this.selectedFile.value !== fullPath) {
         this.setSelectedFile(fullPath);
@@ -411,10 +463,10 @@ http.createServer((req, res) => {
 
       this.#focusCodeUnlessPlayPinned();
 
-      this.#editorStore.updateFile(fullPath, data.action.content || '');
+      this.#editorStore.updateFile(fullPath, normalizedData.action.content || '');
     }
 
-    this._addAction(data);
+    this._addAction(normalizedData);
   }
   async _addAction(data: ActionCallbackData) {
     const { messageId } = data;
@@ -429,14 +481,46 @@ http.createServer((req, res) => {
   }
 
   runAction(data: ActionCallbackData, isStreaming: boolean = false) {
+    const normalizedData = normalizeActionData(data);
+
     if (isStreaming) {
-      this._runAction(data, isStreaming);
-    } else {
-      this.addToExecutionQueue(() => this._runAction(data, isStreaming));
+      this._runAction(normalizedData, true);
+      return;
     }
+
+    // Keep the editor and virtual file map current immediately. Only the
+    // WebContainer write is queued behind earlier shell/file actions.
+    if (normalizedData.action.type === 'file') {
+      this.#commitFileState(normalizedData);
+    }
+
+    this.addToExecutionQueue(() => this._runAction(normalizedData, false, true));
   }
-  async _runAction(data: ActionCallbackData, isStreaming: boolean = false) {
-    const { messageId } = data;
+
+  #commitFileState(data: ActionCallbackData) {
+    if (data.action.type !== 'file') {
+      return;
+    }
+
+    const fullPath = data.action.filePath;
+    this.streamingFile.set(fullPath);
+
+    if (this.selectedFile.value !== fullPath) {
+      this.setSelectedFile(fullPath);
+    }
+
+    this.#focusCodeUnlessPlayPinned();
+    this.#editorStore.updateFile(fullPath, data.action.content || '');
+    this.#filesStore.files.setKey(fullPath, {
+      type: 'file',
+      content: data.action.content || '',
+      isBinary: false,
+    });
+  }
+
+  async _runAction(data: ActionCallbackData, isStreaming: boolean = false, fileStateCommitted = false) {
+    const normalizedData = normalizeActionData(data);
+    const { messageId } = normalizedData;
 
     const artifact = this.#getArtifact(messageId);
 
@@ -444,52 +528,28 @@ http.createServer((req, res) => {
       unreachable('Artifact not found');
     }
 
-    if (data.action.type === 'file') {
-      const fullPath = data.action.filePath.startsWith(WORK_DIR)
-        ? data.action.filePath
-        : nodePath.posix.join(WORK_DIR, data.action.filePath.replace(/^\/+/, ''));
+    if (normalizedData.action.type === 'file') {
+      if (!fileStateCommitted) {
+        this.#commitFileState(normalizedData);
+      }
 
-      // During streaming: in-memory updates only (no WebContainer I/O) to avoid lag.
       if (isStreaming) {
-        if (this.selectedFile.value !== fullPath) {
-          this.setSelectedFile(fullPath);
-        }
-
-        this.#focusCodeUnlessPlayPinned();
-
-        this.#editorStore.updateFile(fullPath, data.action.content);
-        this.#filesStore.files.setKey(fullPath, {
-          type: 'file',
-          content: data.action.content,
-          isBinary: false,
-        });
         return;
       }
 
-      if (this.selectedFile.value !== fullPath) {
-        this.setSelectedFile(fullPath);
+      // Wait for the real write before reporting the file as completed.
+      await artifact.runner.runAction(normalizedData);
+      const actionState = artifact.runner.actions.get()[normalizedData.actionId];
+      if (!actionState || actionState.status === 'failed' || actionState.status === 'aborted') {
+        return;
       }
 
-      this.#focusCodeUnlessPlayPinned();
-
-      this.#editorStore.updateFile(fullPath, data.action.content);
-      this.#filesStore.files.setKey(fullPath, {
-        type: 'file',
-        content: data.action.content,
-        isBinary: false,
-      });
-
-      // Write to WebContainer asynchronously without blocking workbench state
-      artifact.runner.runAction(data).catch((e) => {
-        console.warn('WebContainer action execution warning:', e);
-      });
-
       const completedFiles = new Set(this.completedFiles.get());
-      completedFiles.add(fullPath);
+      completedFiles.add(normalizedData.action.filePath);
       this.completedFiles.set(completedFiles);
       this.resetAllFileModifications();
     } else {
-      await artifact.runner.runAction(data);
+      await artifact.runner.runAction(normalizedData);
     }
   }
 

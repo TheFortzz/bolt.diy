@@ -30,6 +30,7 @@ interface EditorPanelProps {
   editorDocument?: EditorDocument;
   selectedFile?: string | undefined;
   isStreaming?: boolean;
+  followStream?: boolean;
   onEditorChange?: OnEditorChange;
   onEditorScroll?: OnEditorScroll;
   onFileSelect?: (value?: string) => void;
@@ -57,6 +58,7 @@ export const EditorPanel = memo(
     editorDocument,
     selectedFile,
     isStreaming,
+    followStream = isStreaming,
     onFileSelect,
     onEditorChange,
     onEditorScroll,
@@ -214,7 +216,7 @@ export const EditorPanel = memo(
                   <CodeMirrorEditor
                     theme={theme}
                     editable={!isStreaming && editorDocument !== undefined}
-                    isStreaming={isStreaming}
+                    isStreaming={followStream}
                     settings={editorSettings}
                     doc={editorDocument}
                     autoFocusOnDocumentChange={!isMobile()}

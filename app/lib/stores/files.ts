@@ -81,11 +81,15 @@ export class FilesStore {
   }
 
   #toAbsolutePath(filePath: string) {
-    if (filePath.startsWith(WORK_DIR)) {
-      return filePath.replace(/\/+$/g, '');
+    const isWorkDirPath = filePath === WORK_DIR || filePath.startsWith(`${WORK_DIR}/`);
+    const relativePath = (isWorkDirPath ? filePath.slice(WORK_DIR.length) : filePath).replace(/^\/+/, '');
+    const absolutePath = nodePath.posix.normalize(nodePath.posix.join(WORK_DIR, relativePath)).replace(/\/+$/g, '');
+
+    if (absolutePath !== WORK_DIR && !absolutePath.startsWith(`${WORK_DIR}/`)) {
+      throw new Error(`EINVAL: file path escapes the project directory, write '${filePath}'`);
     }
 
-    return nodePath.posix.join(WORK_DIR, filePath.replace(/^\/+/, '')).replace(/\/+$/g, '');
+    return absolutePath;
   }
 
   async createFile(filePath: string, content = '') {

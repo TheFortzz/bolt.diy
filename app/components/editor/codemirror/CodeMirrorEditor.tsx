@@ -2,7 +2,15 @@ import { acceptCompletion, autocompletion, closeBrackets } from '@codemirror/aut
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { bracketMatching, foldGutter, indentOnInput, indentUnit } from '@codemirror/language';
 import { searchKeymap } from '@codemirror/search';
-import { Compartment, EditorSelection, EditorState, StateEffect, StateField, type Extension } from '@codemirror/state';
+import {
+  Annotation,
+  Compartment,
+  EditorSelection,
+  EditorState,
+  StateEffect,
+  StateField,
+  type Extension,
+} from '@codemirror/state';
 import {
   drawSelection,
   dropCursor,
@@ -11,7 +19,6 @@ import {
   highlightActiveLineGutter,
   keymap,
   lineNumbers,
-  scrollPastEnd,
   showTooltip,
   tooltips,
   type Tooltip,
@@ -27,6 +34,7 @@ import { indentKeyBinding } from './indent';
 import { getLanguage } from './languages';
 
 const logger = createScopedLogger('CodeMirrorEditor');
+const externalUpdate = Annotation.define<boolean>();
 
 export interface EditorDocument {
   value: string;
@@ -51,6 +59,7 @@ export interface ScrollPosition {
 }
 
 export interface EditorUpdate {
+  filePath: string;
   selection: EditorSelection;
   content: string;
 }
@@ -141,6 +150,8 @@ export const CodeMirrorEditor = memo(
     const themeRef = useRef<Theme>();
     const docRef = useRef<EditorDocument>();
     const editorStatesRef = useRef<EditorStates>();
+    const activeFilePathRef = useRef<string | undefined>();
+    const languageRequestRef = useRef(0);
     const onScrollRef = useRef(onScroll);
     const onChangeRef = useRef(onChange);
     const onSaveRef = useRef(onSave);
@@ -166,22 +177,32 @@ export const CodeMirrorEditor = memo(
         parent: containerRef.current!,
         dispatchTransactions(transactions) {
           const previousSelection = view.state.selection;
+          const isExternalUpdate = transactions.some((transaction) => transaction.annotation(externalUpdate));
 
           view.update(transactions);
 
           const newSelection = view.state.selection;
-
           const selectionChanged =
             newSelection !== previousSelection &&
             (newSelection === undefined || previousSelection === undefined || !newSelection.eq(previousSelection));
 
-          if (docRef.current && (transactions.some((transaction) => transaction.docChanged) || selectionChanged)) {
+          if (docRef.current) {
+            // Keep the cached state current even for theme/language/read-only
+            // transactions. This prevents a later file switch from restoring
+            // an outdated viewport configuration.
+            editorStatesRef.current?.set(docRef.current.filePath, view.state);
+          }
+
+          if (
+            !isExternalUpdate &&
+            docRef.current &&
+            (transactions.some((transaction) => transaction.docChanged) || selectionChanged)
+          ) {
             onUpdate({
+              filePath: docRef.current.filePath,
               selection: view.state.selection,
               content: view.state.doc.toString(),
             });
-
-            editorStatesRef.current!.set(docRef.current.filePath, view.state);
           }
         },
       });
@@ -189,6 +210,7 @@ export const CodeMirrorEditor = memo(
       viewRef.current = view;
 
       return () => {
+        onUpdate.cancel();
         viewRef.current?.destroy();
         viewRef.current = undefined;
       };
@@ -206,22 +228,27 @@ export const CodeMirrorEditor = memo(
 
     useEffect(() => {
       editorStatesRef.current = new Map<string, EditorState>();
+      activeFilePathRef.current = undefined;
+      languageRequestRef.current += 1;
     }, [id]);
 
     useEffect(() => {
-      const editorStates = editorStatesRef.current!;
+      const editorStates = editorStatesRef.current ?? new Map<string, EditorState>();
+      editorStatesRef.current = editorStates;
       const view = viewRef.current!;
       const theme = themeRef.current!;
 
       if (!doc) {
-        const state = newEditorState('', theme, settings, onScrollRef, debounceScroll, onSaveRef, [
-          languageCompartment.of([]),
-        ]);
+        if (activeFilePathRef.current !== undefined) {
+          const state = newEditorState('', theme, settings, onScrollRef, debounceScroll, onSaveRef, [
+            languageCompartment.of([]),
+          ]);
 
-        view.setState(state);
-
-        setNoDocument(view);
-
+          view.setState(state);
+          setNoDocument(view);
+          activeFilePathRef.current = undefined;
+        }
+        languageRequestRef.current += 1;
         return;
       }
 
@@ -233,6 +260,7 @@ export const CodeMirrorEditor = memo(
         logger.warn('File path should not be empty');
       }
 
+      const fileChanged = activeFilePathRef.current !== doc.filePath;
       let state = editorStates.get(doc.filePath);
 
       if (!state) {
@@ -243,8 +271,12 @@ export const CodeMirrorEditor = memo(
         editorStates.set(doc.filePath, state);
       }
 
-      view.setState(state);
+      if (fileChanged) {
+        view.setState(state);
+        activeFilePathRef.current = doc.filePath;
+      }
 
+      const languageRequestId = ++languageRequestRef.current;
       setEditorDocument(
         view,
         theme,
@@ -253,6 +285,7 @@ export const CodeMirrorEditor = memo(
         autoFocusOnDocumentChange,
         doc as TextEditorDocument,
         isStreaming,
+        () => languageRequestId === languageRequestRef.current && activeFilePathRef.current === doc.filePath,
       );
     }, [doc?.value, editable, doc?.filePath, autoFocusOnDocumentChange, isStreaming]);
 
@@ -338,7 +371,6 @@ function newEditorState(
       }),
       closeBrackets(),
       lineNumbers(),
-      scrollPastEnd(),
       dropCursor(),
       drawSelection(),
       bracketMatching(),
@@ -371,6 +403,7 @@ function setNoDocument(view: EditorView) {
       to: view.state.doc.length,
       insert: '',
     },
+    annotations: externalUpdate.of(true),
   });
 
   view.scrollDOM.scrollTo(0, 0);
@@ -384,19 +417,21 @@ function setEditorDocument(
   autoFocus: boolean,
   doc: TextEditorDocument,
   isStreaming: boolean = false,
+  isCurrent: () => boolean = () => true,
 ) {
-  const isStreamingUpdate = Boolean(isStreaming || !editable);
+  const shouldFollowStream = isStreaming;
   const docLength = doc.value.length;
 
   if (doc.value !== view.state.doc.toString()) {
     view.dispatch({
-      selection: isStreamingUpdate ? { anchor: docLength } : { anchor: 0 },
+      selection: shouldFollowStream ? { anchor: docLength } : { anchor: 0 },
       changes: {
         from: 0,
         to: view.state.doc.length,
         insert: doc.value,
       },
-      effects: isStreamingUpdate ? [EditorView.scrollIntoView(docLength, { y: 'end' })] : [],
+      effects: shouldFollowStream ? [EditorView.scrollIntoView(docLength, { y: 'end' })] : [],
+      annotations: externalUpdate.of(true),
     });
   }
 
@@ -405,17 +440,24 @@ function setEditorDocument(
   });
 
   getLanguage(doc.filePath).then((languageSupport) => {
-    if (!languageSupport) {
+    if (!isCurrent()) {
       return;
     }
 
     view.dispatch({
-      effects: [languageCompartment.reconfigure([languageSupport]), reconfigureTheme(theme)],
+      effects: [languageCompartment.reconfigure(languageSupport ? [languageSupport] : []), reconfigureTheme(theme)],
     });
 
     requestAnimationFrame(() => {
-      if (isStreamingUpdate) {
-        view.scrollDOM.scrollTop = view.scrollDOM.scrollHeight;
+      if (!isCurrent()) {
+        return;
+      }
+
+      if (shouldFollowStream) {
+        const end = view.state.doc.length;
+        view.dispatch({
+          effects: [EditorView.scrollIntoView(end, { y: 'end' })],
+        });
         return;
       }
 
@@ -423,12 +465,11 @@ function setEditorDocument(
       const currentTop = view.scrollDOM.scrollTop;
       const newLeft = doc.scroll?.left ?? 0;
       const newTop = doc.scroll?.top ?? 0;
-
       const needsScrolling = currentLeft !== newLeft || currentTop !== newTop;
 
       if (autoFocus && editable) {
         if (needsScrolling) {
-          // we have to wait until the scroll position was changed before we can set the focus
+          // Wait until the scroll position was changed before focusing.
           view.scrollDOM.addEventListener(
             'scroll',
             () => {
@@ -437,7 +478,6 @@ function setEditorDocument(
             { once: true },
           );
         } else {
-          // if the scroll position is still the same we can focus immediately
           view.focus();
         }
       }

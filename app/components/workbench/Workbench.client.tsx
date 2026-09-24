@@ -63,6 +63,7 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
   const hasPreview = useStore(computed(workbenchStore.previews, (previews) => previews.length > 0));
   const showWorkbench = useStore(workbenchStore.showWorkbench);
   const selectedFile = useStore(workbenchStore.selectedFile);
+  const streamingFile = useStore(workbenchStore.streamingFile);
   const currentDocument = useStore(workbenchStore.currentDocument);
   const unsavedFiles = useStore(workbenchStore.unsavedFiles);
   const completedFiles = useStore(workbenchStore.completedFiles);
@@ -114,7 +115,8 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
     }
 
     const hasHtml = Object.values(files).some(
-      (d) => d?.type === 'file' && Boolean(d.content) && (d.content.includes('<html') || d.content.includes('<!DOCTYPE')),
+      (d) =>
+        d?.type === 'file' && Boolean(d.content) && (d.content.includes('<html') || d.content.includes('<!DOCTYPE')),
     );
 
     if (hasPreview || hasHtml) {
@@ -127,7 +129,7 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
   }, [files]);
 
   const onEditorChange = useCallback<OnEditorChange>((update) => {
-    workbenchStore.setCurrentDocumentContent(update.content);
+    workbenchStore.setCurrentDocumentContent(update.content, update.filePath);
   }, []);
 
   const onEditorScroll = useCallback<OnEditorScroll>((position) => {
@@ -211,7 +213,12 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
                     <div className="i-ph:code" />
                     Download Code
                   </PanelHeaderButton>
-                  <PanelHeaderButton className="mr-1 text-xs sm:text-sm" title="Sync Files" onClick={handleSyncFiles} disabled={isSyncing}>
+                  <PanelHeaderButton
+                    className="mr-1 text-xs sm:text-sm"
+                    title="Sync Files"
+                    onClick={handleSyncFiles}
+                    disabled={isSyncing}
+                  >
                     {isSyncing ? <div className="i-ph:spinner" /> : <div className="i-ph:cloud-arrow-down" />}
                     {isSyncing ? 'Syncing...' : 'Sync Files'}
                   </PanelHeaderButton>
@@ -268,7 +275,9 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
                       onClick={async () => {
                         try {
                           await workbenchStore.downloadZip();
-                          toast.success('Game package downloaded! Upload this ZIP on TheFortz to publish.', { autoClose: 6000 });
+                          toast.success('Game package downloaded! Upload this ZIP on TheFortz to publish.', {
+                            autoClose: 6000,
+                          });
                           if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
                             window.parent.postMessage({ type: 'fortz-open-upload' }, '*');
                           }
@@ -299,6 +308,7 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
                   <EditorPanel
                     editorDocument={currentDocument}
                     isStreaming={isStreaming}
+                    followStream={Boolean(isStreaming && streamingFile && selectedFile === streamingFile)}
                     selectedFile={selectedFile}
                     files={files}
                     unsavedFiles={unsavedFiles}

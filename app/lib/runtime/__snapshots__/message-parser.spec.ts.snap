@@ -29,7 +29,7 @@ exports[`StreamingMessageParser > valid artifacts with actions > should correctl
   "id": "artifact_1",
   "messageId": "message_1",
   "title": "Some title",
-  "type": undefined,
+  "type": "bundled",
 }
 `;
 
@@ -38,7 +38,7 @@ exports[`StreamingMessageParser > valid artifacts with actions > should correctl
   "id": "artifact_1",
   "messageId": "message_1",
   "title": "Some title",
-  "type": undefined,
+  "type": "bundled",
 }
 `;
 
@@ -98,7 +98,7 @@ exports[`StreamingMessageParser > valid artifacts with actions > should correctl
   "id": "artifact_1",
   "messageId": "message_1",
   "title": "Some title",
-  "type": undefined,
+  "type": "bundled",
 }
 `;
 
@@ -107,7 +107,7 @@ exports[`StreamingMessageParser > valid artifacts with actions > should correctl
   "id": "artifact_1",
   "messageId": "message_1",
   "title": "Some title",
-  "type": undefined,
+  "type": "bundled",
 }
 `;
 
@@ -116,7 +116,7 @@ exports[`StreamingMessageParser > valid artifacts without actions > should corre
   "id": "artifact_1",
   "messageId": "message_1",
   "title": "Some title",
-  "type": undefined,
+  "type": "bundled",
 }
 `;
 
@@ -125,7 +125,7 @@ exports[`StreamingMessageParser > valid artifacts without actions > should corre
   "id": "artifact_1",
   "messageId": "message_1",
   "title": "Some title",
-  "type": undefined,
+  "type": "bundled",
 }
 `;
 
@@ -152,7 +152,7 @@ exports[`StreamingMessageParser > valid artifacts without actions > should corre
   "id": "artifact_1",
   "messageId": "message_1",
   "title": "Some title",
-  "type": undefined,
+  "type": "bundled",
 }
 `;
 
@@ -161,7 +161,7 @@ exports[`StreamingMessageParser > valid artifacts without actions > should corre
   "id": "artifact_1",
   "messageId": "message_1",
   "title": "Some title",
-  "type": undefined,
+  "type": "bundled",
 }
 `;
 
@@ -170,7 +170,7 @@ exports[`StreamingMessageParser > valid artifacts without actions > should corre
   "id": "artifact_1",
   "messageId": "message_1",
   "title": "Some title",
-  "type": undefined,
+  "type": "bundled",
 }
 `;
 
@@ -179,7 +179,7 @@ exports[`StreamingMessageParser > valid artifacts without actions > should corre
   "id": "artifact_1",
   "messageId": "message_1",
   "title": "Some title",
-  "type": undefined,
+  "type": "bundled",
 }
 `;
 
@@ -188,7 +188,7 @@ exports[`StreamingMessageParser > valid artifacts without actions > should corre
   "id": "artifact_1",
   "messageId": "message_1",
   "title": "Some title",
-  "type": undefined,
+  "type": "bundled",
 }
 `;
 
@@ -197,7 +197,7 @@ exports[`StreamingMessageParser > valid artifacts without actions > should corre
   "id": "artifact_1",
   "messageId": "message_1",
   "title": "Some title",
-  "type": undefined,
+  "type": "bundled",
 }
 `;
 
@@ -206,7 +206,7 @@ exports[`StreamingMessageParser > valid artifacts without actions > should corre
   "id": "artifact_1",
   "messageId": "message_1",
   "title": "Some title",
-  "type": undefined,
+  "type": "bundled",
 }
 `;
 
@@ -215,7 +215,7 @@ exports[`StreamingMessageParser > valid artifacts without actions > should corre
   "id": "artifact_1",
   "messageId": "message_1",
   "title": "Some title",
-  "type": undefined,
+  "type": "bundled",
 }
 `;
 
@@ -224,7 +224,7 @@ exports[`StreamingMessageParser > valid artifacts without actions > should corre
   "id": "artifact_1",
   "messageId": "message_1",
   "title": "Some title",
-  "type": undefined,
+  "type": "bundled",
 }
 `;
 
@@ -233,6 +233,6 @@ exports[`StreamingMessageParser > valid artifacts without actions > should corre
   "id": "artifact_1",
   "messageId": "message_1",
   "title": "Some title",
-  "type": undefined,
+  "type": "bundled",
 }
 `;

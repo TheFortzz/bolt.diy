@@ -1,4 +1,4 @@
-import type { ActionType, BoltAction, BoltActionData, FileAction, ShellAction } from '~/types/actions';
+import type { ActionType, BoltAction, BoltActionData, FileAction } from '~/types/actions';
 import type { BoltArtifactData } from '~/types/artifact';
 import { createScopedLogger } from '~/utils/logger';
 import { unreachable } from '~/utils/unreachable';
@@ -160,6 +160,8 @@ export class StreamingMessageParser {
             i = closeIndex + ARTIFACT_ACTION_TAG_CLOSE.length;
           } else {
             if ('type' in currentAction && currentAction.type === 'file') {
+              // The action position is not advanced until the close tag lands,
+              // so slicing from i already yields the full cumulative file.
               const content = input.slice(i);
 
               this._options.callbacks?.onActionStream?.({
@@ -217,7 +219,7 @@ export class StreamingMessageParser {
         while (j < input.length && potentialTag.length < ARTIFACT_TAG_OPEN.length) {
           potentialTag += input[j];
 
-          if (potentialTag.toLowerCase() === ARTIFACT_TAG_OPEN.toLowerCase()) {
+          if (potentialTag === ARTIFACT_TAG_OPEN) {
             const nextChar = input[j + 1];
 
             if (nextChar && nextChar !== '>' && nextChar !== ' ' && nextChar !== '\n' && nextChar !== '\r') {
@@ -259,7 +261,7 @@ export class StreamingMessageParser {
             }
 
             break;
-          } else if (!ARTIFACT_TAG_OPEN.toLowerCase().startsWith(potentialTag.toLowerCase())) {
+          } else if (!ARTIFACT_TAG_OPEN.startsWith(potentialTag)) {
             output += input.slice(i, j + 1);
             i = j + 1;
             break;
@@ -293,8 +295,12 @@ export class StreamingMessageParser {
   #parseActionTag(input: string, actionOpenIndex: number, actionEndIndex: number) {
     const actionTag = input.slice(actionOpenIndex, actionEndIndex + 1);
 
-    const rawType = this.#extractAttribute(actionTag, 'type');
-    const actionType = (rawType?.toLowerCase() || 'file') as ActionType;
+    const rawType = this.#extractAttribute(actionTag, 'type')?.toLowerCase();
+    const actionType: ActionType = rawType === 'shell' || rawType === 'start' || rawType === 'file' ? rawType : 'file';
+
+    if (rawType && !['file', 'shell', 'start'].includes(rawType)) {
+      logger.warn(`Unknown action type '${rawType}'; treating it as a file action`);
+    }
 
     const actionAttributes = {
       type: actionType,
@@ -305,7 +311,7 @@ export class StreamingMessageParser {
       let filePath =
         this.#extractAttribute(actionTag, 'filePath') ||
         this.#extractAttribute(actionTag, 'path') ||
-        this.#extractAttribute(actionTag, 'filepath') as string;
+        (this.#extractAttribute(actionTag, 'filepath') as string);
 
       if (!filePath) {
         logger.debug('File path not specified, defaulting to index.html');
@@ -317,7 +323,7 @@ export class StreamingMessageParser {
       logger.warn(`Unknown action type '${actionType}'`);
     }
 
-    return actionAttributes as FileAction | ShellAction;
+    return actionAttributes as BoltAction;
   }
 
   #extractAttribute(tag: string, attributeName: string): string | undefined {
