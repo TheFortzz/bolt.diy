@@ -1,11 +1,11 @@
 import React from 'react';
 
 const EXAMPLE_PROMPTS = [
-  { text: 'Build a todo app in React using Tailwind' },
-  { text: 'Build a simple blog using Astro' },
-  { text: 'Create a cookie consent form using Material UI' },
-  { text: 'Make a space invaders game' },
-  { text: 'Make a Tic Tac Toe game in html, css and js only' },
+  { text: 'Build a metroidvania with 3 zones, keys, locked doors, and a boss' },
+  { text: 'Build a top-down bullet hell roguelite with upgrades and waves' },
+  { text: 'Build a tower defense with pathing enemies and 5 tower types' },
+  { text: 'Build an action platformer with double jump, enemies, and checkpoints' },
+  { text: 'Build a space arena shooter with weapon drops and a final boss' },
 ];
 
 export function ExamplePrompts(sendMessage?: { (event: React.UIEvent, messageInput?: string): void | undefined }) {

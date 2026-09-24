@@ -4,8 +4,8 @@ import { streamText, type Messages, type StreamingOptions } from '~/lib/.server/
 import SwitchableStream from '~/lib/.server/llm/switchable-stream';
 import type { IProviderSetting } from '~/types/model';
 
-const MAX_TOKENS = 8000;
-const MAX_RESPONSE_SEGMENTS = 2;
+const MAX_TOKENS = 16384;
+const MAX_RESPONSE_SEGMENTS = 8;
 
 export async function action(args: ActionFunctionArgs) {
   return chatAction(args);

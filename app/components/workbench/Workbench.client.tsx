@@ -1,7 +1,7 @@
 import { useStore } from '@nanostores/react';
 import { motion, type HTMLMotionProps, type Variants } from 'framer-motion';
 import { computed } from 'nanostores';
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import {
   type OnChangeCallback as OnEditorChange,
@@ -33,7 +33,7 @@ const sliderOptions: SliderOptions<WorkbenchViewType> = {
   },
   right: {
     value: 'preview',
-    text: 'Preview',
+    text: 'Play',
   },
 };
 
@@ -58,6 +58,7 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
   renderLogger.trace('Workbench');
 
   const [isSyncing, setIsSyncing] = useState(false);
+  const [pinPlayView, setPinPlayView] = useState(false);
 
   const hasPreview = useStore(computed(workbenchStore.previews, (previews) => previews.length > 0));
   const showWorkbench = useStore(workbenchStore.showWorkbench);
@@ -69,15 +70,44 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
   const selectedView = useStore(workbenchStore.currentView);
 
   const isSmallViewport = useViewport(1024);
+  const wasStreamingRef = useRef(false);
 
-  const setSelectedView = (view: WorkbenchViewType) => {
+  const setSelectedView = useCallback((view: WorkbenchViewType) => {
     workbenchStore.currentView.set(view);
-  };
+    if (view === 'preview') {
+      setPinPlayView(true);
+      workbenchStore.preferPlayView.set(true);
+    } else {
+      workbenchStore.preferPlayView.set(false);
+    }
+  }, []);
 
   useEffect(() => {
-    // Prefer Code while the AI is writing files; flip to Preview when ready or once streaming ends with HTML present.
+    const onPlayWhileBuilding = () => {
+      setPinPlayView(true);
+      workbenchStore.preferPlayView.set(true);
+      workbenchStore.showWorkbench.set(true);
+      workbenchStore.currentView.set('preview');
+    };
+
+    window.addEventListener('fortz-play-while-building', onPlayWhileBuilding);
+    return () => window.removeEventListener('fortz-play-while-building', onPlayWhileBuilding);
+  }, []);
+
+  useEffect(() => {
+    // Reset Play pin when a new AI build starts so Code is the default again.
+    const streaming = Boolean(isStreaming);
+    if (streaming && !wasStreamingRef.current) {
+      setPinPlayView(false);
+      workbenchStore.preferPlayView.set(false);
+    }
+    wasStreamingRef.current = streaming;
+  }, [isStreaming]);
+
+  useEffect(() => {
+    // Prefer Code while the AI is writing files unless the user pinned Play.
     if (isStreaming) {
-      if (showWorkbench) {
+      if (showWorkbench && !pinPlayView) {
         setSelectedView('code');
       }
       return;
@@ -90,7 +120,7 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
     if (hasPreview || hasHtml) {
       setSelectedView('preview');
     }
-  }, [hasPreview, isStreaming, showWorkbench, files]);
+  }, [hasPreview, isStreaming, showWorkbench, files, pinPlayView, setSelectedView]);
 
   useEffect(() => {
     workbenchStore.setDocuments(files);

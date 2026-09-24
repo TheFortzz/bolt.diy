@@ -58,16 +58,13 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
             return (
               <div
                 key={index}
-                className={classNames('flex gap-3 sm:gap-4 p-3.5 sm:p-4.5 w-full rounded-none border border-white/5 transition-all', {
-                  'bg-[#0b121e] border-l-4 border-l-[#10b981]': isUserMessage,
-                  'bg-[#0d1626] border-l-4 border-l-[#8b5cf6] shadow-sm': !isUserMessage && (!isStreaming || (isStreaming && !isLast)),
-                  'bg-gradient-to-b from-[#0d1626] from-30% to-transparent border-l-4 border-l-[#8b5cf6]':
-                    isStreaming && isLast,
-                  'mt-3': !isFirst,
+                className={classNames('flex gap-3 sm:gap-4 py-3 sm:py-3.5 w-full transition-all', {
+                  'mt-2': !isFirst,
+                  'opacity-90': isStreaming && isLast && !isUserMessage,
                 })}
               >
                 {isUserMessage && (
-                  <div className="flex items-center justify-center w-[34px] h-[34px] overflow-hidden bg-[#060910] text-gray-300 rounded-none shrink-0 self-start border border-[#10b981]/40 shadow-sm">
+                  <div className="flex items-center justify-center w-[30px] h-[30px] overflow-hidden bg-transparent text-gray-300 rounded-none shrink-0 self-start border border-emerald-400/35">
                     {userPhoto ? (
                       <img
                         src={userPhoto}
@@ -79,19 +76,19 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
                         }}
                       />
                     ) : auth.user?.name ? (
-                      <div className="w-full h-full bg-[#10b981] flex items-center justify-center text-black font-extrabold text-xs">
+                      <div className="w-full h-full bg-[#10b981]/25 flex items-center justify-center text-emerald-300 font-extrabold text-xs">
                         {auth.user.name.charAt(0).toUpperCase()}
                       </div>
                     ) : (
-                      <div className="i-ph:user-fill text-xl text-emerald-400"></div>
+                      <div className="i-ph:user-fill text-lg text-emerald-400"></div>
                     )}
                   </div>
                 )}
-                <div className="grid grid-col-1 w-full">
+                <div className="grid grid-col-1 w-full min-w-0">
                   {isUserMessage ? <UserMessage content={content} /> : <AssistantMessage content={content} />}
                 </div>
                 {!isUserMessage && (
-                  <div className="flex gap-2 flex-col lg:flex-row">
+                  <div className="flex gap-2 flex-col lg:flex-row opacity-60 hover:opacity-100">
                     <WithTooltip tooltip="Revert to this message">
                       {messageId && (
                         <button

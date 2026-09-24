@@ -12,7 +12,7 @@ import { useMessageParser, usePromptEnhancer, useShortcuts, useSnapScroll } from
 import { description, useChatHistory } from '~/lib/persistence';
 import { chatStore } from '~/lib/stores/chat';
 import { workbenchStore } from '~/lib/stores/workbench';
-import { DEFAULT_MODEL, DEFAULT_PROVIDER, PROMPT_COOKIE_KEY, PROVIDER_LIST } from '~/utils/constants';
+import { DEFAULT_MODEL, DEFAULT_PROVIDER, PROMPT_COOKIE_KEY, PROVIDER_LIST, type StudioAgentMode } from '~/utils/constants';
 import { cubicEasingFn } from '~/utils/easings';
 import { createScopedLogger, renderLogger } from '~/utils/logger';
 import { BaseChat } from './BaseChat';
@@ -93,6 +93,8 @@ export const ChatImpl = memo(
     const [chatStarted, setChatStarted] = useState(initialMessages.length > 0);
     const [uploadedFiles, setUploadedFiles] = useState<File[]>([]); // Move here
     const [imageDataList, setImageDataList] = useState<string[]>([]); // Move here
+    const [agentMode, setAgentMode] = useState<StudioAgentMode>('auto');
+    const lastAgentModeRef = useRef<StudioAgentMode>('auto');
     const { activeProviders } = useSettings();
 
     const [model, setModel] = useState(() => {
@@ -142,6 +144,41 @@ export const ChatImpl = memo(
         scrollToBottomRef.current?.(true);
         if (messages.length > 0) {
           storeMessageHistory(messages).catch((e) => console.warn('Final save error:', e));
+        }
+
+        const content = typeof message?.content === 'string' ? message.content : '';
+        const builtFiles = content.includes('boltArtifact') || content.includes('boltAction');
+        const mode = lastAgentModeRef.current;
+
+        if (mode === 'plan' && !builtFiles) {
+          toast.info('📋 Plan ready — ask FortzAI to build it, or send again in Build mode.', {
+            autoClose: 5500,
+            position: 'top-right',
+          });
+          return;
+        }
+
+        workbenchStore.showWorkbench.set(true);
+        workbenchStore.currentView.set('preview');
+        window.dispatchEvent(new CustomEvent('fortz-play-while-building'));
+
+        toast.success('🎮 Build finished — hit Play to try your game!', {
+          autoClose: 6000,
+          position: 'top-right',
+        });
+
+        if (typeof window !== 'undefined' && 'Notification' in window) {
+          try {
+            if (Notification.permission === 'granted') {
+              new Notification('FortzAI', { body: 'Your game build is ready to play!' });
+            } else if (Notification.permission === 'default') {
+              Notification.requestPermission().then((perm) => {
+                if (perm === 'granted') {
+                  new Notification('FortzAI', { body: 'Your game build is ready to play!' });
+                }
+              });
+            }
+          } catch (e) {}
         }
       },
       initialMessages,
@@ -242,6 +279,10 @@ export const ChatImpl = memo(
 
       runAnimation();
 
+      const modeTag = `[Studio Mode: ${agentMode.toUpperCase()}]\n`;
+      const textPayload = `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${modeTag}${_input}`;
+      lastAgentModeRef.current = agentMode;
+
       if (fileModifications !== undefined) {
         /**
          * If we have file modifications we append a new user message manually since we have to prefix
@@ -255,7 +296,7 @@ export const ChatImpl = memo(
           content: [
             {
               type: 'text',
-              text: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${_input}`,
+              text: textPayload,
             },
             ...imageDataList.map((imageData) => ({
               type: 'image',
@@ -275,7 +316,7 @@ export const ChatImpl = memo(
           content: [
             {
               type: 'text',
-              text: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${_input}`,
+              text: textPayload,
             },
             ...imageDataList.map((imageData) => ({
               type: 'image',
@@ -405,6 +446,8 @@ export const ChatImpl = memo(
         setUploadedFiles={setUploadedFiles}
         imageDataList={imageDataList}
         setImageDataList={setImageDataList}
+        agentMode={agentMode}
+        setAgentMode={setAgentMode}
       />
     );
   },

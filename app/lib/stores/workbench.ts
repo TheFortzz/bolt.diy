@@ -42,6 +42,8 @@ export class WorkbenchStore {
 
   showWorkbench: WritableAtom<boolean> = import.meta.hot?.data.showWorkbench ?? atom(false);
   currentView: WritableAtom<WorkbenchViewType> = import.meta.hot?.data.currentView ?? atom('preview');
+  /** When true, file-write actions must not yank the user off the Play tab. */
+  preferPlayView: WritableAtom<boolean> = import.meta.hot?.data.preferPlayView ?? atom(false);
   unsavedFiles: WritableAtom<Set<string>> = import.meta.hot?.data.unsavedFiles ?? atom(new Set<string>());
   completedFiles: WritableAtom<Set<string>> = import.meta.hot?.data.completedFiles ?? atom(new Set<string>());
   modifiedFiles = new Set<string>();
@@ -55,6 +57,17 @@ export class WorkbenchStore {
       import.meta.hot.data.completedFiles = this.completedFiles;
       import.meta.hot.data.showWorkbench = this.showWorkbench;
       import.meta.hot.data.currentView = this.currentView;
+      import.meta.hot.data.preferPlayView = this.preferPlayView;
+    }
+  }
+
+  #focusCodeUnlessPlayPinned() {
+    if (this.preferPlayView.get()) {
+      return;
+    }
+
+    if (this.currentView.value !== 'code') {
+      this.currentView.set('code');
     }
   }
 
@@ -396,9 +409,7 @@ http.createServer((req, res) => {
         this.setSelectedFile(fullPath);
       }
 
-      if (this.currentView.value !== 'code') {
-        this.currentView.set('code');
-      }
+      this.#focusCodeUnlessPlayPinned();
 
       this.#editorStore.updateFile(fullPath, data.action.content || '');
     }
@@ -444,9 +455,7 @@ http.createServer((req, res) => {
           this.setSelectedFile(fullPath);
         }
 
-        if (this.currentView.value !== 'code') {
-          this.currentView.set('code');
-        }
+        this.#focusCodeUnlessPlayPinned();
 
         this.#editorStore.updateFile(fullPath, data.action.content);
         this.#filesStore.files.setKey(fullPath, {
@@ -461,9 +470,7 @@ http.createServer((req, res) => {
         this.setSelectedFile(fullPath);
       }
 
-      if (this.currentView.value !== 'code') {
-        this.currentView.set('code');
-      }
+      this.#focusCodeUnlessPlayPinned();
 
       this.#editorStore.updateFile(fullPath, data.action.content);
       this.#filesStore.files.setKey(fullPath, {

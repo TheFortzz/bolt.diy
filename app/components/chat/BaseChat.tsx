@@ -1,7 +1,3 @@
-/*
- * @ts-nocheck
- * Preventing TS checks with files presented in the video for a better presentation.
- */
 import type { Message } from 'ai';
 import React, { type RefCallback, useEffect, useState } from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
@@ -9,7 +5,7 @@ import { Menu } from '~/components/sidebar/Menu.client';
 import { IconButton } from '~/components/ui/IconButton';
 import { Workbench } from '~/components/workbench/Workbench.client';
 import { classNames } from '~/utils/classNames';
-import { MODEL_LIST, PROVIDER_LIST, initializeModelList } from '~/utils/constants';
+import { MODEL_LIST, PROVIDER_LIST, initializeModelList, type StudioAgentMode } from '~/utils/constants';
 import { Messages } from './Messages.client';
 import { SendButton } from './SendButton.client';
 import { APIKeyManager } from './APIKeyManager';
@@ -35,6 +31,12 @@ import { SpeechRecognitionButton } from '~/components/chat/SpeechRecognition';
 import type { IProviderSetting, ProviderInfo } from '~/types/model';
 
 const TEXTAREA_MIN_HEIGHT = 70;
+
+const AGENT_MODES: { id: StudioAgentMode; label: string; hint: string }[] = [
+  { id: 'plan', label: 'Plan', hint: 'Design first, no files yet' },
+  { id: 'build', label: 'Build', hint: 'Jump straight into code' },
+  { id: 'auto', label: 'Auto', hint: 'Short plan, then build' },
+];
 
 interface BaseChatProps {
   textareaRef?: React.RefObject<HTMLTextAreaElement> | undefined;
@@ -63,6 +65,8 @@ interface BaseChatProps {
   setUploadedFiles?: (files: File[]) => void;
   imageDataList?: string[];
   setImageDataList?: (dataList: string[]) => void;
+  agentMode?: StudioAgentMode;
+  setAgentMode?: (mode: StudioAgentMode) => void;
 }
 
 export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
@@ -93,6 +97,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       imageDataList = [],
       setImageDataList,
       messages,
+      agentMode = 'auto',
+      setAgentMode,
     },
     ref,
   ) => {
@@ -507,6 +513,53 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     setImageDataList?.(imageDataList.filter((_, i) => i !== index));
                   }}
                 />
+
+                {/* Plan / Build / Auto — first prompt only */}
+                {!chatStarted && (
+                  <div className="mb-2.5 flex items-center justify-center gap-1.5" role="tablist" aria-label="Studio mode">
+                    {AGENT_MODES.map((mode) => {
+                      const active = agentMode === mode.id;
+                      return (
+                        <button
+                          key={mode.id}
+                          type="button"
+                          role="tab"
+                          aria-selected={active}
+                          title={mode.hint}
+                          onClick={() => setAgentMode?.(mode.id)}
+                          className={classNames(
+                            'px-4 py-1.5 text-xs font-semibold tracking-wide uppercase transition-all border',
+                            active
+                              ? 'bg-[#38bdf8] text-[#041018] border-[#7dd3fc] shadow-[0_0_18px_rgba(56,189,248,0.35)]'
+                              : 'bg-transparent text-slate-300 border-white/15 hover:border-sky-400/50 hover:text-white',
+                          )}
+                          style={{ borderRadius: 0 }}
+                        >
+                          {mode.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Play while AI builds */}
+                {isStreaming && (
+                  <div className="mb-2.5 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        workbenchStore.showWorkbench.set(true);
+                        window.dispatchEvent(new CustomEvent('fortz-play-while-building'));
+                      }}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold uppercase tracking-wide text-[#041018] bg-[#4ade80] border border-[#86efac] shadow-[0_0_22px_rgba(74,222,128,0.4)] hover:bg-[#86efac] transition-all animate-pulse"
+                      style={{ borderRadius: 0 }}
+                    >
+                      <span className="i-ph:play-fill text-base" />
+                      Play while it builds
+                    </button>
+                  </div>
+                )}
+
                 <div
                   style={{
                     borderRadius: 0,

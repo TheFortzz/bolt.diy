@@ -1,8 +1,4 @@
-/*
- * @ts-nocheck
- * Preventing TS checks with files presented in the video for a better presentation.
- */
-import { MODEL_REGEX, PROVIDER_REGEX } from '~/utils/constants';
+import { MODEL_REGEX, PROVIDER_REGEX, STUDIO_MODE_REGEX } from '~/utils/constants';
 import { Markdown } from './Markdown';
 
 interface UserMessageProps {
@@ -16,7 +12,7 @@ export function UserMessage({ content }: UserMessageProps) {
     const images = content.filter((item) => item.type === 'image' && item.image);
 
     return (
-      <div className="overflow-hidden pt-[4px]">
+      <div className="overflow-hidden pt-[2px] bg-transparent">
         <div className="flex items-start gap-4">
           <div className="flex-1">
             <Markdown limitedMarkdown>{textContent}</Markdown>
@@ -42,12 +38,12 @@ export function UserMessage({ content }: UserMessageProps) {
   const textContent = sanitizeUserMessage(content);
 
   return (
-    <div className="overflow-hidden pt-[4px]">
+    <div className="overflow-hidden pt-[2px] bg-transparent">
       <Markdown limitedMarkdown>{textContent}</Markdown>
     </div>
   );
 }
 
 function sanitizeUserMessage(content: string) {
-  return content.replace(MODEL_REGEX, '').replace(PROVIDER_REGEX, '');
+  return content.replace(MODEL_REGEX, '').replace(PROVIDER_REGEX, '').replace(STUDIO_MODE_REGEX, '').trim();
 }

@@ -4,7 +4,16 @@ import { getAPIKey } from '~/lib/.server/llm/api-key';
 import { MAX_TOKENS } from './constants';
 import { getSystemPrompt } from './prompts';
 import { trimMessagesForSmallModel } from './context-trimmer';
-import { DEFAULT_MODEL, DEFAULT_PROVIDER, getModelList, MODEL_REGEX, PROVIDER_REGEX } from '~/utils/constants';
+import {
+  DEFAULT_MODEL,
+  DEFAULT_PROVIDER,
+  getModelList,
+  MODEL_REGEX,
+  PROVIDER_REGEX,
+  STUDIO_MODE_REGEX,
+  STUDIO_MODE_INSTRUCTIONS,
+  type StudioAgentMode,
+} from '~/utils/constants';
 import type { IProviderSetting } from '~/types/model';
 
 interface ToolResult<Name extends string, Args, Result> {
@@ -25,40 +34,47 @@ export type Messages = Message[];
 
 export type StreamingOptions = Omit<Parameters<typeof _streamText>[0], 'model'>;
 
-function extractPropertiesFromMessage(message: Message): { model: string; provider: string; content: string } {
+function extractPropertiesFromMessage(message: Message): {
+  model: string;
+  provider: string;
+  content: string;
+  studioMode?: StudioAgentMode;
+} {
   const textContent = Array.isArray(message.content)
-    ? message.content.find((item) => item.type === 'text')?.text || ''
+    ? message.content.find((item: any) => item.type === 'text')?.text || ''
     : message.content;
 
   const modelMatch = textContent.match(MODEL_REGEX);
   const providerMatch = textContent.match(PROVIDER_REGEX);
+  const modeMatch = textContent.match(STUDIO_MODE_REGEX);
 
-  /*
-   * Extract model
-   * const modelMatch = message.content.match(MODEL_REGEX);
-   */
   const model = modelMatch ? modelMatch[1] : DEFAULT_MODEL;
-
-  /*
-   * Extract provider
-   * const providerMatch = message.content.match(PROVIDER_REGEX);
-   */
   const provider = providerMatch ? providerMatch[1] : DEFAULT_PROVIDER.name;
+  const studioMode = modeMatch ? (modeMatch[1].toLowerCase() as StudioAgentMode) : undefined;
+
+  const stripMeta = (text: string) =>
+    text.replace(MODEL_REGEX, '').replace(PROVIDER_REGEX, '').replace(STUDIO_MODE_REGEX, '').trim();
 
   const cleanedContent = Array.isArray(message.content)
-    ? message.content.map((item) => {
+    ? message.content.map((item: any) => {
         if (item.type === 'text') {
-          return {
-            type: 'text',
-            text: item.text?.replace(MODEL_REGEX, '').replace(PROVIDER_REGEX, ''),
-          };
+          let text = stripMeta(item.text || '');
+          if (studioMode && STUDIO_MODE_INSTRUCTIONS[studioMode]) {
+            text = `${STUDIO_MODE_INSTRUCTIONS[studioMode]}\n\n${text}`;
+          }
+          return { type: 'text', text };
         }
-
-        return item; // Preserve image_url and other types as is
+        return item;
       })
-    : textContent.replace(MODEL_REGEX, '').replace(PROVIDER_REGEX, '');
+    : (() => {
+        let text = stripMeta(textContent);
+        if (studioMode && STUDIO_MODE_INSTRUCTIONS[studioMode]) {
+          text = `${STUDIO_MODE_INSTRUCTIONS[studioMode]}\n\n${text}`;
+        }
+        return text;
+      })();
 
-  return { model, provider, content: cleanedContent };
+  return { model, provider, content: cleanedContent as any, studioMode };
 }
 
 export async function streamText(props: {

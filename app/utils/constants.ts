@@ -8,8 +8,30 @@ export const WORK_DIR = `/home/${WORK_DIR_NAME}`;
 export const MODIFICATIONS_TAG_NAME = 'bolt_file_modifications';
 export const MODEL_REGEX = /^\[Model: (.*?)\]\n\n/;
 export const PROVIDER_REGEX = /\[Provider: (.*?)\]\n\n/;
+export const STUDIO_MODE_REGEX = /\[Studio Mode: (PLAN|BUILD|AUTO)\]\n?/i;
 export const DEFAULT_MODEL = 'fortz-ai';
 export const PROMPT_COOKIE_KEY = 'cachedPrompt';
+
+export type StudioAgentMode = 'plan' | 'build' | 'auto';
+
+export const STUDIO_MODE_INSTRUCTIONS: Record<StudioAgentMode, string> = {
+  plan: [
+    'STUDIO MODE = PLAN (do not write game files yet).',
+    'Reply with a clear structured plan only: game concept, core loop, systems, file tree (multi-file Vite layout), levels/waves, enemies, juice, and controls.',
+    'Do NOT emit <boltArtifact>, <boltAction>, or any file contents.',
+    'End by asking if they want you to build it now.',
+  ].join(' '),
+  build: [
+    'STUDIO MODE = BUILD.',
+    'Skip long planning. Immediately emit a full multi-file <boltArtifact> (package.json, thin index.html, style.css, 6+ src/*.js modules, vite start).',
+    'Target a deep playable game (2000+ lines across files). Never a single mega index.html.',
+  ].join(' '),
+  auto: [
+    'STUDIO MODE = AUTO.',
+    'Give a 2–4 sentence architecture outline, then immediately build the full multi-file game <boltArtifact> (package.json, thin index.html, style.css, 6+ src/*.js modules, vite start).',
+    'Never ship a single-file under-1000-line prototype.',
+  ].join(' '),
+};
 
 const logger = createScopedLogger('Constants');
 
@@ -56,13 +78,13 @@ const PROVIDER_LIST: ProviderInfo[] = [
         name: 'fortz-ai',
         label: 'Fortz AI (GPT 6 Luna)',
         provider: 'OpenAILike',
-        maxTokenAllowed: 8000,
+        maxTokenAllowed: 16384,
       },
       {
         name: 'gpt-6-luna',
         label: 'GPT 6 Luna',
         provider: 'OpenAILike',
-        maxTokenAllowed: 8000,
+        maxTokenAllowed: 16384,
       },
     ],
   },
