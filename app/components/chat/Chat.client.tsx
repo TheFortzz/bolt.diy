@@ -150,6 +150,18 @@ export const ChatImpl = memo(
         const builtFiles = content.includes('boltArtifact') || content.includes('boltAction');
         const mode = lastAgentModeRef.current;
 
+        if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+          window.parent.postMessage(
+            {
+              type: 'thefortz-build-finished',
+              mode,
+              builtFiles,
+              title: 'FortzAI build',
+            },
+            '*',
+          );
+        }
+
         if (mode === 'plan' && !builtFiles) {
           toast.info('📋 Plan ready — ask FortzAI to build it, or send again in Build mode.', {
             autoClose: 5500,
@@ -162,7 +174,7 @@ export const ChatImpl = memo(
         workbenchStore.currentView.set('preview');
         window.dispatchEvent(new CustomEvent('fortz-play-while-building'));
 
-        toast.success('🎮 Build finished — hit Play to try your game!', {
+        toast.success('🎮 Build finished — open Preview to try your game!', {
           autoClose: 6000,
           position: 'top-right',
         });

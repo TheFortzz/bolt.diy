@@ -542,14 +542,19 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   </div>
                 )}
 
-                {/* Play while AI builds */}
+                {/* Play while AI builds — jumps to thefortz.me PLAY tab (AI keeps building in background) */}
                 {isStreaming && (
                   <div className="mb-2.5 flex justify-center">
                     <button
                       type="button"
                       onClick={() => {
-                        workbenchStore.showWorkbench.set(true);
-                        window.dispatchEvent(new CustomEvent('fortz-play-while-building'));
+                        if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+                          window.parent.postMessage({ type: 'thefortz-switch-tab', tab: 'play' }, '*');
+                        } else {
+                          // Standalone studio: fall back to workbench preview
+                          workbenchStore.showWorkbench.set(true);
+                          window.dispatchEvent(new CustomEvent('fortz-play-while-building'));
+                        }
                       }}
                       className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold uppercase tracking-wide text-[#041018] bg-[#4ade80] border border-[#86efac] shadow-[0_0_22px_rgba(74,222,128,0.4)] hover:bg-[#86efac] transition-all animate-pulse"
                       style={{ borderRadius: 0 }}

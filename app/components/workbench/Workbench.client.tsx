@@ -33,7 +33,7 @@ const sliderOptions: SliderOptions<WorkbenchViewType> = {
   },
   right: {
     value: 'preview',
-    text: 'Play',
+    text: 'Preview',
   },
 };
 
