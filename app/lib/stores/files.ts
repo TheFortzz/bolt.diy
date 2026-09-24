@@ -125,7 +125,7 @@ export class FilesStore {
     return absolutePath;
   }
 
-  async uploadFiles(fileList: FileList | File[], targetFolder?: string) {
+  async uploadFiles(fileList: FileList | globalThis.File[], targetFolder?: string) {
     const created: string[] = [];
     const base = targetFolder ? this.#toAbsolutePath(targetFolder) : WORK_DIR;
 

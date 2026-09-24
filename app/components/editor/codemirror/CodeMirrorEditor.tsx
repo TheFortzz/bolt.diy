@@ -72,6 +72,7 @@ interface Props {
   onSave?: OnSaveCallback;
   className?: string;
   settings?: EditorSettings;
+  isStreaming?: boolean;
 }
 
 type EditorStates = Map<string, EditorState>;
@@ -129,6 +130,7 @@ export const CodeMirrorEditor = memo(
     theme,
     settings,
     className = '',
+    isStreaming = false,
   }: Props) => {
     renderLogger.trace('CodeMirrorEditor');
 
@@ -250,8 +252,9 @@ export const CodeMirrorEditor = memo(
         languageCompartment,
         autoFocusOnDocumentChange,
         doc as TextEditorDocument,
+        isStreaming,
       );
-    }, [doc?.value, editable, doc?.filePath, autoFocusOnDocumentChange]);
+    }, [doc?.value, editable, doc?.filePath, autoFocusOnDocumentChange, isStreaming]);
 
     return (
       <div className={classNames('relative h-full', className)}>
@@ -380,15 +383,20 @@ function setEditorDocument(
   languageCompartment: Compartment,
   autoFocus: boolean,
   doc: TextEditorDocument,
+  isStreaming: boolean = false,
 ) {
+  const isStreamingUpdate = Boolean(isStreaming || !editable);
+  const docLength = doc.value.length;
+
   if (doc.value !== view.state.doc.toString()) {
     view.dispatch({
-      selection: { anchor: 0 },
+      selection: isStreamingUpdate ? { anchor: docLength } : { anchor: 0 },
       changes: {
         from: 0,
         to: view.state.doc.length,
         insert: doc.value,
       },
+      effects: isStreamingUpdate ? [EditorView.scrollIntoView(docLength, { y: 'end' })] : [],
     });
   }
 
@@ -406,6 +414,11 @@ function setEditorDocument(
     });
 
     requestAnimationFrame(() => {
+      if (isStreamingUpdate) {
+        view.scrollDOM.scrollTop = view.scrollDOM.scrollHeight;
+        return;
+      }
+
       const currentLeft = view.scrollDOM.scrollLeft;
       const currentTop = view.scrollDOM.scrollTop;
       const newLeft = doc.scroll?.left ?? 0;

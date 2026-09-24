@@ -14,6 +14,7 @@ import { saveAs } from 'file-saver';
 import { Octokit, type RestEndpointMethodTypes } from '@octokit/rest';
 import * as nodePath from 'node:path';
 import { extractRelativePath } from '~/utils/diff';
+import { WORK_DIR } from '~/utils/constants';
 import { description } from '~/lib/persistence';
 import Cookies from 'js-cookie';
 
@@ -184,7 +185,7 @@ export class WorkbenchStore {
     return this.#filesStore.createFolder(folderPath);
   }
 
-  async uploadFiles(fileList: FileList | File[], targetFolder?: string) {
+  async uploadFiles(fileList: FileList | globalThis.File[], targetFolder?: string) {
     const created = await this.#filesStore.uploadFiles(fileList, targetFolder);
 
     if (created.length > 0) {
@@ -386,9 +387,23 @@ http.createServer((req, res) => {
     this.artifacts.setKey(messageId, { ...artifact, ...state });
   }
   addAction(data: ActionCallbackData) {
-    this._addAction(data);
+    if (data.action.type === 'file') {
+      const fullPath = data.action.filePath.startsWith(WORK_DIR)
+        ? data.action.filePath
+        : nodePath.posix.join(WORK_DIR, data.action.filePath.replace(/^\/+/, ''));
 
-    // this.addToExecutionQueue(()=>this._addAction(data))
+      if (this.selectedFile.value !== fullPath) {
+        this.setSelectedFile(fullPath);
+      }
+
+      if (this.currentView.value !== 'code') {
+        this.currentView.set('code');
+      }
+
+      this.#editorStore.updateFile(fullPath, data.action.content || '');
+    }
+
+    this._addAction(data);
   }
   async _addAction(data: ActionCallbackData) {
     const { messageId } = data;
@@ -419,8 +434,9 @@ http.createServer((req, res) => {
     }
 
     if (data.action.type === 'file') {
-      const wc = await getWebContainer();
-      const fullPath = nodePath.join(wc.workdir, data.action.filePath);
+      const fullPath = data.action.filePath.startsWith(WORK_DIR)
+        ? data.action.filePath
+        : nodePath.posix.join(WORK_DIR, data.action.filePath.replace(/^\/+/, ''));
 
       // During streaming: in-memory updates only (no WebContainer I/O) to avoid lag.
       if (isStreaming) {
@@ -450,7 +466,16 @@ http.createServer((req, res) => {
       }
 
       this.#editorStore.updateFile(fullPath, data.action.content);
-      await artifact.runner.runAction(data);
+      this.#filesStore.files.setKey(fullPath, {
+        type: 'file',
+        content: data.action.content,
+        isBinary: false,
+      });
+
+      // Write to WebContainer asynchronously without blocking workbench state
+      artifact.runner.runAction(data).catch((e) => {
+        console.warn('WebContainer action execution warning:', e);
+      });
 
       const completedFiles = new Set(this.completedFiles.get());
       completedFiles.add(fullPath);

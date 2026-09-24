@@ -67,7 +67,11 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       return undefined;
     }
 
-    let bundled = htmlContent;
+    // Strip markdown code fences if wrapped by the model
+    let cleanContent = htmlContent.trim();
+    cleanContent = cleanContent.replace(/^```(?:html|xml)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+
+    let bundled = cleanContent;
     const handledCss = new Set<string>();
     const handledJs = new Set<string>();
 
@@ -106,8 +110,10 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     if (extraCss) {
       if (bundled.includes('</head>')) {
         bundled = bundled.replace('</head>', `${extraCss}</head>`);
+      } else if (bundled.includes('<body')) {
+        bundled = bundled.replace('<body', `${extraCss}\n<body`);
       } else {
-        bundled = extraCss + bundled;
+        bundled = bundled + '\n' + extraCss;
       }
     }
 
@@ -191,11 +197,37 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       '<!-- removed missing local stylesheet -->',
     );
 
+    // CRITICAL: Guarantee Strict Standards Mode (Never Quirks Mode)
+    // <!DOCTYPE html> MUST be at index 0 of the document.
+    bundled = bundled.trim();
+    const doctypeRegex = /<!DOCTYPE\s+html[^>]*>/i;
+    if (doctypeRegex.test(bundled)) {
+      bundled = '<!DOCTYPE html>\n' + bundled.replace(doctypeRegex, '').trim();
+    } else {
+      bundled = '<!DOCTYPE html>\n' + bundled;
+    }
+
+    // Ensure <meta charset="UTF-8"> exists
+    if (!bundled.toLowerCase().includes('charset=')) {
+      if (bundled.includes('<head>')) {
+        bundled = bundled.replace('<head>', '<head>\n  <meta charset="UTF-8" />');
+      } else if (bundled.includes('<head ')) {
+        bundled = bundled.replace(/(<head[^>]*>)/i, '$1\n  <meta charset="UTF-8" />');
+      } else if (bundled.includes('<html')) {
+        bundled = bundled.replace(/(<html[^>]*>)/i, '$1\n<head>\n  <meta charset="UTF-8" />\n</head>');
+      }
+    }
+
     return bundled;
   }, [activePreview, files]);
 
   const fallbackIncomplete = useMemo(() => {
     if (!fallbackHtml) {
+      return false;
+    }
+
+    // When AI has finished streaming, the build is final — never block preview
+    if (!isStreaming) {
       return false;
     }
 
@@ -208,29 +240,8 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       return true;
     }
 
-    const scriptPattern = /<script([^>]*)>([\s\S]*?)<\/script>/gi;
-    let match: RegExpExecArray | null;
-
-    while ((match = scriptPattern.exec(fallbackHtml))) {
-      const attributes = match[1] || '';
-      const script = match[2] || '';
-
-      if (!script.trim() || /type=["']application\/json["']/i.test(attributes)) {
-        continue;
-      }
-
-      const openBraces = (script.match(/\{/g) || []).length;
-      const closeBraces = (script.match(/\}/g) || []).length;
-      const openParens = (script.match(/\(/g) || []).length;
-      const closeParens = (script.match(/\)/g) || []).length;
-
-      if (openBraces > closeBraces + 1 || openParens > closeParens + 1) {
-        return true;
-      }
-    }
-
     return false;
-  }, [fallbackHtml]);
+  }, [fallbackHtml, isStreaming]);
 
   // Keep last good preview while AI is streaming incomplete files.
   const lastGoodHtmlRef = useRef<string | undefined>();
@@ -246,7 +257,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
 
     // While AI works (or briefly incomplete), keep showing the last good build.
     if (isStreaming || fallbackIncomplete) {
-      return lastGoodHtmlRef.current;
+      return lastGoodHtmlRef.current || fallbackHtml;
     }
 
     return fallbackHtml;
@@ -257,29 +268,28 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
   const [fallbackBlobUrl, setFallbackBlobUrl] = useState<string | undefined>();
   const fallbackBlobUrlRef = useRef<string | undefined>();
 
-  // Serve fallback preview as a proper text/html blob so browsers render it
-  // instead of showing raw HTML source (srcDoc edge-cases / MIME issues).
+  // Serve fallback preview safely as a text/html blob without revoking active URLs under the iframe
   useEffect(() => {
     if (!displayFallbackHtml || activePreview) {
+      if (fallbackBlobUrlRef.current) {
+        const toRevoke = fallbackBlobUrlRef.current;
+        fallbackBlobUrlRef.current = undefined;
+        setFallbackBlobUrl(undefined);
+        setTimeout(() => URL.revokeObjectURL(toRevoke), 500);
+      }
       return;
-    }
-
-    if (fallbackBlobUrlRef.current) {
-      URL.revokeObjectURL(fallbackBlobUrlRef.current);
-      fallbackBlobUrlRef.current = undefined;
     }
 
     const blob = new Blob([displayFallbackHtml], { type: 'text/html;charset=utf-8' });
     const objectUrl = URL.createObjectURL(blob);
+    const oldUrl = fallbackBlobUrlRef.current;
+
     fallbackBlobUrlRef.current = objectUrl;
     setFallbackBlobUrl(objectUrl);
 
-    return () => {
-      if (fallbackBlobUrlRef.current === objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-        fallbackBlobUrlRef.current = undefined;
-      }
-    };
+    if (oldUrl && oldUrl !== objectUrl) {
+      setTimeout(() => URL.revokeObjectURL(oldUrl), 1000);
+    }
   }, [displayFallbackHtml, activePreview]);
 
   // Clear cached blob when project is empty and idle.
@@ -290,16 +300,16 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       lastGoodHtmlRef.current = undefined;
 
       if (fallbackBlobUrlRef.current) {
-        URL.revokeObjectURL(fallbackBlobUrlRef.current);
+        const toRevoke = fallbackBlobUrlRef.current;
         fallbackBlobUrlRef.current = undefined;
+        setTimeout(() => URL.revokeObjectURL(toRevoke), 500);
       }
 
       setFallbackBlobUrl(undefined);
     }
   }, [files, isStreaming, activePreview]);
 
-  // After streaming ends, if no vite/npm preview appeared within 4 s, force the
-  // static-server fallback so the game always becomes visible.
+  // After streaming ends, start static server immediately so preview is ready
   const postStreamTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (postStreamTimerRef.current) {
@@ -312,10 +322,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
         (d) => d?.type === 'file' && Boolean(d.content) && (d.content.includes('<!DOCTYPE') || d.content.includes('<html')),
       );
       if (hasHtml) {
-        postStreamTimerRef.current = setTimeout(() => {
-          // Poke the workbench to kick the static server if it hasn't started yet
-          workbenchStore.startStaticPreviewServer().catch(() => {});
-        }, 4000);
+        workbenchStore.startStaticPreviewServer().catch(() => {});
       }
     }
 
@@ -394,8 +401,12 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
 
   const reloadPreview = () => {
     if (iframeRef.current) {
-      if (activePreview || fallbackBlobUrl) {
-        iframeRef.current.src = iframeRef.current.src;
+      if (activePreview) {
+        iframeRef.current.src = activePreview.baseUrl;
+      } else if (fallbackBlobUrl) {
+        iframeRef.current.src = fallbackBlobUrl;
+      } else if (displayFallbackHtml) {
+        iframeRef.current.srcdoc = displayFallbackHtml;
       }
     }
   };
@@ -534,6 +545,9 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
         >
           <input
             ref={inputRef}
+            id="preview-address-bar"
+            name="previewAddress"
+            aria-label="Preview address bar"
             className="w-full bg-transparent outline-none"
             type="text"
             value={url}
@@ -589,12 +603,13 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
             display: 'flex',
           }}
         >
-          {activePreview || fallbackBlobUrl ? (
+          {activePreview || fallbackBlobUrl || displayFallbackHtml ? (
             <>
               <iframe
                 ref={iframeRef}
                 className="border-none w-full h-full bg-white"
-                src={iframeUrl}
+                src={activePreview ? activePreview.baseUrl : fallbackBlobUrl}
+                srcDoc={!activePreview && !fallbackBlobUrl ? displayFallbackHtml : undefined}
                 sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-pointer-lock"
                 allow="cross-origin-isolated; autoplay; camera; microphone; clipboard-write; clipboard-read; fullscreen; encrypted-media; display-capture; geolocation"
               />

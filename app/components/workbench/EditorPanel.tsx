@@ -161,6 +161,9 @@ export const EditorPanel = memo(
                 </IconButton>
                 <input
                   ref={uploadInputRef}
+                  id="workspace-file-upload"
+                  name="workspaceFileUpload"
+                  aria-label="Upload files to workspace"
                   type="file"
                   multiple
                   className="hidden"
@@ -211,6 +214,7 @@ export const EditorPanel = memo(
                   <CodeMirrorEditor
                     theme={theme}
                     editable={!isStreaming && editorDocument !== undefined}
+                    isStreaming={isStreaming}
                     settings={editorSettings}
                     doc={editorDocument}
                     autoFocusOnDocumentChange={!isMobile()}
