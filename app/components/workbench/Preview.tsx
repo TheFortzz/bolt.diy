@@ -59,11 +59,11 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
 
     // Helper to find file content from path
     const getFileContent = (refPath: string): string | undefined => {
-      const clean = refPath.replace(/^\.?\//, '').trim();
+      const clean = refPath.replace(/^\.?\/+/, '').replace(/^home\/project\/+/, '').trim();
       for (const [p, dirent] of Object.entries(files)) {
         if (dirent?.type === 'file' && dirent.content) {
-          const normP = p.replace(/^\.?\//, '').trim();
-          if (normP === clean || normP.endsWith(`/${clean}`)) {
+          const normP = p.replace(/^\.?\/+/, '').replace(/^home\/project\/+/, '').trim();
+          if (normP === clean || normP.endsWith(`/${clean}`) || clean.endsWith(`/${normP}`)) {
             return dirent.content;
           }
         }
@@ -83,12 +83,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       }
     );
 
-    // 2. Inline local script tags (both regular and module).
-    // CRITICAL: In a blob: URL context the browser has no base URL, so any
-    // <script src="utils.js"> that is NOT inlined will silently 404.
-    // Strategy: try to inline → if file found, inline it;
-    //           if file NOT found, strip the broken <script src> entirely so
-    //           it does not block execution of the scripts that DO load.
+    // 2. Inline local script tags in their exact declared order in the HTML
     bundled = bundled.replace(
       /<script\b([^>]*)\bsrc\s*=\s*["'](?!https?:\/\/|\/\/|data:|blob:)([^"']+)["']([^>]*)>[\s\S]*?<\/script>/gi,
       (match, before, src, after) => {
@@ -103,35 +98,75 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       }
     );
 
-    // 3. If there is an entry JS file (e.g. main.js or game.js) and it was not linked, inject it.
-    //    Extended candidate list covers common modular game entry points.
-    if (!bundled.includes('data-inlined') && !bundled.includes('<script')) {
-      for (const entryCandidate of [
-        'game.js', 'main.js', 'src/game.js', 'src/main.js',
-        'index.js', 'app.js', 'engine.js', 'start.js',
-      ]) {
-        const js = getFileContent(entryCandidate);
-        if (js) {
-          bundled = bundled.replace('</body>', `<script data-inlined="${entryCandidate}">\n${js}\n</script>\n</body>`);
-          break;
+    // 3. Dynamic Script Discovery (Bugs 1 & 2):
+    // Scan project files for any unlinked .js files. Never use a hardcoded whitelist.
+    // Inject all dependency modules (car.js, physics.js, etc.) FIRST, followed by
+    // the entry point (main.js/game.js) LAST so main.js always has all classes defined.
+    const isAlreadyInlined = (filename: string): boolean => {
+      const base = filename.replace(/^.*[\\/]/, '');
+      return bundled.includes(`data-inlined="${filename}"`) || bundled.includes(`data-inlined="${base}"`);
+    };
+
+    const entryCandidates = [
+      'main.js', 'game.js', 'src/main.js', 'src/game.js',
+      'index.js', 'app.js', 'engine.js', 'start.js',
+    ];
+
+    const projectJsFiles: string[] = [];
+    for (const [p, dirent] of Object.entries(files)) {
+      if (dirent?.type === 'file' && dirent.content) {
+        const norm = p.replace(/^\.?\/+/, '').replace(/^home\/project\/+/, '').trim();
+        if (
+          !norm.startsWith('node_modules/') &&
+          !norm.startsWith('.') &&
+          !norm.includes('.test.') &&
+          !norm.includes('.spec.') &&
+          !norm.includes('.config.') &&
+          (norm.endsWith('.js') || norm.endsWith('.mjs'))
+        ) {
+          projectJsFiles.push(norm);
         }
       }
     }
 
-    // 3b. Additionally, inject any known helper modules that were NOT yet inlined
-    //     (e.g. utils.js, audio.js, entities.js) before </body> to ensure all
-    //     globals are defined before the entry point runs.
-    const helperCandidates = [
-      'utils.js', 'audio.js', 'sound.js', 'entities.js', 'enemies.js',
-      'physics.js', 'hud.js', 'ui.js', 'input.js', 'particles.js',
-    ];
-    for (const helper of helperCandidates) {
-      const alreadyInlined = bundled.includes(`data-inlined="${helper}"`);
-      if (!alreadyInlined) {
-        const js = getFileContent(helper);
-        if (js) {
-          bundled = bundled.replace('</body>', `<script data-inlined="${helper}">\n${js}\n</script>\n</body>`);
-        }
+    const unlinkedDependencies: string[] = [];
+    const unlinkedEntries: string[] = [];
+
+    for (const file of projectJsFiles) {
+      if (isAlreadyInlined(file)) continue;
+
+      const base = file.replace(/^.*[\\/]/, '').toLowerCase();
+      if (entryCandidates.some((e) => e.toLowerCase() === base || e.toLowerCase() === file.toLowerCase())) {
+        unlinkedEntries.push(file);
+      } else {
+        unlinkedDependencies.push(file);
+      }
+    }
+
+    const scriptsToInject: string[] = [];
+    // Inject all dependencies first
+    for (const dep of unlinkedDependencies) {
+      const js = getFileContent(dep);
+      if (js) {
+        scriptsToInject.push(`<script data-inlined="${dep}">\n${js}\n</script>`);
+      }
+    }
+
+    // Inject entry point last
+    for (const entry of unlinkedEntries) {
+      const js = getFileContent(entry);
+      if (js) {
+        scriptsToInject.push(`<script data-inlined="${entry}">\n${js}\n</script>`);
+        break;
+      }
+    }
+
+    if (scriptsToInject.length > 0) {
+      const injectionBlock = '\n' + scriptsToInject.join('\n') + '\n';
+      if (bundled.includes('</body>')) {
+        bundled = bundled.replace('</body>', `${injectionBlock}</body>`);
+      } else {
+        bundled = bundled + injectionBlock;
       }
     }
 

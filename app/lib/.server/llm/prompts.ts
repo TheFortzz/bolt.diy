@@ -170,10 +170,17 @@ const PREVIEW_RULES = `
 
   - A Vite/npm project needs a valid package.json, complete imports/exports,
     and a start action such as npm run dev.
-  - A plain static project can use a self-contained index.html, but it must not
-    depend on local module files that the preview cannot resolve.
+  - Modular Files & Script Linking: Split code into modular files (car.js, physics.js, etc.)
+    using plain <script src="filename.js"></script> tags in index.html — NOT ES module
+    imports/exports. Do not use type="module" or import/export statements, since these
+    fail to resolve in the sandboxed preview. Every script file must be linked with a
+    script tag in index.html in the correct dependency order (dependencies before the
+    files that use them).
   - For static projects without a package.json: NEVER emit npm install or
     npm run dev actions. Static projects are automatically served by the studio.
+  - 3D Camera Placement (Three.js): Never initialize camera.position at (0, 0, 0) inside
+    or intersecting the player car model. Always initialize camera.position with a sensible
+    offset behind and above the car (e.g. camera.position.set(0, 5, 10)) before starting the game loop.
   - Never use placeholders such as ..., "rest of code", TODO, or fake functions.
   - Never emit imports or exports that are not provided by a real dependency.
   - Check canvas/context or DOM references before use and make the start/restart
