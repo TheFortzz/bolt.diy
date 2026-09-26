@@ -32,10 +32,10 @@ import type { IProviderSetting, ProviderInfo } from '~/types/model';
 
 const TEXTAREA_MIN_HEIGHT = 70;
 
-const AGENT_MODES: { id: StudioAgentMode; label: string; hint: string }[] = [
-  { id: 'plan', label: 'Plan', hint: 'Design first, no files yet' },
-  { id: 'build', label: 'Build', hint: 'Jump straight into code' },
-  { id: 'auto', label: 'Auto', hint: 'Short plan, then build' },
+const AGENT_MODES: { id: StudioAgentMode; label: string; hint: string; icon: string }[] = [
+  { id: 'plan', label: 'Plan', hint: 'Design & architecture outline before code', icon: 'i-ph:notebook-fill' },
+  { id: 'auto', label: 'Auto', hint: 'Short architecture plan, then build full game', icon: 'i-ph:sparkle-fill' },
+  { id: 'build', label: 'Build', hint: 'Jump straight into complete game code', icon: 'i-ph:hammer-fill' },
 ];
 
 interface BaseChatProps {
@@ -514,33 +514,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   }}
                 />
 
-                {/* Plan / Build / Auto — first prompt only */}
-                {!chatStarted && (
-                  <div className="mb-2.5 flex items-center justify-center gap-1.5" role="tablist" aria-label="Studio mode">
-                    {AGENT_MODES.map((mode) => {
-                      const active = agentMode === mode.id;
-                      return (
-                        <button
-                          key={mode.id}
-                          type="button"
-                          role="tab"
-                          aria-selected={active}
-                          title={mode.hint}
-                          onClick={() => setAgentMode?.(mode.id)}
-                          className={classNames(
-                            'px-4 py-1.5 text-xs font-semibold tracking-wide uppercase transition-all border',
-                            active
-                              ? 'bg-[#38bdf8] text-[#041018] border-[#7dd3fc] shadow-[0_0_18px_rgba(56,189,248,0.35)]'
-                              : 'bg-transparent text-slate-300 border-white/15 hover:border-sky-400/50 hover:text-white',
-                          )}
-                          style={{ borderRadius: 0 }}
-                        >
-                          {mode.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
 
                 {/* Play while AI builds — jumps to thefortz.me PLAY tab (AI keeps building in background) */}
                 {isStreaming && (
@@ -661,6 +634,45 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       />
                     )}
                   </ClientOnly>
+
+                  {/* Plan / Auto / Build — inside input under textarea, Auto in middle, disappears after first prompt */}
+                  {!chatStarted && (
+                    <div
+                      className="px-3.5 py-2 flex items-center justify-center gap-2 border-t border-purple-500/25 bg-[#160b2e]/90 backdrop-blur-md"
+                      role="tablist"
+                      aria-label="Studio agent mode"
+                    >
+                      <div className="flex items-center gap-1.5 p-1 rounded-lg bg-black/40 border border-purple-400/20 shadow-inner">
+                        {AGENT_MODES.map((mode) => {
+                          const active = agentMode === mode.id;
+                          return (
+                            <button
+                              key={mode.id}
+                              type="button"
+                              role="tab"
+                              aria-selected={active}
+                              title={mode.hint}
+                              onClick={() => setAgentMode?.(mode.id)}
+                              className={classNames(
+                                'px-3.5 py-1.5 text-xs font-bold tracking-wider uppercase transition-all duration-200 rounded-md flex items-center gap-1.5 cursor-pointer select-none',
+                                active
+                                  ? mode.id === 'auto'
+                                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-[0_0_18px_rgba(6,182,212,0.6)] ring-1 ring-cyan-300 font-extrabold scale-[1.02]'
+                                    : mode.id === 'plan'
+                                      ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-[0_0_16px_rgba(245,158,11,0.5)] ring-1 ring-amber-300 font-extrabold scale-[1.02]'
+                                      : 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-[0_0_16px_rgba(16,185,129,0.5)] ring-1 ring-emerald-300 font-extrabold scale-[1.02]'
+                                  : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent',
+                              )}
+                            >
+                              <span className={classNames(mode.icon, 'text-sm')} />
+                              <span>{mode.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   <div
                     style={{ borderRadius: 0 }}
                     className="flex justify-between items-center text-sm p-3 pt-2 bg-[#0c2242] border-t border-[#38bdf8]/40 shadow-inner"
