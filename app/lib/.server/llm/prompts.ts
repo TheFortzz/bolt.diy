@@ -69,6 +69,39 @@ const CREATIVE_GAME_GUIDANCE = `
 </creative_game_guidance>
 `;
 
+const ERROR_FIXING_AND_ITERATION_RULES = `
+<error_fixing_and_iteration_rules>
+  CRITICAL RULES FOR FOLLOW-UP PROMPTS, BUG FIXES, AND RE-EDITS:
+  1. NEVER RESTART OR REBUILD FROM SCRATCH:
+     - On any follow-up prompt (e.g. "fix the error", "add feature X", "update car physics"),
+       you MUST REUSE the existing <boltArtifact id="..."> from the conversation history.
+     - NEVER append "-fixed", "-v2", or generate a new artifact id.
+     - Keep the user's project intact and build iteratively upon it.
+  2. SURGICAL FILE MODIFICATIONS ONLY:
+     - Only emit <boltAction type="file" filePath="..."> for the specific file(s) that
+       actually need bug fixes, edits, or additions.
+     - NEVER repeat, re-emit, or rewrite unmodified files that are already working.
+  3. THOROUGH ERROR DIAGNOSIS:
+     - When the user reports an error or terminal failure, diagnose the exact cause:
+       quaternion math, physics step delta time, missing imports/exports, null DOM/canvas
+       references, or shell command failures.
+     - Fix the logic directly inside the affected file rather than rewriting the whole game.
+  4. RESILIENT DEPENDENCIES & NO REPEATED SHELL INSTALLS:
+     - WebContainers run in the user's browser. Heavy npm packages can hit 504 Gateway
+       Timeouts or failed shell commands.
+     - If a shell/npm action failed, switch to browser-native APIs, standalone scripts, or
+       reliable CDN import maps (e.g. for Three.js: <script type="importmap"> or unpkg/cdnjs)
+       and inline physics logic that does not fail in WebContainer.
+     - NEVER emit <boltAction type="shell">npm install</boltAction> on follow-up prompts
+       unless a new package was actually added to package.json.
+     - NEVER emit <boltAction type="start">npm run dev</boltAction> if the development
+       server is already running.
+  5. COMPLETE MEMORY OF PROJECT FILES:
+     - All files previously emitted exist in the project workspace.
+     - Respect all established classes, functions, variable names, and exported modules.
+</error_fixing_and_iteration_rules>
+`;
+
 const OUTPUT_FORMAT = `
 <output_format>
   When a response creates or changes files, it MUST use this XML structure:
@@ -203,6 +236,7 @@ const getSimplifiedSystemPrompt = (cwd: string = WORK_DIR) => `
 ${OUTPUT_FORMAT}
 ${BASE_IDENTITY}
 ${CREATIVE_GAME_GUIDANCE}
+${ERROR_FIXING_AND_ITERATION_RULES}
 ${PREVIEW_RULES}
 ${ENVIRONMENT_RULES}
 
@@ -230,6 +264,7 @@ const getFullSystemPrompt = (cwd: string = WORK_DIR) => `
 ${OUTPUT_FORMAT}
 ${BASE_IDENTITY}
 ${CREATIVE_GAME_GUIDANCE}
+${ERROR_FIXING_AND_ITERATION_RULES}
 ${PREVIEW_RULES}
 ${ENVIRONMENT_RULES}
 

@@ -291,51 +291,53 @@ export const ChatImpl = memo(
 
       runAnimation();
 
+      // Collect any failed actions from workbench to inform AI of recent errors
+      let failedActionContext = '';
+      try {
+        const artifacts = workbenchStore.artifacts.get();
+        for (const art of Object.values(artifacts)) {
+          const runnerActions = art.runner?.actions?.get();
+          if (runnerActions) {
+            for (const act of Object.values(runnerActions)) {
+              if (act.status === 'failed') {
+                failedActionContext += `\n[Recent Action Failure: ${act.type} action "${(act as any).content?.slice(0, 160) || ''}" failed with error: "${(act as any).error || 'Execution failed'}"]`;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        /* ignore */
+      }
+
       const modeTag = `[Studio Mode: ${agentMode.toUpperCase()}]\n`;
-      const textPayload = `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${modeTag}${_input}`;
-      lastAgentModeRef.current = agentMode;
+      let textPayload = `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${modeTag}${_input}`;
+
+      if (failedActionContext) {
+        textPayload = `${failedActionContext}\n\n${textPayload}`;
+      }
 
       if (fileModifications !== undefined) {
-        /**
-         * If we have file modifications we append a new user message manually since we have to prefix
-         * the user input with the file modifications and we don't want the new user input to appear
-         * in the prompt. Using `append` is almost the same as `handleSubmit` except that we have to
-         * manually reset the input and we'd have to manually pass in file attachments. However, those
-         * aren't relevant here.
-         */
-        append({
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: textPayload,
-            },
-            ...imageDataList.map((imageData) => ({
-              type: 'image',
-              image: imageData,
-            })),
-          ] as any, // Type assertion to bypass compiler check
-        });
+        textPayload = `${fileModifications}\n\n${textPayload}`;
+      }
 
-        /**
-         * After sending a new message we reset all modifications since the model
-         * should now be aware of all the changes.
-         */
+      lastAgentModeRef.current = agentMode;
+
+      append({
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: textPayload,
+          },
+          ...imageDataList.map((imageData) => ({
+            type: 'image',
+            image: imageData,
+          })),
+        ] as any, // Type assertion to bypass compiler check
+      });
+
+      if (fileModifications !== undefined) {
         workbenchStore.resetAllFileModifications();
-      } else {
-        append({
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: textPayload,
-            },
-            ...imageDataList.map((imageData) => ({
-              type: 'image',
-              image: imageData,
-            })),
-          ] as any, // Type assertion to bypass compiler check
-        });
       }
 
       setInput('');
