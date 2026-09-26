@@ -35,7 +35,7 @@ const CREATIVE_GAME_GUIDANCE = `
     - Immediate Playability: The game MUST start rendering as soon as it loads — or use a
       "Click to Start" overlay ONLY when audio context unlock is required. If a start screen
       is used, its onclick handler MUST call the real game initialization function directly
-      (e.g. `canvas.addEventListener('click', init, { once: true })`). The click handler
+      (e.g. canvas.addEventListener('click', init, { once: true })). The click handler
       MUST NOT be a stub, placeholder, or empty function. Canvas rendering MUST begin
       immediately on click. NEVER produce a start screen whose click does nothing.
     - Complete Code — No Truncation: Every JS/TS file emitted MUST be syntactically complete.
