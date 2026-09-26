@@ -136,17 +136,19 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       return false;
     }
 
-    // When AI has finished streaming, the build is final — never block preview
-    if (!isStreaming) {
-      return false;
-    }
-
     const openHtml = (fallbackHtml.match(/<html\b/gi) || []).length;
     const closeHtml = (fallbackHtml.match(/<\/html>/gi) || []).length;
+    const openBody = (fallbackHtml.match(/<body\b/gi) || []).length;
+    const closeBody = (fallbackHtml.match(/<\/body>/gi) || []).length;
     const openScript = (fallbackHtml.match(/<script\b/gi) || []).length;
     const closeScript = (fallbackHtml.match(/<\/script>/gi) || []).length;
 
-    if (openHtml > closeHtml || openScript > closeScript) {
+    if (openHtml > closeHtml || openBody > closeBody || openScript > closeScript) {
+      return true;
+    }
+
+    // If streaming and document doesn't have closing </html>, it is still being written
+    if (isStreaming && !fallbackHtml.includes('</html>')) {
       return true;
     }
 
@@ -165,9 +167,10 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       return fallbackHtml;
     }
 
-    // While AI works (or briefly incomplete), keep showing the last good build.
+    // While AI works or if current HTML is incomplete, show last good build if available;
+    // NEVER mount half-streamed syntax-broken code into the iframe.
     if (isStreaming || fallbackIncomplete) {
-      return lastGoodHtmlRef.current || fallbackHtml;
+      return lastGoodHtmlRef.current;
     }
 
     return fallbackHtml;

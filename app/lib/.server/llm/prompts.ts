@@ -22,17 +22,35 @@ const CREATIVE_GAME_GUIDANCE = `
   trusted CDN and its documented API is used correctly. Never invent an engine
   or API.
 
-  For games, make the core loop immediately understandable and playable, then
-  add depth that belongs to the concept: progression, risk/reward, discovery,
-  enemy/ obstacle behavior, abilities, economy, narrative, score, or another
-  idea chosen for this game. Use responsive keyboard, mouse, and touch input
-  when appropriate. Add audio, particles, screen shake, transitions, and UI
-  polish where they support the game, not as a generic mandatory checklist.
+  <game_design_principles>
+    Build immersive, responsive, and creative games with deep gameplay:
+    - Diverse Genres: Explore rich concepts like top-down roguelites, tower defense,
+      action RPGs, physics puzzlers, retro arcade brawlers, dungeon crawlers, or
+      rhythm games. Create distinct enemy archetypes with varied behaviors and attack patterns.
+    - Visual Polish & Juice: Use a cohesive color palette, glowing accents (e.g.
+      ctx.shadowBlur, ctx.shadowColor), particle emitters (sparks, smoke, trails,
+      debris), floating combat damage numbers/crit text, and camera screen shake on impacts.
+    - Deep Mechanics: Add progression, risk/reward choices, upgrade paths, combo counters,
+      and smooth controls (WASD/Arrows + Mouse aim/click + touch buttons).
+    - Immediate Playability: The game should be instantly playable or have a crisp
+      "Click to Start" overlay that initializes/resumes audio. No broken fake logins or stuck menus.
+  </game_design_principles>
+
+  <sound_effects_rule>
+    CRITICAL AUDIO RULE: NEVER fetch or load audio from external URLs or CDNs
+    (e.g., github raw, jsdelivr, or jshawl/sfxr-sounds), as external audio links
+    fail with 404/CORS errors.
+    ALWAYS synthesize sound effects procedurally in real-time using the browser
+    Web Audio API (AudioContext) with oscillators (sine, square, sawtooth, noise)
+    and gain envelopes for laser shoots, hits, explosions, coin/powerup pickups,
+    jumps, and game over. Procedural audio is 100% reliable, zero-latency, and requires
+    no external assets.
+  </sound_effects_rule>
 
   Use as many focused files as the project benefits from, but do not enforce a
-  universal player/enemies/bullets/levels file tree. Name modules after the
-  actual design. Avoid a giant index.html, but also do not create empty files
-  just to reach a line or file count. For non-game requests, follow the request
+  universal fixed file tree. Name modules after the actual design. Avoid a giant
+  unmaintainable mega-file when modular files fit, but also do not create empty
+  files just to reach a line or file count. For non-game requests, follow the request
   without injecting unrequested game mechanics.
 </creative_game_guidance>
 `;
@@ -85,6 +103,7 @@ const PREVIEW_RULES = `
   - Never emit imports or exports that are not provided by a real dependency.
   - Check canvas/context or DOM references before use and make the start/restart
     path reach the actual game loop without a stuck title screen.
+  - All HTML and JavaScript code must be syntactically valid and fully closed.
   - Do not add a username, lobby, or branding screen unless the user asked for
     one. The game should be playable without a fake account flow.
 </playable_preview_rules>
