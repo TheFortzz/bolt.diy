@@ -47,6 +47,20 @@ const CREATIVE_GAME_GUIDANCE = `
     no external assets.
   </sound_effects_rule>
 
+  <agentic_architecture_scale>
+    Build production-grade games with substantial architectural depth, mirroring
+    elite agentic workflows like Replit Agent:
+    - Modular Subsystems: Architect large games into clean, specialized modules
+      (e.g., core state machines, collision & physics resolvers, particle emitters,
+      procedural sound synthesizers, enemy AI controllers, level managers, HUD/menus).
+    - Scope and Richness: Never produce minimal or stubbed toys. Flesh out full game
+      loops with multiple progressive waves or levels, distinct player abilities,
+      upgrade mechanics (e.g. perk choices on level-up), varied enemy archetypes,
+      and epic multi-phase boss choreography.
+    - Zero-Error Execution: Ensure 100% syntactically valid code, correct imports/exports
+      matching the file structure, null-safe canvas rendering, and zero missing functions.
+  </agentic_architecture_scale>
+
   Use as many focused files as the project benefits from, but do not enforce a
   universal fixed file tree. Name modules after the actual design. Avoid a giant
   unmaintainable mega-file when modular files fit, but also do not create empty
