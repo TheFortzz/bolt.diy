@@ -7,11 +7,13 @@ import {
   Compartment,
   EditorSelection,
   EditorState,
+  RangeSetBuilder,
   StateEffect,
   StateField,
   type Extension,
 } from '@codemirror/state';
 import {
+  Decoration,
   drawSelection,
   dropCursor,
   EditorView,
@@ -21,9 +23,11 @@ import {
   lineNumbers,
   showTooltip,
   tooltips,
+  type DecorationSet,
   type Tooltip,
 } from '@codemirror/view';
 import { memo, useEffect, useRef, useState, type MutableRefObject } from 'react';
+import { diffLines } from 'diff';
 import type { Theme } from '~/types/theme';
 import { classNames } from '~/utils/classNames';
 import { debounce } from '~/utils/debounce';
@@ -41,6 +45,7 @@ export interface EditorDocument {
   isBinary: boolean;
   filePath: string;
   scroll?: ScrollPosition;
+  originalContent?: string;
 }
 
 export interface EditorSettings {
@@ -82,9 +87,78 @@ interface Props {
   className?: string;
   settings?: EditorSettings;
   isStreaming?: boolean;
+  showDiff?: boolean;
 }
 
 type EditorStates = Map<string, EditorState>;
+
+export const setDiffDecorationsEffect = StateEffect.define<DecorationSet>();
+
+export const diffDecorationsField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(decorations, tr) {
+    for (const effect of tr.effects) {
+      if (effect.is(setDiffDecorationsEffect)) {
+        return effect.value;
+      }
+    }
+    return decorations.map(tr.changes);
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
+
+export const diffTheme = EditorView.baseTheme({
+  '.cm-diff-deleted': {
+    backgroundColor: 'rgba(239, 68, 68, 0.16) !important',
+  },
+  '.cm-diff-deleted-text': {
+    textDecoration: 'line-through !important',
+    color: '#f87171 !important',
+    opacity: '0.85',
+  },
+  '.cm-diff-added': {
+    backgroundColor: 'rgba(16, 185, 129, 0.16) !important',
+  },
+  '.cm-diff-added-text': {
+    color: '#4ade80 !important',
+  },
+});
+
+export interface DiffLineInfo {
+  text: string;
+  type: 'unchanged' | 'added' | 'deleted';
+}
+
+export interface DiffResult {
+  combinedText: string;
+  lines: DiffLineInfo[];
+  addedCount: number;
+  deletedCount: number;
+}
+
+export function computeDiffDocument(originalContent: string, newContent: string): DiffResult {
+  const parts = diffLines(originalContent, newContent);
+  const lines: DiffLineInfo[] = [];
+  let addedCount = 0;
+  let deletedCount = 0;
+
+  for (const part of parts) {
+    const rawLines = part.value.split('\n');
+    if (rawLines.length > 1 && rawLines[rawLines.length - 1] === '') {
+      rawLines.pop();
+    }
+    const type: 'unchanged' | 'added' | 'deleted' = part.added ? 'added' : part.removed ? 'deleted' : 'unchanged';
+    if (part.added) addedCount += rawLines.length;
+    if (part.removed) deletedCount += rawLines.length;
+
+    for (const line of rawLines) {
+      lines.push({ text: line, type });
+    }
+  }
+
+  const combinedText = lines.map((l) => l.text).join('\n');
+  return { combinedText, lines, addedCount, deletedCount };
+}
 
 const readOnlyTooltipStateEffect = StateEffect.define<boolean>();
 
@@ -140,6 +214,7 @@ export const CodeMirrorEditor = memo(
     settings,
     className = '',
     isStreaming = false,
+    showDiff = true,
   }: Props) => {
     renderLogger.trace('CodeMirrorEditor');
 
@@ -286,8 +361,9 @@ export const CodeMirrorEditor = memo(
         doc as TextEditorDocument,
         isStreaming,
         () => languageRequestId === languageRequestRef.current && activeFilePathRef.current === doc.filePath,
+        showDiff,
       );
-    }, [doc?.value, editable, doc?.filePath, autoFocusOnDocumentChange, isStreaming]);
+    }, [doc?.value, doc?.originalContent, editable, doc?.filePath, autoFocusOnDocumentChange, isStreaming, showDiff]);
 
     return (
       <div className={classNames('relative h-full', className)}>
@@ -378,6 +454,8 @@ function newEditorState(
       indentOnInput(),
       editableTooltipField,
       editableStateField,
+      diffDecorationsField,
+      diffTheme,
       EditorState.readOnly.from(editableStateField, (editable) => !editable),
       highlightActiveLineGutter(),
       highlightActiveLine(),
@@ -418,26 +496,67 @@ function setEditorDocument(
   doc: TextEditorDocument,
   isStreaming: boolean = false,
   isCurrent: () => boolean = () => true,
+  showDiff: boolean = true,
 ) {
-  const shouldFollowStream = isStreaming;
-  const docLength = doc.value.length;
+  const isDiffMode = Boolean(showDiff && doc.originalContent && doc.originalContent !== doc.value);
+  let textToDisplay = doc.value;
+  let diffResult: DiffResult | undefined;
 
-  if (doc.value !== view.state.doc.toString()) {
+  if (isDiffMode && doc.originalContent) {
+    diffResult = computeDiffDocument(doc.originalContent, doc.value);
+    textToDisplay = diffResult.combinedText;
+  }
+
+  const shouldFollowStream = isStreaming && !isDiffMode;
+  const docLength = textToDisplay.length;
+
+  if (textToDisplay !== view.state.doc.toString()) {
     view.dispatch({
       selection: shouldFollowStream ? { anchor: docLength } : { anchor: 0 },
       changes: {
         from: 0,
         to: view.state.doc.length,
-        insert: doc.value,
+        insert: textToDisplay,
       },
       effects: shouldFollowStream ? [EditorView.scrollIntoView(docLength, { y: 'end' })] : [],
       annotations: externalUpdate.of(true),
     });
   }
 
-  view.dispatch({
-    effects: [editableStateEffect.of(editable && !doc.isBinary)],
-  });
+  if (isDiffMode && diffResult) {
+    const builder = new RangeSetBuilder<Decoration>();
+    for (let i = 0; i < diffResult.lines.length; i++) {
+      const lineInfo = diffResult.lines[i];
+      if (lineInfo.type === 'unchanged') continue;
+
+      const cmLine = view.state.doc.line(i + 1);
+      if (lineInfo.type === 'deleted') {
+        builder.add(cmLine.from, cmLine.from, Decoration.line({ attributes: { class: 'cm-diff-deleted' } }));
+        if (cmLine.to > cmLine.from) {
+          builder.add(cmLine.from, cmLine.to, Decoration.mark({ attributes: { class: 'cm-diff-deleted-text' } }));
+        }
+      } else if (lineInfo.type === 'added') {
+        builder.add(cmLine.from, cmLine.from, Decoration.line({ attributes: { class: 'cm-diff-added' } }));
+        if (cmLine.to > cmLine.from) {
+          builder.add(cmLine.from, cmLine.to, Decoration.mark({ attributes: { class: 'cm-diff-added-text' } }));
+        }
+      }
+    }
+
+    view.dispatch({
+      effects: [
+        setDiffDecorationsEffect.of(builder.finish()),
+        editableStateEffect.of(false),
+      ],
+    });
+  } else {
+    view.dispatch({
+      effects: [
+        setDiffDecorationsEffect.of(Decoration.none),
+        editableStateEffect.of(editable && !doc.isBinary),
+      ],
+    });
+  }
 
   getLanguage(doc.filePath).then((languageSupport) => {
     if (!isCurrent()) {

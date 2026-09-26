@@ -1,15 +1,17 @@
 import { useStore } from '@nanostores/react';
-import { memo, useMemo, useRef } from 'react';
+import { memo, useMemo, useRef, useState } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { toast } from 'react-toastify';
 import {
   CodeMirrorEditor,
+  computeDiffDocument,
   type EditorDocument,
   type EditorSettings,
   type OnChangeCallback as OnEditorChange,
   type OnSaveCallback as OnEditorSave,
   type OnScrollCallback as OnEditorScroll,
 } from '~/components/editor/codemirror/CodeMirrorEditor';
+import { classNames } from '~/utils/classNames';
 import { IconButton } from '~/components/ui/IconButton';
 import { PanelHeader } from '~/components/ui/PanelHeader';
 import { PanelHeaderButton } from '~/components/ui/PanelHeaderButton';
@@ -82,6 +84,18 @@ export const EditorPanel = memo(
     const activeFileUnsaved = useMemo(() => {
       return editorDocument !== undefined && unsavedFiles?.has(editorDocument.filePath);
     }, [editorDocument, unsavedFiles]);
+
+    const [showDiff, setShowDiff] = useState(true);
+
+    const hasDiff = Boolean(
+      editorDocument?.originalContent &&
+      editorDocument.originalContent !== editorDocument.value,
+    );
+
+    const diffStats = useMemo(() => {
+      if (!hasDiff || !editorDocument?.originalContent) return undefined;
+      return computeDiffDocument(editorDocument.originalContent, editorDocument.value);
+    }, [hasDiff, editorDocument?.originalContent, editorDocument?.value]);
 
     const handleAddFile = async () => {
       const folder = parentFolderOf(selectedFile);
@@ -197,6 +211,32 @@ export const EditorPanel = memo(
                   {activeFileSegments?.length && (
                     <div className="flex items-center flex-1 text-sm">
                       <FileBreadcrumb pathSegments={activeFileSegments} files={files} onFileSelect={onFileSelect} />
+                      {hasDiff && diffStats && (
+                        <div className="flex items-center gap-1.5 ml-auto mr-2">
+                          <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-bolt-elements-background-depth-3 border border-bolt-elements-borderColor text-bolt-elements-textSecondary flex items-center gap-1">
+                            <span className="text-emerald-400 font-bold">+{diffStats.addedCount}</span>
+                            <span className="text-rose-400 font-bold">-{diffStats.deletedCount}</span>
+                          </span>
+                          <PanelHeaderButton
+                            onClick={() => setShowDiff(!showDiff)}
+                            className={classNames('text-xs', { 'text-cyan-400 font-semibold': showDiff })}
+                          >
+                            <div className={showDiff ? 'i-ph:git-diff-duotone' : 'i-ph:code-duotone'} />
+                            {showDiff ? 'Diff' : 'Code'}
+                          </PanelHeaderButton>
+                          <PanelHeaderButton
+                            onClick={() => {
+                              if (editorDocument) {
+                                workbenchStore.acceptDiff(editorDocument.filePath);
+                              }
+                            }}
+                            className="text-xs text-emerald-400 hover:text-emerald-300"
+                          >
+                            <div className="i-ph:check-bold" />
+                            Accept
+                          </PanelHeaderButton>
+                        </div>
+                      )}
                       {activeFileUnsaved && (
                         <div className="flex gap-1 ml-auto -mr-1.5">
                           <PanelHeaderButton onClick={onFileSave}>
@@ -215,8 +255,9 @@ export const EditorPanel = memo(
                 <div className="h-full flex-1 overflow-hidden min-h-0">
                   <CodeMirrorEditor
                     theme={theme}
-                    editable={!isStreaming && editorDocument !== undefined}
+                    editable={!isStreaming && editorDocument !== undefined && (!hasDiff || !showDiff)}
                     isStreaming={followStream}
+                    showDiff={showDiff}
                     settings={editorSettings}
                     doc={editorDocument}
                     autoFocusOnDocumentChange={!isMobile()}

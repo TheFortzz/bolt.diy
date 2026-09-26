@@ -48,6 +48,7 @@ export class EditorStore {
               filePath,
               isBinary: dirent.isBinary,
               scroll: previousDocument?.scroll,
+              originalContent: previousDocument?.originalContent,
             },
           ] as [string, EditorDocument];
         })
@@ -101,9 +102,37 @@ export class EditorStore {
     const contentChanged = currentContent !== newContent;
 
     if (contentChanged) {
+      const originalContent = documentState.originalContent ?? (currentContent || undefined);
+
       this.documents.setKey(filePath, {
         ...documentState,
+        originalContent,
         value: newContent,
+      });
+    }
+  }
+
+  acceptDiff(filePath: string) {
+    const documents = this.documents.get();
+    const documentState = documents[filePath];
+
+    if (documentState && documentState.originalContent !== undefined) {
+      this.documents.setKey(filePath, {
+        ...documentState,
+        originalContent: undefined,
+      });
+    }
+  }
+
+  revertDiff(filePath: string) {
+    const documents = this.documents.get();
+    const documentState = documents[filePath];
+
+    if (documentState && documentState.originalContent !== undefined) {
+      this.documents.setKey(filePath, {
+        ...documentState,
+        value: documentState.originalContent,
+        originalContent: undefined,
       });
     }
   }

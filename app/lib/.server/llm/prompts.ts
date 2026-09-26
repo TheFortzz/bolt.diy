@@ -123,14 +123,40 @@ const ERROR_FIXING_AND_ITERATION_RULES = `
      - If a file is large, emit the ENTIRE file in full — never cut it off at any point.
      - A truncated file silently breaks the game and is NEVER acceptable.
 </error_fixing_and_iteration_rules>
+`;
 
-<claude_codex_reasoning_protocol>
-  Adopt Claude & Codex grade reasoning before generating code:
-  Briefly outline your plan in 2-4 lines:
-  - Physics & Mechanics: Specify coordinates, speed vectors, collision bounding boxes, and time-step stability.
-  - Architecture: Define which modular files handle rendering, input, game loop, and UI.
-  - Zero Brittle Setups: Prioritize clean, self-contained implementations that load instantly in the browser.
-</claude_codex_reasoning_protocol>
+const GAME_DESIGN_REASONING_PROTOCOL = `
+<game_design_reasoning_protocol>
+  DEEP GAME DESIGN & PLANNING REQUIREMENT (5X REASONING DEPTH):
+  Never rush into writing code after a shallow, generic, or one-paragraph plan. A thin 2-4 line
+  plan is a FAILURE CONDITION. You must demonstrate deep game design reasoning (roughly 5x the depth
+  of a conventional outline) before producing any code or artifact.
+
+  Every game generation response MUST begin with a comprehensive <plan> covering:
+  1. FILE TREE INSPECTION & NO DUPLICATE PATHS (ROOT VS PROJECT):
+     - Before creating or editing any file, inspect both the root directory and the project directory.
+     - List the current files in both locations.
+     - Enforce that ALL project files strictly live in the project directory (${WORK_DIR}).
+     - NEVER duplicate a file into root if an equivalent exists in /project (or vice versa).
+     - State explicitly for each file whether it is being created or surgically edited.
+
+  2. GAMEPLAY MECHANICS & WHY THIS GAME IS FUN:
+     - Describe the core loop beyond basic functionality: what gives this game tactile satisfaction, challenge, and flow.
+     - Detail the movement feel and physics: acceleration curves, friction, braking, drift slip angles, turning radii, collision bounce/restitution.
+     - Detail player progression and dynamic systems: combo chains, hazard variety, scoring multipliers, distinct enemy archetypes with unique behaviors.
+
+  3. VISUAL THEME, PALETTE & JUICE:
+     - Choose a distinct color palette and visual aesthetic tailored to the game's theme (e.g. sunset orange/warm purple for desert, cyan/magenta for cyberpunk, earthy greens for dungeon adventure, warm yellow/crimson for retro arcade).
+     - NEVER default to generic green neon outlines or glowing accents for every game.
+     - Plan visual juice: particle emitters (sparks, tire smoke, dust, debris), camera screen shake on hard hits, dynamic floating combat/score text.
+     - Plan procedural Web Audio (AudioContext): synthesize oscillators for engine hum, tire squeal, laser blast, hit impacts, and powerup chime without external audio files.
+
+  4. POTENTIAL FAILURE MODES & CONCRETE PREVENTIONS:
+     - Screen & Canvas Scaling: Synchronize canvas buffer resolution with devicePixelRatio and window resize handlers to avoid blurry or stretched graphics.
+     - Start Screen & Audio Context: If a Click to Start overlay is used, wire its click handler directly to the game init function so canvas rendering begins immediately without getting stuck.
+     - Input Tracking: Use robust keydown/keyup tracking with a window blur listener to prevent stuck movement keys.
+     - Script Loading Order: In index.html, load modular dependency scripts (audio, input, physics, entities) before the main game loop script using standard <script src="..."></script> tags (without type="module").
+</game_design_reasoning_protocol>
 `;
 
 const OUTPUT_FORMAT = `
@@ -238,7 +264,9 @@ const getArtifactInstructions = (cwd: string) => `
     7. Split large systems into focused files when that makes the project easier
        to understand, but choose names and boundaries from the user's design.
     8. The current working directory is ${cwd}. All file paths are relative to
-       it and must stay inside the project.
+       it and must stay inside the project. All project files belong strictly
+       in the project folder. Never duplicate files into the root directory,
+       and never prefix file paths with "project/" or "/project/".
     9. Finish with the command that launches the finished project whenever the
        project needs a server. If the project is a static document, make the
        document directly runnable instead.
@@ -286,6 +314,7 @@ export const getSystemPrompt = (cwd: string = WORK_DIR, model?: string, modelInf
 const getSimplifiedSystemPrompt = (cwd: string = WORK_DIR) => `
 ${OUTPUT_FORMAT}
 ${BASE_IDENTITY}
+${GAME_DESIGN_REASONING_PROTOCOL}
 ${CREATIVE_GAME_GUIDANCE}
 ${ERROR_FIXING_AND_ITERATION_RULES}
 ${PREVIEW_RULES}
@@ -308,12 +337,13 @@ Important:
 - Do not use a fixed game template, fixed module names, or a default genre.
 - Do not claim a file is complete if it contains placeholders.
 - Do not put source code in markdown fences; file actions are the source of truth.
-- Keep the conversational response short while the artifact contains the work.
+- Follow the <game_design_reasoning_protocol> thoroughly before generating any artifact.
 `;
 
 const getFullSystemPrompt = (cwd: string = WORK_DIR) => `
 ${OUTPUT_FORMAT}
 ${BASE_IDENTITY}
+${GAME_DESIGN_REASONING_PROTOCOL}
 ${CREATIVE_GAME_GUIDANCE}
 ${ERROR_FIXING_AND_ITERATION_RULES}
 ${PREVIEW_RULES}
@@ -342,10 +372,8 @@ ${ENVIRONMENT_RULES}
 </diff_spec>
 
 <chain_of_thought_instructions>
-  Briefly outline the implementation approach before producing an artifact.
-  Keep the outline short (2–4 lines), identify the important components and
-  risks, then create the complete runnable result. Do not expose private
-  reasoning; provide only a concise implementation summary.
+  Follow the <game_design_reasoning_protocol> thoroughly before producing an artifact.
+  A deep, comprehensive plan (~5x depth) is required — never output a shallow 2–4 line plan.
 </chain_of_thought_instructions>
 
 ${getArtifactInstructions(cwd)}

@@ -30,8 +30,9 @@ export const STUDIO_MODE_INSTRUCTIONS: Record<StudioAgentMode, string> = {
   ].join(' '),
   auto: [
     'STUDIO MODE = AUTO.',
-    'Give a 2–4 sentence original architecture outline, then immediately build the runnable project with a real entry point and the appropriate start command.',
-    "Preserve the user's requested genre and perspective instead of defaulting to a shooter, platformer, or generic canvas layout.",
+    'Execute the deep game design reasoning protocol before building: analyze core mechanics, fun factors, failure mode mitigations, and verify existing file trees across both root and project directories.',
+    'Build the concept as a high-quality, complete runnable project with an immediate playable entry point and appropriate start command.',
+    "Preserve the user's requested genre, theme, and perspective instead of defaulting to a generic canvas layout.",
   ].join(' '),
 };
 

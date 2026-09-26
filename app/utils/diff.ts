@@ -81,7 +81,36 @@ const regex = new RegExp(`^${WORK_DIR}\/`);
  * Strips out the work directory from the file path.
  */
 export function extractRelativePath(filePath: string) {
-  return filePath.replace(regex, '');
+  return cleanWorkDirRelativePath(filePath);
+}
+
+/**
+ * Normalizes all path variants (/project, project/, home/project, /home/project)
+ * into a clean relative path inside WORK_DIR.
+ */
+export function cleanWorkDirRelativePath(filePath: string): string {
+  let clean = filePath.trim().replace(/\\/g, '/');
+  clean = clean.replace(/^(\.\/)+/, '');
+
+  if (clean.startsWith(`${WORK_DIR}/`)) {
+    clean = clean.slice(WORK_DIR.length + 1);
+  } else if (clean === WORK_DIR) {
+    clean = '';
+  } else if (clean.startsWith('home/project/')) {
+    clean = clean.slice('home/project/'.length);
+  } else if (clean === 'home/project') {
+    clean = '';
+  } else if (clean.startsWith('/project/')) {
+    clean = clean.slice('/project/'.length);
+  } else if (clean === '/project') {
+    clean = '';
+  } else if (clean.startsWith('project/')) {
+    clean = clean.slice('project/'.length);
+  } else if (clean === 'project') {
+    clean = '';
+  }
+
+  return clean.replace(/^\/+/, '');
 }
 
 /**

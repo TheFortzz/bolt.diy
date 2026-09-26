@@ -13,7 +13,7 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { Octokit, type RestEndpointMethodTypes } from '@octokit/rest';
 import * as nodePath from 'node:path';
-import { extractRelativePath } from '~/utils/diff';
+import { extractRelativePath, cleanWorkDirRelativePath } from '~/utils/diff';
 import { WORK_DIR } from '~/utils/constants';
 import { description } from '~/lib/persistence';
 import Cookies from 'js-cookie';
@@ -33,8 +33,7 @@ type Artifacts = MapStore<Record<string, ArtifactState>>;
 export type WorkbenchViewType = 'code' | 'preview';
 
 function resolveWorkDirPath(filePath: string) {
-  const isWorkDirPath = filePath === WORK_DIR || filePath.startsWith(`${WORK_DIR}/`);
-  const relativePath = (isWorkDirPath ? filePath.slice(WORK_DIR.length) : filePath).replace(/^\/+/, '');
+  const relativePath = cleanWorkDirRelativePath(filePath);
   const resolvedPath = nodePath.posix.normalize(nodePath.posix.join(WORK_DIR, relativePath));
 
   if (resolvedPath !== WORK_DIR && !resolvedPath.startsWith(`${WORK_DIR}/`)) {
@@ -253,11 +252,20 @@ export class WorkbenchStore {
     }
 
     await this.#filesStore.saveFile(filePath, document.value);
+    this.#editorStore.acceptDiff(filePath);
 
     const newUnsavedFiles = new Set(this.unsavedFiles.get());
     newUnsavedFiles.delete(filePath);
 
     this.unsavedFiles.set(newUnsavedFiles);
+  }
+
+  acceptDiff(filePath: string) {
+    this.#editorStore.acceptDiff(filePath);
+  }
+
+  revertDiff(filePath: string) {
+    this.#editorStore.revertDiff(filePath);
   }
 
   async saveCurrentDocument() {
@@ -466,6 +474,21 @@ http.createServer((req, res) => {
       }
 
       this.#focusCodeUnlessPlayPinned();
+
+      // Ensure baseline originalContent is stored before incoming streamed changes
+      const existingDoc = this.#editorStore.documents.get()[fullPath];
+      const existingFile = this.#filesStore.getFile(fullPath);
+      const baseline = existingDoc?.originalContent ?? existingDoc?.value ?? existingFile?.content;
+
+      if (baseline) {
+        this.#editorStore.documents.setKey(fullPath, {
+          ...(existingDoc || { filePath: fullPath, isBinary: false }),
+          value: existingDoc?.value ?? baseline,
+          originalContent: baseline,
+          filePath: fullPath,
+          isBinary: false,
+        });
+      }
 
       this.#editorStore.updateFile(fullPath, normalizedData.action.content || '');
     }

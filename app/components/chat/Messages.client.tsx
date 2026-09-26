@@ -11,6 +11,7 @@ import WithTooltip from '~/components/ui/Tooltip';
 import { useStore } from '@nanostores/react';
 import { authStore } from '~/lib/auth/appwrite';
 import { normalizeAvatarUrl } from '~/utils/avatar';
+import { ActivityTimeline } from './ActivityTimeline';
 
 interface MessagesProps {
   id?: string;
@@ -118,9 +119,10 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
             );
           })
         : null}
-      {isStreaming && (
-        <div className="text-center w-full text-bolt-elements-textSecondary i-svg-spinners:3-dots-fade text-4xl mt-4"></div>
-      )}
+      <ActivityTimeline
+        messageId={messages[messages.length - 1]?.id}
+        isStreaming={isStreaming}
+      />
     </div>
   );
 });

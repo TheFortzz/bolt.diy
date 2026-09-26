@@ -5,7 +5,7 @@ import { Buffer } from 'node:buffer';
 import * as nodePath from 'node:path';
 import { bufferWatchEvents } from '~/utils/buffer';
 import { WORK_DIR } from '~/utils/constants';
-import { computeFileModifications } from '~/utils/diff';
+import { computeFileModifications, cleanWorkDirRelativePath } from '~/utils/diff';
 import { createScopedLogger } from '~/utils/logger';
 import { unreachable } from '~/utils/unreachable';
 
@@ -81,8 +81,7 @@ export class FilesStore {
   }
 
   #toAbsolutePath(filePath: string) {
-    const isWorkDirPath = filePath === WORK_DIR || filePath.startsWith(`${WORK_DIR}/`);
-    const relativePath = (isWorkDirPath ? filePath.slice(WORK_DIR.length) : filePath).replace(/^\/+/, '');
+    const relativePath = cleanWorkDirRelativePath(filePath);
     const absolutePath = nodePath.posix.normalize(nodePath.posix.join(WORK_DIR, relativePath)).replace(/\/+$/g, '');
 
     if (absolutePath !== WORK_DIR && !absolutePath.startsWith(`${WORK_DIR}/`)) {
