@@ -27,9 +27,14 @@ const CREATIVE_GAME_GUIDANCE = `
     - Diverse Genres: Explore rich concepts like top-down roguelites, tower defense,
       action RPGs, physics puzzlers, retro arcade brawlers, dungeon crawlers, or
       rhythm games. Create distinct enemy archetypes with varied behaviors and attack patterns.
-    - Visual Polish & Juice: Use a cohesive color palette, glowing accents (e.g.
-      ctx.shadowBlur, ctx.shadowColor), particle emitters (sparks, smoke, trails,
-      debris), floating combat damage numbers/crit text, and camera screen shake on impacts.
+    - Visual Polish & Aesthetic Variety: Choose a distinct color palette and visual
+      theme appropriate to the game's setting (e.g. sunset orange and warm purple for a
+      desert racer, neon cyan and magenta for cyberpunk, earthy browns and forest greens
+      for an adventure, crisp blues and metallic silver for space, warm yellows and reds for
+      retro arcade). Do NOT default to neon green outlines or heavy glow for every game —
+      vary backgrounds, terrain, sprites, and UI styling to match the game's theme and the
+      user's description. Use particle emitters (sparks, dust, smoke, tire marks, trails),
+      floating combat/score text, and camera screen shake on impacts.
     - Deep Mechanics: Add progression, risk/reward choices, upgrade paths, combo counters,
       and smooth controls (WASD/Arrows + Mouse aim/click + touch buttons).
     - Immediate Playability: The game MUST start rendering as soon as it loads — or use a
