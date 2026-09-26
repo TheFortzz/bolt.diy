@@ -28,6 +28,70 @@ export type ActionState = BaseActionState | FailedActionState;
 
 type BaseActionUpdate = Partial<Pick<BaseActionState, 'status' | 'abort' | 'executed'>>;
 
+const STATIC_SERVER_SCRIPT = `const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const mimes = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.wasm': 'application/wasm',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2'
+};
+
+const baseDir = path.resolve(fs.existsSync('/home/project') ? '/home/project' : process.cwd());
+
+http.createServer((req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  let cleanUrl = (req.url || '/').split('?')[0].replace(/^\\/+/, '');
+  if (!cleanUrl) cleanUrl = 'index.html';
+
+  const requestedPath = path.resolve(baseDir, cleanUrl);
+  if (requestedPath !== baseDir && !requestedPath.startsWith(baseDir + path.sep)) {
+    res.writeHead(403);
+    res.end('Forbidden');
+    return;
+  }
+
+  const candidates = [
+    requestedPath,
+    path.resolve(baseDir, 'src', cleanUrl),
+    path.resolve(baseDir, 'public', cleanUrl),
+    path.resolve(baseDir, 'dist', cleanUrl),
+  ].map((candidate) => path.resolve(candidate));
+
+  let file = candidates.find((candidate) => {
+    if (candidate !== baseDir && !candidate.startsWith(baseDir + path.sep)) return false;
+    try { return fs.existsSync(candidate) && fs.statSync(candidate).isFile(); } catch (e) { return false; }
+  });
+
+  if (!file && (cleanUrl.endsWith('.html') || !path.extname(cleanUrl))) {
+    const defaultIndex = path.join(baseDir, 'index.html');
+    if (fs.existsSync(defaultIndex)) file = defaultIndex;
+  }
+
+  if (file) {
+    const ext = path.extname(file).toLowerCase();
+    res.writeHead(200, { 'Content-Type': mimes[ext] || 'application/octet-stream' });
+    fs.createReadStream(file).pipe(res);
+  } else {
+    res.writeHead(404);
+    res.end('Not Found');
+  }
+}).listen(0, '0.0.0.0');
+`;
+
 export type ActionStateUpdate =
   | BaseActionUpdate
   | (Omit<BaseActionUpdate, 'status'> & { status: 'failed'; error: string });
@@ -38,12 +102,97 @@ export class ActionRunner {
   #webcontainer: Promise<WebContainer>;
   #currentExecutionPromise: Promise<void> = Promise.resolve();
   #shellTerminal: () => BoltShell;
+  #onStartStaticServer?: () => Promise<void>;
+  #staticServerStarted = false;
   runnerId = atom<string>(`${Date.now()}`);
   actions: ActionsMap = map({});
 
-  constructor(webcontainerPromise: Promise<WebContainer>, getShellTerminal: () => BoltShell) {
+  constructor(
+    webcontainerPromise: Promise<WebContainer>,
+    getShellTerminal: () => BoltShell,
+    onStartStaticServer?: () => Promise<void>,
+  ) {
     this.#webcontainer = webcontainerPromise;
     this.#shellTerminal = getShellTerminal;
+    this.#onStartStaticServer = onStartStaticServer;
+  }
+
+  #isNpmCommand(command: string): boolean {
+    const trimmed = command.trim();
+    return (
+      /^\s*(npm|pnpm|yarn|bun)\b/i.test(trimmed) ||
+      /\b(npm|pnpm|yarn|bun)\s+(install|i|ci|run|start|build|dev|serve|test)\b/i.test(trimmed) ||
+      /(^|[;&|]\s*)(npm|pnpm|yarn|bun)\b/i.test(trimmed)
+    );
+  }
+
+  async #hasPackageJson(): Promise<boolean> {
+    try {
+      const webcontainer = await this.#webcontainer;
+      if (!webcontainer) {
+        return false;
+      }
+
+      for (const p of ['package.json', '/package.json', './package.json', '/home/project/package.json']) {
+        try {
+          const content = await webcontainer.fs.readFile(p, 'utf8');
+          if (content && content.trim().length > 0) {
+            return true;
+          }
+        } catch {}
+      }
+
+      try {
+        const rootEntries = await webcontainer.fs.readdir('.');
+        if (rootEntries.includes('package.json')) {
+          return true;
+        }
+      } catch {}
+
+      try {
+        const rootEntries = await webcontainer.fs.readdir('/');
+        if (rootEntries.includes('package.json')) {
+          return true;
+        }
+      } catch {}
+
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
+  async #startStaticServer(): Promise<void> {
+    if (this.#staticServerStarted) {
+      return;
+    }
+    this.#staticServerStarted = true;
+
+    try {
+      if (this.#onStartStaticServer) {
+        await this.#onStartStaticServer();
+        return;
+      }
+
+      const wc = await this.#webcontainer;
+      if (!wc) return;
+
+      await wc.fs.writeFile('/.static_server.cjs', STATIC_SERVER_SCRIPT);
+      const process = await wc.spawn('node', ['/.static_server.cjs']);
+      logger.info('Started .static_server.cjs for static project');
+
+      void process.exit.then(
+        () => {
+          this.#staticServerStarted = false;
+        },
+        () => {
+          this.#staticServerStarted = false;
+        },
+      );
+    } catch (err) {
+      logger.warn('Failed to start .static_server.cjs:', err);
+      this.#staticServerStarted = false;
+    }
   }
 
   addAction(data: ActionCallbackData) {
@@ -155,6 +304,17 @@ export class ActionRunner {
       unreachable('Expected shell action');
     }
 
+    if (this.#isNpmCommand(action.content)) {
+      const hasPkg = await this.#hasPackageJson();
+      if (!hasPkg) {
+        logger.info(
+          `[ActionRunner] No package.json found in project root. Skipping npm shell command: "${action.content}" and ensuring static server is started.`,
+        );
+        await this.#startStaticServer();
+        return;
+      }
+    }
+
     const shell = this.#shellTerminal();
     const readyTimeout = new Promise<never>((_, reject) => {
       setTimeout(() => reject(new Error('Shell terminal ready timeout')), 15000);
@@ -209,6 +369,17 @@ export class ActionRunner {
   async #runStartAction(action: ActionState) {
     if (action.type !== 'start') {
       unreachable('Expected shell action');
+    }
+
+    if (this.#isNpmCommand(action.content)) {
+      const hasPkg = await this.#hasPackageJson();
+      if (!hasPkg) {
+        logger.info(
+          `[ActionRunner] No package.json found in project root. Skipping npm start command: "${action.content}" and starting .static_server.cjs directly.`,
+        );
+        await this.#startStaticServer();
+        return;
+      }
     }
 
     if (!this.#shellTerminal) {

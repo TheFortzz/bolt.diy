@@ -172,6 +172,8 @@ const PREVIEW_RULES = `
     and a start action such as npm run dev.
   - A plain static project can use a self-contained index.html, but it must not
     depend on local module files that the preview cannot resolve.
+  - For static projects without a package.json: NEVER emit npm install or
+    npm run dev actions. Static projects are automatically served by the studio.
   - Never use placeholders such as ..., "rest of code", TODO, or fake functions.
   - Never emit imports or exports that are not provided by a real dependency.
   - Check canvas/context or DOM references before use and make the start/restart

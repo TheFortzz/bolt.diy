@@ -437,7 +437,11 @@ http.createServer((req, res) => {
       title,
       closed: false,
       type,
-      runner: new ActionRunner(webcontainer, () => this.boltTerminal),
+      runner: new ActionRunner(
+        webcontainer,
+        () => this.boltTerminal,
+        () => this.startStaticPreviewServer(),
+      ),
     });
   }
 
