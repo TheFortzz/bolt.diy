@@ -77,14 +77,19 @@ const ERROR_FIXING_AND_ITERATION_RULES = `
        you MUST REUSE the existing <boltArtifact id="..."> from the conversation history.
      - NEVER append "-fixed", "-v2", or generate a new artifact id.
      - Keep the user's project intact and build iteratively upon it.
-  2. SURGICAL FILE MODIFICATIONS ONLY:
+  2. SURGICAL FILE MODIFICATIONS ONLY — NEVER REWRITE UNCHANGED CODE:
      - Only emit <boltAction type="file" filePath="..."> for the specific file(s) that
        actually need bug fixes, edits, or additions.
      - NEVER repeat, re-emit, or rewrite unmodified files that are already working.
-  3. THOROUGH ERROR DIAGNOSIS:
-     - When the user reports an error or terminal failure, diagnose the exact cause:
-       quaternion math, physics step delta time, missing imports/exports, null DOM/canvas
-       references, or shell command failures.
+     - MODULAR ARCHITECTURE PREVENTS GIANT REWRITES:
+       Always organize games into modular files (e.g. physics.js, car.js, track.js, audio.js, ui.js, main.js).
+       When the user asks to tweak or improve one feature (e.g. "improve car steering" or "fix collision"),
+       you ONLY emit the specific module that needs the change (e.g. physics.js), NOT the entire game!
+  3. THOROUGH ERROR & TERMINAL DIAGNOSIS:
+     - When the user reports an error or a [Recent Action Failure] is provided in the prompt,
+       carefully read the terminal exit code and error message.
+     - Diagnose the exact cause: quaternion math, physics step delta time, missing imports/exports,
+       null DOM/canvas references, or shell command failures.
      - Fix the logic directly inside the affected file rather than rewriting the whole game.
   4. RESILIENT DEPENDENCIES & NO REPEATED SHELL INSTALLS:
      - WebContainers run in the user's browser. Heavy npm packages can hit 504 Gateway
@@ -100,6 +105,14 @@ const ERROR_FIXING_AND_ITERATION_RULES = `
      - All files previously emitted exist in the project workspace.
      - Respect all established classes, functions, variable names, and exported modules.
 </error_fixing_and_iteration_rules>
+
+<claude_codex_reasoning_protocol>
+  Adopt Claude & Codex grade reasoning before generating code:
+  Briefly outline your plan in 2-4 lines:
+  - Physics & Mechanics: Specify coordinates, speed vectors, collision bounding boxes, and time-step stability.
+  - Architecture: Define which modular files handle rendering, input, game loop, and UI.
+  - Zero Brittle Setups: Prioritize clean, self-contained implementations that load instantly in the browser.
+</claude_codex_reasoning_protocol>
 `;
 
 const OUTPUT_FORMAT = `

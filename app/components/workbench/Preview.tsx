@@ -55,25 +55,58 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       .replace(/\s*```\s*$/i, '')
       .trim();
 
-    /**
-     * A blob URL has no project filesystem or module graph. Only use the
-     * in-memory fallback for a genuinely self-contained document. Real
-     * projects are served from WebContainer instead of being rewritten into
-     * a misleading generic canvas page.
-     */
-    const hasLocalScript = /<script\b[^>]*\bsrc\s*=\s*["'](?!https?:\/\/|\/\/|data:|blob:)[^"']+["']/i.test(
-      cleanContent,
-    );
-    const hasLocalStylesheet = /<link\b[^>]*\bhref\s*=\s*["'](?!https?:\/\/|\/\/|data:|blob:)[^"']+["']/i.test(
-      cleanContent,
-    );
-    const hasModuleScript = /<script\b[^>]*\btype\s*=\s*["']module["']/i.test(cleanContent);
-
-    if (hasLocalScript || hasLocalStylesheet || hasModuleScript) {
-      return undefined;
-    }
-
     let bundled = cleanContent;
+
+    // Helper to find file content from path
+    const getFileContent = (refPath: string): string | undefined => {
+      const clean = refPath.replace(/^\.?\//, '').trim();
+      for (const [p, dirent] of Object.entries(files)) {
+        if (dirent?.type === 'file' && dirent.content) {
+          const normP = p.replace(/^\.?\//, '').trim();
+          if (normP === clean || normP.endsWith(`/${clean}`)) {
+            return dirent.content;
+          }
+        }
+      }
+      return undefined;
+    };
+
+    // 1. Inline local stylesheets
+    bundled = bundled.replace(
+      /<link\b[^>]*\bhref\s*=\s*["'](?!https?:\/\/|\/\/|data:|blob:)([^"']+)["'][^>]*>/gi,
+      (match, href) => {
+        const css = getFileContent(href);
+        if (css !== undefined) {
+          return `<style data-inlined="${href}">\n${css}\n</style>`;
+        }
+        return match;
+      }
+    );
+
+    // 2. Inline local script tags (both regular and module)
+    bundled = bundled.replace(
+      /<script\b([^>]*)\bsrc\s*=\s*["'](?!https?:\/\/|\/\/|data:|blob:)([^"']+)["']([^>]*)>[\s\S]*?<\/script>/gi,
+      (match, before, src, after) => {
+        const js = getFileContent(src);
+        if (js !== undefined) {
+          const isModule = /type\s*=\s*["']module["']/i.test(`${before} ${after}`);
+          const typeAttr = isModule ? ' type="module"' : '';
+          return `<script${typeAttr} data-inlined="${src}">\n${js}\n</script>`;
+        }
+        return match;
+      }
+    );
+
+    // 3. If there is an entry JS file (e.g. main.js or game.js) and it was not linked, inject it
+    if (!bundled.includes('data-inlined') && !bundled.includes('<script')) {
+      for (const entryCandidate of ['game.js', 'main.js', 'src/game.js', 'src/main.js', 'index.js', 'app.js']) {
+        const js = getFileContent(entryCandidate);
+        if (js) {
+          bundled = bundled.replace('</body>', `<script data-inlined="${entryCandidate}">\n${js}\n</script>\n</body>`);
+          break;
+        }
+      }
+    }
 
     // CRITICAL: Guarantee Strict Standards Mode (Never Quirks Mode)
     // <!DOCTYPE html> MUST be at index 0 of the document.

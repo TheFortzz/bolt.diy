@@ -198,7 +198,8 @@ export class ActionRunner {
       logger.debug(`${action.type} Shell Response: [exit code:${resp?.exitCode}]`);
 
       if (resp?.exitCode != 0) {
-        throw new Error('Failed To Execute Shell Command');
+        const errorDetail = resp?.output ? resp.output.trim().slice(-600) : '';
+        throw new Error(errorDetail ? `Command failed (code ${resp?.exitCode}):\n${errorDetail}` : 'Failed To Execute Shell Command');
       }
     } finally {
       clearTimeout(timer);

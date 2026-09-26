@@ -309,8 +309,7 @@ export const ChatImpl = memo(
         /* ignore */
       }
 
-      const modeTag = `[Studio Mode: ${agentMode.toUpperCase()}]\n`;
-      let textPayload = `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${modeTag}${_input}`;
+      let textPayload = `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${_input}`;
 
       if (failedActionContext) {
         textPayload = `${failedActionContext}\n\n${textPayload}`;
@@ -319,8 +318,6 @@ export const ChatImpl = memo(
       if (fileModifications !== undefined) {
         textPayload = `${fileModifications}\n\n${textPayload}`;
       }
-
-      lastAgentModeRef.current = agentMode;
 
       append({
         role: 'user',
