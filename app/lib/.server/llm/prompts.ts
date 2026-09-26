@@ -32,8 +32,16 @@ const CREATIVE_GAME_GUIDANCE = `
       debris), floating combat damage numbers/crit text, and camera screen shake on impacts.
     - Deep Mechanics: Add progression, risk/reward choices, upgrade paths, combo counters,
       and smooth controls (WASD/Arrows + Mouse aim/click + touch buttons).
-    - Immediate Playability: The game should be instantly playable or have a crisp
-      "Click to Start" overlay that initializes/resumes audio. No broken fake logins or stuck menus.
+    - Immediate Playability: The game MUST start rendering as soon as it loads — or use a
+      "Click to Start" overlay ONLY when audio context unlock is required. If a start screen
+      is used, its onclick handler MUST call the real game initialization function directly
+      (e.g. `canvas.addEventListener('click', init, { once: true })`). The click handler
+      MUST NOT be a stub, placeholder, or empty function. Canvas rendering MUST begin
+      immediately on click. NEVER produce a start screen whose click does nothing.
+    - Complete Code — No Truncation: Every JS/TS file emitted MUST be syntactically complete.
+      Every function must have a closing brace. Every file must have a valid ending.
+      If a file is too long for one response, emit it across multiple file actions, never
+      truncate mid-function and silently stop. A truncated file breaks the entire game.
   </game_design_principles>
 
   <sound_effects_rule>
@@ -104,6 +112,11 @@ const ERROR_FIXING_AND_ITERATION_RULES = `
   5. COMPLETE MEMORY OF PROJECT FILES:
      - All files previously emitted exist in the project workspace.
      - Respect all established classes, functions, variable names, and exported modules.
+   6. NEVER TRUNCATE A FILE — COMPLETE EVERY FUNCTION:
+     - Every file emitted must be syntactically complete. Every { must have a matching }.
+     - Never stop mid-function. Never use "// rest of code", "// ... existing code ...", or any similar shorthand.
+     - If a file is large, emit the ENTIRE file in full — never cut it off at any point.
+     - A truncated file silently breaks the game and is NEVER acceptable.
 </error_fixing_and_iteration_rules>
 
 <claude_codex_reasoning_protocol>
@@ -166,6 +179,17 @@ const PREVIEW_RULES = `
   - All HTML and JavaScript code must be syntactically valid and fully closed.
   - Do not add a username, lobby, or branding screen unless the user asked for
     one. The game should be playable without a fake account flow.
+  - START SCREEN WIRING (CRITICAL): If a "Click to Start" overlay is shown, its
+    click handler MUST call the actual game init function. This means:
+      * The game loop function (e.g. gameLoop, init, startGame) MUST be defined
+        in the same file or imported before the click handler runs.
+      * The click handler body must not be empty, console.log only, or use a
+        setTimeout stub — it must directly invoke the entry point.
+      * Example: document.getElementById('start-btn').onclick = () => { init(); requestAnimationFrame(gameLoop); };
+  - NO FILE TRUNCATION: Every file action must contain the COMPLETE source code.
+    Never stop mid-function or mid-object. If a file must be long, emit it in
+    full — do not use "// ... rest of code" or cut off at a closing brace.
+    A truncated file will break the game entirely and is worse than no game.
 </playable_preview_rules>
 `;
 

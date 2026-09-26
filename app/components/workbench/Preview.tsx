@@ -83,7 +83,12 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       }
     );
 
-    // 2. Inline local script tags (both regular and module)
+    // 2. Inline local script tags (both regular and module).
+    // CRITICAL: In a blob: URL context the browser has no base URL, so any
+    // <script src="utils.js"> that is NOT inlined will silently 404.
+    // Strategy: try to inline → if file found, inline it;
+    //           if file NOT found, strip the broken <script src> entirely so
+    //           it does not block execution of the scripts that DO load.
     bundled = bundled.replace(
       /<script\b([^>]*)\bsrc\s*=\s*["'](?!https?:\/\/|\/\/|data:|blob:)([^"']+)["']([^>]*)>[\s\S]*?<\/script>/gi,
       (match, before, src, after) => {
@@ -93,17 +98,39 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
           const typeAttr = isModule ? ' type="module"' : '';
           return `<script${typeAttr} data-inlined="${src}">\n${js}\n</script>`;
         }
-        return match;
+        // File not found in virtual FS — strip rather than leave a broken src= that 404s in blob context
+        return `<!-- bolt-stripped: could not resolve "${src}" in virtual filesystem -->`;
       }
     );
 
-    // 3. If there is an entry JS file (e.g. main.js or game.js) and it was not linked, inject it
+    // 3. If there is an entry JS file (e.g. main.js or game.js) and it was not linked, inject it.
+    //    Extended candidate list covers common modular game entry points.
     if (!bundled.includes('data-inlined') && !bundled.includes('<script')) {
-      for (const entryCandidate of ['game.js', 'main.js', 'src/game.js', 'src/main.js', 'index.js', 'app.js']) {
+      for (const entryCandidate of [
+        'game.js', 'main.js', 'src/game.js', 'src/main.js',
+        'index.js', 'app.js', 'engine.js', 'start.js',
+      ]) {
         const js = getFileContent(entryCandidate);
         if (js) {
           bundled = bundled.replace('</body>', `<script data-inlined="${entryCandidate}">\n${js}\n</script>\n</body>`);
           break;
+        }
+      }
+    }
+
+    // 3b. Additionally, inject any known helper modules that were NOT yet inlined
+    //     (e.g. utils.js, audio.js, entities.js) before </body> to ensure all
+    //     globals are defined before the entry point runs.
+    const helperCandidates = [
+      'utils.js', 'audio.js', 'sound.js', 'entities.js', 'enemies.js',
+      'physics.js', 'hud.js', 'ui.js', 'input.js', 'particles.js',
+    ];
+    for (const helper of helperCandidates) {
+      const alreadyInlined = bundled.includes(`data-inlined="${helper}"`);
+      if (!alreadyInlined) {
+        const js = getFileContent(helper);
+        if (js) {
+          bundled = bundled.replace('</body>', `<script data-inlined="${helper}">\n${js}\n</script>\n</body>`);
         }
       }
     }
