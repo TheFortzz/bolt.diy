@@ -59,17 +59,19 @@ function getActionLabel(action: ActionState, isExisting: boolean): { active: str
   };
 }
 
-export const ActivityTimeline = memo(({ messageId, isStreaming = false }: ActivityTimelineProps) => {
-  const artifacts = useStore(workbenchStore.artifacts);
+interface ActivityTimelineInnerProps {
+  artifact: any;
+  isStreaming: boolean;
+}
+
+const ActivityTimelineInner = memo(({ artifact, isStreaming }: ActivityTimelineInnerProps) => {
+  const actionsMap = useStore(artifact.runner.actions);
   const files = useStore(workbenchStore.files);
   const completedFiles = useStore(workbenchStore.completedFiles);
 
-  const artifact = messageId ? artifacts[messageId] : undefined;
-  const actionsMap = artifact ? useStore(artifact.runner.actions) : undefined;
-
   const actionsList: ActionState[] = useMemo(() => {
     if (!actionsMap) return [];
-    return Object.values(actionsMap);
+    return Object.values(actionsMap) as ActionState[];
   }, [actionsMap]);
 
   const hasRunningAction = actionsList.some((a) => a.status === 'running' || a.status === 'pending');
@@ -99,23 +101,11 @@ export const ActivityTimeline = memo(({ messageId, isStreaming = false }: Activi
       </div>
 
       <div className="space-y-2 text-xs font-mono">
-        {/* If no actions started yet, show Thinking... */}
-        {actionsList.length === 0 && isStreaming && (
-          <div className="flex items-center gap-2 text-bolt-elements-textPrimary animate-pulse">
-            <div className="i-svg-spinners:90-ring-with-bg text-cyan-400 text-sm shrink-0" />
-            <span>Thinking...</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2 text-bolt-elements-textSecondary">
+          <div className="i-ph:check-circle-fill text-emerald-400 text-sm shrink-0" />
+          <span>Plan & Architecture established</span>
+        </div>
 
-        {/* If actions have started, mark initial Thinking as completed */}
-        {actionsList.length > 0 && (
-          <div className="flex items-center gap-2 text-bolt-elements-textSecondary">
-            <div className="i-ph:check-circle-fill text-emerald-400 text-sm shrink-0" />
-            <span>Plan & Architecture established</span>
-          </div>
-        )}
-
-        {/* Each action appears as its own line */}
         {actionsList.map((action, idx) => {
           const isExisting =
             action.type === 'file' &&
@@ -152,13 +142,44 @@ export const ActivityTimeline = memo(({ messageId, isStreaming = false }: Activi
           );
         })}
 
-        {/* If streaming follow-up after actions finished */}
         {actionsList.length > 0 && !hasRunningAction && isStreaming && (
           <div className="flex items-center gap-2 text-bolt-elements-textPrimary animate-pulse pt-1">
             <div className="i-svg-spinners:90-ring-with-bg text-cyan-400 text-sm shrink-0" />
             <span>Finalizing preview and response...</span>
           </div>
         )}
+      </div>
+    </div>
+  );
+});
+
+export const ActivityTimeline = memo(({ messageId, isStreaming = false }: ActivityTimelineProps) => {
+  const artifacts = useStore(workbenchStore.artifacts);
+  const artifact = messageId ? artifacts[messageId] : undefined;
+
+  if (artifact) {
+    return <ActivityTimelineInner artifact={artifact} isStreaming={isStreaming} />;
+  }
+
+  if (!isStreaming) {
+    return null;
+  }
+
+  return (
+    <div className="w-full my-3 px-3.5 py-3 rounded-lg border border-bolt-elements-borderColor/70 bg-bolt-elements-background-depth-2/60 backdrop-blur-md shadow-sm">
+      <div className="flex items-center justify-between pb-2 mb-2 border-b border-bolt-elements-borderColor/40">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+          <span className="text-[11px] font-mono font-semibold uppercase tracking-wider text-bolt-elements-textSecondary">
+            Live Activity
+          </span>
+        </div>
+      </div>
+      <div className="space-y-2 text-xs font-mono">
+        <div className="flex items-center gap-2 text-bolt-elements-textPrimary animate-pulse">
+          <div className="i-svg-spinners:90-ring-with-bg text-cyan-400 text-sm shrink-0" />
+          <span>Thinking...</span>
+        </div>
       </div>
     </div>
   );
