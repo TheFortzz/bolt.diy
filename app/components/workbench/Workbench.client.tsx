@@ -24,7 +24,6 @@ interface WorkspaceProps {
   isStreaming?: boolean;
 }
 
-const viewTransition = { ease: cubicEasingFn };
 
 const sliderOptions: SliderOptions<WorkbenchViewType> = {
   left: {
@@ -302,9 +301,12 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
                 />
               </div>
               <div className="relative flex-1 overflow-hidden">
-                <View
-                  initial={{ x: selectedView === 'code' ? 0 : '-100%' }}
-                  animate={{ x: selectedView === 'code' ? 0 : '-100%' }}
+                <div
+                  className={classNames('absolute inset-0 transition-opacity duration-150', {
+                    'visible opacity-100 z-10 pointer-events-auto': selectedView === 'code',
+                    'invisible opacity-0 pointer-events-none -z-10': selectedView !== 'code',
+                  })}
+                  aria-hidden={selectedView !== 'code'}
                 >
                   <EditorPanel
                     editorDocument={currentDocument}
@@ -320,29 +322,21 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
                     onFileSave={onFileSave}
                     onFileReset={onFileReset}
                   />
-                </View>
-                <View
-                  initial={{ x: selectedView === 'preview' ? 0 : '100%' }}
-                  animate={{ x: selectedView === 'preview' ? 0 : '100%' }}
+                </div>
+                <div
+                  className={classNames('absolute inset-0 transition-opacity duration-150', {
+                    'visible opacity-100 z-10 pointer-events-auto': selectedView === 'preview',
+                    'invisible opacity-0 pointer-events-none -z-10': selectedView !== 'preview',
+                  })}
+                  aria-hidden={selectedView !== 'preview'}
                 >
                   <Preview isStreaming={isStreaming} />
-                </View>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </motion.div>
     )
-  );
-});
-interface ViewProps extends HTMLMotionProps<'div'> {
-  children: JSX.Element;
-}
-
-const View = memo(({ children, ...props }: ViewProps) => {
-  return (
-    <motion.div className="absolute inset-0" transition={viewTransition} {...props}>
-      {children}
-    </motion.div>
   );
 });

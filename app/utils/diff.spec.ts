@@ -8,4 +8,12 @@ describe('Diff', () => {
     const result = extractRelativePath(filePath);
     expect(result).toBe('index.js');
   });
+
+  it('should strip project/ and /project/ variants to flat files', () => {
+    expect(extractRelativePath('project/index.js')).toBe('index.js');
+    expect(extractRelativePath('/project/index.js')).toBe('index.js');
+    expect(extractRelativePath('/home/project/index.js')).toBe('index.js');
+    expect(extractRelativePath('/home/project/project/index.js')).toBe('index.js');
+    expect(extractRelativePath('home/index.js')).toBe('index.js');
+  });
 });

@@ -133,11 +133,11 @@ const GAME_DESIGN_REASONING_PROTOCOL = `
   of a conventional outline) before producing any code or artifact.
 
   Every game generation response MUST begin with a comprehensive <plan> covering:
-  1. FILE TREE INSPECTION & NO DUPLICATE PATHS (ROOT VS PROJECT):
-     - Before creating or editing any file, inspect both the root directory and the project directory.
-     - List the current files in both locations.
-     - Enforce that ALL project files strictly live in the project directory (${WORK_DIR}).
-     - NEVER duplicate a file into root if an equivalent exists in /project (or vice versa).
+  1. FLAT OUTSIDE FILE STRUCTURE (NO HOME OR PROJECT FOLDERS):
+     - Put all files directly in the root directory as plain outside files (e.g. index.html, game.js, style.css).
+     - NEVER create, use, or mention a "project" or "home" or "/home/project" folder.
+     - Every file path must be a flat, simple filename (e.g. filePath="index.html", filePath="game.js").
+     - Never nest files inside /home, /project, or any subdirectories unless explicitly requested by the user.
      - State explicitly for each file whether it is being created or surgically edited.
 
   2. GAMEPLAY MECHANICS & WHY THIS GAME IS FUN:
@@ -263,10 +263,9 @@ const getArtifactInstructions = (cwd: string) => `
        long-running dev server.
     7. Split large systems into focused files when that makes the project easier
        to understand, but choose names and boundaries from the user's design.
-    8. The current working directory is ${cwd}. All file paths are relative to
-       it and must stay inside the project. All project files belong strictly
-       in the project folder. Never duplicate files into the root directory,
-       and never prefix file paths with "project/" or "/project/".
+    8. Put all files directly in the root directory as plain outside files (e.g. index.html, game.js, style.css).
+       Never create or use a "home" or "project" folder, and never prefix file paths with "project/", "/project/", "home/", or "/home/project/".
+       All file paths must be flat top-level filenames relative to the current working directory.
     9. Finish with the command that launches the finished project whenever the
        project needs a server. If the project is a static document, make the
        document directly runnable instead.

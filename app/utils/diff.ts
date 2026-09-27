@@ -86,28 +86,34 @@ export function extractRelativePath(filePath: string) {
 
 /**
  * Normalizes all path variants (/project, project/, home/project, /home/project)
- * into a clean relative path inside WORK_DIR.
+ * into a clean relative path without any home or project folder prefixes.
  */
 export function cleanWorkDirRelativePath(filePath: string): string {
   let clean = filePath.trim().replace(/\\/g, '/');
   clean = clean.replace(/^(\.\/)+/, '');
 
-  if (clean.startsWith(`${WORK_DIR}/`)) {
-    clean = clean.slice(WORK_DIR.length + 1);
-  } else if (clean === WORK_DIR) {
-    clean = '';
-  } else if (clean.startsWith('home/project/')) {
-    clean = clean.slice('home/project/'.length);
-  } else if (clean === 'home/project') {
-    clean = '';
-  } else if (clean.startsWith('/project/')) {
-    clean = clean.slice('/project/'.length);
-  } else if (clean === '/project') {
-    clean = '';
-  } else if (clean.startsWith('project/')) {
-    clean = clean.slice('project/'.length);
-  } else if (clean === 'project') {
-    clean = '';
+  let previous = '';
+  while (clean !== previous) {
+    previous = clean;
+    clean = clean.replace(/^\/+/, '');
+
+    if (clean.startsWith(`${WORK_DIR}/`)) {
+      clean = clean.slice(WORK_DIR.length + 1);
+    } else if (clean === WORK_DIR) {
+      clean = '';
+    } else if (clean.startsWith('home/project/')) {
+      clean = clean.slice('home/project/'.length);
+    } else if (clean === 'home/project') {
+      clean = '';
+    } else if (clean.startsWith('home/')) {
+      clean = clean.slice('home/'.length);
+    } else if (clean === 'home') {
+      clean = '';
+    } else if (clean.startsWith('project/')) {
+      clean = clean.slice('project/'.length);
+    } else if (clean === 'project') {
+      clean = '';
+    }
   }
 
   return clean.replace(/^\/+/, '');
