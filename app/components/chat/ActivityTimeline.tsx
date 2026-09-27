@@ -15,12 +15,12 @@ function getActionLabel(action: ActionState, isExisting: boolean): { active: str
     const filename = cleanWorkDirRelativePath(action.filePath);
     if (isExisting) {
       return {
-        active: `Editing ${filename}...`,
+        active: `Editing ${filename}`,
         done: `Edited ${filename}`,
       };
     }
     return {
-      active: `Creating ${filename}...`,
+      active: `Creating ${filename}`,
       done: `Created ${filename}`,
     };
   }
@@ -29,33 +29,33 @@ function getActionLabel(action: ActionState, isExisting: boolean): { active: str
     const cmd = action.content.trim();
     if (cmd.includes('build') || cmd.includes('tsc')) {
       return {
-        active: 'Verifying build...',
+        active: 'Verifying build',
         done: 'Build verified',
       };
     }
     if (cmd.includes('install')) {
       return {
-        active: 'Installing dependencies...',
-        done: 'Dependencies installed',
+        active: 'Installing packages',
+        done: 'Packages installed',
       };
     }
-    const shortCmd = cmd.length > 35 ? `${cmd.slice(0, 35)}...` : cmd;
+    const shortCmd = cmd.length > 30 ? `${cmd.slice(0, 30)}…` : cmd;
     return {
-      active: `Running: ${shortCmd}...`,
-      done: `Completed: ${shortCmd}`,
+      active: `Running ${shortCmd}`,
+      done: `Ran ${shortCmd}`,
     };
   }
 
   if (action.type === 'start') {
     return {
-      active: 'Starting application...',
-      done: 'Application started',
+      active: 'Starting app',
+      done: 'App started',
     };
   }
 
   return {
-    active: 'Processing...',
-    done: 'Finished',
+    active: 'Processing',
+    done: 'Done',
   };
 }
 
@@ -81,74 +81,55 @@ const ActivityTimelineInner = memo(({ artifact, isStreaming }: ActivityTimelineI
   }
 
   return (
-    <div className="w-full my-3 px-3.5 py-3 rounded-lg border border-bolt-elements-borderColor/70 bg-bolt-elements-background-depth-2/60 backdrop-blur-md shadow-sm">
-      <div className="flex items-center justify-between pb-2 mb-2 border-b border-bolt-elements-borderColor/40">
-        <div className="flex items-center gap-2">
-          {isStreaming || hasRunningAction ? (
-            <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-          ) : (
-            <div className="w-2 h-2 rounded-full bg-emerald-400" />
-          )}
-          <span className="text-[11px] font-mono font-semibold uppercase tracking-wider text-bolt-elements-textSecondary">
-            {isStreaming || hasRunningAction ? 'Live Activity' : 'Activity Summary'}
-          </span>
-        </div>
-        {artifact?.title && (
-          <span className="text-[11px] font-mono text-bolt-elements-textTertiary truncate max-w-[200px]">
-            {artifact.title}
-          </span>
-        )}
-      </div>
-
-      <div className="space-y-2 text-xs font-mono">
-        <div className="flex items-center gap-2 text-bolt-elements-textSecondary">
-          <div className="i-ph:check-circle-fill text-emerald-400 text-sm shrink-0" />
-          <span>Plan & Architecture established</span>
-        </div>
-
-        {actionsList.map((action, idx) => {
-          const isExisting =
-            action.type === 'file' &&
-            Boolean(
-              completedFiles.has(action.filePath) ||
-                (files[action.filePath] && files[action.filePath]?.type === 'file'),
-            );
-          const labels = getActionLabel(action, isExisting);
-
-          return (
-            <div
-              key={idx}
-              className={classNames('flex items-center gap-2 transition-colors', {
-                'text-bolt-elements-textPrimary font-medium': action.status === 'running',
-                'text-bolt-elements-textSecondary': action.status === 'complete',
-                'text-rose-400': action.status === 'failed',
-                'text-bolt-elements-textTertiary': action.status === 'pending' || action.status === 'aborted',
-              })}
-            >
-              {action.status === 'running' ? (
-                <div className="i-svg-spinners:90-ring-with-bg text-cyan-400 text-sm shrink-0" />
-              ) : action.status === 'complete' ? (
-                <div className="i-ph:check-circle-fill text-emerald-400 text-sm shrink-0" />
-              ) : action.status === 'failed' ? (
-                <div className="i-ph:x-circle-fill text-rose-400 text-sm shrink-0" />
-              ) : (
-                <div className="i-ph:circle text-bolt-elements-textTertiary text-sm shrink-0" />
-              )}
-
-              <span className="truncate">
-                {action.status === 'running' || action.status === 'pending' ? labels.active : labels.done}
-              </span>
-            </div>
+    <div className="flex flex-col gap-1 my-2">
+      {actionsList.map((action, idx) => {
+        const isExisting =
+          action.type === 'file' &&
+          Boolean(
+            completedFiles.has(action.filePath) ||
+              (files[action.filePath] && files[action.filePath]?.type === 'file'),
           );
-        })}
+        const labels = getActionLabel(action, isExisting);
+        const isRunning = action.status === 'running';
+        const isDone = action.status === 'complete';
+        const isFailed = action.status === 'failed';
 
-        {actionsList.length > 0 && !hasRunningAction && isStreaming && (
-          <div className="flex items-center gap-2 text-bolt-elements-textPrimary animate-pulse pt-1">
-            <div className="i-svg-spinners:90-ring-with-bg text-cyan-400 text-sm shrink-0" />
-            <span>Finalizing preview and response...</span>
+        return (
+          <div
+            key={idx}
+            className={classNames(
+              'inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-mono tracking-tight rounded-sm transition-all duration-200',
+              {
+                'text-bolt-elements-textPrimary bg-cyan-500/8': isRunning,
+                'text-bolt-elements-textTertiary': isDone,
+                'text-rose-400': isFailed,
+                'text-bolt-elements-textTertiary opacity-60': action.status === 'pending' || action.status === 'aborted',
+              },
+            )}
+          >
+            {isRunning ? (
+              <div className="i-svg-spinners:90-ring-with-bg text-cyan-400 text-xs shrink-0" />
+            ) : isDone ? (
+              <div className="i-ph:check text-emerald-500/70 text-xs shrink-0" />
+            ) : isFailed ? (
+              <div className="i-ph:x text-rose-400 text-xs shrink-0" />
+            ) : (
+              <div className="i-ph:circle text-bolt-elements-textTertiary text-xs shrink-0 opacity-40" />
+            )}
+
+            <span className="truncate">
+              {isRunning || action.status === 'pending' ? labels.active : labels.done}
+            </span>
           </div>
-        )}
-      </div>
+        );
+      })}
+
+      {isStreaming && !hasRunningAction && actionsList.length > 0 && (
+        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-mono tracking-tight text-bolt-elements-textSecondary animate-pulse">
+          <div className="i-svg-spinners:90-ring-with-bg text-cyan-400 text-xs shrink-0" />
+          <span>Finishing up…</span>
+        </div>
+      )}
     </div>
   );
 });
@@ -166,20 +147,10 @@ export const ActivityTimeline = memo(({ messageId, isStreaming = false }: Activi
   }
 
   return (
-    <div className="w-full my-3 px-3.5 py-3 rounded-lg border border-bolt-elements-borderColor/70 bg-bolt-elements-background-depth-2/60 backdrop-blur-md shadow-sm">
-      <div className="flex items-center justify-between pb-2 mb-2 border-b border-bolt-elements-borderColor/40">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-          <span className="text-[11px] font-mono font-semibold uppercase tracking-wider text-bolt-elements-textSecondary">
-            Live Activity
-          </span>
-        </div>
-      </div>
-      <div className="space-y-2 text-xs font-mono">
-        <div className="flex items-center gap-2 text-bolt-elements-textPrimary animate-pulse">
-          <div className="i-svg-spinners:90-ring-with-bg text-cyan-400 text-sm shrink-0" />
-          <span>Thinking...</span>
-        </div>
+    <div className="flex flex-col gap-1 my-2">
+      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-mono tracking-tight text-bolt-elements-textSecondary animate-pulse">
+        <div className="i-svg-spinners:90-ring-with-bg text-cyan-400 text-xs shrink-0" />
+        <span>Thinking…</span>
       </div>
     </div>
   );

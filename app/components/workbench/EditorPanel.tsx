@@ -85,7 +85,7 @@ export const EditorPanel = memo(
       return editorDocument !== undefined && unsavedFiles?.has(editorDocument.filePath);
     }, [editorDocument, unsavedFiles]);
 
-    const [showDiff, setShowDiff] = useState(true);
+    const [showDiff, setShowDiff] = useState(false);
 
     const hasDiff = Boolean(
       editorDocument?.originalContent &&

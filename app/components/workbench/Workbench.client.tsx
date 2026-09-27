@@ -96,33 +96,34 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
   }, []);
 
   useEffect(() => {
-    // Reset Play pin when a new AI build starts so Code is the default again.
     const streaming = Boolean(isStreaming);
-    if (streaming && !wasStreamingRef.current) {
-      setPinPlayView(false);
-      workbenchStore.preferPlayView.set(false);
-    }
-    wasStreamingRef.current = streaming;
-  }, [isStreaming]);
+    const wasStreaming = wasStreamingRef.current;
 
-  useEffect(() => {
-    // Prefer Code while the AI is writing files unless the user pinned Play.
-    if (isStreaming) {
+    // While the AI is actively streaming, always stay on the code tab so the
+    // user can watch the code being written — never yank them to preview.
+    if (streaming) {
+      // Reset Play pin when a new AI build starts so Code is the default again.
+      if (!wasStreaming) {
+        setPinPlayView(false);
+        workbenchStore.preferPlayView.set(false);
+      }
       if (showWorkbench && !pinPlayView) {
         setSelectedView('code');
       }
-      return;
+    } else if (wasStreaming) {
+      // Streaming just stopped — switch to preview exactly once.
+      const hasHtml = Object.values(files).some(
+        (d) =>
+          d?.type === 'file' && Boolean(d.content) && (d.content.includes('<html') || d.content.includes('<!DOCTYPE')),
+      );
+
+      if (hasPreview || hasHtml) {
+        setSelectedView('preview');
+      }
     }
 
-    const hasHtml = Object.values(files).some(
-      (d) =>
-        d?.type === 'file' && Boolean(d.content) && (d.content.includes('<html') || d.content.includes('<!DOCTYPE')),
-    );
-
-    if (hasPreview || hasHtml) {
-      setSelectedView('preview');
-    }
-  }, [hasPreview, isStreaming, showWorkbench, files, pinPlayView, setSelectedView]);
+    wasStreamingRef.current = streaming;
+  }, [isStreaming, showWorkbench, pinPlayView, setSelectedView]);
 
   useEffect(() => {
     workbenchStore.setDocuments(files);

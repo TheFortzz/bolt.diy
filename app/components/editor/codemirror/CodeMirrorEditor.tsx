@@ -498,7 +498,10 @@ function setEditorDocument(
   isCurrent: () => boolean = () => true,
   showDiff: boolean = true,
 ) {
-  const isDiffMode = Boolean(showDiff && doc.originalContent && doc.originalContent !== doc.value);
+  // While the AI is actively streaming, never show diff decorations — just
+  // show the raw code being typed in naturally.  Diff view is only relevant
+  // once streaming stops and the user manually toggles "Diff".
+  const isDiffMode = Boolean(!isStreaming && showDiff && doc.originalContent && doc.originalContent !== doc.value);
   let textToDisplay = doc.value;
   let diffResult: DiffResult | undefined;
 
@@ -508,19 +511,46 @@ function setEditorDocument(
   }
 
   const shouldFollowStream = isStreaming && !isDiffMode;
-  const docLength = textToDisplay.length;
+  const currentContent = view.state.doc.toString();
 
-  if (textToDisplay !== view.state.doc.toString()) {
-    view.dispatch({
-      selection: shouldFollowStream ? { anchor: docLength } : { anchor: 0 },
-      changes: {
-        from: 0,
-        to: view.state.doc.length,
-        insert: textToDisplay,
-      },
-      effects: shouldFollowStream ? [EditorView.scrollIntoView(docLength, { y: 'end' })] : [],
-      annotations: externalUpdate.of(true),
-    });
+  // Apply a minimal change instead of replacing the entire document from line 0.
+  // This avoids the jarring "rewrite from beginning" animation and makes it look
+  // like natural typing: only the trailing delta is inserted.
+  if (textToDisplay !== currentContent) {
+    if (shouldFollowStream && textToDisplay.startsWith(currentContent.slice(0, Math.min(currentContent.length, 200)))) {
+      // Fast-path: content is being appended (or a tail portion changed).
+      // Find the first character that diverges and only replace from there.
+      let commonPrefix = 0;
+      const limit = Math.min(currentContent.length, textToDisplay.length);
+      while (commonPrefix < limit && currentContent[commonPrefix] === textToDisplay[commonPrefix]) {
+        commonPrefix++;
+      }
+
+      const docLength = textToDisplay.length;
+      view.dispatch({
+        selection: { anchor: docLength },
+        changes: {
+          from: commonPrefix,
+          to: currentContent.length,
+          insert: textToDisplay.slice(commonPrefix),
+        },
+        effects: [EditorView.scrollIntoView(docLength, { y: 'end' })],
+        annotations: externalUpdate.of(true),
+      });
+    } else {
+      // Full replacement (file switch, diff mode, or non-streaming)
+      const docLength = textToDisplay.length;
+      view.dispatch({
+        selection: shouldFollowStream ? { anchor: docLength } : { anchor: 0 },
+        changes: {
+          from: 0,
+          to: currentContent.length,
+          insert: textToDisplay,
+        },
+        effects: shouldFollowStream ? [EditorView.scrollIntoView(docLength, { y: 'end' })] : [],
+        annotations: externalUpdate.of(true),
+      });
+    }
   }
 
   if (isDiffMode && diffResult) {
