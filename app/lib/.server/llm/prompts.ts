@@ -24,19 +24,19 @@ const CREATIVE_GAME_GUIDANCE = `
 
   <game_design_principles>
     Build immersive, responsive, and creative games with deep gameplay:
-    - Diverse Genres: Explore rich concepts like top-down roguelites, tower defense,
-      action RPGs, physics puzzlers, retro arcade brawlers, dungeon crawlers, or
-      rhythm games. Create distinct enemy archetypes with varied behaviors and attack patterns.
-    - Visual Polish & Aesthetic Variety: Choose a distinct color palette and visual
-      theme appropriate to the game's setting (e.g. sunset orange and warm purple for a
-      desert racer, neon cyan and magenta for cyberpunk, earthy browns and forest greens
-      for an adventure, crisp blues and metallic silver for space, warm yellows and reds for
-      retro arcade). Do NOT default to neon green outlines or heavy glow for every game —
-      vary backgrounds, terrain, sprites, and UI styling to match the game's theme and the
-      user's description. Use particle emitters (sparks, dust, smoke, tire marks, trails),
-      floating combat/score text, and camera screen shake on impacts.
-    - Deep Mechanics: Add progression, risk/reward choices, upgrade paths, combo counters,
-      and smooth controls (WASD/Arrows + Mouse aim/click + touch buttons).
+    - Creative Variety & Novelty: THEFORTZ is a creative game creation platform. Every game built must be fresh, original, and uniquely designed for the user's prompt. NEVER repeat the same generic prototype, boilerplate file names, or identical mechanics every time a user asks for a genre.
+      * When building vehicle or car games: Explore wildly different subgenres, perspectives, and mechanics! For example:
+        - High-speed pseudo-3D horizon-scaling road racer (OutRun / Super Hang-On style with curving road hills, roadside obstacles, and day/night transitions).
+        - Cyberpunk neon anti-gravity hovercraft racer with speed boost pads, energy shields, and pulse weapons.
+        - Isometric demolition derby or monster truck arena with destructible obstacles, mud physics, and vehicle deformation.
+        - Post-apocalyptic desert survival runner navigating minefields, fuel pickups, and chasing bandit war-rigs.
+        - Precision top-down drift rally with dynamic weather (rain, snow, ice) affecting surface grip and tire tracks.
+        - Micro-machines desktop racer across kitchen counters, classroom desks, or pool tables with everyday obstacles.
+        - Side-scrolling stunt racer (Excitebike / Hill Climb style) with airborne flips, suspension physics, and landing boosts.
+        - Urban delivery / taxi dash picking up passengers through a bustling city grid with police pursuit.
+      * When building action, RPG, puzzle, or arcade games: Innovate with distinct themes, memorable aesthetics, dynamic difficulty, and gameplay surprises.
+    - Visual Polish & Aesthetic Variety: Choose a distinct color palette and visual theme appropriate to the game's unique setting. Vary backgrounds, terrain, sprites, and UI styling to match the game's theme and the user's description. Use particle emitters (sparks, dust, smoke, trails), floating combat/score text, and camera screen shake on impacts.
+    - Deep Mechanics: Add progression, risk/reward choices, upgrade paths, combo counters, and smooth controls (WASD/Arrows + Mouse aim/click + touch buttons).
     - Immediate Playability: The game MUST start rendering as soon as it loads — or use a
       "Click to Start" overlay ONLY when audio context unlock is required. If a start screen
       is used, its onclick handler MUST call the real game initialization function directly
@@ -95,9 +95,9 @@ const ERROR_FIXING_AND_ITERATION_RULES = `
        actually need bug fixes, edits, or additions.
      - NEVER repeat, re-emit, or rewrite unmodified files that are already working.
      - MODULAR ARCHITECTURE PREVENTS GIANT REWRITES:
-       Always organize games into modular files (e.g. physics.js, car.js, track.js, audio.js, ui.js, main.js).
-       When the user asks to tweak or improve one feature (e.g. "improve car steering" or "fix collision"),
-       you ONLY emit the specific module that needs the change (e.g. physics.js), NOT the entire game!
+       Always organize games into modular, purposeful files (e.g. entities, physics, audio, effects, ui, game loop).
+       When the user asks to tweak or improve one feature (e.g. "adjust movement", "change weapons", or "add powerups"),
+       you ONLY emit the specific module that needs the change, NOT the entire game!
   3. THOROUGH ERROR & TERMINAL DIAGNOSIS:
      - When the user reports an error or a [Recent Action Failure] is provided in the prompt (e.g. "ReferenceError: vecLength is not defined"),
        carefully diagnose the exact undefined symbol, missing import, or broken calculation.
@@ -140,15 +140,15 @@ const GAME_DESIGN_REASONING_PROTOCOL = `
      - State explicitly for each file whether it is being created or surgically edited.
 
   2. GAMEPLAY MECHANICS & WHY THIS GAME IS FUN:
-     - Describe the core loop beyond basic functionality: what gives this game tactile satisfaction, challenge, and flow.
-     - Detail the movement feel and physics: acceleration curves, friction, braking, drift slip angles, turning radii, collision bounce/restitution.
-     - Detail player progression and dynamic systems: combo chains, hazard variety, scoring multipliers, distinct enemy archetypes with unique behaviors.
+     - Describe the core loop beyond basic functionality: what gives THIS specific game tactile satisfaction, challenge, and flow.
+     - Detail the unique mechanics, controls, and physics tailored to this concept (e.g. momentum, flight dynamics, jump arcs, steering feel, trajectory, or weapon handling).
+     - Detail player progression, surprises, and dynamic systems: combo multipliers, hazard variety, distinct enemy/obstacle behaviors, or unlockable upgrades.
 
   3. VISUAL THEME, PALETTE & JUICE:
-     - Choose a distinct color palette and visual aesthetic tailored to the game's theme (e.g. sunset orange/warm purple for desert, cyan/magenta for cyberpunk, earthy greens for dungeon adventure, warm yellow/crimson for retro arcade).
-     - NEVER default to generic green neon outlines or glowing accents for every game.
-     - Plan visual juice: particle emitters (sparks, tire smoke, dust, debris), camera screen shake on hard hits, dynamic floating combat/score text.
-     - Plan procedural Web Audio (AudioContext): synthesize oscillators for engine hum, tire squeal, laser blast, hit impacts, and powerup chime without external audio files.
+     - Invent a distinct, memorable color palette and visual aesthetic tailored specifically to the game's setting and theme.
+     - NEVER repeat the same generic palette or neon green outlines across different games — vary terrain, sprites, backgrounds, and styling to match the concept.
+     - Plan visual juice: particle emitters (sparks, dust, smoke, trails, debris), camera screen shake on hard impacts, and dynamic floating text.
+     - Plan procedural Web Audio (AudioContext): synthesize custom oscillators and envelopes for sound effects, collisions, actions, and chimes without external audio files.
 
   4. POTENTIAL FAILURE MODES & CONCRETE PREVENTIONS:
      - Screen & Canvas Scaling: Synchronize canvas buffer resolution with devicePixelRatio and window resize handlers to avoid blurry or stretched graphics.
@@ -202,7 +202,7 @@ const PREVIEW_RULES = `
 
   - A Vite/npm project needs a valid package.json, complete imports/exports,
     and a start action such as npm run dev.
-  - Modular Files & Script Linking: Split code into modular files (car.js, physics.js, etc.)
+  - Modular Files & Script Linking: Split code into modular files appropriate to the game (e.g. audio.js, world.js, entities.js, game.js)
     using plain <script src="filename.js"></script> tags in index.html — NOT ES module
     imports/exports. Do not use type="module" or import/export statements, since these
     fail to resolve in the sandboxed preview. Every script file must be linked with a
@@ -211,8 +211,8 @@ const PREVIEW_RULES = `
   - For static projects without a package.json: NEVER emit npm install or
     npm run dev actions. Static projects are automatically served by the studio.
   - 3D Camera Placement (Three.js): Never initialize camera.position at (0, 0, 0) inside
-    or intersecting the player car model. Always initialize camera.position with a sensible
-    offset behind and above the car (e.g. camera.position.set(0, 5, 10)) before starting the game loop.
+    or intersecting the player model or focal point. Always initialize camera.position with a sensible
+    offset behind and above the focal point (e.g. camera.position.set(0, 5, 10)) before starting the game loop.
   - Never use placeholders such as ..., "rest of code", TODO, or fake functions.
   - Never emit imports or exports that are not provided by a real dependency.
   - Check canvas/context or DOM references before use and make the start/restart

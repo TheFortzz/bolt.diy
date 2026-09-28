@@ -214,35 +214,65 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     // Standard game math & vector helper polyfills so common helper functions never crash at runtime
     const mathUtilsScript = `<script id="bolt-game-math-utils">
 (function() {
-  if (typeof window.vecLength === 'undefined') {
-    window.vecLength = function(v, y) {
+  var g = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this);
+
+  if (typeof g.vecLength === 'undefined') {
+    g.vecLength = function(v, y) {
       if (typeof v === 'number') return Math.hypot(v, y || 0);
       if (!v) return 0;
       return Math.hypot(v.x || 0, v.y || 0, v.z || 0);
     };
   }
-  if (typeof window.vecNormalize === 'undefined') {
-    window.vecNormalize = function(v) {
-      var len = window.vecLength(v);
+  if (typeof g.vecLen === 'undefined') g.vecLen = g.vecLength;
+  if (typeof g.magnitude === 'undefined') g.magnitude = g.vecLength;
+
+  if (typeof g.vecNormalize === 'undefined') {
+    g.vecNormalize = function(v) {
+      var len = g.vecLength(v);
       if (len === 0) return { x: 0, y: 0 };
       return { x: (v.x || 0) / len, y: (v.y || 0) / len };
     };
   }
-  if (typeof window.clamp === 'undefined') {
-    window.clamp = function(val, min, max) { return Math.max(min, Math.min(max, val)); };
+  if (typeof g.normalize === 'undefined') g.normalize = g.vecNormalize;
+
+  if (typeof g.clamp === 'undefined') {
+    g.clamp = function(val, min, max) { return Math.max(min, Math.min(max, val)); };
   }
-  if (typeof window.lerp === 'undefined') {
-    window.lerp = function(a, b, t) { return a + (b - a) * t; };
+  if (typeof g.lerp === 'undefined') {
+    g.lerp = function(a, b, t) { return a + (b - a) * t; };
   }
-  if (typeof window.dist === 'undefined') {
-    window.dist = function(x1, y1, x2, y2) { return Math.hypot(x2 - x1, y2 - y1); };
+  if (typeof g.dist === 'undefined') {
+    g.dist = function(x1, y1, x2, y2) { return Math.hypot(x2 - x1, y2 - y1); };
   }
-  if (typeof window.vecDot === 'undefined') {
-    window.vecDot = function(a, b) { return (a.x || 0) * (b.x || 0) + (a.y || 0) * (b.y || 0); };
+  if (typeof g.distance === 'undefined') g.distance = g.dist;
+
+  if (typeof g.vecDot === 'undefined') {
+    g.vecDot = function(a, b) { return (a.x || 0) * (b.x || 0) + (a.y || 0) * (b.y || 0); };
   }
-  if (typeof window.randomRange === 'undefined') {
-    window.randomRange = function(min, max) { return Math.random() * (max - min) + min; };
+  if (typeof g.dot === 'undefined') g.dot = g.vecDot;
+
+  if (typeof g.randomRange === 'undefined') {
+    g.randomRange = function(min, max) { return Math.random() * (max - min) + min; };
   }
+  if (typeof g.rand === 'undefined') g.rand = g.randomRange;
+
+  if (typeof g.degToRad === 'undefined') {
+    g.degToRad = function(deg) { return deg * Math.PI / 180; };
+  }
+  if (typeof g.radToDeg === 'undefined') {
+    g.radToDeg = function(rad) { return rad * 180 / Math.PI; };
+  }
+
+  if (typeof g.vecAdd === 'undefined') {
+    g.vecAdd = function(a, b) { return { x: (a.x || 0) + (b.x || 0), y: (a.y || 0) + (b.y || 0) }; };
+  }
+  if (typeof g.vecSub === 'undefined') {
+    g.vecSub = function(a, b) { return { x: (a.x || 0) - (b.x || 0), y: (a.y || 0) - (b.y || 0) }; };
+  }
+  if (typeof g.vecScale === 'undefined') {
+    g.vecScale = function(a, s) { return { x: (a.x || 0) * s, y: (a.y || 0) * s }; };
+  }
+  if (typeof g.vecMult === 'undefined') g.vecMult = g.vecScale;
 })();
 </script>`;
 

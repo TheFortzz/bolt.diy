@@ -18,6 +18,41 @@ function safeDiagnostic(output: string) {
     .slice(-MAX_OUTPUT);
 }
 
+export function validateJavaScriptSyntax(code: string, fileName: string): string | undefined {
+  try {
+    new Function(code);
+    return undefined;
+  } catch (err: unknown) {
+    if (err instanceof SyntaxError) {
+      const msg = (err as Error).message || '';
+      if (
+        msg.includes('Cannot use import statement') ||
+        msg.includes("Unexpected token 'export'") ||
+        msg.includes('export declarations may only appear') ||
+        msg.includes('import declarations may only appear')
+      ) {
+        try {
+          const sanitized = code
+            .replace(/^\s*import\b[^;]*;?/gm, '// import')
+            .replace(/^\s*export\s+default\s+/gm, 'const __export_default__ = ')
+            .replace(/^\s*export\s+(?:async\s+)?function\b/gm, 'function')
+            .replace(/^\s*export\s+(?:class|const|let|var)\b/gm, (m) => m.replace('export', ''))
+            .replace(/^\s*export\s*\{[^}]*\}\s*;?/gm, '// export');
+          new Function(sanitized);
+          return undefined;
+        } catch (innerErr: unknown) {
+          if (innerErr instanceof SyntaxError) {
+            return `${fileName}: ${(innerErr as Error).message}`;
+          }
+          return undefined;
+        }
+      }
+      return `${fileName}: ${msg}`;
+    }
+    return undefined;
+  }
+}
+
 async function runCheck(
   wc: WebContainer,
   command: string,
@@ -152,11 +187,35 @@ export async function validateBuild(messageId: string): Promise<{ ok: boolean; e
           `validation:syntax:${name}`,
           `Checking ${name}`,
           async () => {
-            const checkTarget = rawPath.startsWith('/') ? rawPath : name;
-            const error = await runCheck(wc, 'node', ['--check', checkTarget]);
+            const checkTarget = rawPath.startsWith(wc.workdir)
+              ? rawPath
+              : `${wc.workdir.replace(/\/+$/, '')}/${name}`;
+
+            let error = await runCheck(wc, 'node', ['--check', checkTarget]);
 
             if (error) {
-              throw new Error(error);
+              const lower = error.toLowerCase();
+              if (lower.includes('no such file or directory') || lower.includes('enoent')) {
+                error = await runCheck(wc, 'node', ['--check', `./${name}`]);
+              }
+            }
+
+            if (error) {
+              const syntaxErr = validateJavaScriptSyntax(content, name);
+              if (syntaxErr) {
+                throw new Error(syntaxErr);
+              }
+
+              const lower = error.toLowerCase();
+              if (
+                lower.includes('syntaxerror') &&
+                !lower.includes('cannot use import statement') &&
+                !lower.includes("unexpected token 'export'")
+              ) {
+                throw new Error(error);
+              }
+
+              return;
             }
           },
           `Syntax passed: ${name}`,

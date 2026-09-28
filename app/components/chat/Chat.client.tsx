@@ -132,7 +132,7 @@ export const ChatImpl = memo(
 
     const scrollToBottomRef = useRef<((smooth?: boolean) => void) | null>(null);
 
-    const { messages, isLoading, input, handleInputChange, setInput, stop, append } = useChat({
+    const { messages, isLoading, input, handleInputChange, setInput, stop, append, setMessages } = useChat({
       api: '/api/chat',
       body: {
         apiKeys,
@@ -181,24 +181,25 @@ export const ChatImpl = memo(
         const result = await validateBuild(message.id);
         workbenchStore.finishPendingActions();
         if (!result.ok) {
-          if (repairAttemptsRef.current < 2) {
-            repairAttemptsRef.current++;
-            validationState.set({ status: 'checking', detail: `Repairing build (${repairAttemptsRef.current}/2)…` });
-            toast.info(`Build check failed — attempting repair (${repairAttemptsRef.current}/2)…`);
-            const attemptId = `repair:attempt:${repairAttemptsRef.current}`;
-            try {
-              await runActivityStep(message.id, attemptId, `Requesting repair (${repairAttemptsRef.current}/2)`, () => append({
-                  role: 'user',
-                  content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\nAutomatic validation failed (repair attempt ${repairAttemptsRef.current}/2):\n${result.error?.slice(-1800)}\n\nFix only the affected files. Keep the existing project and artifact id. Return complete corrected file actions and do not claim the build passed until it is checked again.`,
-                }), 'Repair response received');
-            } catch (error) {
-              validationState.set({ status: 'failed', detail: `Automatic repair failed: ${(error as Error).message}` });
-              toast.error('Automatic repair could not be started. The build is not verified.');
-            }
-          } else {
-            startActivity(message.id, 'repair:exhausted', 'Repair attempts exhausted', 'Repair attempts exhausted', 'failed');
-            toast.error(`Build could not be verified after two repairs: ${result.error}`, { autoClose: false });
-          }
+          validationState.set({ status: 'failed', detail: result.error || 'Build validation failed' });
+          toast.error(`Build validation issue: ${result.error?.slice(0, 160)}`, { autoClose: 8000 });
+
+          // Inform directly in this chat message without dispatching a separate user prompt turn
+          const errorNotice = `\n\n> ⚠️ **Build Issue Detected:**\n> ${result.error?.slice(-1800)}`;
+          setMessages((prev) =>
+            prev.map((entry) =>
+              entry.id === message.id
+                ? { ...entry, content: `${entry.content}${errorNotice}` }
+                : entry,
+            ),
+          );
+          const updatedMessage = {
+            ...message,
+            content: `${message.content}${errorNotice}`,
+          };
+          void storeMessageHistory(
+            messages.map((entry) => (entry.id === message.id ? updatedMessage : entry)),
+          );
           return;
         }
 

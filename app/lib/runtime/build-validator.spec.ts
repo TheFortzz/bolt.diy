@@ -122,4 +122,48 @@ describe('build validation gate', () => {
     expect(validationState.get().status).toBe('failed');
     expect(activitySteps.get().build.find((step) => step.id === 'validation:preview')?.status).toBe('failed');
   });
+
+  it('normalizes root-leading file paths to project directory and falls back to in-memory syntax check when spawn reports missing file', async () => {
+    mocks.artifacts.build = {
+      closed: true,
+      runner: {
+        actions: {
+          get: () => ({
+            file: {
+              type: 'file',
+              filePath: '/input.js',
+              status: 'complete',
+              executed: true,
+            },
+          }),
+        },
+      },
+    };
+
+    const spawn = vi.fn().mockResolvedValue({
+      exit: Promise.resolve(1),
+      output: new ReadableStream<string>({
+        start(controller) {
+          controller.enqueue('node: can\'t open file \'/input.js\': [Errno 2] No such file or directory');
+          controller.close();
+        },
+      }),
+    });
+    mocks.getWebContainer.mockResolvedValue({
+      workdir: '/home/project',
+      fs: {
+        readFile: vi
+          .fn()
+          .mockImplementation((path: string) =>
+            path.endsWith('input.js') ? Promise.resolve('const speed = 10; function drive() { return speed; }') : Promise.reject(new Error('No package.json')),
+          ),
+      },
+      spawn,
+    });
+
+    expect(await validateBuild('build')).toEqual({ ok: true });
+    expect(spawn).toHaveBeenCalledWith('node', ['--check', '/home/project/input.js'], { cwd: '/home/project' });
+    expect(mocks.validatePreview).toHaveBeenCalledOnce();
+    expect(validationState.get().status).toBe('passed');
+  });
 });

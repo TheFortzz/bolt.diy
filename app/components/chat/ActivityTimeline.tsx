@@ -39,63 +39,78 @@ export const ActivityTimeline = memo(({ messageId, isStreaming = false }: Activi
   }
 
   return (
-    <div className="flex flex-col gap-1 my-2" aria-label="Build activity" role="status" aria-live="polite">
+    <div className="flex flex-col gap-2 my-2.5" aria-label="Build activity" role="status" aria-live="polite">
       {hiddenCount > 0 && (
         <button
           type="button"
-          className="text-left text-[11px] text-bolt-elements-textSecondary hover:underline px-2"
+          className="text-left text-[11px] text-bolt-elements-textSecondary hover:underline px-1"
           onClick={() => setShowAll((value) => !value)}
         >
           {showAll ? 'Show recent steps' : `Show ${hiddenCount} earlier steps`}
         </button>
       )}
 
-      {displayed.map((step) => (
-        <button
-          key={step.id}
-          type="button"
-          disabled={!step.filePath}
-          onClick={() => {
-            if (!step.filePath) {
-              return;
-            }
+      <div className="flex flex-wrap gap-1.5 items-center">
+        {displayed.map((step) => {
+          const isComplete = step.status === 'complete';
+          const isRunning = step.status === 'running';
+          const isFailed = step.status === 'failed';
+          const isPending = step.status === 'pending' || step.status === 'aborted';
 
-            workbenchStore.setSelectedFile(step.filePath);
-            workbenchStore.showWorkbench.set(true);
-            workbenchStore.preferPlayView.set(false);
-            workbenchStore.currentView.set('code');
-          }}
-          title={step.filePath ? `Open ${step.filePath} in Code` : stepLabel(step)}
-          className={classNames(
-            'inline-flex items-center gap-1.5 px-2 py-0.5 text-left text-[11px] font-mono tracking-tight rounded-sm disabled:cursor-default',
-            {
-              'text-bolt-elements-textPrimary bg-cyan-500/8': step.status === 'running',
-              'text-bolt-elements-textTertiary': step.status === 'complete',
-              'text-rose-400': step.status === 'failed',
-              'text-bolt-elements-textTertiary opacity-60': step.status === 'pending' || step.status === 'aborted',
-            },
-          )}
-        >
-          {step.status === 'running' ? (
-            <div className="i-svg-spinners:90-ring-with-bg text-cyan-400 text-xs shrink-0" />
-          ) : step.status === 'complete' ? (
-            <div className="i-ph:check text-emerald-500/70 text-xs shrink-0" />
-          ) : step.status === 'failed' ? (
-            <div className="i-ph:x text-rose-400 text-xs shrink-0" />
-          ) : (
-            <div className="i-ph:circle text-bolt-elements-textTertiary text-xs shrink-0 opacity-40" />
-          )}
-          <span className="truncate">{stepLabel(step)}</span>
-          {step.filePath && <span className="i-ph:arrow-square-out text-[10px] opacity-50" aria-hidden="true" />}
-        </button>
-      ))}
+          return (
+            <button
+              key={step.id}
+              type="button"
+              disabled={!step.filePath}
+              onClick={() => {
+                if (!step.filePath) {
+                  return;
+                }
 
-      {isStreaming && steps.length === 0 && (
-        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-mono text-bolt-elements-textSecondary animate-pulse">
-          <div className="i-svg-spinners:90-ring-with-bg text-cyan-400 text-xs shrink-0" />
-          <span>Thinking…</span>
-        </div>
-      )}
+                workbenchStore.setSelectedFile(step.filePath);
+                workbenchStore.showWorkbench.set(true);
+                workbenchStore.preferPlayView.set(false);
+                workbenchStore.currentView.set('code');
+              }}
+              title={step.filePath ? `Open ${step.filePath} in Code` : stepLabel(step)}
+              className={classNames(
+                'inline-flex items-center gap-1.5 px-2.5 py-1 text-left text-[11.5px] font-mono tracking-tight rounded-md border transition-all duration-150 disabled:cursor-default',
+                {
+                  'bg-emerald-950/40 border-emerald-500/35 text-emerald-300 hover:bg-emerald-900/50 hover:border-emerald-400/50 shadow-sm shadow-emerald-950/20':
+                    isComplete,
+                  'bg-emerald-900/50 border-emerald-400/60 text-emerald-200 animate-pulse shadow-sm shadow-emerald-950/40':
+                    isRunning,
+                  'bg-rose-950/40 border-rose-500/40 text-rose-300 hover:bg-rose-900/50 shadow-sm shadow-rose-950/20':
+                    isFailed,
+                  'bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor text-bolt-elements-textTertiary opacity-60':
+                    isPending,
+                },
+              )}
+            >
+              {isRunning ? (
+                <div className="i-svg-spinners:90-ring-with-bg text-emerald-400 text-xs shrink-0" />
+              ) : isComplete ? (
+                <div className="i-ph:check-circle-fill text-emerald-400 text-xs shrink-0" />
+              ) : isFailed ? (
+                <div className="i-ph:x-circle-fill text-rose-400 text-xs shrink-0" />
+              ) : (
+                <div className="i-ph:circle text-bolt-elements-textTertiary text-xs shrink-0 opacity-40" />
+              )}
+              <span className="truncate max-w-[280px]">{stepLabel(step)}</span>
+              {step.filePath && (
+                <span className="i-ph:arrow-square-out text-[11px] opacity-60 text-emerald-400/80" aria-hidden="true" />
+              )}
+            </button>
+          );
+        })}
+
+        {isStreaming && steps.length === 0 && (
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-mono text-emerald-300 bg-emerald-950/40 border border-emerald-500/40 rounded-md shadow-sm shadow-emerald-950/30 animate-pulse">
+            <div className="i-svg-spinners:90-ring-with-bg text-emerald-400 text-xs shrink-0" />
+            <span>Thinking…</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 });
