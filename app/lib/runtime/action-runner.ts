@@ -213,8 +213,13 @@ export class ActionRunner {
 
     const abortController = new AbortController();
 
+    const actionData = { ...data.action };
+    if (actionData.type === 'file') {
+      actionData.filePath = cleanWorkDirRelativePath(actionData.filePath) || 'index.html';
+    }
+
     this.actions.setKey(actionId, {
-      ...data.action,
+      ...actionData,
       status: 'pending',
       executed: false,
       abort: () => {
@@ -242,7 +247,12 @@ export class ActionRunner {
       return; // No return value here
     }
 
-    this.#updateAction(actionId, { ...action, ...data.action, executed: !isStreaming });
+    const actionData = { ...data.action };
+    if (actionData.type === 'file') {
+      actionData.filePath = cleanWorkDirRelativePath(actionData.filePath) || 'index.html';
+    }
+
+    this.#updateAction(actionId, { ...action, ...actionData, executed: !isStreaming });
 
     this.#currentExecutionPromise = this.#currentExecutionPromise
       .then(() => {

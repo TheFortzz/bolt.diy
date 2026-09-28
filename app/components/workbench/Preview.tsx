@@ -43,7 +43,27 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     }
 
     if (!htmlContent) {
-      return undefined;
+      const hasJs = Object.keys(files).some((p) => p.endsWith('.js') || p.endsWith('.mjs'));
+      if (hasJs) {
+        htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Game</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body, html { width: 100%; height: 100%; overflow: hidden; background: #0b0f19; display: flex; align-items: center; justify-content: center; }
+    canvas { display: block; max-width: 100%; max-height: 100%; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+</body>
+</html>`;
+      } else {
+        return undefined;
+      }
     }
 
     // Strip markdown code fences if wrapped by the model
@@ -89,7 +109,8 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
         if (js !== undefined) {
           const isModule = /type\s*=\s*["']module["']/i.test(`${before} ${after}`);
           const typeAttr = isModule ? ' type="module"' : '';
-          return `<script${typeAttr} data-inlined="${src}">\n${js}\n</script>`;
+          const normSrc = cleanWorkDirRelativePath(src);
+          return `<script${typeAttr} data-inlined="${normSrc}">\n${js}\n</script>`;
         }
         // File not found in virtual FS — strip rather than leave a broken src= that 404s in blob context
         return `<!-- bolt-stripped: could not resolve "${src}" in virtual filesystem -->`;
@@ -100,9 +121,17 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     // Scan project files for any unlinked .js files. Never use a hardcoded whitelist.
     // Inject all dependency modules (car.js, physics.js, etc.) FIRST, followed by
     // the entry point (main.js/game.js) LAST so main.js always has all classes defined.
+    const inlinedFiles = new Set<string>();
+    for (const match of bundled.matchAll(/data-inlined=["']([^"']+)["']/g)) {
+      const normMatch = cleanWorkDirRelativePath(match[1]).toLowerCase();
+      inlinedFiles.add(normMatch);
+      inlinedFiles.add(normMatch.replace(/^.*[\\/]/, ''));
+    }
+
     const isAlreadyInlined = (filename: string): boolean => {
-      const base = filename.replace(/^.*[\\/]/, '');
-      return bundled.includes(`data-inlined="${filename}"`) || bundled.includes(`data-inlined="${base}"`);
+      const clean = cleanWorkDirRelativePath(filename).toLowerCase();
+      const base = clean.replace(/^.*[\\/]/, '');
+      return inlinedFiles.has(clean) || inlinedFiles.has(base);
     };
 
     const entryCandidates = [
@@ -113,7 +142,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     const projectJsFiles: string[] = [];
     for (const [p, dirent] of Object.entries(files)) {
       if (dirent?.type === 'file' && dirent.content) {
-        const norm = p.replace(/^\.?\/+/, '').replace(/^home\/project\/+/, '').trim();
+        const norm = cleanWorkDirRelativePath(p);
         if (
           !norm.startsWith('node_modules/') &&
           !norm.startsWith('.') &&

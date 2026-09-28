@@ -114,37 +114,46 @@ export async function validateBuild(messageId: string): Promise<{ ok: boolean; e
     );
     validationState.set({ status: 'checking', detail: 'Checking generated code…' });
 
-    for (const path of changedPaths) {
-      const name = cleanWorkDirRelativePath(path);
+    for (const rawPath of changedPaths) {
+      const name = cleanWorkDirRelativePath(rawPath);
+      const safePath = rawPath.startsWith('home/project/') ? `/${rawPath}` : rawPath;
+
       const content = await runActivityStep(
         messageId,
-        `validation:read:${path}`,
+        `validation:read:${name}`,
         `Reading ${name}`,
-        () => wc.fs.readFile(path, 'utf8'),
+        async () => {
+          try {
+            return await wc.fs.readFile(name, 'utf8');
+          } catch {
+            return await wc.fs.readFile(safePath, 'utf8');
+          }
+        },
         `Read ${name}`,
       );
 
-      if (path.endsWith('.json')) {
+      if (name.endsWith('.json')) {
         await runActivityStep(
           messageId,
-          `validation:syntax:${path}`,
+          `validation:syntax:${name}`,
           `Checking ${name}`,
           async () => {
             try {
               JSON.parse(content);
             } catch (error) {
-              throw new Error(`${path}: ${(error as Error).message}`);
+              throw new Error(`${name}: ${(error as Error).message}`);
             }
           },
           `Syntax passed: ${name}`,
         );
-      } else if (/\.(?:js|mjs|cjs)$/.test(path)) {
+      } else if (/\.(?:js|mjs|cjs)$/.test(name)) {
         await runActivityStep(
           messageId,
-          `validation:syntax:${path}`,
+          `validation:syntax:${name}`,
           `Checking ${name}`,
           async () => {
-            const error = await runCheck(wc, 'node', ['--check', path]);
+            const checkTarget = rawPath.startsWith('/') ? rawPath : name;
+            const error = await runCheck(wc, 'node', ['--check', checkTarget]);
 
             if (error) {
               throw new Error(error);
