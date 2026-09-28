@@ -3,6 +3,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { IconButton } from '~/components/ui/IconButton';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { registerPreviewValidator, type PreviewValidationResult } from '~/lib/runtime/preview-validation';
+import { cleanWorkDirRelativePath } from '~/utils/diff';
 import { PortDropdown } from './PortDropdown';
 
 type ResizeSide = 'left' | 'right' | null;
@@ -56,10 +57,10 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
 
     // Helper to find file content from path
     const getFileContent = (refPath: string): string | undefined => {
-      const clean = refPath.replace(/^\.?\/+/, '').replace(/^home\/project\/+/, '').trim();
+      const clean = cleanWorkDirRelativePath(refPath);
       for (const [p, dirent] of Object.entries(files)) {
         if (dirent?.type === 'file' && dirent.content) {
-          const normP = p.replace(/^\.?\/+/, '').replace(/^home\/project\/+/, '').trim();
+          const normP = cleanWorkDirRelativePath(p);
           if (normP === clean || normP.endsWith(`/${clean}`) || clean.endsWith(`/${normP}`)) {
             return dirent.content;
           }
@@ -140,6 +141,20 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       }
     }
 
+    // Rank dependencies so foundational math/physics/utilities load before entities and gameplay
+    const getDepRank = (filename: string): number => {
+      const lower = filename.toLowerCase();
+      if (lower.includes('math') || lower.includes('vec') || lower.includes('util') || lower.includes('const') || lower.includes('config')) return 1;
+      if (lower.includes('audio') || lower.includes('sound')) return 2;
+      if (lower.includes('input') || lower.includes('control') || lower.includes('keyboard')) return 3;
+      if (lower.includes('physics') || lower.includes('collision')) return 4;
+      if (lower.includes('track') || lower.includes('map') || lower.includes('level') || lower.includes('world') || lower.includes('camera')) return 5;
+      if (lower.includes('car') || lower.includes('player') || lower.includes('enemy') || lower.includes('entity') || lower.includes('particle')) return 6;
+      if (lower.includes('ui') || lower.includes('hud') || lower.includes('score') || lower.includes('menu')) return 7;
+      return 10;
+    };
+    unlinkedDependencies.sort((a, b) => getDepRank(a) - getDepRank(b));
+
     const scriptsToInject: string[] = [];
     // Inject all dependencies first
     for (const dep of unlinkedDependencies) {
@@ -167,6 +182,41 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       }
     }
 
+    // Standard game math & vector helper polyfills so common helper functions never crash at runtime
+    const mathUtilsScript = `<script id="bolt-game-math-utils">
+(function() {
+  if (typeof window.vecLength === 'undefined') {
+    window.vecLength = function(v, y) {
+      if (typeof v === 'number') return Math.hypot(v, y || 0);
+      if (!v) return 0;
+      return Math.hypot(v.x || 0, v.y || 0, v.z || 0);
+    };
+  }
+  if (typeof window.vecNormalize === 'undefined') {
+    window.vecNormalize = function(v) {
+      var len = window.vecLength(v);
+      if (len === 0) return { x: 0, y: 0 };
+      return { x: (v.x || 0) / len, y: (v.y || 0) / len };
+    };
+  }
+  if (typeof window.clamp === 'undefined') {
+    window.clamp = function(val, min, max) { return Math.max(min, Math.min(max, val)); };
+  }
+  if (typeof window.lerp === 'undefined') {
+    window.lerp = function(a, b, t) { return a + (b - a) * t; };
+  }
+  if (typeof window.dist === 'undefined') {
+    window.dist = function(x1, y1, x2, y2) { return Math.hypot(x2 - x1, y2 - y1); };
+  }
+  if (typeof window.vecDot === 'undefined') {
+    window.vecDot = function(a, b) { return (a.x || 0) * (b.x || 0) + (a.y || 0) * (b.y || 0); };
+  }
+  if (typeof window.randomRange === 'undefined') {
+    window.randomRange = function(min, max) { return Math.random() * (max - min) + min; };
+  }
+})();
+</script>`;
+
     // CRITICAL: Guarantee Strict Standards Mode (Never Quirks Mode)
     // <!DOCTYPE html> MUST be at index 0 of the document.
     bundled = bundled.trim();
@@ -177,15 +227,15 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       bundled = '<!DOCTYPE html>\n' + bundled;
     }
 
-    // Ensure <meta charset="UTF-8"> exists
-    if (!bundled.toLowerCase().includes('charset=')) {
-      if (bundled.includes('<head>')) {
-        bundled = bundled.replace('<head>', '<head>\n  <meta charset="UTF-8" />');
-      } else if (bundled.includes('<head ')) {
-        bundled = bundled.replace(/(<head[^>]*>)/i, '$1\n  <meta charset="UTF-8" />');
-      } else if (bundled.includes('<html')) {
-        bundled = bundled.replace(/(<html[^>]*>)/i, '$1\n<head>\n  <meta charset="UTF-8" />\n</head>');
-      }
+    // Ensure <meta charset="UTF-8"> and math utilities exist before scripts execute
+    if (bundled.includes('<head>')) {
+      bundled = bundled.replace('<head>', `<head>\n  <meta charset="UTF-8" />\n${mathUtilsScript}`);
+    } else if (bundled.includes('<head ')) {
+      bundled = bundled.replace(/(<head[^>]*>)/i, `$1\n  <meta charset="UTF-8" />\n${mathUtilsScript}`);
+    } else if (bundled.includes('<html')) {
+      bundled = bundled.replace(/(<html[^>]*>)/i, `$1\n<head>\n  <meta charset="UTF-8" />\n${mathUtilsScript}\n</head>`);
+    } else {
+      bundled = mathUtilsScript + '\n' + bundled;
     }
 
     // Focus the actual game surface without fabricating key presses. The
@@ -214,10 +264,33 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
 })();
 </script>`;
 
+    const errorOverlayScript = `<script id="bolt-game-error-overlay">
+(function() {
+  function handleErr(msg, err) {
+    try {
+      console.error('[Game Runtime Error]', msg, err);
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'thefortz-game-error', message: String(msg) }, '*');
+      }
+      var existing = document.getElementById('bolt-error-toast');
+      if (!existing && document.body) {
+        var el = document.createElement('div');
+        el.id = 'bolt-error-toast';
+        el.style.cssText = 'position:fixed;bottom:16px;left:16px;right:16px;z-index:9999999;background:rgba(185,28,28,0.96);color:#fff;padding:12px 16px;border-radius:4px;box-shadow:0 8px 24px rgba(0,0,0,0.5);font-family:monospace;font-size:12px;line-height:1.4;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border:1px solid #f87171;';
+        el.innerHTML = '<div style="flex:1;overflow:hidden;text-overflow:ellipsis;"><strong>⚠️ Game Error:</strong> ' + String(msg).replace(/</g, '&lt;') + '</div><button onclick="this.parentElement.remove()" style="background:#dc2626;color:white;border:none;padding:3px 8px;cursor:pointer;border-radius:2px;font-weight:bold;">Dismiss</button>';
+        document.body.appendChild(el);
+      }
+    } catch(e) {}
+  }
+  window.addEventListener('error', function(e) { handleErr(e.message, e.error); });
+  window.addEventListener('unhandledrejection', function(e) { handleErr(e.reason ? (e.reason.message || String(e.reason)) : 'Unhandled Promise Rejection', e.reason); });
+})();
+</script>`;
+
     if (bundled.includes('</body>')) {
-      bundled = bundled.replace('</body>', `${focusHelper}\n</body>`);
+      bundled = bundled.replace('</body>', `${focusHelper}\n${errorOverlayScript}\n</body>`);
     } else {
-      bundled = bundled + '\n' + focusHelper;
+      bundled = bundled + '\n' + focusHelper + '\n' + errorOverlayScript;
     }
 
     return bundled;
@@ -307,7 +380,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       return new Promise<PreviewValidationResult>((resolve) => {
         const frame = document.createElement('iframe');
         frame.setAttribute('sandbox', 'allow-scripts');
-        frame.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none';
+        frame.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:800px;height:600px;visibility:visible;pointer-events:none';
         const token = crypto.randomUUID();
         let finished = false;
         let timer: ReturnType<typeof setTimeout>;
@@ -334,7 +407,42 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
           frame.onerror = () => finish({ ok: false, error: 'Preview failed to load.' });
           frame.src = serverUrl;
         } else {
-          const instrumentation = `<script>window.addEventListener('error',function(e){parent.postMessage({token:${JSON.stringify(token)},type:'preview-error',error:e.message},'*')});window.addEventListener('unhandledrejection',function(e){parent.postMessage({token:${JSON.stringify(token)},type:'preview-error',error:String(e.reason)},'*')});window.addEventListener('load',function(){parent.postMessage({token:${JSON.stringify(token)},type:'preview-loaded'},'*')});</script>`;
+          const instrumentation = `<script>
+(function() {
+  var token = ${JSON.stringify(token)};
+  window.addEventListener('error', function(e) {
+    parent.postMessage({ token: token, type: 'preview-error', error: e.message || 'Script error' }, '*');
+  });
+  window.addEventListener('unhandledrejection', function(e) {
+    parent.postMessage({ token: token, type: 'preview-error', error: String(e.reason?.message || e.reason) }, '*');
+  });
+  window.addEventListener('load', function() {
+    var frameCount = 0;
+    function checkFrames() {
+      frameCount++;
+      if (frameCount < 4) {
+        requestAnimationFrame(checkFrames);
+      } else {
+        parent.postMessage({ token: token, type: 'preview-loaded' }, '*');
+      }
+    }
+    requestAnimationFrame(checkFrames);
+
+    setTimeout(function() {
+      try {
+        var canvas = document.querySelector('canvas');
+        if (canvas) {
+          canvas.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        }
+        var btn = document.querySelector('button');
+        if (btn) {
+          btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        }
+      } catch (e) {}
+    }, 50);
+  });
+})();
+</script>`;
           frame.srcdoc = fallbackHtml!.replace(/(<!doctype[^>]*>)/i, `$1${instrumentation}`);
         }
         document.body.appendChild(frame);

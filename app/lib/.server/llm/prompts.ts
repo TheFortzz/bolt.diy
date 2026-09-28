@@ -99,10 +99,9 @@ const ERROR_FIXING_AND_ITERATION_RULES = `
        When the user asks to tweak or improve one feature (e.g. "improve car steering" or "fix collision"),
        you ONLY emit the specific module that needs the change (e.g. physics.js), NOT the entire game!
   3. THOROUGH ERROR & TERMINAL DIAGNOSIS:
-     - When the user reports an error or a [Recent Action Failure] is provided in the prompt,
-       carefully read the terminal exit code and error message.
-     - Diagnose the exact cause: quaternion math, physics step delta time, missing imports/exports,
-       null DOM/canvas references, or shell command failures.
+     - When the user reports an error or a [Recent Action Failure] is provided in the prompt (e.g. "ReferenceError: vecLength is not defined"),
+       carefully diagnose the exact undefined symbol, missing import, or broken calculation.
+     - Define missing helper functions immediately at the top of the file, or replace calls with standard JavaScript Math methods (e.g. Math.hypot).
      - Fix the logic directly inside the affected file rather than rewriting the whole game.
   4. RESILIENT DEPENDENCIES & NO REPEATED SHELL INSTALLS:
      - WebContainers run in the user's browser. Heavy npm packages can hit 504 Gateway
@@ -156,6 +155,8 @@ const GAME_DESIGN_REASONING_PROTOCOL = `
      - Start Screen & Audio Context: If a Click to Start overlay is used, wire its click handler directly to the game init function so canvas rendering begins immediately without getting stuck.
      - Input Tracking: Use robust keydown/keyup tracking with a window blur listener to prevent stuck movement keys.
      - Script Loading Order: In index.html, load modular dependency scripts (audio, input, physics, entities) before the main game loop script using standard <script src="..."></script> tags (without type="module").
+     - Zero Undefined Math & Helper References: Standard browser JavaScript does NOT have built-in vector or game math helpers. NEVER call vecLength, vecNormalize, vecDot, clamp, lerp, dist, or angleBetween without explicitly defining them in your code (e.g. 'const vecLength = (v) => Math.hypot(v.x, v.y);', 'const clamp = (v, min, max) => Math.max(min, Math.min(max, v));'). Prefer inline native math like 'Math.hypot(dx, dy)'.
+     - Null-Safe Game Loops & Entities: Initialize all entity vectors and properties in constructors ('this.pos = { x: 0, y: 0 }; this.vel = { x: 0, y: 0 };'). Wrap physics and animation loop updates with guard checks so missing properties never trigger TypeError or crash the game loop.
 </game_design_reasoning_protocol>
 `;
 
