@@ -13,7 +13,14 @@ export async function openDatabase(): Promise<IDBDatabase | undefined> {
   }
 
   return new Promise((resolve) => {
-    const request = indexedDB.open('boltHistory', 1);
+    const request = indexedDB.open('boltHistory', 2);
+    let blocked = false;
+
+    request.onblocked = () => {
+      blocked = true;
+      logger.warn('Checkpoint database upgrade is blocked by another Studio tab.');
+      resolve(undefined);
+    };
 
     request.onupgradeneeded = (event: IDBVersionChangeEvent) => {
       const db = (event.target as IDBOpenDBRequest).result;
@@ -23,10 +30,23 @@ export async function openDatabase(): Promise<IDBDatabase | undefined> {
         store.createIndex('id', 'id', { unique: true });
         store.createIndex('urlId', 'urlId', { unique: true });
       }
+
+      if (!db.objectStoreNames.contains('checkpoints')) {
+        const checkpoints = db.createObjectStore('checkpoints', { keyPath: 'id' });
+        checkpoints.createIndex('byChatAndTime', ['chatId', 'createdAt'], { unique: false });
+      }
     };
 
     request.onsuccess = (event: Event) => {
-      resolve((event.target as IDBOpenDBRequest).result);
+      const db = (event.target as IDBOpenDBRequest).result;
+
+      if (blocked) {
+        db.close();
+        return;
+      }
+
+      db.onversionchange = () => db.close();
+      resolve(db);
     };
 
     request.onerror = (event: Event) => {

@@ -53,10 +53,16 @@ export function useChatHistory() {
   const [urlId, setUrlId] = useState<string | undefined>();
 
   useEffect(() => {
+    let cancelled = false;
+    chatId.set(undefined);
+
     dbPromise.then(async (database) => {
+      if (cancelled) return;
+
       if (mixedId) {
         try {
           const storedMessages = await getMessages(database, mixedId);
+          if (cancelled) return;
           if (storedMessages && storedMessages.messages && storedMessages.messages.length > 0) {
             const rewindId = searchParams.get('rewindTo');
             const filteredMessages = rewindId
@@ -74,8 +80,10 @@ export function useChatHistory() {
           console.warn('Failed to load chat history:', error);
         }
       }
-      setReady(true);
+      if (!cancelled) setReady(true);
     });
+
+    return () => { cancelled = true; };
   }, [mixedId]);
 
   return {
@@ -138,18 +146,16 @@ export function useChatHistory() {
       const effectiveUrlId = activeUrlId || effectiveId;
       await setMessages(activeDb, effectiveId, messages, effectiveUrlId, currentDesc || 'Project ' + effectiveId);
 
-      // Cloud backup to Appwrite (best-effort)
-      try {
-        const { upsertStudioChat } = await import('./appwrite-chats');
-        await upsertStudioChat({
+      // Local history must be durable before checkpointing; cloud sync is best-effort
+      // and must not leave the build waiting on a slow or offline network.
+      void import('./appwrite-chats')
+        .then(({ upsertStudioChat }) => upsertStudioChat({
           chatId: effectiveId,
           urlId: effectiveUrlId,
           description: currentDesc || 'Project ' + effectiveId,
           messages,
-        });
-      } catch (e) {
-        console.warn('Appwrite chat sync skipped:', e);
-      }
+        }))
+        .catch((error) => console.warn('Appwrite chat sync skipped:', error));
     },
     duplicateCurrentChat: async (listItemId: string) => {
       const activeDb = db || (await dbPromise);

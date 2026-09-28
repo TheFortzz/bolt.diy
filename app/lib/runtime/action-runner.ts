@@ -275,7 +275,7 @@ export class ActionRunner {
 
           this.#runStartAction(action)
             .then(() => this.#updateAction(actionId, { status: 'complete' }))
-            .catch(() => this.#updateAction(actionId, { status: 'failed', error: 'Action failed' }));
+            .catch((error) => this.#updateAction(actionId, { status: 'failed', error: (error as Error).message }));
 
           /*
            * adding a delay to avoid any race condition between 2 start actions

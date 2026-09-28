@@ -18,6 +18,10 @@ import { EditorPanel } from './EditorPanel';
 import { Preview } from './Preview';
 import useViewport from '~/lib/hooks';
 import Cookies from 'js-cookie';
+import { validationState } from '~/lib/runtime/build-validator';
+import { applyProjectSnapshot, captureProject, checkpointBusy, latestCheckpoint, refreshLatestCheckpoint, restoreCheckpoint } from '~/lib/persistence/checkpoints';
+import { chatId, dbPromise, getMessages, setMessages } from '~/lib/persistence';
+import { getWebContainer } from '~/lib/webcontainer';
 
 interface WorkspaceProps {
   chatStarted?: boolean;
@@ -57,6 +61,7 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
   renderLogger.trace('Workbench');
 
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
   const [pinPlayView, setPinPlayView] = useState(false);
 
   const hasPreview = useStore(computed(workbenchStore.previews, (previews) => previews.length > 0));
@@ -68,6 +73,79 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
   const completedFiles = useStore(workbenchStore.completedFiles);
   const files = useStore(workbenchStore.files);
   const selectedView = useStore(workbenchStore.currentView);
+  const validation = useStore(validationState);
+  const activeChatId = useStore(chatId);
+  const checkpoint = useStore(latestCheckpoint);
+  const checkpointOperation = useStore(checkpointBusy);
+
+  useEffect(() => {
+    if (!activeChatId) return;
+
+    let cancelled = false;
+    dbPromise.then(async (database) => {
+      if (database && !cancelled) {
+        try {
+          await refreshLatestCheckpoint(database, activeChatId);
+        } catch (error) {
+          console.warn('Unable to load working checkpoint:', error);
+        }
+      }
+    });
+
+    return () => { cancelled = true; };
+  }, [activeChatId]);
+
+  const handleRestoreCheckpoint = async () => {
+    if (!activeChatId || isStreaming || validation.status === 'checking' || checkpointOperation !== 'idle' || isRestoring) return;
+
+    if (!window.confirm('Restore the last verified build? This discards unsaved changes and removes later chat messages.')) return;
+
+    setIsRestoring(true);
+    let previousFiles: Record<string, Uint8Array> | undefined;
+    let wc: Awaited<ReturnType<typeof getWebContainer>> | undefined;
+    let restoredFiles = false;
+
+    try {
+      const database = await dbPromise;
+      if (!database) throw new Error('Local checkpoint storage is unavailable.');
+
+      const chat = await getMessages(database, activeChatId);
+      if (!chat) throw new Error('Project chat could not be loaded.');
+
+      const latest = checkpoint?.chatId === activeChatId ? checkpoint : await refreshLatestCheckpoint(database, activeChatId);
+      const messageIndex = chat.messages.findIndex((message) => message.id === latest?.messageId);
+      if (messageIndex < 0) throw new Error('Checkpoint message is missing from the saved chat.');
+
+      await workbenchStore.waitForExecutionQueue();
+      wc = await getWebContainer();
+      previousFiles = await captureProject(wc);
+      const restored = await restoreCheckpoint(database, wc, activeChatId);
+      restoredFiles = true;
+      checkpointBusy.set('restoring');
+      await setMessages(database, activeChatId, chat.messages.slice(0, messageIndex + 1), chat.urlId, chat.description, chat.timestamp);
+      const savedChat = await getMessages(database, activeChatId);
+      if (savedChat?.messages.length !== messageIndex + 1 || savedChat.messages[messageIndex]?.id !== restored.messageId) {
+        throw new Error('Restored chat history could not be persisted.');
+      }
+      workbenchStore.showRestoredCheckpoint(restored.files);
+      toast.success('Last working checkpoint restored. Reloading project…');
+      window.location.reload();
+    } catch (error) {
+      if (restoredFiles && wc && previousFiles) {
+        try {
+          await applyProjectSnapshot(wc, previousFiles);
+          workbenchStore.showRestoredCheckpoint(previousFiles);
+        } catch (recoveryError) {
+          toast.error(`Recovery failed: ${(recoveryError as Error).message}`, { autoClose: false });
+        }
+      }
+
+      toast.error(`Could not restore checkpoint: ${(error as Error).message}`, { autoClose: false });
+    } finally {
+      checkpointBusy.set('idle');
+      setIsRestoring(false);
+    }
+  };
 
   const isSmallViewport = useViewport(1024);
   const wasStreamingRef = useRef(false);
@@ -116,7 +194,7 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
           d?.type === 'file' && Boolean(d.content) && (d.content.includes('<html') || d.content.includes('<!DOCTYPE')),
       );
 
-      if (hasPreview || hasHtml) {
+      if (validation.status === 'passed' && (hasPreview || hasHtml)) {
         setSelectedView('preview');
       }
     }
@@ -201,8 +279,19 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
                 className="flex items-center px-3 py-2 text-white shadow-sm"
               >
                 <Slider selected={selectedView} options={sliderOptions} setSelected={setSelectedView} />
+                {validation.status === 'checking' && <span className="ml-2 text-xs" role="status">{validation.detail || 'Checking build…'}</span>}
+                {validation.status === 'failed' && <span className="ml-2 text-xs" role="status" title={validation.detail}>Build not verified</span>}
                 <div className="ml-auto" />
                 <div className="flex items-center overflow-x-auto no-scrollbar gap-1 mr-2">
+                  <PanelHeaderButton
+                    className="mr-1 text-xs sm:text-sm"
+                    title={checkpoint && checkpoint.chatId === activeChatId ? `Restore verified build from ${new Date(checkpoint.createdAt).toLocaleString()}` : 'No working checkpoint yet'}
+                    disabled={!checkpoint || checkpoint.chatId !== activeChatId || Boolean(isStreaming) || validation.status === 'checking' || checkpointOperation !== 'idle' || isRestoring}
+                    onClick={handleRestoreCheckpoint}
+                  >
+                    <div className="i-ph:arrow-counter-clockwise" />
+                    {isRestoring ? 'Restoring…' : 'Restore working build'}
+                  </PanelHeaderButton>
                   <PanelHeaderButton
                     className="mr-1 text-xs sm:text-sm"
                     title="Download Code"
@@ -310,7 +399,7 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
                 >
                   <EditorPanel
                     editorDocument={currentDocument}
-                    isStreaming={isStreaming}
+                    isStreaming={Boolean(isStreaming || checkpointOperation !== 'idle' || isRestoring)}
                     followStream={Boolean(isStreaming && streamingFile && selectedFile === streamingFile)}
                     selectedFile={selectedFile}
                     files={files}

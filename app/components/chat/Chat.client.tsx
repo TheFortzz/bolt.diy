@@ -9,7 +9,9 @@ import { useAnimate } from 'framer-motion';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { cssTransition, toast, ToastContainer } from 'react-toastify';
 import { useMessageParser, usePromptEnhancer, useShortcuts, useSnapScroll } from '~/lib/hooks';
-import { description, useChatHistory } from '~/lib/persistence';
+import { chatId, dbPromise, description, useChatHistory } from '~/lib/persistence';
+import { applyProjectSnapshot, checkpointBusy, getLatestCheckpoint, saveCheckpoint } from '~/lib/persistence/checkpoints';
+import { getWebContainer } from '~/lib/webcontainer';
 import { chatStore } from '~/lib/stores/chat';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { DEFAULT_MODEL, DEFAULT_PROVIDER, PROMPT_COOKIE_KEY, PROVIDER_LIST, type StudioAgentMode } from '~/utils/constants';
@@ -21,6 +23,8 @@ import { debounce } from '~/utils/debounce';
 import { useSettings } from '~/lib/hooks/useSettings';
 import type { ProviderInfo } from '~/types/model';
 import { authStore, isAuthModalOpen } from '~/lib/auth/appwrite';
+import { finalizeAssistantMessage } from '~/lib/hooks/useMessageParser';
+import { validateBuild, validationState } from '~/lib/runtime/build-validator';
 
 const toastAnimation = cssTransition({
   enter: 'animated fadeInRight',
@@ -95,6 +99,7 @@ export const ChatImpl = memo(
     const [imageDataList, setImageDataList] = useState<string[]>([]); // Move here
     const [agentMode, setAgentMode] = useState<StudioAgentMode>('auto');
     const lastAgentModeRef = useRef<StudioAgentMode>('auto');
+    const repairAttemptsRef = useRef(0);
     const { activeProviders } = useSettings();
 
     const [model, setModel] = useState(() => {
@@ -133,22 +138,84 @@ export const ChatImpl = memo(
       },
       onError: (error) => {
         logger.error('Request failed\n\n', error);
+        validationState.set({ status: 'failed', detail: `AI request failed: ${error.message}` });
         workbenchStore.finishPendingActions();
         toast.error(
           'There was an error processing your request: ' + (error.message ? error.message : 'No details were returned'),
         );
       },
-      onFinish: (message) => {
+      onFinish: async (message) => {
         logger.debug('Finished streaming');
-        workbenchStore.finishPendingActions();
+        finalizeAssistantMessage(message);
         scrollToBottomRef.current?.(true);
-        if (messages.length > 0) {
-          storeMessageHistory(messages).catch((e) => console.warn('Final save error:', e));
-        }
+        const finalMessages = messages.some((entry) => entry.id === message.id)
+          ? messages.map((entry) => entry.id === message.id ? message : entry)
+          : [...messages, message];
+        const historySave = storeMessageHistory(finalMessages);
+        void historySave.catch((error) => console.warn('Final save error:', error));
 
         const content = typeof message?.content === 'string' ? message.content : '';
         const builtFiles = content.includes('boltArtifact') || content.includes('boltAction');
         const mode = lastAgentModeRef.current;
+
+        if (mode === 'plan' && !builtFiles) {
+          workbenchStore.finishPendingActions();
+          toast.info('📋 Plan ready — ask FortzAI to build it, or send again in Build mode.', {
+            autoClose: 5500,
+            position: 'top-right',
+          });
+          return;
+        }
+
+        if (!builtFiles) {
+          workbenchStore.finishPendingActions();
+          if (repairAttemptsRef.current > 0) {
+            validationState.set({ status: 'failed', detail: 'Automatic repair did not return any corrected files.' });
+            toast.error('Automatic repair did not produce a corrected build.', { autoClose: false });
+          }
+          return;
+        }
+
+        const result = await validateBuild(message.id);
+        workbenchStore.finishPendingActions();
+        if (!result.ok) {
+          if (repairAttemptsRef.current < 2) {
+            repairAttemptsRef.current++;
+            validationState.set({ status: 'checking', detail: `Repairing build (${repairAttemptsRef.current}/2)…` });
+            toast.info(`Build check failed — attempting repair (${repairAttemptsRef.current}/2)…`);
+            try {
+              await append({
+                role: 'user',
+                content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\nAutomatic validation failed (repair attempt ${repairAttemptsRef.current}/2):\n${result.error?.slice(-1800)}\n\nFix only the affected files. Keep the existing project and artifact id. Return complete corrected file actions and do not claim the build passed until it is checked again.`,
+              });
+            } catch (error) {
+              validationState.set({ status: 'failed', detail: `Automatic repair failed: ${(error as Error).message}` });
+              toast.error('Automatic repair could not be started. The build is not verified.');
+            }
+          } else {
+            toast.error(`Build could not be verified after two repairs: ${result.error}`, { autoClose: false });
+          }
+          return;
+        }
+
+        repairAttemptsRef.current = 0;
+        validationState.set({ status: 'checking', detail: 'Saving working checkpoint…' });
+
+        try {
+          await historySave;
+          const database = await dbPromise;
+          const projectId = chatId.get();
+
+          if (!database || !projectId) {
+            throw new Error('Local checkpoint storage is unavailable.');
+          }
+
+          await saveCheckpoint(database, await getWebContainer(), projectId, message.id);
+        } catch (error) {
+          toast.error(`Build verified, but checkpoint could not be saved: ${(error as Error).message}`, { autoClose: false });
+        } finally {
+          validationState.set({ status: 'passed', detail: 'Build verified' });
+        }
 
         if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
           window.parent.postMessage(
@@ -162,19 +229,11 @@ export const ChatImpl = memo(
           );
         }
 
-        if (mode === 'plan' && !builtFiles) {
-          toast.info('📋 Plan ready — ask FortzAI to build it, or send again in Build mode.', {
-            autoClose: 5500,
-            position: 'top-right',
-          });
-          return;
-        }
-
         workbenchStore.showWorkbench.set(true);
         workbenchStore.currentView.set('preview');
         window.dispatchEvent(new CustomEvent('fortz-play-while-building'));
 
-        toast.success('🎮 Build finished — open Preview to try your game!', {
+        toast.success('🎮 Build verified — open Preview to try your game!', {
           autoClose: 6000,
           position: 'top-right',
         });
@@ -213,6 +272,30 @@ export const ChatImpl = memo(
         storeMessageHistory(messages).catch((error) => console.warn('Auto save error:', error));
       }
     }, [messages, isLoading, parseMessages]);
+
+    useEffect(() => {
+      if (!initialMessages.length) return;
+
+      let cancelled = false;
+      const restoreVerifiedFiles = async () => {
+        const database = await dbPromise;
+        const projectId = chatId.get();
+        if (!database || !projectId) return;
+
+        const checkpoint = await getLatestCheckpoint(database, projectId);
+        if (!checkpoint || initialMessages[initialMessages.length - 1]?.id !== checkpoint.messageId) return;
+
+        await workbenchStore.waitForExecutionQueue();
+        if (cancelled) return;
+
+        const wc = await getWebContainer();
+        await applyProjectSnapshot(wc, checkpoint.files);
+        if (!cancelled) workbenchStore.showRestoredCheckpoint(checkpoint.files);
+      };
+
+      void restoreVerifiedFiles().catch((error) => console.warn('Could not reload working checkpoint:', error));
+      return () => { cancelled = true; };
+    }, [initialMessages]);
 
     const scrollTextArea = () => {
       const textarea = textareaRef.current;
@@ -260,9 +343,13 @@ export const ChatImpl = memo(
     const sendMessage = async (_event: React.UIEvent, messageInput?: string) => {
       const _input = messageInput || input;
 
-      if (_input.length === 0 || isLoading) {
+      if (_input.length === 0 || isLoading || validationState.get().status === 'checking' || checkpointBusy.get() !== 'idle') {
         return;
       }
+
+      repairAttemptsRef.current = 0;
+      lastAgentModeRef.current = agentMode;
+      validationState.set({ status: 'idle', detail: '' });
 
       const auth = authStore.get();
       if (!auth.user) {
@@ -309,7 +396,7 @@ export const ChatImpl = memo(
         /* ignore */
       }
 
-      let textPayload = `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${_input}`;
+      let textPayload = `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n[Studio Mode: ${agentMode.toUpperCase()}]\n\n${_input}`;
 
       if (failedActionContext) {
         textPayload = `${failedActionContext}\n\n${textPayload}`;

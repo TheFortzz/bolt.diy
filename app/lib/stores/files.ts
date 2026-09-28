@@ -80,6 +80,30 @@ export class FilesStore {
     this.#modifiedFiles.clear();
   }
 
+  replaceFromCheckpoint(snapshot: Record<string, Uint8Array>) {
+    const nextFiles: FileMap = {};
+
+    for (const [relativePath, buffer] of Object.entries(snapshot)) {
+      const fullPath = nodePath.posix.join(WORK_DIR, relativePath);
+      const parts = relativePath.split('/');
+
+      for (let i = 1; i < parts.length; i++) {
+        nextFiles[nodePath.posix.join(WORK_DIR, ...parts.slice(0, i))] = { type: 'folder' };
+      }
+
+      const isBinary = isBinaryFile(buffer);
+      nextFiles[fullPath] = {
+        type: 'file',
+        content: isBinary ? '' : this.#decodeFileContent(buffer),
+        isBinary,
+      };
+    }
+
+    this.#size = Object.values(nextFiles).filter((entry) => entry?.type === 'file').length;
+    this.#modifiedFiles.clear();
+    this.files.set(nextFiles);
+  }
+
   #toAbsolutePath(filePath: string) {
     const relativePath = cleanWorkDirRelativePath(filePath);
     const absolutePath = nodePath.posix.normalize(nodePath.posix.join(WORK_DIR, relativePath)).replace(/\/+$/g, '');
@@ -226,7 +250,7 @@ export class FilesStore {
         }
         case 'add_file':
         case 'change': {
-          if (type === 'add_file') {
+          if (type === 'add_file' && this.files.get()[sanitizedPath]?.type !== 'file') {
             this.#size++;
           }
 
@@ -249,7 +273,9 @@ export class FilesStore {
           break;
         }
         case 'remove_file': {
-          this.#size--;
+          if (this.files.get()[sanitizedPath]?.type === 'file') {
+            this.#size--;
+          }
           this.files.setKey(sanitizedPath, undefined);
           break;
         }

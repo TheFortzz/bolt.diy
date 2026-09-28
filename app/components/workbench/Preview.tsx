@@ -2,6 +2,7 @@ import { useStore } from '@nanostores/react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { IconButton } from '~/components/ui/IconButton';
 import { workbenchStore } from '~/lib/stores/workbench';
+import { registerPreviewValidator, type PreviewValidationResult } from '~/lib/runtime/preview-validation';
 import { PortDropdown } from './PortDropdown';
 
 type ResizeSide = 'left' | 'right' | null;
@@ -20,10 +21,6 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
   const activePreview = previews[activePreviewIndex] ?? previews.find((preview) => preview.ready) ?? previews[0];
 
   const fallbackHtml = useMemo(() => {
-    if (activePreview) {
-      return undefined;
-    }
-
     let htmlContent: string | undefined;
     for (const [path, dirent] of Object.entries(files)) {
       if (
@@ -224,7 +221,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     }
 
     return bundled;
-  }, [activePreview, files]);
+  }, [files]);
 
   const fallbackIncomplete = useMemo(() => {
     if (!fallbackHtml) {
@@ -269,6 +266,76 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     }
 
     return fallbackHtml;
+  }, [activePreview, fallbackHtml, fallbackIncomplete, isStreaming]);
+
+  useEffect(() => {
+    return registerPreviewValidator(async (): Promise<PreviewValidationResult> => {
+      if (fallbackIncomplete) {
+        return { ok: false, error: 'Preview is still incomplete.' };
+      }
+
+      let serverUrl = workbenchStore.previews.get().find((preview) => preview.ready)?.baseUrl;
+      const projectHasPackage = Object.entries(workbenchStore.files.get()).some(
+        ([path, file]) => path.endsWith('/package.json') && file?.type === 'file',
+      );
+      if (!serverUrl && !fallbackHtml) {
+        for (let attempt = 0; attempt < 20 && !serverUrl; attempt++) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          serverUrl = workbenchStore.previews.get().find((preview) => preview.ready)?.baseUrl;
+        }
+      }
+      if (!serverUrl && !fallbackHtml) {
+        return { ok: false, error: 'No runnable preview was produced.' };
+      }
+
+      if (serverUrl) {
+        try {
+          const response = await fetch(serverUrl, { signal: AbortSignal.timeout(10000) });
+          if (!response.ok) return { ok: false, error: `Preview returned HTTP ${response.status}.` };
+        } catch (error) {
+          return { ok: false, error: `Could not reach preview: ${(error as Error).message}` };
+        }
+      }
+
+      // Run the same assembled static HTML the user sees, in an isolated offscreen
+      // iframe. This catches synchronous errors and unhandled promise rejections.
+      // Cross-origin dev-server console output cannot be observed from here.
+      return new Promise<PreviewValidationResult>((resolve) => {
+        const frame = document.createElement('iframe');
+        frame.setAttribute('sandbox', 'allow-scripts');
+        frame.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none';
+        const token = crypto.randomUUID();
+        let finished = false;
+        let timer: ReturnType<typeof setTimeout>;
+        const finish = (result: PreviewValidationResult) => {
+          if (finished) return;
+          finished = true;
+          clearTimeout(timer);
+          window.removeEventListener('message', onMessage);
+          frame.remove();
+          resolve(result);
+        };
+        const onMessage = (event: MessageEvent) => {
+          if (event.source !== frame.contentWindow || event.data?.token !== token) return;
+          if (event.data.type === 'preview-error') {
+            finish({ ok: false, error: `Preview runtime error: ${String(event.data.error).slice(0, 1200)}` });
+          } else if (event.data.type === 'preview-loaded') {
+            setTimeout(() => finish({ ok: true }), 1200);
+          }
+        };
+        window.addEventListener('message', onMessage);
+        timer = setTimeout(() => finish({ ok: false, error: 'Preview did not load within 12 seconds.' }), 12000);
+        if (serverUrl && (projectHasPackage || !fallbackHtml)) {
+          frame.onload = () => setTimeout(() => finish({ ok: true }), 1200);
+          frame.onerror = () => finish({ ok: false, error: 'Preview failed to load.' });
+          frame.src = serverUrl;
+        } else {
+          const instrumentation = `<script>window.addEventListener('error',function(e){parent.postMessage({token:${JSON.stringify(token)},type:'preview-error',error:e.message},'*')});window.addEventListener('unhandledrejection',function(e){parent.postMessage({token:${JSON.stringify(token)},type:'preview-error',error:String(e.reason)},'*')});window.addEventListener('load',function(){parent.postMessage({token:${JSON.stringify(token)},type:'preview-loaded'},'*')});</script>`;
+          frame.srcdoc = fallbackHtml!.replace(/(<!doctype[^>]*>)/i, `$1${instrumentation}`);
+        }
+        document.body.appendChild(frame);
+      });
+    });
   }, [activePreview, fallbackHtml, fallbackIncomplete, isStreaming]);
 
   const [url, setUrl] = useState('');

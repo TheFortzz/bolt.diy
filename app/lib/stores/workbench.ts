@@ -309,6 +309,18 @@ export class WorkbenchStore {
     this.#filesStore.resetFileModifications();
   }
 
+  showRestoredCheckpoint(files: Record<string, Uint8Array>) {
+    this.#editorStore.documents.set({});
+    this.#editorStore.selectedFile.set(undefined);
+    this.#filesStore.replaceFromCheckpoint(files);
+    this.setDocuments(this.files.get());
+    this.unsavedFiles.set(new Set());
+    this.completedFiles.set(new Set());
+    this.streamingFile.set(undefined);
+    this.showWorkbench.set(true);
+    this.currentView.set('preview');
+  }
+
   abortAllActions() {
     const artifacts = this.artifacts.get();
     for (const artifact of Object.values(artifacts)) {

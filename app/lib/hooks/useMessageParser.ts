@@ -49,14 +49,6 @@ function cancelStreamAction(messageId: string, actionId: string) {
   }
 }
 
-function resetStreamActions() {
-  pendingStreamActions.clear();
-  if (streamFlushTimer) {
-    clearTimeout(streamFlushTimer);
-    streamFlushTimer = undefined;
-  }
-}
-
 const messageParser = new StreamingMessageParser({
   callbacks: {
     onArtifactOpen: (data) => {
@@ -99,17 +91,19 @@ const messageParser = new StreamingMessageParser({
   },
 });
 
+/** Flush the final chunk synchronously before the build-validation gate runs. */
+export function finalizeAssistantMessage(message: Message) {
+  if (typeof message.content === 'string') {
+    messageParser.parse(message.id, message.content);
+  }
+}
+
 export function useMessageParser() {
   const [parsedMessages, setParsedMessages] = useState<{ [key: number]: string }>({});
 
-  const parseMessages = useCallback((messages: Message[], isLoading: boolean) => {
-    let reset = false;
-
-    if (import.meta.env.DEV && !isLoading) {
-      reset = true;
-      messageParser.reset();
-      resetStreamActions();
-    }
+  const parseMessages = useCallback((messages: Message[], _isLoading: boolean) => {
+    // Never replay completed file actions just because streaming stopped (or
+    // because React rendered again). The parser remembers each message offset.
 
     for (const [index, message] of messages.entries()) {
       if (message.role === 'assistant') {
@@ -117,7 +111,7 @@ export function useMessageParser() {
 
         setParsedMessages((prevParsed) => ({
           ...prevParsed,
-          [index]: !reset ? (prevParsed[index] || '') + newParsedContent : newParsedContent,
+          [index]: (prevParsed[index] || '') + newParsedContent,
         }));
       }
     }
