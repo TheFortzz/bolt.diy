@@ -86,7 +86,14 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
                   </div>
                 )}
                 <div className="grid grid-col-1 w-full min-w-0">
-                  {isUserMessage ? <UserMessage content={content} /> : <AssistantMessage content={content} />}
+                  {isUserMessage ? (
+                    <UserMessage content={content} />
+                  ) : (
+                    <>
+                      <AssistantMessage content={content} />
+                      <ActivityTimeline messageId={messageId} isStreaming={isStreaming && isLast} />
+                    </>
+                  )}
                 </div>
                 {!isUserMessage && (
                   <div className="flex gap-2 flex-col lg:flex-row opacity-60 hover:opacity-100">
@@ -119,10 +126,7 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
             );
           })
         : null}
-      <ActivityTimeline
-        messageId={messages[messages.length - 1]?.id}
-        isStreaming={isStreaming}
-      />
+      {isStreaming && messages[messages.length - 1]?.role === 'user' && <ActivityTimeline isStreaming />}
     </div>
   );
 });

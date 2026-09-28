@@ -6,6 +6,7 @@ import { createScopedLogger } from '~/utils/logger';
 import { unreachable } from '~/utils/unreachable';
 import type { ActionCallbackData } from './message-parser';
 import type { BoltShell } from '~/utils/shell';
+import { actionStepId, updateActivity } from '~/lib/stores/activity';
 
 const logger = createScopedLogger('ActionRunner');
 
@@ -104,6 +105,7 @@ export class ActionRunner {
   #shellTerminal: () => BoltShell;
   #onStartStaticServer?: () => Promise<void>;
   #staticServerStarted = false;
+  #messageId: string;
   runnerId = atom<string>(`${Date.now()}`);
   actions: ActionsMap = map({});
 
@@ -111,10 +113,12 @@ export class ActionRunner {
     webcontainerPromise: Promise<WebContainer>,
     getShellTerminal: () => BoltShell,
     onStartStaticServer?: () => Promise<void>,
+    messageId = '',
   ) {
     this.#webcontainer = webcontainerPromise;
     this.#shellTerminal = getShellTerminal;
     this.#onStartStaticServer = onStartStaticServer;
+    this.#messageId = messageId;
   }
 
   #isNpmCommand(command: string): boolean {
@@ -219,9 +223,6 @@ export class ActionRunner {
       abortSignal: abortController.signal,
     });
 
-    this.#currentExecutionPromise.then(() => {
-      this.#updateAction(actionId, { status: 'running' });
-    });
   }
 
   async runAction(data: ActionCallbackData, isStreaming: boolean = false) {
@@ -447,5 +448,9 @@ export class ActionRunner {
     const actions = this.actions.get();
 
     this.actions.setKey(id, { ...actions[id], ...newState });
+
+    if (newState.status && this.#messageId) {
+      updateActivity(this.#messageId, actionStepId(id), newState.status);
+    }
   }
 }

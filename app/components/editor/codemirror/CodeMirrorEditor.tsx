@@ -27,7 +27,7 @@ import {
   type Tooltip,
 } from '@codemirror/view';
 import { memo, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { diffLines } from 'diff';
+import { computeDiffDocument, minimalTextChange, type DiffResult } from '~/utils/editorDiff';
 import type { Theme } from '~/types/theme';
 import { classNames } from '~/utils/classNames';
 import { debounce } from '~/utils/debounce';
@@ -46,6 +46,8 @@ export interface EditorDocument {
   filePath: string;
   scroll?: ScrollPosition;
   originalContent?: string;
+  aiEditMessageId?: string;
+  aiCreated?: boolean;
 }
 
 export interface EditorSettings {
@@ -88,6 +90,7 @@ interface Props {
   settings?: EditorSettings;
   isStreaming?: boolean;
   showDiff?: boolean;
+  diffResult?: DiffResult;
 }
 
 type EditorStates = Map<string, EditorState>;
@@ -122,43 +125,12 @@ export const diffTheme = EditorView.baseTheme({
   '.cm-diff-added-text': {
     color: '#4ade80 !important',
   },
+  '.cm-diff-separator': {
+    color: 'var(--bolt-elements-textTertiary) !important',
+    fontStyle: 'italic',
+    backgroundColor: 'rgba(100, 116, 139, 0.08) !important',
+  },
 });
-
-export interface DiffLineInfo {
-  text: string;
-  type: 'unchanged' | 'added' | 'deleted';
-}
-
-export interface DiffResult {
-  combinedText: string;
-  lines: DiffLineInfo[];
-  addedCount: number;
-  deletedCount: number;
-}
-
-export function computeDiffDocument(originalContent: string, newContent: string): DiffResult {
-  const parts = diffLines(originalContent, newContent);
-  const lines: DiffLineInfo[] = [];
-  let addedCount = 0;
-  let deletedCount = 0;
-
-  for (const part of parts) {
-    const rawLines = part.value.split('\n');
-    if (rawLines.length > 1 && rawLines[rawLines.length - 1] === '') {
-      rawLines.pop();
-    }
-    const type: 'unchanged' | 'added' | 'deleted' = part.added ? 'added' : part.removed ? 'deleted' : 'unchanged';
-    if (part.added) addedCount += rawLines.length;
-    if (part.removed) deletedCount += rawLines.length;
-
-    for (const line of rawLines) {
-      lines.push({ text: line, type });
-    }
-  }
-
-  const combinedText = lines.map((l) => l.text).join('\n');
-  return { combinedText, lines, addedCount, deletedCount };
-}
 
 const readOnlyTooltipStateEffect = StateEffect.define<boolean>();
 
@@ -215,6 +187,7 @@ export const CodeMirrorEditor = memo(
     className = '',
     isStreaming = false,
     showDiff = true,
+    diffResult,
   }: Props) => {
     renderLogger.trace('CodeMirrorEditor');
 
@@ -362,8 +335,10 @@ export const CodeMirrorEditor = memo(
         isStreaming,
         () => languageRequestId === languageRequestRef.current && activeFilePathRef.current === doc.filePath,
         showDiff,
+        diffResult,
+        fileChanged,
       );
-    }, [doc?.value, doc?.originalContent, editable, doc?.filePath, autoFocusOnDocumentChange, isStreaming, showDiff]);
+    }, [doc?.value, doc?.originalContent, editable, doc?.filePath, autoFocusOnDocumentChange, isStreaming, showDiff, diffResult]);
 
     return (
       <div className={classNames('relative h-full', className)}>
@@ -497,60 +472,26 @@ function setEditorDocument(
   isStreaming: boolean = false,
   isCurrent: () => boolean = () => true,
   showDiff: boolean = true,
+  suppliedDiff?: DiffResult,
+  restoreScroll = false,
 ) {
-  // While the AI is actively streaming, never show diff decorations — just
-  // show the raw code being typed in naturally.  Diff view is only relevant
-  // once streaming stops and the user manually toggles "Diff".
-  const isDiffMode = Boolean(!isStreaming && showDiff && doc.originalContent && doc.originalContent !== doc.value);
+  const isDiffMode = Boolean(showDiff && doc.originalContent !== undefined && doc.originalContent !== doc.value);
   let textToDisplay = doc.value;
   let diffResult: DiffResult | undefined;
 
-  if (isDiffMode && doc.originalContent) {
-    diffResult = computeDiffDocument(doc.originalContent, doc.value);
+  if (isDiffMode && doc.originalContent !== undefined) {
+    diffResult = suppliedDiff ?? computeDiffDocument(doc.originalContent, doc.value);
     textToDisplay = diffResult.combinedText;
   }
 
-  const shouldFollowStream = isStreaming && !isDiffMode;
+  const shouldFollowStream = isStreaming;
   const currentContent = view.state.doc.toString();
 
-  // Apply a minimal change instead of replacing the entire document from line 0.
-  // This avoids the jarring "rewrite from beginning" animation and makes it look
-  // like natural typing: only the trailing delta is inserted.
+  // The CodeMirror document is presentation-only in diff mode. External updates
+  // must never be sent back through onChange, which writes the real project file.
   if (textToDisplay !== currentContent) {
-    if (shouldFollowStream && textToDisplay.startsWith(currentContent.slice(0, Math.min(currentContent.length, 200)))) {
-      // Fast-path: content is being appended (or a tail portion changed).
-      // Find the first character that diverges and only replace from there.
-      let commonPrefix = 0;
-      const limit = Math.min(currentContent.length, textToDisplay.length);
-      while (commonPrefix < limit && currentContent[commonPrefix] === textToDisplay[commonPrefix]) {
-        commonPrefix++;
-      }
-
-      const docLength = textToDisplay.length;
-      view.dispatch({
-        selection: { anchor: docLength },
-        changes: {
-          from: commonPrefix,
-          to: currentContent.length,
-          insert: textToDisplay.slice(commonPrefix),
-        },
-        effects: [EditorView.scrollIntoView(docLength, { y: 'end' })],
-        annotations: externalUpdate.of(true),
-      });
-    } else {
-      // Full replacement (file switch, diff mode, or non-streaming)
-      const docLength = textToDisplay.length;
-      view.dispatch({
-        selection: shouldFollowStream ? { anchor: docLength } : { anchor: 0 },
-        changes: {
-          from: 0,
-          to: currentContent.length,
-          insert: textToDisplay,
-        },
-        effects: shouldFollowStream ? [EditorView.scrollIntoView(docLength, { y: 'end' })] : [],
-        annotations: externalUpdate.of(true),
-      });
-    }
+    const change = minimalTextChange(currentContent, textToDisplay);
+    view.dispatch({ changes: change, annotations: externalUpdate.of(true) });
   }
 
   if (isDiffMode && diffResult) {
@@ -560,7 +501,9 @@ function setEditorDocument(
       if (lineInfo.type === 'unchanged') continue;
 
       const cmLine = view.state.doc.line(i + 1);
-      if (lineInfo.type === 'deleted') {
+      if (lineInfo.type === 'separator') {
+        builder.add(cmLine.from, cmLine.from, Decoration.line({ attributes: { class: 'cm-diff-separator' } }));
+      } else if (lineInfo.type === 'deleted') {
         builder.add(cmLine.from, cmLine.from, Decoration.line({ attributes: { class: 'cm-diff-deleted' } }));
         if (cmLine.to > cmLine.from) {
           builder.add(cmLine.from, cmLine.to, Decoration.mark({ attributes: { class: 'cm-diff-deleted-text' } }));
@@ -588,6 +531,14 @@ function setEditorDocument(
     });
   }
 
+  if (shouldFollowStream) {
+    const lastChangedLine = isDiffMode && diffResult
+      ? diffResult.lines.findLastIndex((line) => line.type === 'added' || line.type === 'deleted') + 1
+      : view.state.doc.lines;
+    const target = lastChangedLine > 0 ? view.state.doc.line(lastChangedLine).to : view.state.doc.length;
+    view.dispatch({ effects: [EditorView.scrollIntoView(target, { y: 'center' })] });
+  }
+
   getLanguage(doc.filePath).then((languageSupport) => {
     if (!isCurrent()) {
       return;
@@ -602,11 +553,7 @@ function setEditorDocument(
         return;
       }
 
-      if (shouldFollowStream) {
-        const end = view.state.doc.length;
-        view.dispatch({
-          effects: [EditorView.scrollIntoView(end, { y: 'end' })],
-        });
+      if (shouldFollowStream || !restoreScroll) {
         return;
       }
 

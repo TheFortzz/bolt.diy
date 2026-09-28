@@ -17,6 +17,7 @@ vi.mock('~/lib/webcontainer', () => ({ getWebContainer: mocks.getWebContainer })
 vi.mock('./preview-validation', () => ({ validatePreview: mocks.validatePreview }));
 
 import { validateBuild, validationState } from './build-validator';
+import { activitySteps } from '~/lib/stores/activity';
 
 describe('build validation gate', () => {
   beforeEach(() => {
@@ -29,6 +30,7 @@ describe('build validation gate', () => {
       spawn: vi.fn(),
     });
     mocks.artifacts = {};
+    activitySteps.set({});
   });
 
   it('does not pass a failed file action or attempt a preview', async () => {
@@ -40,6 +42,7 @@ describe('build validation gate', () => {
     expect(mocks.waitForExecutionQueue).toHaveBeenCalledOnce();
     expect(mocks.validatePreview).not.toHaveBeenCalled();
     expect(validationState.get().status).toBe('failed');
+    expect(activitySteps.get().build.some((step) => step.id === 'validation:result')).toBe(false);
   });
 
   it('passes only after source checks and preview succeed', async () => {
@@ -82,6 +85,7 @@ describe('build validation gate', () => {
     expect(spawn).toHaveBeenCalledWith('node', ['--check', '/home/project/game.js'], { cwd: '/home/project' });
     expect(mocks.validatePreview).toHaveBeenCalledOnce();
     expect(validationState.get().status).toBe('passed');
+    expect(activitySteps.get().build.find((step) => step.id === 'validation:result')?.status).toBe('complete');
   });
 
   it('does not announce success when preview loading fails', async () => {
@@ -116,5 +120,6 @@ describe('build validation gate', () => {
 
     expect(await validateBuild('build')).toEqual({ ok: false, error: 'Preview runtime error: broken' });
     expect(validationState.get().status).toBe('failed');
+    expect(activitySteps.get().build.find((step) => step.id === 'validation:preview')?.status).toBe('failed');
   });
 });

@@ -17,6 +17,7 @@ import { extractRelativePath, cleanWorkDirRelativePath } from '~/utils/diff';
 import { WORK_DIR } from '~/utils/constants';
 import { description } from '~/lib/persistence';
 import Cookies from 'js-cookie';
+import { actionStepId, startActionActivity, updateActivity } from '~/lib/stores/activity';
 
 export interface ArtifactState {
   id: string;
@@ -336,7 +337,7 @@ export class WorkbenchStore {
 
   finishPendingActions() {
     const artifacts = this.artifacts.get();
-    for (const artifact of Object.values(artifacts)) {
+    for (const [messageId, artifact] of Object.entries(artifacts)) {
       const runner = artifact.runner;
       if (!runner) continue;
 
@@ -345,6 +346,7 @@ export class WorkbenchStore {
         // claim that its partial file was written or mark it executable.
         if ((action.status === 'pending' || action.status === 'running') && !action.executed) {
           runner.actions.setKey(actionId, { ...action, status: 'aborted', executed: false });
+          updateActivity(messageId, actionStepId(actionId), 'aborted');
         }
       }
     }
@@ -461,6 +463,7 @@ http.createServer((req, res) => {
         webcontainer,
         () => this.boltTerminal,
         () => this.startStaticPreviewServer(),
+        messageId,
       ),
     });
   }
@@ -476,6 +479,9 @@ http.createServer((req, res) => {
   }
   addAction(data: ActionCallbackData) {
     const normalizedData = normalizeActionData(data);
+    const isExisting = normalizedData.action.type === 'file' && Boolean(this.#filesStore.getFile(normalizedData.action.filePath));
+
+    startActionActivity(normalizedData.messageId, normalizedData.actionId, normalizedData.action, isExisting);
 
     if (normalizedData.action.type === 'file') {
       const fullPath = normalizedData.action.filePath;
@@ -487,22 +493,8 @@ http.createServer((req, res) => {
 
       this.#focusCodeUnlessPlayPinned();
 
-      // Ensure baseline originalContent is stored before incoming streamed changes
-      const existingDoc = this.#editorStore.documents.get()[fullPath];
-      const existingFile = this.#filesStore.getFile(fullPath);
-      const baseline = existingDoc?.originalContent ?? existingDoc?.value ?? existingFile?.content;
-
-      if (baseline) {
-        this.#editorStore.documents.setKey(fullPath, {
-          ...(existingDoc || { filePath: fullPath, isBinary: false }),
-          value: existingDoc?.value ?? baseline,
-          originalContent: baseline,
-          filePath: fullPath,
-          isBinary: false,
-        });
-      }
-
-      this.#editorStore.updateFile(fullPath, normalizedData.action.content || '');
+      this.#editorStore.beginAIEdit(fullPath, normalizedData.messageId, this.#filesStore.getFile(fullPath)?.content);
+      this.#editorStore.updateFile(fullPath, normalizedData.action.content || '', true);
     }
 
     this._addAction(normalizedData);
@@ -523,6 +515,10 @@ http.createServer((req, res) => {
     const normalizedData = normalizeActionData(data);
 
     if (isStreaming) {
+      if (normalizedData.action.type === 'file') {
+        updateActivity(normalizedData.messageId, actionStepId(normalizedData.actionId), 'running');
+      }
+
       this._runAction(normalizedData, true);
       return;
     }
@@ -549,7 +545,7 @@ http.createServer((req, res) => {
     }
 
     this.#focusCodeUnlessPlayPinned();
-    this.#editorStore.updateFile(fullPath, data.action.content || '');
+    this.#editorStore.updateFile(fullPath, data.action.content || '', true);
     this.#filesStore.files.setKey(fullPath, {
       type: 'file',
       content: data.action.content || '',
@@ -579,6 +575,11 @@ http.createServer((req, res) => {
       // Wait for the real write before reporting the file as completed.
       await artifact.runner.runAction(normalizedData);
       const actionState = artifact.runner.actions.get()[normalizedData.actionId];
+
+      if (this.streamingFile.get() === normalizedData.action.filePath) {
+        this.streamingFile.set(undefined);
+      }
+
       if (!actionState || actionState.status === 'failed' || actionState.status === 'aborted') {
         return;
       }

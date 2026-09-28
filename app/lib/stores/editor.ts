@@ -49,6 +49,8 @@ export class EditorStore {
               isBinary: dirent.isBinary,
               scroll: previousDocument?.scroll,
               originalContent: previousDocument?.originalContent,
+              aiEditMessageId: previousDocument?.aiEditMessageId,
+              aiCreated: previousDocument?.aiCreated,
             },
           ] as [string, EditorDocument];
         })
@@ -69,6 +71,24 @@ export class EditorStore {
     this.selectedFile.set(filePath);
   }
 
+  beginAIEdit(filePath: string, messageId: string, existingContent?: string) {
+    const previous = this.documents.get()[filePath];
+
+    if (previous?.aiEditMessageId === messageId) {
+      return;
+    }
+
+    this.documents.setKey(filePath, {
+      ...previous,
+      value: previous?.value ?? existingContent ?? '',
+      filePath,
+      isBinary: false,
+      originalContent: existingContent,
+      aiEditMessageId: messageId,
+      aiCreated: existingContent === undefined,
+    });
+  }
+
   updateScrollPosition(filePath: string, position: ScrollPosition) {
     const documents = this.documents.get();
     const documentState = documents[filePath];
@@ -83,7 +103,7 @@ export class EditorStore {
     });
   }
 
-  updateFile(filePath: string, newContent: string) {
+  updateFile(filePath: string, newContent: string, fromAI = false) {
     const documents = this.documents.get();
     const documentState = documents[filePath];
 
@@ -102,12 +122,14 @@ export class EditorStore {
     const contentChanged = currentContent !== newContent;
 
     if (contentChanged) {
-      const originalContent = documentState.originalContent ?? (currentContent || undefined);
+      const originalContent = documentState.originalContent ?? (fromAI ? undefined : currentContent);
 
       this.documents.setKey(filePath, {
         ...documentState,
         originalContent,
         value: newContent,
+        aiEditMessageId: fromAI ? documentState.aiEditMessageId : undefined,
+        aiCreated: fromAI ? documentState.aiCreated : false,
       });
     }
   }

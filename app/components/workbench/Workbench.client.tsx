@@ -22,6 +22,7 @@ import { validationState } from '~/lib/runtime/build-validator';
 import { applyProjectSnapshot, captureProject, checkpointBusy, latestCheckpoint, refreshLatestCheckpoint, restoreCheckpoint } from '~/lib/persistence/checkpoints';
 import { chatId, dbPromise, getMessages, setMessages } from '~/lib/persistence';
 import { getWebContainer } from '~/lib/webcontainer';
+import { startActivity, updateActivity } from '~/lib/stores/activity';
 
 interface WorkspaceProps {
   chatStarted?: boolean;
@@ -100,6 +101,10 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
 
     if (!window.confirm('Restore the last verified build? This discards unsaved changes and removes later chat messages.')) return;
 
+    if (checkpoint?.chatId === activeChatId) {
+      startActivity(checkpoint.messageId, 'checkpoint:restore', 'Restoring working checkpoint', 'Working checkpoint restored');
+    }
+
     setIsRestoring(true);
     let previousFiles: Record<string, Uint8Array> | undefined;
     let wc: Awaited<ReturnType<typeof getWebContainer>> | undefined;
@@ -128,9 +133,13 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
         throw new Error('Restored chat history could not be persisted.');
       }
       workbenchStore.showRestoredCheckpoint(restored.files);
+      updateActivity(restored.messageId, 'checkpoint:restore', 'complete');
       toast.success('Last working checkpoint restored. Reloading project…');
       window.location.reload();
     } catch (error) {
+      if (checkpoint?.chatId === activeChatId) {
+        updateActivity(checkpoint.messageId, 'checkpoint:restore', 'failed');
+      }
       if (restoredFiles && wc && previousFiles) {
         try {
           await applyProjectSnapshot(wc, previousFiles);
@@ -399,7 +408,7 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
                 >
                   <EditorPanel
                     editorDocument={currentDocument}
-                    isStreaming={Boolean(isStreaming || checkpointOperation !== 'idle' || isRestoring)}
+                    isStreaming={Boolean(isStreaming || validation.status === 'checking' || checkpointOperation !== 'idle' || isRestoring)}
                     followStream={Boolean(isStreaming && streamingFile && selectedFile === streamingFile)}
                     selectedFile={selectedFile}
                     files={files}

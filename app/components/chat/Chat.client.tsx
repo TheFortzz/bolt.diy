@@ -12,6 +12,7 @@ import { useMessageParser, usePromptEnhancer, useShortcuts, useSnapScroll } from
 import { chatId, dbPromise, description, useChatHistory } from '~/lib/persistence';
 import { applyProjectSnapshot, checkpointBusy, getLatestCheckpoint, saveCheckpoint } from '~/lib/persistence/checkpoints';
 import { getWebContainer } from '~/lib/webcontainer';
+import { runActivityStep, startActivity } from '~/lib/stores/activity';
 import { chatStore } from '~/lib/stores/chat';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { DEFAULT_MODEL, DEFAULT_PROVIDER, PROMPT_COOKIE_KEY, PROVIDER_LIST, type StudioAgentMode } from '~/utils/constants';
@@ -170,6 +171,7 @@ export const ChatImpl = memo(
         if (!builtFiles) {
           workbenchStore.finishPendingActions();
           if (repairAttemptsRef.current > 0) {
+            startActivity(message.id, 'repair:missing', 'No corrected files returned', 'No corrected files returned', 'failed');
             validationState.set({ status: 'failed', detail: 'Automatic repair did not return any corrected files.' });
             toast.error('Automatic repair did not produce a corrected build.', { autoClose: false });
           }
@@ -183,16 +185,18 @@ export const ChatImpl = memo(
             repairAttemptsRef.current++;
             validationState.set({ status: 'checking', detail: `Repairing build (${repairAttemptsRef.current}/2)…` });
             toast.info(`Build check failed — attempting repair (${repairAttemptsRef.current}/2)…`);
+            const attemptId = `repair:attempt:${repairAttemptsRef.current}`;
             try {
-              await append({
-                role: 'user',
-                content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\nAutomatic validation failed (repair attempt ${repairAttemptsRef.current}/2):\n${result.error?.slice(-1800)}\n\nFix only the affected files. Keep the existing project and artifact id. Return complete corrected file actions and do not claim the build passed until it is checked again.`,
-              });
+              await runActivityStep(message.id, attemptId, `Requesting repair (${repairAttemptsRef.current}/2)`, () => append({
+                  role: 'user',
+                  content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\nAutomatic validation failed (repair attempt ${repairAttemptsRef.current}/2):\n${result.error?.slice(-1800)}\n\nFix only the affected files. Keep the existing project and artifact id. Return complete corrected file actions and do not claim the build passed until it is checked again.`,
+                }), 'Repair response received');
             } catch (error) {
               validationState.set({ status: 'failed', detail: `Automatic repair failed: ${(error as Error).message}` });
               toast.error('Automatic repair could not be started. The build is not verified.');
             }
           } else {
+            startActivity(message.id, 'repair:exhausted', 'Repair attempts exhausted', 'Repair attempts exhausted', 'failed');
             toast.error(`Build could not be verified after two repairs: ${result.error}`, { autoClose: false });
           }
           return;
@@ -202,15 +206,17 @@ export const ChatImpl = memo(
         validationState.set({ status: 'checking', detail: 'Saving working checkpoint…' });
 
         try {
-          await historySave;
-          const database = await dbPromise;
-          const projectId = chatId.get();
+          await runActivityStep(message.id, 'checkpoint:save', 'Saving working checkpoint', async () => {
+            await historySave;
+            const database = await dbPromise;
+            const projectId = chatId.get();
 
-          if (!database || !projectId) {
-            throw new Error('Local checkpoint storage is unavailable.');
-          }
+            if (!database || !projectId) {
+              throw new Error('Local checkpoint storage is unavailable.');
+            }
 
-          await saveCheckpoint(database, await getWebContainer(), projectId, message.id);
+            await saveCheckpoint(database, await getWebContainer(), projectId, message.id);
+          }, 'Working checkpoint saved');
         } catch (error) {
           toast.error(`Build verified, but checkpoint could not be saved: ${(error as Error).message}`, { autoClose: false });
         } finally {

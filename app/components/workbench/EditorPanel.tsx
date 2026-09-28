@@ -4,7 +4,6 @@ import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { toast } from 'react-toastify';
 import {
   CodeMirrorEditor,
-  computeDiffDocument,
   type EditorDocument,
   type EditorSettings,
   type OnChangeCallback as OnEditorChange,
@@ -24,6 +23,7 @@ import { FileBreadcrumb } from './FileBreadcrumb';
 import { FileTree } from './FileTree';
 import { DEFAULT_TERMINAL_SIZE, TerminalTabs } from './terminal/TerminalTabs';
 import { workbenchStore } from '~/lib/stores/workbench';
+import { computeDiffDocument, computeStreamingDiffDocument, MAX_LIVE_DIFF_LENGTH } from '~/utils/editorDiff';
 
 interface EditorPanelProps {
   files?: FileMap;
@@ -85,17 +85,24 @@ export const EditorPanel = memo(
       return editorDocument !== undefined && unsavedFiles?.has(editorDocument.filePath);
     }, [editorDocument, unsavedFiles]);
 
-    const [showDiff, setShowDiff] = useState(false);
+    const [manualMode, setManualMode] = useState<{ key: string; value: 'code' | 'diff' }>();
+    const diffKey = `${editorDocument?.filePath ?? ''}:${editorDocument?.aiEditMessageId ?? ''}`;
 
     const hasDiff = Boolean(
-      editorDocument?.originalContent &&
+      editorDocument?.originalContent !== undefined &&
       editorDocument.originalContent !== editorDocument.value,
     );
+    const diffTooLarge = hasDiff &&
+      (editorDocument!.originalContent!.length + editorDocument!.value.length > MAX_LIVE_DIFF_LENGTH);
+    const showDiff = Boolean(hasDiff && !diffTooLarge &&
+      (manualMode?.key === diffKey ? manualMode.value === 'diff' : editorDocument?.aiEditMessageId && !editorDocument.aiCreated));
 
     const diffStats = useMemo(() => {
-      if (!hasDiff || !editorDocument?.originalContent) return undefined;
-      return computeDiffDocument(editorDocument.originalContent, editorDocument.value);
-    }, [hasDiff, editorDocument?.originalContent, editorDocument?.value]);
+      if (!hasDiff || diffTooLarge || editorDocument?.originalContent === undefined) return undefined;
+      return followStream
+        ? computeStreamingDiffDocument(editorDocument.originalContent, editorDocument.value)
+        : computeDiffDocument(editorDocument.originalContent, editorDocument.value);
+    }, [hasDiff, diffTooLarge, followStream, editorDocument?.originalContent, editorDocument?.value]);
 
     const handleAddFile = async () => {
       const folder = parentFolderOf(selectedFile);
@@ -211,20 +218,22 @@ export const EditorPanel = memo(
                   {activeFileSegments?.length && (
                     <div className="flex items-center flex-1 text-sm">
                       <FileBreadcrumb pathSegments={activeFileSegments} files={files} onFileSelect={onFileSelect} />
-                      {hasDiff && diffStats && (
+                      {hasDiff && !diffTooLarge && diffStats && (
                         <div className="flex items-center gap-1.5 ml-auto mr-2">
                           <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-bolt-elements-background-depth-3 border border-bolt-elements-borderColor text-bolt-elements-textSecondary flex items-center gap-1">
                             <span className="text-emerald-400 font-bold">+{diffStats.addedCount}</span>
                             <span className="text-rose-400 font-bold">-{diffStats.deletedCount}</span>
                           </span>
                           <PanelHeaderButton
-                            onClick={() => setShowDiff(!showDiff)}
+                            onClick={() => setManualMode({ key: diffKey, value: showDiff ? 'code' : 'diff' })}
                             className={classNames('text-xs', { 'text-cyan-400 font-semibold': showDiff })}
+                            title={showDiff ? 'Show editable source code' : 'Show changed lines with context'}
                           >
                             <div className={showDiff ? 'i-ph:git-diff-duotone' : 'i-ph:code-duotone'} />
-                            {showDiff ? 'Diff' : 'Code'}
+                            {showDiff ? (followStream ? 'Live diff' : 'Diff') : 'Code'}
                           </PanelHeaderButton>
                           <PanelHeaderButton
+                            disabled={isStreaming}
                             onClick={() => {
                               if (editorDocument) {
                                 workbenchStore.acceptDiff(editorDocument.filePath);
@@ -236,6 +245,11 @@ export const EditorPanel = memo(
                             Accept
                           </PanelHeaderButton>
                         </div>
+                      )}
+                      {diffTooLarge && (
+                        <span className="ml-auto mr-2 text-xs text-bolt-elements-textSecondary" title="Large file: showing code to keep the editor responsive">
+                          Diff unavailable for large file
+                        </span>
                       )}
                       {activeFileUnsaved && (
                         <div className="flex gap-1 ml-auto -mr-1.5">
@@ -258,6 +272,7 @@ export const EditorPanel = memo(
                     editable={!isStreaming && editorDocument !== undefined && (!hasDiff || !showDiff)}
                     isStreaming={followStream}
                     showDiff={showDiff}
+                    diffResult={diffStats}
                     settings={editorSettings}
                     doc={editorDocument}
                     autoFocusOnDocumentChange={!isMobile()}

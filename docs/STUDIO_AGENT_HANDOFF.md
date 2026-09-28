@@ -1,6 +1,6 @@
 # Studio reliability handoff
 
-The Studio at `thefortz.me/studio` uses this `bolt.diy` fork, embedded by the separate `TheFortzz.github.io-1` site. The user approved a four-phase reliability plan and asked to implement **one phase at a time**, verify it, then stop. Phases 1 and 2 were implemented; do **not** proceed to Phase 3 or 4 without a new instruction.
+The Studio at `thefortz.me/studio` uses this `bolt.diy` fork, embedded by the separate `TheFortzz.github.io-1` site. The user approved a four-phase reliability plan and asked to implement **one phase at a time**, verify it, then stop. All four approved phases are implemented in the `bolt.diy` repository. Phases 1–2 were committed in `dfa5ad1`; Phases 3–4 followed in a later commit. Pushing this repository does **not** by itself verify that the live Studio has been deployed.
 
 ## Completed: Phase 1 — validation and bounded repair
 
@@ -20,10 +20,22 @@ The Studio at `thefortz.me/studio` uses this `bolt.diy` fork, embedded by the se
 
 Verification after Phase 2: `pnpm test` (43 tests), `pnpm typecheck`, `pnpm build`, and `git diff --check` passed. Vitest prints an existing Vite shutdown timeout warning **after** reporting passing tests. Interactive browser verification was unavailable because the desktop browser was disconnected; test real authenticated builds, IndexedDB upgrade/persistence, and restore on the live Studio before assuming production behavior.
 
-## Remaining, only with user approval
+## Completed: Phase 3 — real per-turn activity feed
 
-**Phase 3 — granular activity feed.** The fork already has `app/components/chat/ActivityTimeline.tsx`, rendered by `Messages.client.tsx`, but it infers status from action types and only shows a bottom-of-chat timeline. Add real per-build/per-message events from `useMessageParser.ts`, `action-runner.ts`, the Phase 1 validator, and checkpoint operations. Show actual reading/editing/checking/retrying states without fabricating read events. Avoid duplicate events when old messages replay; test status transitions.
+- `app/lib/stores/activity.ts` holds keyed, timestamped steps per assistant message. Action steps are registered when the parser observes real file/shell/start actions; `ActionRunner` updates their pending/running/complete/failed/aborted states. Streaming file edits are marked running when their content arrives. No fabricated read events are emitted.
+- `app/lib/runtime/build-validator.ts` emits actual file reads, syntax checks, project typecheck/build commands, preview load, and final pass/fail steps. An arbitrary shell action cannot claim a verified build. `Chat.client.tsx` adds bounded repair and checkpoint-save steps; `Workbench.client.tsx` indicates checkpoint restoration.
+- `app/components/chat/Messages.client.tsx` renders `ActivityTimeline.tsx` with the corresponding assistant message rather than one generic timeline at the bottom. Only observed steps are shown; a brief Thinking fallback remains before actions start. Long timelines collapse older steps behind a Show earlier steps control. File steps can open that file in the Code tab.
+- Tests: `app/lib/stores/activity.spec.ts`, `app/components/chat/ActivityTimeline.spec.tsx`, and validation-event assertions in `app/lib/runtime/build-validator.spec.ts`.
+- Activity events are held in memory for the current session; old assistant file actions replay on reload, but previous validation/checkpoint-step history is **not yet durably persisted**. This is a known limitation, not a claim that the full event log survives reload.
+- Verification after Phase 3: `pnpm typecheck`, `pnpm test` (48 tests), and `pnpm build` passed. Interactive browser testing was unavailable in this session.
 
-**Phase 4 — diff instead of full retyping.** The fork already has opt-in red/green diff logic in `app/components/editor/codemirror/CodeMirrorEditor.tsx`, `app/components/workbench/EditorPanel.tsx`, and `app/lib/stores/editor.ts`. Existing-file edits still default to Code and stream the replacement file. Preserve a stable pre-edit baseline, default existing-file edits to a compact contextual red/green diff, update changed hunks during streaming, and leave new files in normal code mode. Never save diff presentation text into the real file. Add tests for empty files, repeated edits, large files, and editor scroll/selection.
+## Completed: Phase 4 — live contextual diffs in Code
 
-Additional known limits to evaluate separately: true Git commit semantics are **not** implemented; WebContainer dev-server console errors are not captured cross-origin; checkpoints are local-only and exclude `.env` files and dependency directories. Keep later work scoped to the phase the user selects.
+- `app/lib/stores/editor.ts` records the pre-edit content once per AI message, including an empty original file, and keeps it stable through multiple streamed edits and file-watcher refreshes. A new AI message starts a fresh baseline. New files stay in normal Code view.
+- `app/utils/editorDiff.ts` computes red/green changed lines with three context lines and elision markers. While replacement content is incomplete, its provisional display keeps the as-yet-unemitted original tail instead of falsely marking the entire remainder as deleted. After the file action writes successfully, the final diff compares actual full files. A 250,000-character combined-input limit falls back to normal code for very large files to avoid freezing the editor.
+- `app/components/workbench/EditorPanel.tsx` defaults existing AI-edited files to the live diff, with Code/Diff toggle and change counts. `app/components/editor/codemirror/CodeMirrorEditor.tsx` applies minimal document updates, follows the latest changed hunk while streaming, and avoids resetting scroll on every token. The diff is read-only presentation; the actual `EditorDocument.value` and WebContainer files are not replaced by diff text. Accept is disabled while generation/validation is ongoing.
+- Tests: `app/utils/editorDiff.spec.ts` and `app/lib/stores/editor.spec.ts`, including empty files, repeated edits, large files, partial streams, and minimal text replacements. Verification after Phase 4: `pnpm typecheck`, `pnpm test` (56 tests), and `pnpm build` passed. Interactive browser verification was unavailable.
+
+## Known limits / follow-up only with user approval
+
+True Git commit semantics are **not** implemented; WebContainer dev-server console errors are not captured cross-origin; checkpoints are local-only and exclude `.env` files and dependency directories. Activity history is in memory, and large files use code view instead of a live diff. Test real authenticated build/edit/restore flows in a connected browser before claiming production UX; do not silently extend the approved scope.

@@ -1,157 +1,101 @@
 import { useStore } from '@nanostores/react';
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useState } from 'react';
+import { activitySteps, type ActivityStep } from '~/lib/stores/activity';
 import { workbenchStore } from '~/lib/stores/workbench';
-import { cleanWorkDirRelativePath } from '~/utils/diff';
 import { classNames } from '~/utils/classNames';
-import type { ActionState } from '~/lib/runtime/action-runner';
 
 interface ActivityTimelineProps {
   messageId?: string;
   isStreaming?: boolean;
 }
 
-function getActionLabel(action: ActionState, isExisting: boolean): { active: string; done: string } {
-  if (action.type === 'file') {
-    const filename = cleanWorkDirRelativePath(action.filePath);
-    if (isExisting) {
-      return {
-        active: `Editing ${filename}`,
-        done: `Edited ${filename}`,
-      };
-    }
-    return {
-      active: `Creating ${filename}`,
-      done: `Created ${filename}`,
-    };
-  }
+const VISIBLE_STEPS = 12;
 
-  if (action.type === 'shell') {
-    const cmd = action.content.trim();
-    if (cmd.includes('build') || cmd.includes('tsc')) {
-      return {
-        active: 'Verifying build',
-        done: 'Build verified',
-      };
-    }
-    if (cmd.includes('install')) {
-      return {
-        active: 'Installing packages',
-        done: 'Packages installed',
-      };
-    }
-    const shortCmd = cmd.length > 30 ? `${cmd.slice(0, 30)}…` : cmd;
-    return {
-      active: `Running ${shortCmd}`,
-      done: `Ran ${shortCmd}`,
-    };
+function stepLabel(step: ActivityStep) {
+  switch (step.status) {
+    case 'pending':
+      return `Queued: ${step.label}`;
+    case 'complete':
+      return step.doneLabel;
+    case 'failed':
+      return `Failed: ${step.label}`;
+    case 'aborted':
+      return `Stopped: ${step.label}`;
+    default:
+      return step.label;
   }
-
-  if (action.type === 'start') {
-    return {
-      active: 'Starting app',
-      done: 'App started',
-    };
-  }
-
-  return {
-    active: 'Processing',
-    done: 'Done',
-  };
 }
-
-interface ActivityTimelineInnerProps {
-  artifact: any;
-  isStreaming: boolean;
-}
-
-const ActivityTimelineInner = memo(({ artifact, isStreaming }: ActivityTimelineInnerProps) => {
-  const actionsMap = useStore(artifact.runner.actions);
-  const files = useStore(workbenchStore.files);
-  const completedFiles = useStore(workbenchStore.completedFiles);
-
-  const actionsList: ActionState[] = useMemo(() => {
-    if (!actionsMap) return [];
-    return Object.values(actionsMap) as ActionState[];
-  }, [actionsMap]);
-
-  const hasRunningAction = actionsList.some((a) => a.status === 'running' || a.status === 'pending');
-
-  if (!isStreaming && !hasRunningAction && actionsList.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="flex flex-col gap-1 my-2">
-      {actionsList.map((action, idx) => {
-        const isExisting =
-          action.type === 'file' &&
-          Boolean(
-            completedFiles.has(action.filePath) ||
-              (files[action.filePath] && files[action.filePath]?.type === 'file'),
-          );
-        const labels = getActionLabel(action, isExisting);
-        const isRunning = action.status === 'running';
-        const isDone = action.status === 'complete';
-        const isFailed = action.status === 'failed';
-
-        return (
-          <div
-            key={idx}
-            className={classNames(
-              'inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-mono tracking-tight rounded-sm transition-all duration-200',
-              {
-                'text-bolt-elements-textPrimary bg-cyan-500/8': isRunning,
-                'text-bolt-elements-textTertiary': isDone,
-                'text-rose-400': isFailed,
-                'text-bolt-elements-textTertiary opacity-60': action.status === 'pending' || action.status === 'aborted',
-              },
-            )}
-          >
-            {isRunning ? (
-              <div className="i-svg-spinners:90-ring-with-bg text-cyan-400 text-xs shrink-0" />
-            ) : isDone ? (
-              <div className="i-ph:check text-emerald-500/70 text-xs shrink-0" />
-            ) : isFailed ? (
-              <div className="i-ph:x text-rose-400 text-xs shrink-0" />
-            ) : (
-              <div className="i-ph:circle text-bolt-elements-textTertiary text-xs shrink-0 opacity-40" />
-            )}
-
-            <span className="truncate">
-              {isRunning || action.status === 'pending' ? labels.active : labels.done}
-            </span>
-          </div>
-        );
-      })}
-
-      {isStreaming && !hasRunningAction && actionsList.length > 0 && (
-        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-mono tracking-tight text-bolt-elements-textSecondary animate-pulse">
-          <div className="i-svg-spinners:90-ring-with-bg text-cyan-400 text-xs shrink-0" />
-          <span>Finishing up…</span>
-        </div>
-      )}
-    </div>
-  );
-});
 
 export const ActivityTimeline = memo(({ messageId, isStreaming = false }: ActivityTimelineProps) => {
-  const artifacts = useStore(workbenchStore.artifacts);
-  const artifact = messageId ? artifacts[messageId] : undefined;
+  const messageKeys = useMemo(() => (messageId ? [messageId] : []), [messageId]);
+  const stepsByMessage = useStore(activitySteps, { keys: messageKeys });
+  const [showAll, setShowAll] = useState(false);
+  const steps = messageId ? (stepsByMessage[messageId] ?? []) : [];
+  const hiddenCount = Math.max(0, steps.length - VISIBLE_STEPS);
+  const displayed = showAll ? steps : steps.slice(hiddenCount);
 
-  if (artifact) {
-    return <ActivityTimelineInner artifact={artifact} isStreaming={isStreaming} />;
-  }
-
-  if (!isStreaming) {
+  if (steps.length === 0 && !isStreaming) {
     return null;
   }
 
   return (
-    <div className="flex flex-col gap-1 my-2">
-      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-mono tracking-tight text-bolt-elements-textSecondary animate-pulse">
-        <div className="i-svg-spinners:90-ring-with-bg text-cyan-400 text-xs shrink-0" />
-        <span>Thinking…</span>
-      </div>
+    <div className="flex flex-col gap-1 my-2" aria-label="Build activity" role="status" aria-live="polite">
+      {hiddenCount > 0 && (
+        <button
+          type="button"
+          className="text-left text-[11px] text-bolt-elements-textSecondary hover:underline px-2"
+          onClick={() => setShowAll((value) => !value)}
+        >
+          {showAll ? 'Show recent steps' : `Show ${hiddenCount} earlier steps`}
+        </button>
+      )}
+
+      {displayed.map((step) => (
+        <button
+          key={step.id}
+          type="button"
+          disabled={!step.filePath}
+          onClick={() => {
+            if (!step.filePath) {
+              return;
+            }
+
+            workbenchStore.setSelectedFile(step.filePath);
+            workbenchStore.showWorkbench.set(true);
+            workbenchStore.preferPlayView.set(false);
+            workbenchStore.currentView.set('code');
+          }}
+          title={step.filePath ? `Open ${step.filePath} in Code` : stepLabel(step)}
+          className={classNames(
+            'inline-flex items-center gap-1.5 px-2 py-0.5 text-left text-[11px] font-mono tracking-tight rounded-sm disabled:cursor-default',
+            {
+              'text-bolt-elements-textPrimary bg-cyan-500/8': step.status === 'running',
+              'text-bolt-elements-textTertiary': step.status === 'complete',
+              'text-rose-400': step.status === 'failed',
+              'text-bolt-elements-textTertiary opacity-60': step.status === 'pending' || step.status === 'aborted',
+            },
+          )}
+        >
+          {step.status === 'running' ? (
+            <div className="i-svg-spinners:90-ring-with-bg text-cyan-400 text-xs shrink-0" />
+          ) : step.status === 'complete' ? (
+            <div className="i-ph:check text-emerald-500/70 text-xs shrink-0" />
+          ) : step.status === 'failed' ? (
+            <div className="i-ph:x text-rose-400 text-xs shrink-0" />
+          ) : (
+            <div className="i-ph:circle text-bolt-elements-textTertiary text-xs shrink-0 opacity-40" />
+          )}
+          <span className="truncate">{stepLabel(step)}</span>
+          {step.filePath && <span className="i-ph:arrow-square-out text-[10px] opacity-50" aria-hidden="true" />}
+        </button>
+      ))}
+
+      {isStreaming && steps.length === 0 && (
+        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-mono text-bolt-elements-textSecondary animate-pulse">
+          <div className="i-svg-spinners:90-ring-with-bg text-cyan-400 text-xs shrink-0" />
+          <span>Thinking…</span>
+        </div>
+      )}
     </div>
   );
 });

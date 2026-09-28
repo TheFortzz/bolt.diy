@@ -2,6 +2,8 @@ import type { WebContainer } from '@webcontainer/api';
 import { atom } from 'nanostores';
 import { getWebContainer } from '~/lib/webcontainer';
 import { workbenchStore } from '~/lib/stores/workbench';
+import { actionStepId, runActivityStep, startActivity, updateActivity } from '~/lib/stores/activity';
+import { cleanWorkDirRelativePath } from '~/utils/diff';
 import { validatePreview } from './preview-validation';
 
 export type ValidationState = { status: 'idle' | 'checking' | 'passed' | 'failed'; detail: string };
@@ -57,35 +59,45 @@ export async function validateBuild(messageId: string): Promise<{ ok: boolean; e
   validationState.set({ status: 'checking', detail: 'Waiting for files…' });
 
   try {
-    await workbenchStore.waitForExecutionQueue();
+    const actions = await runActivityStep(
+      messageId,
+      'validation:actions',
+      'Applying generated files',
+      async () => {
+        await workbenchStore.waitForExecutionQueue();
 
-    const artifact = workbenchStore.artifacts.get()[messageId];
+        const artifact = workbenchStore.artifacts.get()[messageId];
 
-    if (!artifact || !artifact.closed) {
-      throw new Error('The AI response ended before its build was complete.');
-    }
+        if (!artifact || !artifact.closed) {
+          throw new Error('The AI response ended before its build was complete.');
+        }
 
-    const actions = Object.values(artifact.runner.actions.get());
-    const failures = actions.filter((action) => action.status === 'failed' || action.status === 'aborted');
+        const actions = Object.values(artifact.runner.actions.get());
+        const failures = actions.filter((action) => action.status === 'failed' || action.status === 'aborted');
 
-    if (failures.length) {
-      throw new Error(
-        safeDiagnostic(
-          failures
-            .map((action) => (action.status === 'failed' ? action.error : `${action.type} action was interrupted`))
-            .join('\n'),
-        ),
-      );
-    }
+        if (failures.length) {
+          throw new Error(
+            safeDiagnostic(
+              failures
+                .map((action) => (action.status === 'failed' ? action.error : `${action.type} action was interrupted`))
+                .join('\n'),
+            ),
+          );
+        }
 
-    if (
-      actions.some(
-        (action) =>
-          (action.type !== 'start' && action.status === 'pending') || (action.type === 'file' && !action.executed),
-      )
-    ) {
-      throw new Error('Some generated files were not completely written.');
-    }
+        if (
+          actions.some(
+            (action) =>
+              (action.type !== 'start' && action.status === 'pending') || (action.type === 'file' && !action.executed),
+          )
+        ) {
+          throw new Error('Some generated files were not completely written.');
+        }
+
+        return actions;
+      },
+      'Generated files applied',
+    );
 
     const changedPaths = actions.filter((action) => action.type === 'file').map((action) => action.filePath);
 
@@ -93,24 +105,53 @@ export async function validateBuild(messageId: string): Promise<{ ok: boolean; e
       throw new Error('No generated files were found in this build.');
     }
 
-    const wc = await getWebContainer();
+    const wc = await runActivityStep(
+      messageId,
+      'validation:container',
+      'Preparing code checks',
+      getWebContainer,
+      'Checks ready',
+    );
     validationState.set({ status: 'checking', detail: 'Checking generated code…' });
 
     for (const path of changedPaths) {
-      const content = await wc.fs.readFile(path, 'utf8');
+      const name = cleanWorkDirRelativePath(path);
+      const content = await runActivityStep(
+        messageId,
+        `validation:read:${path}`,
+        `Reading ${name}`,
+        () => wc.fs.readFile(path, 'utf8'),
+        `Read ${name}`,
+      );
 
       if (path.endsWith('.json')) {
-        try {
-          JSON.parse(content);
-        } catch (error) {
-          throw new Error(`${path}: ${(error as Error).message}`);
-        }
+        await runActivityStep(
+          messageId,
+          `validation:syntax:${path}`,
+          `Checking ${name}`,
+          async () => {
+            try {
+              JSON.parse(content);
+            } catch (error) {
+              throw new Error(`${path}: ${(error as Error).message}`);
+            }
+          },
+          `Syntax passed: ${name}`,
+        );
       } else if (/\.(?:js|mjs|cjs)$/.test(path)) {
-        const error = await runCheck(wc, 'node', ['--check', path]);
+        await runActivityStep(
+          messageId,
+          `validation:syntax:${path}`,
+          `Checking ${name}`,
+          async () => {
+            const error = await runCheck(wc, 'node', ['--check', path]);
 
-        if (error) {
-          throw new Error(error);
-        }
+            if (error) {
+              throw new Error(error);
+            }
+          },
+          `Syntax passed: ${name}`,
+        );
       }
     }
 
@@ -133,11 +174,19 @@ export async function validateBuild(messageId: string): Promise<{ ok: boolean; e
 
       validationState.set({ status: 'checking', detail: `Running ${script} check…` });
 
-      const error = await runCheck(wc, 'npm', ['run', script]);
+      await runActivityStep(
+        messageId,
+        `validation:script:${script}`,
+        `Running ${script} check`,
+        async () => {
+          const error = await runCheck(wc, 'npm', ['run', script]);
 
-      if (error) {
-        throw new Error(error);
-      }
+          if (error) {
+            throw new Error(error);
+          }
+        },
+        `${script} check passed`,
+      );
     }
 
     if (!scripts?.typecheck && !scripts?.build && changedPaths.some((path) => /\.(?:ts|tsx|jsx)$/.test(path))) {
@@ -146,11 +195,27 @@ export async function validateBuild(messageId: string): Promise<{ ok: boolean; e
 
     validationState.set({ status: 'checking', detail: 'Loading preview…' });
 
-    const preview = await validatePreview();
+    await runActivityStep(
+      messageId,
+      'validation:preview',
+      'Loading preview',
+      async () => {
+        const preview = await validatePreview();
 
-    if (!preview.ok) {
-      throw new Error(preview.error);
+        if (!preview.ok) {
+          throw new Error(preview.error);
+        }
+      },
+      'Preview loaded',
+    );
+
+    for (const [actionId, action] of Object.entries(workbenchStore.artifacts.get()[messageId].runner.actions.get())) {
+      if (action.type === 'start' && action.status !== 'failed' && action.status !== 'aborted') {
+        updateActivity(messageId, actionStepId(actionId), 'complete');
+      }
     }
+
+    startActivity(messageId, 'validation:result', 'Build verified', 'Build verified', 'complete');
 
     validationState.set({ status: 'passed', detail: 'Build and preview verified' });
 
@@ -158,6 +223,7 @@ export async function validateBuild(messageId: string): Promise<{ ok: boolean; e
   } catch (error) {
     const detail = (error as Error).message || 'Build validation failed';
     validationState.set({ status: 'failed', detail });
+    startActivity(messageId, 'validation:failed', 'Build not verified', 'Build not verified', 'failed');
 
     return { ok: false, error: detail };
   }
