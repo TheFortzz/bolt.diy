@@ -23,16 +23,17 @@ export const STUDIO_MODE_INSTRUCTIONS: Record<StudioAgentMode, string> = {
     'End by asking whether the user wants you to build this plan.',
   ].join(' '),
   build: [
-    'STUDIO MODE = BUILD.',
-    'Skip long planning and build the requested concept as a complete runnable project.',
-    'Choose the file names, module boundaries, rendering approach, and game systems that fit the idea; do not copy a standard template.',
-    'Use focused files when useful, but never add empty modules or placeholders just to reach a file count.',
+    'STUDIO MODE = BUILD (FULL PRODUCTION SCALE).',
+    'Build an expansive, feature-packed game with substantial depth: implement at least 3 distinct playable tracks/levels/stages, multiple selectable vehicles/characters with distinct handling and stats, an upgrade shop/garage with currency progression, competitive AI opponents/rivals, a rich HUD (mini-map, speedometer, nitro gauge, combo popups), and a complete procedural Web Audio sound synthesizer.',
+    'Take the full token budget to write complete, robust files rather than a minimal 1-minute prototype.',
+    'Choose unique, creative themes and original visual aesthetics tailored to the concept — never repeat generic prototypes.',
   ].join(' '),
   auto: [
-    'STUDIO MODE = AUTO.',
-    'Execute the deep game design reasoning protocol before building: analyze core mechanics, fun factors, failure mode mitigations, and ensure all files are created directly as flat outside files without home or project subfolders.',
-    'Build the concept as a high-quality, complete runnable project with an immediate playable entry point and appropriate start command.',
-    "Preserve the user's requested genre, theme, and perspective instead of defaulting to a generic canvas layout.",
+    'STUDIO MODE = AUTO (FULL PRODUCTION SCALE).',
+    'Build an expansive, ambitious game with deep mechanics: multiple tracks/stages, vehicle/character selection roster, upgrade systems, AI competitors, particle systems, and procedural sound synthesis.',
+    'Execute the game design reasoning protocol to invent a fresh, bold concept and mitigate failure modes.',
+    'Build all files as flat outside files directly in the root directory without home or project subfolders.',
+    'Ensure immediate playability, zero undefined math helpers, and complete syntax in every file.',
   ].join(' '),
 };
 

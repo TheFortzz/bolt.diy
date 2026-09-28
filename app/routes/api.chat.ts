@@ -52,7 +52,13 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
       toolChoice: 'none',
       onFinish: async ({ text: content, finishReason }) => {
         try {
-          if (finishReason !== 'length' || !content || content.trim().length === 0) {
+          const hasUnclosedArtifact = content.includes('<boltArtifact') && !content.includes('</boltArtifact>');
+          const hasUnclosedAction =
+            content.includes('<boltAction') &&
+            content.lastIndexOf('<boltAction') > content.lastIndexOf('</boltAction>');
+          const shouldContinue = finishReason === 'length' || hasUnclosedArtifact || hasUnclosedAction;
+
+          if (!shouldContinue || !content || content.trim().length === 0) {
             return stream.close();
           }
 
@@ -62,7 +68,9 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
           }
 
           const switchesLeft = MAX_RESPONSE_SEGMENTS - stream.switches;
-          console.log(`Reached max token limit: Continuing message (${switchesLeft} switches left)`);
+          console.log(
+            `Continuing response for big build (${switchesLeft} switches left): reason=${finishReason}, unclosedArtifact=${hasUnclosedArtifact}, unclosedAction=${hasUnclosedAction}`,
+          );
 
           messages.push({ role: 'assistant', content });
           messages.push({ role: 'user', content: CONTINUE_PROMPT });

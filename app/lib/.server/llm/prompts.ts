@@ -22,19 +22,55 @@ const CREATIVE_GAME_GUIDANCE = `
   trusted CDN and its documented API is used correctly. Never invent an engine
   or API.
 
+  <big_game_mandate>
+    CRITICAL PLATFORM MANDATE: ALWAYS BUILD BIG, EXPANSIVE, FULL-FEATURED GAMES.
+    THEFORTZ is an elite game creation platform. NEVER build a small demo, a 1-minute toy,
+    a single-screen prototype, or a lone vehicle on an empty track!
+    Take the full time and token depth required to build rich, professional-grade games:
+    1. MULTI-TRACK / MULTI-STAGE PROGRESSION:
+       - Every game must feature at least 3 distinct playable tracks, stages, levels, or biomes
+         (e.g. Track 1: Neon Downtown, Track 2: Canyon Sunset, Track 3: Cyber Summit), or an infinite
+         procedurally generated world with scaling difficulty, biomes, and hazards.
+       - Include a Track/Stage Selection screen or automatic progression upon winning a race/stage.
+    2. VEHICLE / CHARACTER ROSTER & UPGRADE ECONOMY:
+       - Provide a roster of at least 3 distinct playable vehicles or characters with unique visuals,
+         colors, and handling characteristics (e.g. Speedster: high top speed; Drifter: agile steering and slip angle; Tank: heavy mass, ramming power, and shield).
+       - Implement a Garage & Upgrade Shop: earn in-game credits/coins from gameplay to upgrade attributes
+         (Top Speed, Acceleration, Handling/Drift, Boost/Nitro Capacity, Armor/Durability). Save all upgrades, coins, and records in localStorage!
+    3. COMPETITIVE AI OPPONENTS & RIVALS:
+       - Never let the player race or fight alone! Include 3 to 6 AI-controlled competitor vehicles/enemies
+         with waypoint following, overtaking, crash knockback, and rubber-banding to create tense, thrilling competition.
+    4. INTERACTIVE PRO HUD & COMBOS:
+       - Real-time mini-map showing track layout, player position, and rival dots.
+       - Speedometer gauge, RPM / gear indicator, nitro boost meter.
+       - Position rank (e.g. 1st / 6th), lap counter (Lap 2/3), lap timer with Best Lap persistence in localStorage.
+       - Drift score combo counter with multipliers (e.g. "x3 DRIFT COMBO! +900 PTS").
+    5. PROCEDURAL WEB AUDIO SYNTHESIZER:
+       - Real-time AudioContext synthesizer: dynamic engine pitch scaling with speed, tire screech on drift,
+         nitro boost whoosh, crash impacts with screen shake, start countdown beeps (3-2-1-GO!), checkpoint chimes, and victory/game over fanfare.
+    6. FULL GAME LOOP & POLISH:
+       - Main Menu (Play, Select Track, Garage / Upgrades, Controls) -> Active Race/Game -> Pause Menu (ESC/P) -> Victory Podium / Game Over screen with race summary and Play Again.
+  </big_game_mandate>
+
+  <creative_variety_engine>
+    FORBIDDEN CLONE: You are STRICTLY FORBIDDEN from defaulting to the generic 2D top-down yellow car on a gray oval track unless specifically requested.
+    Every game generation MUST be a fresh, bold, unique experience!
+    When asked for a car or racing game, you MUST select a DIFFERENT, inventive perspective and theme each time:
+    - Horizon Pseudo-3D Highway Racer (OutRun / Rad Racer style with road scaling, curves, hills, roadside scenery, oncoming traffic).
+    - Cyberpunk Anti-Gravity Wipeout (magnetic neon trenches, speed pads, shields, pulse weapons).
+    - Micro-Machines Tabletop Desk Derby (tiny RC cars on kitchen counters or office desks with giant props, pencil ramps, cereal boxes).
+    - Post-Apocalyptic Mad-Max Wasteland Combat (desert convoy pursuit, ramming spikes, oil slicks, nitro pickups, enemy war-rigs).
+    - Midnight City Drift & Taxi Rush (open city grid, passenger pickups, traffic lights, and police chases).
+    - Isometric Demolition Derby Arena (2.5D view with ramps, destructible crates, mud patches, and vehicle deformation sparks).
+    - Side-Scrolling Physics Stunt Buggy (Hill Climb style with spring suspension, deformable hills, backflips, and fuel management).
+    - Monster Truck Stadium Mayhem (giant bouncy tires, crushing scrap cars, stadium jump ramps, explosive barrels).
+    - Mountain Touge Tandem Drift (twisty night hairpins, cherry blossoms, rival ghost AI, drift angle gauges).
+    - Sci-Fi Tunnel Tube Racer (360-degree cylindrical tunnel with wall riding and supersonic boost rings).
+  </creative_variety_engine>
+
   <game_design_principles>
     Build immersive, responsive, and creative games with deep gameplay:
     - Creative Variety & Novelty: THEFORTZ is a creative game creation platform. Every game built must be fresh, original, and uniquely designed for the user's prompt. NEVER repeat the same generic prototype, boilerplate file names, or identical mechanics every time a user asks for a genre.
-      * When building vehicle or car games: Explore wildly different subgenres, perspectives, and mechanics! For example:
-        - High-speed pseudo-3D horizon-scaling road racer (OutRun / Super Hang-On style with curving road hills, roadside obstacles, and day/night transitions).
-        - Cyberpunk neon anti-gravity hovercraft racer with speed boost pads, energy shields, and pulse weapons.
-        - Isometric demolition derby or monster truck arena with destructible obstacles, mud physics, and vehicle deformation.
-        - Post-apocalyptic desert survival runner navigating minefields, fuel pickups, and chasing bandit war-rigs.
-        - Precision top-down drift rally with dynamic weather (rain, snow, ice) affecting surface grip and tire tracks.
-        - Micro-machines desktop racer across kitchen counters, classroom desks, or pool tables with everyday obstacles.
-        - Side-scrolling stunt racer (Excitebike / Hill Climb style) with airborne flips, suspension physics, and landing boosts.
-        - Urban delivery / taxi dash picking up passengers through a bustling city grid with police pursuit.
-      * When building action, RPG, puzzle, or arcade games: Innovate with distinct themes, memorable aesthetics, dynamic difficulty, and gameplay surprises.
     - Visual Polish & Aesthetic Variety: Choose a distinct color palette and visual theme appropriate to the game's unique setting. Vary backgrounds, terrain, sprites, and UI styling to match the game's theme and the user's description. Use particle emitters (sparks, dust, smoke, trails), floating combat/score text, and camera screen shake on impacts.
     - Deep Mechanics: Add progression, risk/reward choices, upgrade paths, combo counters, and smooth controls (WASD/Arrows + Mouse aim/click + touch buttons).
     - Immediate Playability: The game MUST start rendering as soon as it loads — or use a
@@ -303,17 +339,23 @@ system with something appropriate to the user's request.
 </examples>
 `;
 
-export const getSystemPrompt = (cwd: string = WORK_DIR, model?: string, modelInfo?: ModelInfo) => {
+export const getSystemPrompt = (
+  cwd: string = WORK_DIR,
+  model?: string,
+  modelInfo?: ModelInfo,
+  creativeCatalyst?: string,
+) => {
   if (model && shouldUseSimplifiedPrompt(model, modelInfo)) {
-    return getSimplifiedSystemPrompt(cwd);
+    return getSimplifiedSystemPrompt(cwd, creativeCatalyst);
   }
 
-  return getFullSystemPrompt(cwd);
+  return getFullSystemPrompt(cwd, creativeCatalyst);
 };
 
-const getSimplifiedSystemPrompt = (cwd: string = WORK_DIR) => `
+const getSimplifiedSystemPrompt = (cwd: string = WORK_DIR, creativeCatalyst?: string) => `
 ${OUTPUT_FORMAT}
 ${BASE_IDENTITY}
+${creativeCatalyst ? `\n<active_creative_catalyst>\n${creativeCatalyst}\nApply this creative archetype to build a bold, unique, and surprising game with full multi-level depth, vehicle roster, upgrade shop, AI opponents, rich HUD, and procedural Web Audio.\n</active_creative_catalyst>\n` : ''}
 ${GAME_DESIGN_REASONING_PROTOCOL}
 ${CREATIVE_GAME_GUIDANCE}
 ${ERROR_FIXING_AND_ITERATION_RULES}
@@ -340,9 +382,10 @@ Important:
 - Follow the <game_design_reasoning_protocol> thoroughly before generating any artifact.
 `;
 
-const getFullSystemPrompt = (cwd: string = WORK_DIR) => `
+const getFullSystemPrompt = (cwd: string = WORK_DIR, creativeCatalyst?: string) => `
 ${OUTPUT_FORMAT}
 ${BASE_IDENTITY}
+${creativeCatalyst ? `\n<active_creative_catalyst>\n${creativeCatalyst}\nApply this creative archetype to build a bold, unique, and surprising game with full multi-level depth, vehicle roster, upgrade shop, AI opponents, rich HUD, and procedural Web Audio.\n</active_creative_catalyst>\n` : ''}
 ${GAME_DESIGN_REASONING_PROTOCOL}
 ${CREATIVE_GAME_GUIDANCE}
 ${ERROR_FIXING_AND_ITERATION_RULES}

@@ -123,6 +123,8 @@ export function createAzureResponsesModel(apiKey: string, modelId: string = FORT
 
       if (typeof options.temperature === 'number') {
         body.temperature = options.temperature;
+      } else {
+        body.temperature = 0.85;
       }
 
       const response = await fetch(FORTZ_RESPONSES_URL, {
@@ -183,6 +185,8 @@ export function createAzureResponsesModel(apiKey: string, modelId: string = FORT
 
       if (typeof options.temperature === 'number') {
         body.temperature = options.temperature;
+      } else {
+        body.temperature = 0.85;
       }
 
       const response = await fetch(FORTZ_RESPONSES_URL, {
@@ -259,13 +263,17 @@ export function createAzureResponsesModel(apiKey: string, modelId: string = FORT
 
                 if (event?.type === 'response.output_text.delta' && typeof event.delta === 'string') {
                   enqueue({ type: 'text-delta', textDelta: event.delta });
-                } else if (event?.type === 'response.completed') {
+                } else if (event?.type === 'response.completed' || event?.type === 'response.done') {
                   usage = {
                     promptTokens: event?.response?.usage?.input_tokens ?? usage.promptTokens,
                     completionTokens: event?.response?.usage?.output_tokens ?? usage.completionTokens,
                   };
 
-                  if (event?.response?.status === 'incomplete') {
+                  if (
+                    event?.response?.status === 'incomplete' ||
+                    event?.response?.incomplete_details?.reason === 'max_output_tokens' ||
+                    event?.response?.status_details?.reason === 'max_output_tokens'
+                  ) {
                     finishReason = 'length';
                   }
                 } else if (event?.type === 'response.failed' || event?.type === 'error') {
