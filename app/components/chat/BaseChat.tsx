@@ -123,7 +123,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const [galleryOpen, setGalleryOpen] = useState(false);
     const [showWorkbench, setShowWorkbench] = useState(false);
     const [auth, setAuth] = useState<{ user: any }>({ user: null });
-    const isSmallViewport = useViewport(1024);
+    const isSmallViewport = useViewport(768);
 
     useEffect(() => {
       // Subscribe to nanostores after hydration to avoid SSR mismatch (#418/#425)
@@ -407,7 +407,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       <div
         ref={ref}
         className={classNames(styles.BaseChat, 'relative flex h-full w-full overflow-hidden')}
-        data-chat-visible={showChat}
+        data-chat-visible="true"
         style={{
           '--sidebar-width': `${sidebarWidth}px`,
           '--chat-compact-width': `${chatCompactWidth}px`,

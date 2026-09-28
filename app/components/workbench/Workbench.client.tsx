@@ -156,7 +156,7 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
     }
   };
 
-  const isSmallViewport = useViewport(1024);
+  const isSmallViewport = useViewport(768);
   const wasStreamingRef = useRef(false);
 
   const setSelectedView = useCallback((view: WorkbenchViewType) => {
@@ -258,7 +258,9 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
         initial="closed"
         animate={showWorkbench ? 'open' : 'closed'}
         variants={workbenchVariants}
-        className="z-workbench"
+        className={classNames('z-workbench', {
+          'z-30': showWorkbench && isSmallViewport,
+        })}
       >
         <div
           className={classNames(
@@ -287,6 +289,16 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
                 }}
                 className="flex items-center px-3 py-2 text-white shadow-sm"
               >
+                {isSmallViewport && (
+                  <PanelHeaderButton
+                    className="mr-2 text-xs"
+                    title="Return to Chat"
+                    onClick={() => workbenchStore.showWorkbench.set(false)}
+                  >
+                    <div className="i-ph:chat-circle-dots" />
+                    Chat
+                  </PanelHeaderButton>
+                )}
                 <Slider selected={selectedView} options={sliderOptions} setSelected={setSelectedView} />
                 {validation.status === 'checking' && <span className="ml-2 text-xs" role="status">{validation.detail || 'Checking build…'}</span>}
                 {validation.status === 'failed' && <span className="ml-2 text-xs" role="status" title={validation.detail}>Build not verified</span>}

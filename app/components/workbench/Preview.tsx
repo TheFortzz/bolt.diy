@@ -254,14 +254,18 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       return undefined;
     }
 
+    // While AI is actively writing/streaming files, hold onto the last known good preview.
+    // NEVER mount half-streamed syntax-broken code into the iframe.
+    if (isStreaming) {
+      return lastGoodHtmlRef.current;
+    }
+
     if (fallbackHtml && !fallbackIncomplete) {
       lastGoodHtmlRef.current = fallbackHtml;
       return fallbackHtml;
     }
 
-    // While AI works or if current HTML is incomplete, show last good build if available;
-    // NEVER mount half-streamed syntax-broken code into the iframe.
-    if (isStreaming || fallbackIncomplete) {
+    if (fallbackIncomplete) {
       return lastGoodHtmlRef.current;
     }
 
