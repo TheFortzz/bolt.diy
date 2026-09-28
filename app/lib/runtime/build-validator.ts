@@ -59,34 +59,38 @@ async function runCheck(
   args: string[],
   timeoutMs = 60000,
 ): Promise<string | undefined> {
-  const process = await wc.spawn(command, args, { cwd: wc.workdir });
-  let output = '';
-  const outputDone = process.output.pipeTo(
-    new WritableStream<string>({
-      write(chunk) {
-        output = (output + chunk).slice(-MAX_OUTPUT);
-      },
-    }),
-  );
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-
   try {
-    const code = await Promise.race([
-      process.exit,
-      new Promise<never>((_, reject) => {
-        timeout = setTimeout(() => {
-          void process.kill();
-          reject(new Error(`${command} ${args.join(' ')} timed out`));
-        }, timeoutMs);
+    const process = await wc.spawn(command, args, { cwd: wc.workdir });
+    let output = '';
+    const outputDone = process.output.pipeTo(
+      new WritableStream<string>({
+        write(chunk) {
+          output = (output + chunk).slice(-MAX_OUTPUT);
+        },
       }),
-    ]);
-    await outputDone;
+    );
+    let timeout: ReturnType<typeof setTimeout> | undefined;
 
-    return code === 0 ? undefined : `${command} ${args.join(' ')} failed (${code}): ${safeDiagnostic(output)}`;
-  } finally {
-    if (timeout) {
-      clearTimeout(timeout);
+    try {
+      const code = await Promise.race([
+        process.exit,
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => {
+            void process.kill();
+            reject(new Error(`${command} ${args.join(' ')} timed out`));
+          }, timeoutMs);
+        }),
+      ]);
+      await outputDone;
+
+      return code === 0 ? undefined : `${command} ${args.join(' ')} failed (${code}): ${safeDiagnostic(output)}`;
+    } finally {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
     }
+  } catch (error: any) {
+    return `${command} failed: ${error?.message || String(error)}`;
   }
 }
 
@@ -151,7 +155,6 @@ export async function validateBuild(messageId: string): Promise<{ ok: boolean; e
 
     for (const rawPath of changedPaths) {
       const name = cleanWorkDirRelativePath(rawPath);
-      const safePath = rawPath.startsWith('home/project/') ? `/${rawPath}` : rawPath;
 
       const content = await runActivityStep(
         messageId,
@@ -161,7 +164,8 @@ export async function validateBuild(messageId: string): Promise<{ ok: boolean; e
           try {
             return await wc.fs.readFile(name, 'utf8');
           } catch {
-            return await wc.fs.readFile(safePath, 'utf8');
+            const absPath = `${wc.workdir.replace(/\/+$/, '')}/${name}`;
+            return await wc.fs.readFile(absPath, 'utf8');
           }
         },
         `Read ${name}`,
@@ -187,6 +191,11 @@ export async function validateBuild(messageId: string): Promise<{ ok: boolean; e
           `validation:syntax:${name}`,
           `Checking ${name}`,
           async () => {
+            const syntaxErr = validateJavaScriptSyntax(content, name);
+            if (syntaxErr) {
+              throw new Error(syntaxErr);
+            }
+
             const checkTarget = rawPath.startsWith(wc.workdir)
               ? rawPath
               : `${wc.workdir.replace(/\/+$/, '')}/${name}`;
@@ -201,11 +210,6 @@ export async function validateBuild(messageId: string): Promise<{ ok: boolean; e
             }
 
             if (error) {
-              const syntaxErr = validateJavaScriptSyntax(content, name);
-              if (syntaxErr) {
-                throw new Error(syntaxErr);
-              }
-
               const lower = error.toLowerCase();
               if (
                 lower.includes('syntaxerror') &&
@@ -215,6 +219,7 @@ export async function validateBuild(messageId: string): Promise<{ ok: boolean; e
                 throw new Error(error);
               }
 
+              // In-memory syntax check already passed; ignore environment spawn/not found errors
               return;
             }
           },

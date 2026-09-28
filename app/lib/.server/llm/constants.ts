@@ -4,4 +4,4 @@ export const MAX_TOKENS = 16384;
 
 // limits the number of model responses that can be returned in a single request
 // More segments = continuations can finish large multi-file projects.
-export const MAX_RESPONSE_SEGMENTS = 8;
+export const MAX_RESPONSE_SEGMENTS = 16;

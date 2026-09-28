@@ -128,7 +128,10 @@ export async function streamText(props: {
   // Trim messages for smaller models to fit context window
   const trimmedMessages = trimMessagesForSmallModel(processedMessages, currentModel, modelDetails);
 
-  const dynamicMaxTokens = modelDetails && modelDetails.maxTokenAllowed ? modelDetails.maxTokenAllowed : MAX_TOKENS;
+  const dynamicMaxTokens = Math.max(
+    modelDetails && modelDetails.maxTokenAllowed ? modelDetails.maxTokenAllowed : MAX_TOKENS,
+    MAX_TOKENS,
+  );
 
   const lastUserMessage = [...processedMessages].reverse().find((m) => m.role === 'user');
   const userText = lastUserMessage
@@ -141,7 +144,7 @@ export async function streamText(props: {
 
   let creativeCatalyst: string | undefined = undefined;
   const isGameOrCarBuild =
-    /\b(car|race|racing|drive|driving|vehicle|game|play|arcade|drift|kart|runner|platformer|rpg|shoot|action)\b/i.test(
+    /\b(car|race|racing|drive|driving|vehicle|game|play|arcade|drift|kart|runner|platformer|rpg|shoot|action|puzzle|roguelite|rogue|metroidvania|space|defense|arena|sim|simulator|physics|craft|build|level|levels|track|tracks)\b/i.test(
       userText,
     );
 

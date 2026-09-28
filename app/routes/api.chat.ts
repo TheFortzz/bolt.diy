@@ -5,7 +5,7 @@ import SwitchableStream from '~/lib/.server/llm/switchable-stream';
 import type { IProviderSetting } from '~/types/model';
 
 const MAX_TOKENS = 16384;
-const MAX_RESPONSE_SEGMENTS = 8;
+const MAX_RESPONSE_SEGMENTS = 16;
 
 export async function action(args: ActionFunctionArgs) {
   return chatAction(args);
@@ -46,16 +46,18 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
   );
 
   const stream = new SwitchableStream();
+  let fullContent = '';
 
   try {
     const options: StreamingOptions = {
       toolChoice: 'none',
       onFinish: async ({ text: content, finishReason }) => {
         try {
-          const hasUnclosedArtifact = content.includes('<boltArtifact') && !content.includes('</boltArtifact>');
+          fullContent += content;
+          const hasUnclosedArtifact = fullContent.includes('<boltArtifact') && !fullContent.includes('</boltArtifact>');
           const hasUnclosedAction =
-            content.includes('<boltAction') &&
-            content.lastIndexOf('<boltAction') > content.lastIndexOf('</boltAction>');
+            fullContent.includes('<boltAction') &&
+            fullContent.lastIndexOf('<boltAction') > fullContent.lastIndexOf('</boltAction>');
           const shouldContinue = finishReason === 'length' || hasUnclosedArtifact || hasUnclosedAction;
 
           if (!shouldContinue || !content || content.trim().length === 0) {
@@ -71,6 +73,8 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
           console.log(
             `Continuing response for big build (${switchesLeft} switches left): reason=${finishReason}, unclosedArtifact=${hasUnclosedArtifact}, unclosedAction=${hasUnclosedAction}`,
           );
+
+          stream.markSwitchPending();
 
           messages.push({ role: 'assistant', content });
           messages.push({ role: 'user', content: CONTINUE_PROMPT });

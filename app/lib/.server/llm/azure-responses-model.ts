@@ -118,7 +118,9 @@ export function createAzureResponsesModel(apiKey: string, modelId: string = FORT
       }
 
       if (typeof options.maxTokens === 'number') {
-        body.max_output_tokens = options.maxTokens;
+        body.max_output_tokens = Math.max(options.maxTokens, 16384);
+      } else {
+        body.max_output_tokens = 16384;
       }
 
       if (typeof options.temperature === 'number') {
@@ -180,7 +182,9 @@ export function createAzureResponsesModel(apiKey: string, modelId: string = FORT
       }
 
       if (typeof options.maxTokens === 'number') {
-        body.max_output_tokens = options.maxTokens;
+        body.max_output_tokens = Math.max(options.maxTokens, 16384);
+      } else {
+        body.max_output_tokens = 16384;
       }
 
       if (typeof options.temperature === 'number') {
@@ -263,6 +267,15 @@ export function createAzureResponsesModel(apiKey: string, modelId: string = FORT
 
                 if (event?.type === 'response.output_text.delta' && typeof event.delta === 'string') {
                   enqueue({ type: 'text-delta', textDelta: event.delta });
+                } else if (event?.type === 'response.text.delta' && typeof event.delta === 'string') {
+                  enqueue({ type: 'text-delta', textDelta: event.delta });
+                } else if (event?.type === 'response.output_text.delta' && typeof event.delta?.text === 'string') {
+                  enqueue({ type: 'text-delta', textDelta: event.delta.text });
+                } else if (
+                  (event?.type === 'response.reasoning_text.delta' || event?.type === 'response.thought.delta') &&
+                  typeof event.delta === 'string'
+                ) {
+                  enqueue({ type: 'reasoning', textDelta: event.delta } as any);
                 } else if (event?.type === 'response.completed' || event?.type === 'response.done') {
                   usage = {
                     promptTokens: event?.response?.usage?.input_tokens ?? usage.promptTokens,

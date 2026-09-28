@@ -169,7 +169,7 @@ const GAME_DESIGN_REASONING_PROTOCOL = `
 
   Every game generation response MUST begin with a comprehensive <plan> covering:
   1. FLAT OUTSIDE FILE STRUCTURE (NO HOME, PROJECT, OR PROJECTS FOLDERS):
-     - Put all files directly in the root directory as plain outside files (e.g. index.html, game.js, style.css).
+     - Put all files directly in the root directory as plain outside files (e.g. index.html, game.js, style.css, utils.js).
      - NEVER create, use, or mention a "project", "projects", "home", or "/home/project" folder.
      - Every file path must be a flat, simple filename (e.g. filePath="index.html", filePath="game.js").
      - Never nest files inside /home, /project, /projects, or any subdirectories unless explicitly requested by the user.
@@ -190,9 +190,24 @@ const GAME_DESIGN_REASONING_PROTOCOL = `
      - Screen & Canvas Scaling: Synchronize canvas buffer resolution with devicePixelRatio and window resize handlers to avoid blurry or stretched graphics.
      - Start Screen & Audio Context: If a Click to Start overlay is used, wire its click handler directly to the game init function so canvas rendering begins immediately without getting stuck.
      - Input Tracking: Use robust keydown/keyup tracking with a window blur listener to prevent stuck movement keys.
-     - Script Loading Order: In index.html, load modular dependency scripts (audio, input, physics, entities) before the main game loop script using standard <script src="..."></script> tags (without type="module").
-     - Zero Undefined Math & Helper References: Standard browser JavaScript does NOT have built-in vector or game math helpers. NEVER call vecLength, vecNormalize, vecDot, clamp, lerp, dist, or angleBetween without explicitly defining them in your code (e.g. 'const vecLength = (v) => Math.hypot(v.x, v.y);', 'const clamp = (v, min, max) => Math.max(min, Math.min(max, v));'). Prefer inline native math like 'Math.hypot(dx, dy)'.
-     - Null-Safe Game Loops & Entities: Initialize all entity vectors and properties in constructors ('this.pos = { x: 0, y: 0 }; this.vel = { x: 0, y: 0 };'). Wrap physics and animation loop updates with guard checks so missing properties never trigger TypeError or crash the game loop.
+     - Script Loading Order: In index.html, load modular dependency scripts (utils.js -> audio.js -> input.js -> entities/track -> game.js) using standard <script src="..."></script> tags (without type="module").
+     - Zero Undefined Math & Helper References: Standard browser JavaScript does NOT have built-in vector or game math helpers. NEVER call vecLength, vecNormalize, vecDot, clamp, lerp, dist, or angleBetween without explicitly defining them in your code.
+       * Always create a dedicated utils.js loaded FIRST in index.html, exposing helpers globally and on window:
+         'window.clamp = (v, min, max) => Math.max(min, Math.min(max, v));'
+         'window.lerp = (a, b, t) => a + (b - a) * t;'
+         'window.vecLength = (v) => Math.hypot(v.x, v.y);'
+         'window.vecNormalize = (v) => { const len = Math.hypot(v.x, v.y) || 1; return { x: v.x / len, y: v.y / len }; };'
+         'window.dist = (x1, y1, x2, y2) => Math.hypot(x2 - x1, y2 - y1);'
+       * In addition, defensively define 'clamp' and 'vecLength' at the top of any physics/movement file so script order changes never trigger ReferenceError.
+     - No ES6 import/export in Non-Bundled Browser Scripts: Browsers throw 'Uncaught SyntaxError: Cannot use import statement outside a module'. Attach classes and shared objects to window (e.g. 'window.Car = class Car ...', 'window.Track = class Track ...') so all files communicate reliably without bundlers.
+     - Null-Safe Game Loops & Entities: Initialize all entity vectors and properties in constructors ('this.pos = { x: 0, y: 0 }; this.vel = { x: 0, y: 0 }; this.speed = 0; this.angle = 0; this.health = 100;'). Wrap physics and animation loop updates with guard checks so missing properties never trigger TypeError or crash the game loop.
+
+  5. BIG GAME ARCHITECTURAL BLUEPRINT (THINK DEEPLY BEFORE CODING):
+     - Roster of 3+ Playable Vehicles/Characters with distinct handling physics (e.g. Speedster, Drift Spec, Armored Brawler).
+     - Multi-Track / Multi-Stage progression: At least 3 distinct tracks/levels with different environments, hazards, and curves.
+     - Garage & Upgrade Shop: In-game currency earned from gameplay, upgrading stats (Speed, Accel, Handling, Nitro) and saved to localStorage.
+     - 3+ Smart AI Competitors: AI rivals with waypoint pathfinding, obstacle avoidance, and overtaking.
+     - Full HUD & Sound: Speedometer, mini-map with track and car dots, lap timer & best lap tracker, position indicator (1st/4th), nitro meter, and procedural Web Audio engine pitch-shifting with speed.
 </game_design_reasoning_protocol>
 `;
 
@@ -435,10 +450,10 @@ Before finishing, verify:
 `;
 
 export const CONTINUE_PROMPT = stripIndents`
-  Continue the current response exactly where it stopped. Preserve the
-  architecture, visual direction, and file names already chosen for this
-  project. Emit only the remaining file actions that are needed to finish it,
-  then the required dependency or start action. Do not restart the project,
-  repeat completed files, switch to a conventional template, or replace a
-  creative design with a generic game layout. Never use placeholders.
+  Continue the response immediately from the exact point it stopped.
+  - If a file action was cut off mid-code, continue that exact file action immediately without repeating earlier lines, and close it with </boltAction>.
+  - Emit all remaining modular files needed for the complete, rich game (audio synthesizer, vehicle roster, track maps, particle systems, upgrade shop, AI opponents, game loop, styles).
+  - Ensure every function has matching closing braces, defensive math helper fallbacks, and zero syntax errors.
+  - When all files are emitted, close the project with </boltArtifact>.
+  - Do not restart the project, repeat already finished files, or use placeholders.
 `;

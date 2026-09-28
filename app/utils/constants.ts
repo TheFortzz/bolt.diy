@@ -24,16 +24,18 @@ export const STUDIO_MODE_INSTRUCTIONS: Record<StudioAgentMode, string> = {
   ].join(' '),
   build: [
     'STUDIO MODE = BUILD (FULL PRODUCTION SCALE).',
-    'Build an expansive, feature-packed game with substantial depth: implement at least 3 distinct playable tracks/levels/stages, multiple selectable vehicles/characters with distinct handling and stats, an upgrade shop/garage with currency progression, competitive AI opponents/rivals, a rich HUD (mini-map, speedometer, nitro gauge, combo popups), and a complete procedural Web Audio sound synthesizer.',
-    'Take the full token budget to write complete, robust files rather than a minimal 1-minute prototype.',
+    'Think deeply and architect the game thoroughly before writing code.',
+    'Build an expansive, feature-packed game with substantial depth: implement at least 3 distinct playable tracks/levels/stages, multiple selectable vehicles/characters with distinct handling and stats, an upgrade shop/garage with currency progression saved to localStorage, competitive AI opponents/rivals, a rich HUD (mini-map, speedometer, nitro gauge, combo popups), and a complete procedural Web Audio sound synthesizer.',
+    'Follow the Zero-ReferenceError Architecture: Define math helpers globally in utils.js on window and defensively inside physics/movement files (e.g. const vecLength = (v) => Math.hypot(v.x, v.y); const clamp = (v, min, max) => Math.max(min, Math.min(max, v));) so undefined functions never crash the game loop.',
+    'Take the full token budget to write complete, robust files across multiple modules rather than a minimal 1-minute prototype.',
     'Choose unique, creative themes and original visual aesthetics tailored to the concept — never repeat generic prototypes.',
   ].join(' '),
   auto: [
     'STUDIO MODE = AUTO (FULL PRODUCTION SCALE).',
+    'Execute the game design reasoning protocol to invent a fresh, bold concept, architect all interfaces, and mitigate failure modes.',
     'Build an expansive, ambitious game with deep mechanics: multiple tracks/stages, vehicle/character selection roster, upgrade systems, AI competitors, particle systems, and procedural sound synthesis.',
-    'Execute the game design reasoning protocol to invent a fresh, bold concept and mitigate failure modes.',
     'Build all files as flat outside files directly in the root directory without home or project subfolders.',
-    'Ensure immediate playability, zero undefined math helpers, and complete syntax in every file.',
+    'Ensure immediate playability, zero undefined math helpers, defensive fallbacks, null-safe constructors, and complete syntax in every file.',
   ].join(' '),
 };
 
