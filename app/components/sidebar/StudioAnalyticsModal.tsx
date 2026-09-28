@@ -51,15 +51,15 @@ export function StudioAnalyticsModal({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="font-black text-lg md:text-xl uppercase tracking-wider text-white font-['Anton',sans-serif]">
-                  Studio Analytics & Database Engine
+                  Studio Analytics & Local Storage Engine
                 </h2>
                 <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-emerald-950 text-emerald-300 border border-emerald-500/40" style={{ borderRadius: 0 }}>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Live Sync
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  Local Storage Active
                 </span>
               </div>
               <p className="text-[11px] text-emerald-200/70 font-mono">
-                Project ID: 6a83071d00217ab38269 • fra.cloud.appwrite.io
+                Local Browser Storage • IndexedDB & LocalStorage
               </p>
             </div>
           </div>
@@ -99,7 +99,7 @@ export function StudioAnalyticsModal({
             style={{ borderRadius: 0 }}
           >
             <div className="i-ph:database-bold text-sm" />
-            <span>Appwrite Database & Collections</span>
+            <span>Local Storage Database</span>
           </button>
           <button
             onClick={() => setActiveTab('storage')}
@@ -157,12 +157,12 @@ export function StudioAnalyticsModal({
 
                 <div className="p-4 bg-[#0a2314] border border-[#4ade80]/30 flex flex-col justify-between" style={{ borderRadius: 0 }}>
                   <div className="flex items-center justify-between text-xs text-emerald-300/80 font-bold uppercase tracking-wider">
-                    <span>Appwrite Cloud</span>
-                    <div className="i-ph:cloud-check-bold text-sky-400 text-sm" />
+                    <span>Cloud Sync</span>
+                    <div className="i-ph:cloud-slash-bold text-emerald-400 text-sm" />
                   </div>
-                  <div className="text-xl font-bold text-sky-300 mt-2 font-mono truncate">Connected</div>
-                  <div className="text-[10px] text-sky-400/80 mt-1 font-mono truncate">
-                    fra.cloud.appwrite.io
+                  <div className="text-xl font-bold text-emerald-300 mt-2 font-mono truncate">Disconnected</div>
+                  <div className="text-[10px] text-emerald-400/80 mt-1 font-mono truncate">
+                    Saved in Local Storage
                   </div>
                 </div>
               </div>
@@ -312,18 +312,18 @@ export function StudioAnalyticsModal({
             </div>
           )}
 
-          {/* TAB 2: APPWRITE DATABASE & COLLECTIONS SETUP GUIDE */}
+          {/* TAB 2: LOCAL STORAGE DATABASE */}
           {activeTab === 'appwrite' && (
             <div className="space-y-5 text-xs">
               {/* Highlight notice */}
               <div className="p-4 bg-[#082b13] border-l-4 border-[#4ade80] text-emerald-100 flex items-start gap-3" style={{ borderRadius: 0 }}>
-                <div className="i-ph:info-fill text-2xl text-[#4ade80] flex-shrink-0 mt-0.5" />
+                <div className="i-ph:check-circle-fill text-2xl text-[#4ade80] flex-shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <h4 className="font-extrabold text-sm uppercase tracking-wide text-white">
-                    Appwrite Database Collections Setup Guide
+                    Local Storage Database Architecture
                   </h4>
                   <p className="text-xs text-emerald-200/90 leading-relaxed">
-                    To enable community game publishing, user profile stats, multiplayer matchmaking, and cloud chat syncing, ensure the following database and collections exist in your Appwrite console.
+                    Studio is disconnected from Appwrite Cloud. All published projects, created games, chat histories, and working checkpoints are persisted directly in browser LocalStorage (<code className="text-emerald-300">thefortz_games</code>, <code className="text-emerald-300">fortz_chat_item_*</code>) and IndexedDB (<code className="text-emerald-300">boltHistory</code>).
                   </p>
                 </div>
               </div>

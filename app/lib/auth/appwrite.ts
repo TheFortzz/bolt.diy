@@ -160,43 +160,7 @@ export async function checkAuthSession(): Promise<AppwriteUser | null> {
     }
   } catch {}
 
-  try {
-    authStore.set({ ...authStore.get(), loading: true });
-
-    // Handle OAuth redirect return params first
-    await handleOAuthCallback();
-
-    const acc = getAppwriteAccount();
-    const current = await acc.get<Models.Preferences>().catch(() => null);
-
-    if (current && current.$id) {
-      const userObj: AppwriteUser = {
-        $id: current.$id,
-        name: current.name || current.email?.split('@')[0] || 'Creator',
-        email: current.email || '',
-        prefs: current.prefs || {},
-      };
-
-      // Sync Fortz balance from prefs or localStorage
-      const userBalance = (current.prefs as Record<string, any>)?.fortz_balance;
-      if (typeof userBalance === 'number') {
-        localStorage.setItem('thefortz_fortz_balance', String(userBalance));
-        window.dispatchEvent(new CustomEvent('thefortz-balance-updated', { detail: { balance: userBalance } }));
-      }
-
-      authStore.set({
-        user: userObj,
-        loading: false,
-        initialized: true,
-      });
-
-      return userObj;
-    }
-  } catch (error) {
-    // User is not signed in or session expired
-  }
-
-  // Preserve existing synced user if set by postMessage
+  // Appwrite cloud is disconnected. Hydrate session strictly from local storage / parent sync.
   const currentVal = authStore.get();
   if (!currentVal.user) {
     authStore.set({
@@ -350,13 +314,6 @@ export function appwriteLoginWithDiscord() {
  * Sign out of current Appwrite session
  */
 export async function appwriteLogout(): Promise<void> {
-  try {
-    const acc = getAppwriteAccount();
-    await acc.deleteSession('current');
-  } catch (e) {
-    console.warn('[Appwrite] Logout notice:', e);
-  }
-
   try {
     localStorage.removeItem('thefortz_synced_user');
   } catch {}

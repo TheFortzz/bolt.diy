@@ -144,18 +144,7 @@ export function useChatHistory() {
 
       const effectiveId = (chatId.get() || activeUrlId) as string;
       const effectiveUrlId = activeUrlId || effectiveId;
-      await setMessages(activeDb, effectiveId, messages, effectiveUrlId, currentDesc || 'Project ' + effectiveId);
-
-      // Local history must be durable before checkpointing; cloud sync is best-effort
-      // and must not leave the build waiting on a slow or offline network.
-      void import('./appwrite-chats')
-        .then(({ upsertStudioChat }) => upsertStudioChat({
-          chatId: effectiveId,
-          urlId: effectiveUrlId,
-          description: currentDesc || 'Project ' + effectiveId,
-          messages,
-        }))
-        .catch((error) => console.warn('Appwrite chat sync skipped:', error));
+      await setMessages(activeDb, effectiveId, messages, effectiveUrlId, currentDesc || 'Published Project ' + effectiveId);
     },
     duplicateCurrentChat: async (listItemId: string) => {
       const activeDb = db || (await dbPromise);

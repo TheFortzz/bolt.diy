@@ -1,7 +1,6 @@
 import type { Message } from 'ai';
 import { createScopedLogger } from '~/utils/logger';
 import type { ChatHistoryItem } from './useChatHistory';
-import { saveChatToAppwrite } from './appwriteChat';
 
 const logger = createScopedLogger('ChatHistory');
 
@@ -242,7 +241,6 @@ export async function setMessages(
       const request = store.put(chatItem);
 
       request.onsuccess = () => {
-        void saveChatToAppwrite(chatItem);
         resolve();
       };
       request.onerror = () => {

@@ -179,7 +179,7 @@ export function CommunityGalleryModal({ open, onClose, onSelectPrompt }: Communi
               style={{ borderRadius: 0 }}
             >
               <div className="i-ph:folder-fill text-sm text-amber-400" />
-              <span>My Created Projects ({createdList.length})</span>
+              <span>My Published Projects ({createdList.length})</span>
             </button>
 
             <button
@@ -225,7 +225,7 @@ export function CommunityGalleryModal({ open, onClose, onSelectPrompt }: Communi
                   <div className="i-ph:folder-open-fill text-3xl text-amber-400" />
                 </div>
                 <h3 className="text-lg font-bold text-white uppercase tracking-wider mb-1">
-                  No Created Projects Yet
+                  No Published Projects Yet
                 </h3>
                 <p className="text-xs text-slate-400 max-w-sm mb-4">
                   Start a new conversation with FortzAI or click one of the templates to create your first game.
@@ -238,13 +238,13 @@ export function CommunityGalleryModal({ open, onClose, onSelectPrompt }: Communi
                   className="px-4 py-2 bg-[#f97316] hover:bg-[#ea580c] text-white font-bold text-xs uppercase tracking-wider cursor-pointer"
                   style={{ borderRadius: 0 }}
                 >
-                  + Create New Project Now
+                  + Create New Published Project
                 </button>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {createdList.map((item) => {
-                  const title = item.description || 'Project ' + (item.urlId || item.id);
+                  const title = item.description || 'Published Project ' + (item.urlId || item.id);
                   const { icon, color } = getProjectIcon(title);
                   const msgCount = item.messages ? item.messages.length : 0;
                   const dateStr = item.timestamp ? new Date(item.timestamp).toLocaleDateString() : '';
