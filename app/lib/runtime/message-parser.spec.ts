@@ -160,6 +160,26 @@ describe('StreamingMessageParser', () => {
 
       expect(snapshots).toEqual(['const value', 'const value = 42;']);
     });
+
+    it('normalizes project/ and home/ prefixes in file actions', () => {
+      let openedFilePath: string | undefined;
+      const parser = new StreamingMessageParser({
+        callbacks: {
+          onActionOpen: (data) => {
+            if (data.action.type === 'file') {
+              openedFilePath = data.action.filePath;
+            }
+          },
+        },
+      });
+
+      parser.parse(
+        'msg-1',
+        '<boltArtifact id="a1" title="Demo"><boltAction type="file" filePath="projects/game.js">console.log(1);</boltAction></boltArtifact>',
+      );
+
+      expect(openedFilePath).toBe('game.js');
+    });
   });
 
   describe('valid artifacts with actions', () => {

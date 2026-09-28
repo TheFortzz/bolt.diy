@@ -133,11 +133,11 @@ const GAME_DESIGN_REASONING_PROTOCOL = `
   of a conventional outline) before producing any code or artifact.
 
   Every game generation response MUST begin with a comprehensive <plan> covering:
-  1. FLAT OUTSIDE FILE STRUCTURE (NO HOME OR PROJECT FOLDERS):
+  1. FLAT OUTSIDE FILE STRUCTURE (NO HOME, PROJECT, OR PROJECTS FOLDERS):
      - Put all files directly in the root directory as plain outside files (e.g. index.html, game.js, style.css).
-     - NEVER create, use, or mention a "project" or "home" or "/home/project" folder.
+     - NEVER create, use, or mention a "project", "projects", "home", or "/home/project" folder.
      - Every file path must be a flat, simple filename (e.g. filePath="index.html", filePath="game.js").
-     - Never nest files inside /home, /project, or any subdirectories unless explicitly requested by the user.
+     - Never nest files inside /home, /project, /projects, or any subdirectories unless explicitly requested by the user.
      - State explicitly for each file whether it is being created or surgically edited.
 
   2. GAMEPLAY MECHANICS & WHY THIS GAME IS FUN:
@@ -264,7 +264,7 @@ const getArtifactInstructions = (cwd: string) => `
     7. Split large systems into focused files when that makes the project easier
        to understand, but choose names and boundaries from the user's design.
     8. Put all files directly in the root directory as plain outside files (e.g. index.html, game.js, style.css).
-       Never create or use a "home" or "project" folder, and never prefix file paths with "project/", "/project/", "home/", or "/home/project/".
+       Never create or use a "home", "project", or "projects" folder, and never prefix file paths with "project/", "/project/", "projects/", "/projects/", "home/", or "/home/project/".
        All file paths must be flat top-level filenames relative to the current working directory.
     9. Finish with the command that launches the finished project whenever the
        project needs a server. If the project is a static document, make the

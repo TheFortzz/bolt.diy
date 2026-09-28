@@ -2,6 +2,7 @@ import type { ActionType, BoltAction, BoltActionData, FileAction } from '~/types
 import type { BoltArtifactData } from '~/types/artifact';
 import { createScopedLogger } from '~/utils/logger';
 import { unreachable } from '~/utils/unreachable';
+import { cleanWorkDirRelativePath } from '~/utils/diff';
 
 const ARTIFACT_TAG_OPEN = '<boltArtifact';
 const ARTIFACT_TAG_CLOSE = '</boltArtifact>';
@@ -317,6 +318,8 @@ export class StreamingMessageParser {
         logger.debug('File path not specified, defaulting to index.html');
         filePath = 'index.html';
       }
+
+      filePath = cleanWorkDirRelativePath(filePath) || 'index.html';
 
       (actionAttributes as FileAction).filePath = filePath;
     } else if (!['shell', 'start'].includes(actionType)) {

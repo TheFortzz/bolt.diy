@@ -1,5 +1,5 @@
 import type { Message } from 'ai';
-import React from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { classNames } from '~/utils/classNames';
 import { AssistantMessage } from './AssistantMessage';
 import { UserMessage } from './UserMessage';
@@ -27,6 +27,48 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
   const rawUserPhoto = auth.user?.prefs?.photoURL || auth.user?.photoURL;
   const userPhoto = normalizeAvatarUrl(rawUserPhoto);
 
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  const setRefs = useCallback(
+    (node: HTMLDivElement | null) => {
+      containerRef.current = node;
+      if (typeof ref === 'function') {
+        ref(node);
+      } else if (ref) {
+        (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
+      }
+    },
+    [ref],
+  );
+
+  const lastMessage = messages[messages.length - 1];
+  const lastMessageContent = lastMessage?.content;
+
+  // Auto-scroll to bottom whenever new messages arrive or tokens stream in
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
+    bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+  }, [messages.length, lastMessageContent, isStreaming]);
+
+  // While AI is actively writing/streaming, pin scroll smoothly to bottom on each frame
+  useEffect(() => {
+    if (!isStreaming) return;
+
+    let rafId: number;
+    const followStream = () => {
+      if (containerRef.current) {
+        containerRef.current.scrollTop = containerRef.current.scrollHeight;
+      }
+      rafId = requestAnimationFrame(followStream);
+    };
+
+    rafId = requestAnimationFrame(followStream);
+    return () => cancelAnimationFrame(rafId);
+  }, [isStreaming]);
+
   const handleRewind = (messageId: string) => {
     const searchParams = new URLSearchParams(location.search);
     searchParams.set('rewindTo', messageId);
@@ -48,7 +90,7 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
   };
 
   return (
-    <div id={id} ref={ref} className={props.className}>
+    <div id={id} ref={setRefs} className={props.className}>
       {messages.length > 0
         ? messages.map((message, index) => {
             const { role, content, id: messageId } = message;
@@ -115,8 +157,8 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
                         onClick={() => handleFork(messageId)}
                         key="i-ph:git-fork"
                         className={classNames(
-                          'i-ph:git-fork',
-                          'text-xl text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary transition-colors',
+                            'i-ph:git-fork',
+                            'text-xl text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary transition-colors',
                         )}
                       />
                     </WithTooltip>
@@ -127,6 +169,7 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
           })
         : null}
       {isStreaming && messages[messages.length - 1]?.role === 'user' && <ActivityTimeline isStreaming />}
+      <div ref={bottomRef} className="h-px w-full shrink-0" aria-hidden="true" />
     </div>
   );
 });

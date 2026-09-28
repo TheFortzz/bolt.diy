@@ -436,6 +436,24 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 : 'w-full flex-grow overflow-y-auto',
             )}
           >
+            {isStreaming && (
+              <div className="flex items-center justify-between px-3 py-1.5 bg-[#20103a]/90 border-b border-[#a855f7]/40 text-purple-200 text-xs font-bold uppercase tracking-wider select-none shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <div className="i-svg-spinners:bars-scale-fade text-sm text-amber-300" />
+                  <span>AI Working…</span>
+                </div>
+                {!showWorkbench && (
+                  <button
+                    type="button"
+                    onClick={() => workbenchStore.showWorkbench.set(true)}
+                    className="px-2 py-0.5 bg-[#8b5cf6] text-white hover:bg-[#7c3aed] text-[10px] font-black uppercase tracking-wide cursor-pointer"
+                    style={{ borderRadius: 0 }}
+                  >
+                    Open Workspace →
+                  </button>
+                )}
+              </div>
+            )}
             <div
               className={classNames('pt-2 px-2 sm:px-4 flex-1 flex flex-col min-h-0', {
                 'h-full': isWorkbenchActive || chatStarted,
@@ -508,30 +526,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     setImageDataList?.(imageDataList.filter((_, i) => i !== index));
                   }}
                 />
-
-
-                {/* Play while AI builds — jumps to thefortz.me PLAY tab (AI keeps building in background) */}
-                {isStreaming && (
-                  <div className="mb-2.5 flex justify-center">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
-                          window.parent.postMessage({ type: 'thefortz-switch-tab', tab: 'play' }, '*');
-                        } else {
-                          // Standalone studio: fall back to workbench preview
-                          workbenchStore.showWorkbench.set(true);
-                          window.dispatchEvent(new CustomEvent('fortz-play-while-building'));
-                        }
-                      }}
-                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold uppercase tracking-wide text-[#041018] bg-[#4ade80] border border-[#86efac] shadow-[0_0_22px_rgba(74,222,128,0.4)] hover:bg-[#86efac] transition-all animate-pulse"
-                      style={{ borderRadius: 0 }}
-                    >
-                      <span className="i-ph:play-fill text-base" />
-                      Play while it builds
-                    </button>
-                  </div>
-                )}
 
                 <div
                   style={{

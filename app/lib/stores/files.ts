@@ -83,7 +83,10 @@ export class FilesStore {
   replaceFromCheckpoint(snapshot: Record<string, Uint8Array>) {
     const nextFiles: FileMap = {};
 
-    for (const [relativePath, buffer] of Object.entries(snapshot)) {
+    for (const [rawPath, buffer] of Object.entries(snapshot)) {
+      const relativePath = cleanWorkDirRelativePath(rawPath);
+      if (!relativePath) continue;
+
       const fullPath = nodePath.posix.join(WORK_DIR, relativePath);
       const parts = relativePath.split('/');
 
@@ -233,6 +236,11 @@ export class FilesStore {
 
       switch (type) {
         case 'add_dir': {
+          const rel = nodePath.posix.relative(WORK_DIR, sanitizedPath);
+          if (rel === 'home' || rel === 'project' || rel === 'projects') {
+            break;
+          }
+
           // we intentionally add a trailing slash so we can distinguish files from folders in the file tree
           this.files.setKey(sanitizedPath, { type: 'folder' });
           break;

@@ -300,6 +300,23 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
                   </PanelHeaderButton>
                 )}
                 <Slider selected={selectedView} options={sliderOptions} setSelected={setSelectedView} />
+                {isStreaming && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedView('preview');
+                      if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+                        window.parent.postMessage({ type: 'thefortz-switch-tab', tab: 'play' }, '*');
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 ml-2.5 px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-black bg-gradient-to-r from-amber-300 to-yellow-400 border border-amber-500 shadow-sm hover:brightness-105 active:scale-95 transition-all cursor-pointer animate-pulse"
+                    style={{ borderRadius: 0 }}
+                    title="AI is building — click to view preview / play"
+                  >
+                    <div className="i-svg-spinners:bars-scale-fade text-sm text-black flex-shrink-0" />
+                    <span>AI Working…</span>
+                  </button>
+                )}
                 {validation.status === 'checking' && <span className="ml-2 text-xs" role="status">{validation.detail || 'Checking build…'}</span>}
                 {validation.status === 'failed' && <span className="ml-2 text-xs" role="status" title={validation.detail}>Build not verified</span>}
                 <div className="ml-auto" />

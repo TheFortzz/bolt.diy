@@ -324,6 +324,17 @@ function buildFileList(
 }
 
 function isHiddenFile(filePath: string, fileName: string, hiddenFiles: Array<string | RegExp>) {
+  if (
+    filePath === '/home/project/project' ||
+    filePath.startsWith('/home/project/project/') ||
+    filePath === '/home/project/projects' ||
+    filePath.startsWith('/home/project/projects/') ||
+    filePath === '/home/project/home' ||
+    filePath.startsWith('/home/project/home/')
+  ) {
+    return true;
+  }
+
   return hiddenFiles.some((pathOrRegex) => {
     if (typeof pathOrRegex === 'string') {
       return fileName === pathOrRegex;

@@ -9,11 +9,15 @@ describe('Diff', () => {
     expect(result).toBe('index.js');
   });
 
-  it('should strip project/ and /project/ variants to flat files', () => {
+  it('should strip project/, projects/, and home/ variants to flat files', () => {
     expect(extractRelativePath('project/index.js')).toBe('index.js');
     expect(extractRelativePath('/project/index.js')).toBe('index.js');
+    expect(extractRelativePath('projects/index.js')).toBe('index.js');
+    expect(extractRelativePath('/projects/index.js')).toBe('index.js');
+    expect(extractRelativePath('/home/projects/index.js')).toBe('index.js');
     expect(extractRelativePath('/home/project/index.js')).toBe('index.js');
     expect(extractRelativePath('/home/project/project/index.js')).toBe('index.js');
+    expect(extractRelativePath('/home/project/projects/index.js')).toBe('index.js');
     expect(extractRelativePath('home/index.js')).toBe('index.js');
   });
 });

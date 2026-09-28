@@ -5,7 +5,7 @@ import { WORK_DIR } from '~/utils/constants';
 
 const MAX_BYTES = 64 * 1024 * 1024;
 const MAX_CHECKPOINTS = 10;
-const SKIPPED_DIRECTORIES = new Set(['node_modules', '.git', '.studio-checkpoints']);
+const SKIPPED_DIRECTORIES = new Set(['node_modules', '.git', '.studio-checkpoints', 'home', 'project', 'projects']);
 
 export interface CheckpointInfo {
   id: string;

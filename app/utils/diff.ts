@@ -105,6 +105,10 @@ export function cleanWorkDirRelativePath(filePath: string): string {
       clean = clean.slice('home/project/'.length);
     } else if (clean === 'home/project') {
       clean = '';
+    } else if (clean.startsWith('home/projects/')) {
+      clean = clean.slice('home/projects/'.length);
+    } else if (clean === 'home/projects') {
+      clean = '';
     } else if (clean.startsWith('home/')) {
       clean = clean.slice('home/'.length);
     } else if (clean === 'home') {
@@ -112,6 +116,10 @@ export function cleanWorkDirRelativePath(filePath: string): string {
     } else if (clean.startsWith('project/')) {
       clean = clean.slice('project/'.length);
     } else if (clean === 'project') {
+      clean = '';
+    } else if (clean.startsWith('projects/')) {
+      clean = clean.slice('projects/'.length);
+    } else if (clean === 'projects') {
       clean = '';
     }
   }

@@ -6,6 +6,7 @@ import { createScopedLogger } from '~/utils/logger';
 import { unreachable } from '~/utils/unreachable';
 import type { ActionCallbackData } from './message-parser';
 import type { BoltShell } from '~/utils/shell';
+import { cleanWorkDirRelativePath } from '~/utils/diff';
 import { actionStepId, updateActivity } from '~/lib/stores/activity';
 
 const logger = createScopedLogger('ActionRunner');
@@ -422,6 +423,9 @@ export class ActionRunner {
       throw new Error('WebContainer is unavailable. Reload the studio with cross-origin isolation enabled.');
     }
 
+    const cleanedFilePath = cleanWorkDirRelativePath(action.filePath) || 'index.html';
+    action.filePath = cleanedFilePath;
+
     let folder = nodePath.dirname(action.filePath);
 
     // remove trailing slashes
@@ -442,6 +446,15 @@ export class ActionRunner {
     } catch (error) {
       logger.error('Failed to write file\n\n', error);
       throw error;
+    }
+
+    // Clean up phantom directories if they accidentally exist in the project root
+    for (const phantom of ['home', 'project', 'projects']) {
+      try {
+        await webcontainer.fs.rm(phantom, { recursive: true });
+      } catch {
+        // ignore if not present
+      }
     }
   }
   #updateAction(id: string, newState: ActionStateUpdate) {
