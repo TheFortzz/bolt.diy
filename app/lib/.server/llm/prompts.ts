@@ -84,6 +84,23 @@ const CREATIVE_GAME_GUIDANCE = `
     no external assets.
   </sound_effects_rule>
 
+  <image_assets_rules>
+    GRAPHIC ASSETS & RESILIENT FALLBACK RENDERING:
+    - Graphic image assets reside under the /assets/ directory (e.g. assets/player.png, assets/enemy.png, assets/item.png).
+    - In rendering code, instantiate image assets using standard browser Image() objects:
+      const playerSprite = new Image();
+      playerSprite.src = 'assets/player.png';
+    - CRITICAL SHAPE-RENDERING FALLBACK: Always guard image drawing with complete and naturalWidth checks, and PRESERVE the shape-based drawing code in the else block:
+      if (playerSprite.complete && playerSprite.naturalWidth > 0) {
+        ctx.drawImage(playerSprite, x, y, width, height);
+      } else {
+        // Fallback shape rendering (never remove):
+        ctx.fillStyle = '#...';
+        ctx.fillRect(x, y, width, height);
+      }
+    - This ensures that if asset generation fails, times out, or images are still loading, the game is 100% playable immediately with zero console errors or broken builds.
+  </image_assets_rules>
+
   <agentic_architecture_scale>
     Build production-grade games with substantial architectural depth, mirroring
     elite agentic workflows like Replit Agent:

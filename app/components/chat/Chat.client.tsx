@@ -26,6 +26,7 @@ import type { ProviderInfo } from '~/types/model';
 import { authStore, isAuthModalOpen } from '~/lib/auth/appwrite';
 import { finalizeAssistantMessage } from '~/lib/hooks/useMessageParser';
 import { validateBuild, validationState } from '~/lib/runtime/build-validator';
+import { generateProjectAssets } from '~/lib/runtime/asset-generator';
 
 const toastAnimation = cssTransition({
   enter: 'animated fadeInRight',
@@ -225,6 +226,18 @@ export const ChatImpl = memo(
           toast.error(`Build verified, but checkpoint could not be saved: ${(error as Error).message}`, { autoClose: false });
         } finally {
           validationState.set({ status: 'passed', detail: 'Build verified' });
+        }
+
+        // Isolated Image Asset Generation (FLUX.2-pro deployment)
+        try {
+          await generateProjectAssets({
+            userPrompt: content.slice(0, 500),
+            model,
+            provider: provider.name,
+            apiKeys,
+          });
+        } catch (assetErr) {
+          logger.warn('Non-fatal asset generation error caught:', assetErr);
         }
 
         if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
