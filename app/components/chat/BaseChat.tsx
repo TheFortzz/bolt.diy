@@ -421,7 +421,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       >
         <ClientOnly>{() => <Menu />}</ClientOnly>
         <div
-          ref={scrollRef}
           className={classNames(
             'flex flex-row overflow-hidden w-full h-full transition-[padding] duration-200 ease-in-out',
             sidebarOpen ? 'pl-[200px]' : 'pl-[54px]',
@@ -432,8 +431,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               styles.Chat,
               'z-chat flex flex-col h-full min-h-0 relative transition-[width,max-width] duration-200 ease-in-out',
               isWorkbenchActive
-                ? 'w-[420px] max-w-[420px] min-w-[420px] flex-shrink-0 border-r border-purple-500/20'
-                : 'w-full flex-grow overflow-y-auto',
+                ? 'w-[420px] max-w-[420px] min-w-[420px] flex-shrink-0 border-r border-purple-500/20 overflow-hidden'
+                : chatStarted
+                  ? 'w-full flex-grow overflow-hidden'
+                  : 'w-full flex-grow overflow-y-auto',
             )}
           >
             {isStreaming && (
@@ -455,7 +456,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               </div>
             )}
             <div
-              className={classNames('pt-2 px-2 sm:px-4 flex-1 flex flex-col min-h-0', {
+              className={classNames('pt-2 px-2 sm:px-4 flex-1 flex flex-col min-h-0 overflow-hidden', {
                 'h-full': isWorkbenchActive || chatStarted,
                 'justify-end': isWorkbenchActive && !chatStarted,
                 'justify-center items-center my-auto pb-10 sm:pb-16': !chatStarted && !isWorkbenchActive,
@@ -496,7 +497,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
 
               <div
                 className={classNames(
-                  'relative w-full mx-auto z-prompt mb-1 px-2 sm:px-0 transition-all duration-300 flex-shrink-0',
+                  'sticky bottom-0 relative w-full mx-auto z-prompt mb-1 px-2 sm:px-0 transition-all duration-300 flex-shrink-0',
                   {
                     'mt-auto': isWorkbenchActive && !chatStarted,
                   },

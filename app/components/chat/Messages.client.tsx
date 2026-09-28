@@ -50,7 +50,6 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
-    bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
   }, [messages.length, lastMessageContent, isStreaming]);
 
   // While AI is actively writing/streaming, pin scroll smoothly to bottom on each frame
