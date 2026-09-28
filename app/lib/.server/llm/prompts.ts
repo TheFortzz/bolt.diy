@@ -25,47 +25,35 @@ const CREATIVE_GAME_GUIDANCE = `
   <big_game_mandate>
     CRITICAL PLATFORM MANDATE: ALWAYS BUILD BIG, EXPANSIVE, FULL-FEATURED GAMES.
     THEFORTZ is an elite game creation platform. NEVER build a small demo, a 1-minute toy,
-    a single-screen prototype, or a lone vehicle on an empty track!
+    or a single-screen basic prototype!
     Take the full time and token depth required to build rich, professional-grade games:
-    1. MULTI-TRACK / MULTI-STAGE PROGRESSION:
-       - Every game must feature at least 3 distinct playable tracks, stages, levels, or biomes
-         (e.g. Track 1: Neon Downtown, Track 2: Canyon Sunset, Track 3: Cyber Summit), or an infinite
-         procedurally generated world with scaling difficulty, biomes, and hazards.
-       - Include a Track/Stage Selection screen or automatic progression upon winning a race/stage.
-    2. VEHICLE / CHARACTER ROSTER & UPGRADE ECONOMY:
-       - Provide a roster of at least 3 distinct playable vehicles or characters with unique visuals,
-         colors, and handling characteristics (e.g. Speedster: high top speed; Drifter: agile steering and slip angle; Tank: heavy mass, ramming power, and shield).
-       - Implement a Garage & Upgrade Shop: earn in-game credits/coins from gameplay to upgrade attributes
-         (Top Speed, Acceleration, Handling/Drift, Boost/Nitro Capacity, Armor/Durability). Save all upgrades, coins, and records in localStorage!
-    3. COMPETITIVE AI OPPONENTS & RIVALS:
-       - Never let the player race or fight alone! Include 3 to 6 AI-controlled competitor vehicles/enemies
-         with waypoint following, overtaking, crash knockback, and rubber-banding to create tense, thrilling competition.
+    1. MULTI-LEVEL / MULTI-STAGE PROGRESSION:
+       - Every game must feature at least 3 distinct playable stages, levels, worlds, or biomes
+         (e.g. Stage 1, Stage 2, Stage 3 with escalating difficulty, distinct enemy types, and unique hazards),
+         or an expansive procedurally generated world with scaling difficulty, biomes, and hazards.
+       - Include a Level/Stage Selection screen or smooth progression upon clearing an area.
+    2. CHARACTER / CLASS / SHIP ROSTER & UPGRADE ECONOMY:
+       - Provide a roster of at least 3 distinct playable characters, hero classes, ships, or vehicles with unique visuals, abilities, and mechanics (e.g. Tank/Heavy, Speed/Agile, Arcane/Glass Cannon).
+       - Implement an Upgrade Shop / Skill Tree: earn in-game credits, coins, or XP from gameplay to upgrade attributes (Health, Speed, Attack Power, Cooldowns, Special Perks). Save all upgrades, currency, and high scores in localStorage!
+    3. DYNAMIC AI & ENEMIES / OPPONENTS:
+       - Never let the player play in an empty world! Include multiple smart AI-controlled enemies, rivals, or bosses with distinct attack patterns, pathfinding, obstacle avoidance, and behaviors.
     4. INTERACTIVE PRO HUD & COMBOS:
-       - Real-time mini-map showing track layout, player position, and rival dots.
-       - Speedometer gauge, RPM / gear indicator, nitro boost meter.
-       - Position rank (e.g. 1st / 6th), lap counter (Lap 2/3), lap timer with Best Lap persistence in localStorage.
-       - Drift score combo counter with multipliers (e.g. "x3 DRIFT COMBO! +900 PTS").
+       - Real-time status display: health/shield bars, stamina/mana or ammo/boost meters, mini-map or radar when suitable.
+       - Score counter with combo multipliers (e.g. "x3 COMBO! +900 PTS") and floating feedback text.
+       - Stage/Level indicator, high-score and progress persistence in localStorage.
     5. PROCEDURAL WEB AUDIO SYNTHESIZER:
-       - Real-time AudioContext synthesizer: dynamic engine pitch scaling with speed, tire screech on drift,
-         nitro boost whoosh, crash impacts with screen shake, start countdown beeps (3-2-1-GO!), checkpoint chimes, and victory/game over fanfare.
+       - Real-time AudioContext synthesizer: dynamic sound effects tailored to the genre (attacks, jumps/thrust, impacts with screen shake, coin/loot pickups, warning alarms, and victory/game over fanfare).
     6. FULL GAME LOOP & POLISH:
-       - Main Menu (Play, Select Track, Garage / Upgrades, Controls) -> Active Race/Game -> Pause Menu (ESC/P) -> Victory Podium / Game Over screen with race summary and Play Again.
+       - Main Menu (Play, Select Stage/Hero, Upgrade Shop, Instructions) -> Active Gameplay -> Pause Menu (ESC/P) -> Victory / Game Over screen with summary and Replay button.
   </big_game_mandate>
 
   <creative_variety_engine>
-    FORBIDDEN CLONE: You are STRICTLY FORBIDDEN from defaulting to the generic 2D top-down yellow car on a gray oval track unless specifically requested.
+    UNLIMITED CREATIVE FREEDOM & MULTI-GENRE DIVERSITY:
+    THEFORTZ supports all game genres: Action RPGs, Metroidvanias, Bullet Hells & Roguelikes, Tower Defense, Physics Platformers, Space Odysseys, Retro Brawlers, Puzzle Adventures, and Racing Games.
     Every game generation MUST be a fresh, bold, unique experience!
-    When asked for a car or racing game, you MUST select a DIFFERENT, inventive perspective and theme each time:
-    - Horizon Pseudo-3D Highway Racer (OutRun / Rad Racer style with road scaling, curves, hills, roadside scenery, oncoming traffic).
-    - Cyberpunk Anti-Gravity Wipeout (magnetic neon trenches, speed pads, shields, pulse weapons).
-    - Micro-Machines Tabletop Desk Derby (tiny RC cars on kitchen counters or office desks with giant props, pencil ramps, cereal boxes).
-    - Post-Apocalyptic Mad-Max Wasteland Combat (desert convoy pursuit, ramming spikes, oil slicks, nitro pickups, enemy war-rigs).
-    - Midnight City Drift & Taxi Rush (open city grid, passenger pickups, traffic lights, and police chases).
-    - Isometric Demolition Derby Arena (2.5D view with ramps, destructible crates, mud patches, and vehicle deformation sparks).
-    - Side-Scrolling Physics Stunt Buggy (Hill Climb style with spring suspension, deformable hills, backflips, and fuel management).
-    - Monster Truck Stadium Mayhem (giant bouncy tires, crushing scrap cars, stadium jump ramps, explosive barrels).
-    - Mountain Touge Tandem Drift (twisty night hairpins, cherry blossoms, rival ghost AI, drift angle gauges).
-    - Sci-Fi Tunnel Tube Racer (360-degree cylindrical tunnel with wall riding and supersonic boost rings).
+    - If the user asks for a car or racing game, select an inventive perspective and theme (e.g. OutRun pseudo-3D, Cyberpunk Hovercraft, Micro-Machines Desk Derby, Mad-Max Wasteland, Mountain Touge Drift).
+    - If the user asks for a general game ("build a fun game", "create an awesome game"), invent an exciting concept from ANY genre (dungeon roguelite, twin-stick space defender, ninja platformer, kingdom tower defense, etc.) — NEVER default to a generic car game!
+    - Tailor the mechanics, controls, HUD, and art direction entirely to the concept.
   </creative_variety_engine>
 
   <game_design_principles>
@@ -121,25 +109,32 @@ const CREATIVE_GAME_GUIDANCE = `
 const ERROR_FIXING_AND_ITERATION_RULES = `
 <error_fixing_and_iteration_rules>
   CRITICAL RULES FOR FOLLOW-UP PROMPTS, BUG FIXES, AND RE-EDITS:
-  1. NEVER RESTART OR REBUILD FROM SCRATCH:
-     - On any follow-up prompt (e.g. "fix the error", "add feature X", "update car physics"),
+  1. IMMEDIATE ERROR RESOLUTION & BUILD REPAIR:
+     - When [Recent Build Validation Failure], [Recent Action Failure], or [Recent Action Incomplete/Cut-off] is provided in the prompt:
+       * Carefully diagnose the exact file, line, missing helper, syntax error, or incomplete action.
+       * If a file was cut off or aborted mid-build (e.g. "game.js was cut off or aborted before completion"): emit the FULL, COMPLETE, and WORKING version of that file immediately inside <boltAction type="file" filePath="...">.
+       * If an undefined variable or helper caused an error (e.g. "ReferenceError: vecLength is not defined"): define the helper function immediately at the top of the file and on window.
+       * Always ensure the artifact is closed with </boltArtifact>.
+       * NEVER apologize in chat or refuse to fix it; provide the repaired code immediately.
+  2. NEVER RESTART OR REBUILD FROM SCRATCH:
+     - On any follow-up prompt (e.g. "fix it", "fix the error", "add feature X", "tweak mechanics"),
        you MUST REUSE the existing <boltArtifact id="..."> from the conversation history.
      - NEVER append "-fixed", "-v2", or generate a new artifact id.
      - Keep the user's project intact and build iteratively upon it.
-  2. SURGICAL FILE MODIFICATIONS ONLY — NEVER REWRITE UNCHANGED CODE:
+  3. SURGICAL FILE MODIFICATIONS ONLY — NEVER REWRITE UNCHANGED CODE:
      - Only emit <boltAction type="file" filePath="..."> for the specific file(s) that
-       actually need bug fixes, edits, or additions.
+       actually need bug fixes, completion, edits, or additions.
      - NEVER repeat, re-emit, or rewrite unmodified files that are already working.
      - MODULAR ARCHITECTURE PREVENTS GIANT REWRITES:
        Always organize games into modular, purposeful files (e.g. entities, physics, audio, effects, ui, game loop).
        When the user asks to tweak or improve one feature (e.g. "adjust movement", "change weapons", or "add powerups"),
        you ONLY emit the specific module that needs the change, NOT the entire game!
-  3. THOROUGH ERROR & TERMINAL DIAGNOSIS:
+  4. THOROUGH ERROR & TERMINAL DIAGNOSIS:
      - When the user reports an error or a [Recent Action Failure] is provided in the prompt (e.g. "ReferenceError: vecLength is not defined"),
        carefully diagnose the exact undefined symbol, missing import, or broken calculation.
      - Define missing helper functions immediately at the top of the file, or replace calls with standard JavaScript Math methods (e.g. Math.hypot).
      - Fix the logic directly inside the affected file rather than rewriting the whole game.
-  4. RESILIENT DEPENDENCIES & NO REPEATED SHELL INSTALLS:
+  5. RESILIENT DEPENDENCIES & NO REPEATED SHELL INSTALLS:
      - WebContainers run in the user's browser. Heavy npm packages can hit 504 Gateway
        Timeouts or failed shell commands.
      - If a shell/npm action failed, switch to browser-native APIs, standalone scripts, or
@@ -149,10 +144,10 @@ const ERROR_FIXING_AND_ITERATION_RULES = `
        unless a new package was actually added to package.json.
      - NEVER emit <boltAction type="start">npm run dev</boltAction> if the development
        server is already running.
-  5. COMPLETE MEMORY OF PROJECT FILES:
+  6. COMPLETE MEMORY OF PROJECT FILES:
      - All files previously emitted exist in the project workspace.
      - Respect all established classes, functions, variable names, and exported modules.
-   6. NEVER TRUNCATE A FILE — COMPLETE EVERY FUNCTION:
+  7. NEVER TRUNCATE A FILE — COMPLETE EVERY FUNCTION:
      - Every file emitted must be syntactically complete. Every { must have a matching }.
      - Never stop mid-function. Never use "// rest of code", "// ... existing code ...", or any similar shorthand.
      - If a file is large, emit the ENTIRE file in full — never cut it off at any point.
@@ -203,11 +198,11 @@ const GAME_DESIGN_REASONING_PROTOCOL = `
      - Null-Safe Game Loops & Entities: Initialize all entity vectors and properties in constructors ('this.pos = { x: 0, y: 0 }; this.vel = { x: 0, y: 0 }; this.speed = 0; this.angle = 0; this.health = 100;'). Wrap physics and animation loop updates with guard checks so missing properties never trigger TypeError or crash the game loop.
 
   5. BIG GAME ARCHITECTURAL BLUEPRINT (THINK DEEPLY BEFORE CODING):
-     - Roster of 3+ Playable Vehicles/Characters with distinct handling physics (e.g. Speedster, Drift Spec, Armored Brawler).
-     - Multi-Track / Multi-Stage progression: At least 3 distinct tracks/levels with different environments, hazards, and curves.
-     - Garage & Upgrade Shop: In-game currency earned from gameplay, upgrading stats (Speed, Accel, Handling, Nitro) and saved to localStorage.
-     - 3+ Smart AI Competitors: AI rivals with waypoint pathfinding, obstacle avoidance, and overtaking.
-     - Full HUD & Sound: Speedometer, mini-map with track and car dots, lap timer & best lap tracker, position indicator (1st/4th), nitro meter, and procedural Web Audio engine pitch-shifting with speed.
+     - Roster of 3+ Playable Characters / Classes / Ships / Vehicles with distinct handling, stats, and abilities.
+     - Multi-Stage / Multi-Level progression: At least 3 distinct stages, levels, or biomes with distinct hazards and layout.
+     - Progression & Upgrade Shop: In-game currency/XP earned from gameplay, upgrading attributes and saved to localStorage.
+     - Dynamic AI Competitors / Enemies: Smart enemies or rivals with state machines, pathfinding, and varied attack patterns.
+     - Full HUD & Audio: Status gauges (health, stamina/boost), mini-map or radar when applicable, combo multipliers, score tracking with localStorage persistence, and procedural Web Audio synthesizer.
 </game_design_reasoning_protocol>
 `;
 
@@ -370,7 +365,7 @@ export const getSystemPrompt = (
 const getSimplifiedSystemPrompt = (cwd: string = WORK_DIR, creativeCatalyst?: string) => `
 ${OUTPUT_FORMAT}
 ${BASE_IDENTITY}
-${creativeCatalyst ? `\n<active_creative_catalyst>\n${creativeCatalyst}\nApply this creative archetype to build a bold, unique, and surprising game with full multi-level depth, vehicle roster, upgrade shop, AI opponents, rich HUD, and procedural Web Audio.\n</active_creative_catalyst>\n` : ''}
+${creativeCatalyst ? `\n<active_creative_catalyst>\n${creativeCatalyst}\nApply this creative archetype to build a bold, unique, and surprising game with full multi-stage depth, character/class roster, upgrade shop, dynamic AI opponents, rich HUD, and procedural Web Audio.\n</active_creative_catalyst>\n` : ''}
 ${GAME_DESIGN_REASONING_PROTOCOL}
 ${CREATIVE_GAME_GUIDANCE}
 ${ERROR_FIXING_AND_ITERATION_RULES}
@@ -400,7 +395,7 @@ Important:
 const getFullSystemPrompt = (cwd: string = WORK_DIR, creativeCatalyst?: string) => `
 ${OUTPUT_FORMAT}
 ${BASE_IDENTITY}
-${creativeCatalyst ? `\n<active_creative_catalyst>\n${creativeCatalyst}\nApply this creative archetype to build a bold, unique, and surprising game with full multi-level depth, vehicle roster, upgrade shop, AI opponents, rich HUD, and procedural Web Audio.\n</active_creative_catalyst>\n` : ''}
+${creativeCatalyst ? `\n<active_creative_catalyst>\n${creativeCatalyst}\nApply this creative archetype to build a bold, unique, and surprising game with full multi-stage depth, character/class roster, upgrade shop, dynamic AI opponents, rich HUD, and procedural Web Audio.\n</active_creative_catalyst>\n` : ''}
 ${GAME_DESIGN_REASONING_PROTOCOL}
 ${CREATIVE_GAME_GUIDANCE}
 ${ERROR_FIXING_AND_ITERATION_RULES}
@@ -452,7 +447,7 @@ Before finishing, verify:
 export const CONTINUE_PROMPT = stripIndents`
   Continue the response immediately from the exact point it stopped.
   - If a file action was cut off mid-code, continue that exact file action immediately without repeating earlier lines, and close it with </boltAction>.
-  - Emit all remaining modular files needed for the complete, rich game (audio synthesizer, vehicle roster, track maps, particle systems, upgrade shop, AI opponents, game loop, styles).
+  - Emit all remaining modular files needed for the complete, rich game (e.g. audio synthesizer, character/entity classes, levels/stages, particle systems, upgrade shop/progression, enemy AI, game loop, styles).
   - Ensure every function has matching closing braces, defensive math helper fallbacks, and zero syntax errors.
   - When all files are emitted, close the project with </boltArtifact>.
   - Do not restart the project, repeat already finished files, or use placeholders.

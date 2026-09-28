@@ -80,7 +80,7 @@ export default class SwitchableStream extends TransformStream {
           if (!this._isSwitchPending && !this._closed) {
             this.close();
           }
-        }, 8000);
+        }, 60000);
       }
     } catch (error) {
       if (!this._closed) {

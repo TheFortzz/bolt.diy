@@ -101,6 +101,7 @@ export const ChatImpl = memo(
     const [agentMode, setAgentMode] = useState<StudioAgentMode>('auto');
     const lastAgentModeRef = useRef<StudioAgentMode>('auto');
     const repairAttemptsRef = useRef(0);
+    const lastValidationErrorRef = useRef<string>('');
     const { activeProviders } = useSettings();
 
     const [model, setModel] = useState(() => {
@@ -181,11 +182,12 @@ export const ChatImpl = memo(
         const result = await validateBuild(message.id);
         workbenchStore.finishPendingActions();
         if (!result.ok) {
+          lastValidationErrorRef.current = result.error || 'Build validation failed';
           validationState.set({ status: 'failed', detail: result.error || 'Build validation failed' });
           toast.error(`Build validation issue: ${result.error?.slice(0, 160)}`, { autoClose: 8000 });
 
           // Inform directly in this chat message without dispatching a separate user prompt turn
-          const errorNotice = `\n\n> ⚠️ **Build Issue Detected:**\n> ${result.error?.slice(-1800)}`;
+          const errorNotice = `\n\n> ⚠️ **Build Issue Detected:**\n> ${result.error?.slice(-1800)}\n>\n> *Type "fix it" in chat to automatically repair and complete the game.*`;
           setMessages((prev) =>
             prev.map((entry) =>
               entry.id === message.id
@@ -203,6 +205,7 @@ export const ChatImpl = memo(
           return;
         }
 
+        lastValidationErrorRef.current = '';
         repairAttemptsRef.current = 0;
         validationState.set({ status: 'checking', detail: 'Saving working checkpoint…' });
 
@@ -354,6 +357,7 @@ export const ChatImpl = memo(
         return;
       }
 
+      const previousValidation = validationState.get();
       repairAttemptsRef.current = 0;
       lastAgentModeRef.current = agentMode;
       validationState.set({ status: 'idle', detail: '' });
@@ -385,16 +389,34 @@ export const ChatImpl = memo(
 
       runAnimation();
 
-      // Collect any failed actions from workbench to inform AI of recent errors
+      // Collect any failed or aborted actions and build validation errors to inform AI of recent issues
       let failedActionContext = '';
+
+      const validationError =
+        previousValidation.status === 'failed' && previousValidation.detail
+          ? previousValidation.detail
+          : lastValidationErrorRef.current;
+
+      if (validationError) {
+        failedActionContext += `\n[Recent Build Validation Failure:\n${validationError}\nYou MUST fix all errors described above, complete any cut-off files, and ensure the game is fully playable without syntax or runtime errors!]`;
+        lastValidationErrorRef.current = '';
+      }
+
       try {
         const artifacts = workbenchStore.artifacts.get();
         for (const art of Object.values(artifacts)) {
+          if (!art.closed) {
+            failedActionContext += `\n[Recent Build Warning: The artifact "${art.title}" (id: "${art.id}") was NOT closed (generation was interrupted or cut off). You must finish any incomplete files and close the artifact with </boltArtifact>.]`;
+          }
           const runnerActions = art.runner?.actions?.get();
           if (runnerActions) {
             for (const act of Object.values(runnerActions)) {
               if (act.status === 'failed') {
-                failedActionContext += `\n[Recent Action Failure: ${act.type} action "${(act as any).content?.slice(0, 160) || ''}" failed with error: "${(act as any).error || 'Execution failed'}"]`;
+                const target = (act as any).filePath || (act as any).content?.slice(0, 100) || '';
+                failedActionContext += `\n[Recent Action Failure: ${act.type} action on "${target}" failed with error: "${(act as any).error || 'Execution failed'}"]`;
+              } else if (act.status === 'aborted') {
+                const target = (act as any).filePath || (act as any).content?.slice(0, 100) || '';
+                failedActionContext += `\n[Recent Action Incomplete/Cut-off: ${act.type} action on "${target}" was cut off or aborted before completion. You must emit the full, complete file for "${target}"!]`;
               }
             }
           }

@@ -7,6 +7,18 @@ import type { ModelInfo } from '~/utils/types';
 export function isSmallModel(model: string, modelInfo?: ModelInfo): boolean {
   const modelLower = model.toLowerCase();
 
+  // Cloud flagship and production models are NOT small models
+  if (
+    modelLower.includes('fortz') ||
+    modelLower.includes('gpt-4') ||
+    modelLower.includes('gpt-oss') ||
+    modelLower.includes('claude') ||
+    modelLower.includes('gemini') ||
+    modelLower.includes('deepseek')
+  ) {
+    return false;
+  }
+
   // Check for explicit parameter size indicators in model name
   const parameterPatterns = [
     /\b([1-9]|1[0-3])b\b/i, // 1B-13B parameters
@@ -55,23 +67,29 @@ export function isSmallModel(model: string, modelInfo?: ModelInfo): boolean {
  * Gets the appropriate context window size for a model
  */
 export function getModelContextWindow(model: string, modelInfo?: ModelInfo): number {
-  if (modelInfo?.maxTokenAllowed) {
+  if (modelInfo?.maxTokenAllowed && modelInfo.maxTokenAllowed > 8000) {
     return modelInfo.maxTokenAllowed;
   }
 
   // Default context windows based on model patterns
   const modelLower = model.toLowerCase();
 
-  if (isSmallModel(model, modelInfo)) {
-    return 4096; // Conservative context for small models
+  if (
+    modelLower.includes('fortz') ||
+    modelLower.includes('gpt-4') ||
+    modelLower.includes('gpt-oss') ||
+    modelLower.includes('claude') ||
+    modelLower.includes('gemini') ||
+    modelLower.includes('deepseek')
+  ) {
+    return 64000;
   }
 
-  // Larger models typically have larger context windows
-  if (modelLower.includes('claude') || modelLower.includes('gpt-4')) {
+  if (isSmallModel(model, modelInfo)) {
     return 8000;
   }
 
-  return 8000; // Default
+  return 32000; // Default modern context
 }
 
 /**
