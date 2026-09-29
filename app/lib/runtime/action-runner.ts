@@ -56,6 +56,9 @@ const baseDir = path.resolve(fs.existsSync('/home/project') ? '/home/project' : 
 http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   let cleanUrl = (req.url || '/').split('?')[0].replace(/^\\/+/, '');
   if (!cleanUrl) cleanUrl = 'index.html';
 

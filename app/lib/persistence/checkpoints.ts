@@ -101,6 +101,80 @@ export async function applyProjectSnapshot(wc: WebContainer, files: Record<strin
   }
 }
 
+const LOCAL_STORAGE_CHECKPOINT_PREFIX = 'fortz_checkpoint_';
+const inMemoryCheckpoints = new Map<string, StoredCheckpoint>();
+
+function saveCheckpointToLocalStorage(checkpoint: StoredCheckpoint) {
+  if (typeof window === 'undefined') return;
+  try {
+    const serializedFiles: Record<string, { type: 'text' | 'bin'; data: string }> = {};
+    const textDecoder = new TextDecoder('utf-8');
+
+    for (const [path, bytes] of Object.entries(checkpoint.files)) {
+      try {
+        const text = textDecoder.decode(bytes);
+        serializedFiles[path] = { type: 'text', data: text };
+      } catch {
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        serializedFiles[path] = { type: 'bin', data: btoa(binary) };
+      }
+    }
+
+    const payload = JSON.stringify({
+      id: checkpoint.id,
+      chatId: checkpoint.chatId,
+      messageId: checkpoint.messageId,
+      createdAt: checkpoint.createdAt,
+      fileCount: checkpoint.fileCount,
+      files: serializedFiles,
+    });
+
+    localStorage.setItem(LOCAL_STORAGE_CHECKPOINT_PREFIX + checkpoint.chatId, payload);
+  } catch (e) {
+    console.warn('LocalStorage checkpoint save warning (in-memory preserved):', e);
+  }
+}
+
+function getCheckpointFromLocalStorage(chatId: string): StoredCheckpoint | undefined {
+  if (typeof window === 'undefined') return undefined;
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_CHECKPOINT_PREFIX + chatId);
+    if (!raw) return undefined;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !parsed.files) return undefined;
+
+    const files: Record<string, Uint8Array> = {};
+    const textEncoder = new TextEncoder();
+
+    for (const [path, entry] of Object.entries(parsed.files as Record<string, { type: string; data: string }>)) {
+      if (entry.type === 'text') {
+        files[path] = textEncoder.encode(entry.data);
+      } else {
+        const binary = atob(entry.data);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        files[path] = bytes;
+      }
+    }
+
+    return {
+      id: parsed.id,
+      chatId: parsed.chatId,
+      messageId: parsed.messageId,
+      createdAt: parsed.createdAt,
+      fileCount: parsed.fileCount,
+      files,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 function checkpointStore(db: IDBDatabase, mode: IDBTransactionMode) {
   if (!db.objectStoreNames.contains('checkpoints')) {
     throw new Error('Checkpoint storage is unavailable. Reload Studio to update its database.');
@@ -109,16 +183,27 @@ function checkpointStore(db: IDBDatabase, mode: IDBTransactionMode) {
   return db.transaction('checkpoints', mode).objectStore('checkpoints');
 }
 
-export async function getLatestCheckpoint(db: IDBDatabase, chatId: string): Promise<StoredCheckpoint | undefined> {
-  return new Promise((resolve, reject) => {
-    const range = IDBKeyRange.bound([chatId, 0], [chatId, Number.MAX_SAFE_INTEGER]);
-    const request = checkpointStore(db, 'readonly').index('byChatAndTime').openCursor(range, 'prev');
-    request.onsuccess = () => resolve(request.result?.value as StoredCheckpoint | undefined);
-    request.onerror = () => reject(request.error || new Error('Could not read checkpoint.'));
-  });
+export async function getLatestCheckpoint(db: IDBDatabase | undefined, chatId: string): Promise<StoredCheckpoint | undefined> {
+  if (db && db.objectStoreNames?.contains('checkpoints')) {
+    try {
+      const idbCheckpoint = await new Promise<StoredCheckpoint | undefined>((resolve, reject) => {
+        const range = IDBKeyRange.bound([chatId, 0], [chatId, Number.MAX_SAFE_INTEGER]);
+        const request = checkpointStore(db, 'readonly').index('byChatAndTime').openCursor(range, 'prev');
+        request.onsuccess = () => resolve(request.result?.value as StoredCheckpoint | undefined);
+        request.onerror = () => reject(request.error || new Error('Could not read checkpoint.'));
+      });
+      if (idbCheckpoint) {
+        return idbCheckpoint;
+      }
+    } catch (e) {
+      console.warn('IDB getLatestCheckpoint warning, checking fallback storage:', e);
+    }
+  }
+
+  return inMemoryCheckpoints.get(chatId) ?? getCheckpointFromLocalStorage(chatId);
 }
 
-export async function refreshLatestCheckpoint(db: IDBDatabase, chatId: string) {
+export async function refreshLatestCheckpoint(db: IDBDatabase | undefined, chatId: string) {
   const checkpoint = await getLatestCheckpoint(db, chatId);
   const info: CheckpointInfo | undefined = checkpoint && {
     id: checkpoint.id,
@@ -133,7 +218,7 @@ export async function refreshLatestCheckpoint(db: IDBDatabase, chatId: string) {
   return info;
 }
 
-export async function saveCheckpoint(db: IDBDatabase, wc: WebContainer, chatId: string, messageId: string) {
+export async function saveCheckpoint(db: IDBDatabase | undefined, wc: WebContainer, chatId: string, messageId: string) {
   if (checkpointBusy.get() !== 'idle') {
     throw new Error('Another checkpoint operation is in progress.');
   }
@@ -156,33 +241,44 @@ export async function saveCheckpoint(db: IDBDatabase, wc: WebContainer, chatId: 
       files,
     };
 
-    await new Promise<void>((resolve, reject) => {
-      const store = checkpointStore(db, 'readwrite');
-      const transaction = store.transaction;
-      store.put(checkpoint);
+    // 1. Immediately preserve in-memory and in LocalStorage
+    inMemoryCheckpoints.set(chatId, checkpoint);
+    saveCheckpointToLocalStorage(checkpoint);
 
-      const index = store.index('byChatAndTime');
-      const range = IDBKeyRange.bound([chatId, 0], [chatId, Number.MAX_SAFE_INTEGER]);
-      let count = 0;
-      const cursor = index.openCursor(range, 'prev');
+    // 2. Also persist in IndexedDB if available and schema is current
+    if (db && db.objectStoreNames?.contains('checkpoints')) {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const store = checkpointStore(db, 'readwrite');
+          const transaction = store.transaction;
+          store.put(checkpoint);
 
-      cursor.onsuccess = () => {
-        if (!cursor.result) {
-          return;
-        }
+          const index = store.index('byChatAndTime');
+          const range = IDBKeyRange.bound([chatId, 0], [chatId, Number.MAX_SAFE_INTEGER]);
+          let count = 0;
+          const cursor = index.openCursor(range, 'prev');
 
-        count++;
+          cursor.onsuccess = () => {
+            if (!cursor.result) {
+              return;
+            }
 
-        if (count > MAX_CHECKPOINTS) {
-          cursor.result.delete();
-        }
+            count++;
 
-        cursor.result.continue();
-      };
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error || new Error('Could not save checkpoint.'));
-      transaction.onabort = () => reject(transaction.error || new Error('Checkpoint storage is full.'));
-    });
+            if (count > MAX_CHECKPOINTS) {
+              cursor.result.delete();
+            }
+
+            cursor.result.continue();
+          };
+          transaction.oncomplete = () => resolve();
+          transaction.onerror = () => reject(transaction.error || new Error('Could not save checkpoint.'));
+          transaction.onabort = () => reject(transaction.error || new Error('Checkpoint storage is full.'));
+        });
+      } catch (idbErr) {
+        console.warn('IDB checkpoint save warning, preserved in LocalStorage & memory:', idbErr);
+      }
+    }
 
     await refreshLatestCheckpoint(db, chatId);
 
@@ -192,7 +288,7 @@ export async function saveCheckpoint(db: IDBDatabase, wc: WebContainer, chatId: 
   }
 }
 
-export async function restoreCheckpoint(db: IDBDatabase, wc: WebContainer, chatId: string) {
+export async function restoreCheckpoint(db: IDBDatabase | undefined, wc: WebContainer, chatId: string) {
   if (checkpointBusy.get() !== 'idle') {
     throw new Error('Another checkpoint operation is in progress.');
   }

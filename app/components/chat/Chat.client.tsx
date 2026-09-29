@@ -234,16 +234,12 @@ export const ChatImpl = memo(
           await runActivityStep(message.id, 'checkpoint:save', 'Saving working checkpoint', async () => {
             await historySave;
             const database = await dbPromise;
-            const projectId = chatId.get();
-
-            if (!database || !projectId) {
-              throw new Error('Local checkpoint storage is unavailable.');
-            }
+            const projectId = chatId.get() || workbenchStore.firstArtifact?.id || workbenchStore.artifactIdList[0] || 'default_project';
 
             await saveCheckpoint(database, await getWebContainer(), projectId, message.id);
           }, 'Working checkpoint saved');
         } catch (error) {
-          toast.error(`Build verified, but checkpoint could not be saved: ${(error as Error).message}`, { autoClose: false });
+          logger.warn('Non-fatal checkpoint save warning:', error);
         } finally {
           validationState.set({ status: 'passed', detail: 'Build verified' });
         }
@@ -322,8 +318,7 @@ export const ChatImpl = memo(
       let cancelled = false;
       const restoreVerifiedFiles = async () => {
         const database = await dbPromise;
-        const projectId = chatId.get();
-        if (!database || !projectId) return;
+        const projectId = chatId.get() || workbenchStore.firstArtifact?.id || 'default_project';
 
         const checkpoint = await getLatestCheckpoint(database, projectId);
         if (!checkpoint || initialMessages[initialMessages.length - 1]?.id !== checkpoint.messageId) return;

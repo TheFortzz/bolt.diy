@@ -112,7 +112,6 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
 
     try {
       const database = await dbPromise;
-      if (!database) throw new Error('Local checkpoint storage is unavailable.');
 
       const chat = await getMessages(database, activeChatId);
       if (!chat) throw new Error('Project chat could not be loaded.');

@@ -391,6 +391,9 @@ const baseDir = path.resolve(fs.existsSync('/home/project') ? '/home/project' : 
 http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   let cleanUrl = (req.url || '/').split('?')[0].replace(/^\\/+/, '');
   if (!cleanUrl) cleanUrl = 'index.html';
 
@@ -443,11 +446,49 @@ http.createServer((req, res) => {
     }
   }
 
+  async clearProjectFiles() {
+    this.#editorStore.documents.set({});
+    this.#editorStore.selectedFile.set(undefined);
+    this.#filesStore.files.set({});
+    this.unsavedFiles.set(new Set());
+    this.completedFiles.set(new Set());
+    this.streamingFile.set(undefined);
+    this.#filesStore.resetFileModifications();
+
+    try {
+      const wc = await getWebContainer();
+      const entries = await wc.fs.readdir('.', { withFileTypes: true });
+      for (const entry of entries) {
+        if (
+          entry.name === 'node_modules' ||
+          entry.name === '.git' ||
+          entry.name === '.static_server.cjs' ||
+          entry.name.startsWith('.')
+        ) {
+          continue;
+        }
+        try {
+          await wc.fs.rm(entry.name, { recursive: true });
+        } catch {}
+      }
+    } catch (e) {
+      console.warn('Could not clear WebContainer files for new project:', e);
+    }
+  }
+
   addArtifact({ messageId, title, id, type }: ArtifactCallbackData) {
     const artifact = this.#getArtifact(messageId);
 
     if (artifact) {
       return;
+    }
+
+    const previousMessageId = this.artifactIdList[this.artifactIdList.length - 1];
+    const previousArtifact = previousMessageId ? this.#getArtifact(previousMessageId) : undefined;
+    const isNewProject = previousArtifact && previousArtifact.id !== id;
+
+    if (isNewProject) {
+      this.clearProjectFiles();
     }
 
     if (!this.artifactIdList.includes(messageId)) {

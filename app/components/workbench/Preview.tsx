@@ -425,6 +425,26 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
 
   // Keep last good preview while AI is streaming incomplete files.
   const lastGoodHtmlRef = useRef<string | undefined>();
+
+  // Track active artifact ID to clear old game cache when a new project starts
+  const currentArtifactIdRef = useRef<string | undefined>();
+  const latestMessageId = workbenchStore.artifactIdList[workbenchStore.artifactIdList.length - 1];
+  const latestArtifact = latestMessageId ? workbenchStore.artifacts.get()[latestMessageId] : undefined;
+  const currentArtifactId = latestArtifact?.id;
+
+  useEffect(() => {
+    if (currentArtifactId && currentArtifactId !== currentArtifactIdRef.current) {
+      currentArtifactIdRef.current = currentArtifactId;
+      lastGoodHtmlRef.current = undefined;
+      if (fallbackBlobUrlRef.current) {
+        const toRevoke = fallbackBlobUrlRef.current;
+        fallbackBlobUrlRef.current = undefined;
+        setTimeout(() => URL.revokeObjectURL(toRevoke), 500);
+      }
+      setFallbackBlobUrl(undefined);
+    }
+  }, [currentArtifactId]);
+
   const displayFallbackHtml = useMemo(() => {
     if (activePreview) {
       return undefined;
@@ -810,17 +830,33 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     }
   }, [previews, activePreviewIndex, findMinPortIndex]);
 
-  const reloadPreview = () => {
+  const reloadPreview = useCallback(() => {
     if (iframeRef.current) {
       if (activePreview) {
-        iframeRef.current.src = iframeUrl || activePreview.baseUrl;
+        const targetUrl = iframeUrl || activePreview.baseUrl;
+        const sep = targetUrl.includes('?') ? '&' : '?';
+        iframeRef.current.src = `${targetUrl}${sep}_cb=${Date.now()}`;
       } else if (fallbackBlobUrl) {
         iframeRef.current.src = fallbackBlobUrl;
       } else if (displayFallbackHtml) {
         iframeRef.current.srcdoc = displayFallbackHtml;
       }
     }
-  };
+  }, [activePreview, iframeUrl, fallbackBlobUrl, displayFallbackHtml]);
+
+  useEffect(() => {
+    const handleReload = () => {
+      reloadPreview();
+    };
+
+    window.addEventListener('fortz-play-while-building', handleReload);
+    window.addEventListener('thefortz-build-finished', handleReload);
+
+    return () => {
+      window.removeEventListener('fortz-play-while-building', handleReload);
+      window.removeEventListener('thefortz-build-finished', handleReload);
+    };
+  }, [reloadPreview]);
 
   const toggleFullscreen = async () => {
     if (!isFullscreen && containerRef.current) {

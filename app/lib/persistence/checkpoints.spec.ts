@@ -1,6 +1,6 @@
 import type { WebContainer } from '@webcontainer/api';
 import { describe, expect, it } from 'vitest';
-import { applyProjectSnapshot, captureProject } from './checkpoints';
+import { applyProjectSnapshot, captureProject, getLatestCheckpoint, restoreCheckpoint, saveCheckpoint } from './checkpoints';
 
 const encoder = new TextEncoder();
 
@@ -102,5 +102,37 @@ describe('project checkpoints', () => {
       'Invalid checkpoint path',
     );
     expect(files.get('/home/project/index.html')).toEqual(encoder.encode('working'));
+  });
+
+  it('saves and retrieves checkpoints without IndexedDB using fallback storage', async () => {
+    const { wc } = project({
+      'index.html': encoder.encode('<html><body>Test</body></html>'),
+      'game.js': encoder.encode('console.log("car");'),
+    });
+
+    const saved = await saveCheckpoint(undefined, wc, 'test-chat-123', 'msg-1');
+    expect(saved).toBeDefined();
+    expect(saved.chatId).toBe('test-chat-123');
+    expect(saved.messageId).toBe('msg-1');
+    expect(saved.fileCount).toBe(2);
+
+    const retrieved = await getLatestCheckpoint(undefined, 'test-chat-123');
+    expect(retrieved).toBeDefined();
+    expect(retrieved?.id).toBe(saved.id);
+    expect(retrieved?.files['index.html']).toEqual(encoder.encode('<html><body>Test</body></html>'));
+  });
+
+  it('restores project snapshot from fallback storage when db is undefined', async () => {
+    const { wc, files } = project({
+      'index.html': encoder.encode('initial game'),
+    });
+
+    await saveCheckpoint(undefined, wc, 'test-chat-456', 'msg-1');
+
+    files.set('/home/project/index.html', encoder.encode('broken change'));
+
+    const restored = await restoreCheckpoint(undefined, wc, 'test-chat-456');
+    expect(restored).toBeDefined();
+    expect(files.get('/home/project/index.html')).toEqual(encoder.encode('initial game'));
   });
 });
