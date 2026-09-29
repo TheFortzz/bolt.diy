@@ -513,37 +513,73 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
           const instrumentation = `<script>
 (function() {
   var token = ${JSON.stringify(token)};
+  var reported = false;
+
+  function reportLoaded() {
+    if (reported) return;
+    reported = true;
+    parent.postMessage({ token: token, type: 'preview-loaded' }, '*');
+  }
+
+  function reportError(err) {
+    if (reported) return;
+    reported = true;
+    parent.postMessage({ token: token, type: 'preview-error', error: String(err || 'Script error') }, '*');
+  }
+
   window.addEventListener('error', function(e) {
-    parent.postMessage({ token: token, type: 'preview-error', error: e.message || 'Script error' }, '*');
+    reportError(e.message || 'Script error');
   });
+
   window.addEventListener('unhandledrejection', function(e) {
-    parent.postMessage({ token: token, type: 'preview-error', error: String(e.reason?.message || e.reason) }, '*');
+    reportError(String(e.reason?.message || e.reason));
   });
-  window.addEventListener('load', function() {
+
+  function triggerStarts() {
+    try {
+      var elements = document.querySelectorAll('button, canvas, [id*="start"], [class*="start"], [id*="play"], [class*="overlay"], [class*="menu"], [onclick]');
+      for (var i = 0; i < elements.length; i++) {
+        elements[i].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      }
+      if (document.body) {
+        document.body.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      }
+    } catch (e) {}
+  }
+
+  function onReady() {
     var frameCount = 0;
+
+    // Safety fallback timer:
+    // If requestAnimationFrame is throttled or suspended by the browser engine (due to the iframe being positioned offscreen at top: -9999px),
+    // report preview-loaded after 600ms as long as no runtime exception was captured!
+    var fallbackTimer = setTimeout(function() {
+      reportLoaded();
+    }, 600);
+
     function checkFrames() {
       frameCount++;
-      if (frameCount < 4) {
-        requestAnimationFrame(checkFrames);
+      if (frameCount >= 3) {
+        clearTimeout(fallbackTimer);
+        reportLoaded();
       } else {
-        parent.postMessage({ token: token, type: 'preview-loaded' }, '*');
+        requestAnimationFrame(checkFrames);
       }
     }
     requestAnimationFrame(checkFrames);
 
-    setTimeout(function() {
-      try {
-        var canvas = document.querySelector('canvas');
-        if (canvas) {
-          canvas.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-        }
-        var btn = document.querySelector('button');
-        if (btn) {
-          btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-        }
-      } catch (e) {}
-    }, 50);
-  });
+    // Trigger start screen clicks immediately and after short delays
+    triggerStarts();
+    setTimeout(triggerStarts, 50);
+    setTimeout(triggerStarts, 200);
+  }
+
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    onReady();
+  } else {
+    window.addEventListener('load', onReady);
+    document.addEventListener('DOMContentLoaded', onReady);
+  }
 })();
 </script>`;
           frame.srcdoc = fallbackHtml!.replace(/(<!doctype[^>]*>)/i, `$1${instrumentation}`);

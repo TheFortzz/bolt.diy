@@ -130,6 +130,13 @@ export async function generateProjectAssets(
         const absolutePath = nodePath.posix.join(WORK_DIR, cleanPath);
         const filesStore = (workbenchStore as any)._filesStore || (workbenchStore as any).filesStore;
         if (filesStore?.files) {
+          // Register intermediate folder segments so assets/ folder appears in FileTree
+          const parts = cleanPath.split('/');
+          for (let i = 1; i < parts.length; i++) {
+            const folderPath = nodePath.posix.join(WORK_DIR, ...parts.slice(0, i));
+            filesStore.files.setKey(folderPath, { type: 'folder' });
+          }
+
           filesStore.files.setKey(absolutePath, {
             type: 'file',
             content: '',
