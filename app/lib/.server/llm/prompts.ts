@@ -54,8 +54,13 @@ const CREATIVE_GAME_GUIDANCE = `
   <game_design_principles>
     Build immersive, responsive, and creative games with deep gameplay:
     - Creative Variety & Novelty: THEFORTZ is a creative game creation platform. Every game built must be fresh, original, and uniquely designed for the user's prompt. NEVER repeat the same generic prototype, boilerplate file names, or identical mechanics every time a user asks for a genre.
+    - Exceptional Game Feel & Tactile Controls: Focus deeply on what makes this specific game fun, responsive, and satisfying to play:
+      * Driving / Racing: Realistic momentum, angular turning inertia, drift slip angles, tire friction, skid marks, particle smoke, and responsive steering.
+      * Top-down / Stealth / Action: Smooth velocity with damping, corner sliding (avoid wall snagging), dynamic vision cones, alert states, and fluid camera tracking.
+      * Physics / Platformers: Snappy jump arcs, coyote time, jump buffering, wall-sliding, impulse physics, and squishy impact feedback.
+      * Puzzle / Strategy / Board: Intuitive board interaction, crisp movement animations, clear visual rules, move undo/retry, and rewarding solve feedback.
+      * Never force generic cookie-cutter templates (no unprompted 3-class rosters, no forced shops, no cookie-cutter waves). Let the prompt dictate the design.
     - Visual Polish & Aesthetic Variety: Choose a distinct color palette and visual theme appropriate to the game's unique setting. Vary backgrounds, terrain, sprites, and UI styling to match the game's theme and the user's description. Use particle emitters (sparks, dust, smoke, trails), floating combat/score text, and camera screen shake on impacts.
-    - Deep Mechanics: Add progression, risk/reward choices, upgrade paths, combo counters, and smooth controls (WASD/Arrows + Mouse aim/click + touch buttons).
     - Immediate Playability: The game MUST start rendering as soon as it loads — or use a
       "Click to Start" overlay ONLY when audio context unlock is required. If a start screen
       is used, its onclick handler MUST call the real game initialization function directly
@@ -106,15 +111,11 @@ const CREATIVE_GAME_GUIDANCE = `
   </image_assets_rules>
 
   <agentic_architecture_scale>
-    Build production-grade games with substantial architectural depth, mirroring
-    elite agentic workflows like Replit Agent:
+    Build production-grade games with substantial architectural depth and high polish:
     - Modular Subsystems: Architect large games into clean, specialized modules
       (e.g., core state machines, collision & physics resolvers, particle emitters,
       procedural sound synthesizers, enemy AI controllers, level managers, HUD/menus).
-    - Scope and Richness: Never produce minimal or stubbed toys. Flesh out full game
-      loops with multiple progressive waves or levels, distinct player abilities,
-      upgrade mechanics (e.g. perk choices on level-up), varied enemy archetypes,
-      and epic multi-phase boss choreography.
+    - Scope and Polished Craft: Never produce minimal or stubbed toys. Build a rich, complete, and engaging game with rewarding objectives, dynamic feedback, intelligent behaviors tailored to the genre, and tactile polish.
     - Zero-Error Execution: Ensure 100% syntactically valid code, correct imports/exports
       matching the file structure, null-safe canvas rendering, and zero missing functions.
   </agentic_architecture_scale>
@@ -203,6 +204,11 @@ const GAME_DESIGN_REASONING_PROTOCOL = `
 
   5. TECHNICAL SAFEGUARDS & RUNTIME STABILITY:
      - Immediate Playability: The game MUST start rendering as soon as it loads, or on a single "Click to Start" overlay whose click handler immediately starts the real game loop.
+     - Prevent Default on Controls: Always call e.preventDefault() on game control keys (ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Space) so the browser page does NOT scroll while playing.
+     - Clamped Delta-Time: In the animation loop, clamp delta-time: 'const dt = Math.min(deltaTime, 0.05);' so physics never explode or clip through walls on frame drops.
+     - Smooth Movement & Collision: Use acceleration, friction damping, and wall-sliding collision so movement feels responsive and never snags or sticks on walls.
+     - Working Restart: Provide an instant restart on pressing 'R' or clicking "Play Again" that smoothly resets game state without breaking the loop or listeners.
+     - On-Screen Controls Guide: Always display a small, elegant HUD banner with controls (e.g. "WASD / Arrows to Move • Space to Action • R to Restart").
      - Script Loading Order: In index.html, load modular scripts in logical dependency order, with foundational helpers/engines first and the main game entry point last.
      - Global Window Attachment: Attach shared classes and controllers to window (e.g. 'window.Player = class Player { ... }') so all modules communicate reliably in the browser.
      - Self-Contained Math: Explicitly define any vector or math helpers (clamp, lerp, dist) where needed to ensure zero ReferenceErrors.

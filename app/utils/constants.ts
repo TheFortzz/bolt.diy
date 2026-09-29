@@ -17,25 +17,24 @@ export type StudioAgentMode = 'plan' | 'build' | 'auto';
 export const STUDIO_MODE_INSTRUCTIONS: Record<StudioAgentMode, string> = {
   plan: [
     'STUDIO MODE = PLAN (do not write files yet).',
-    "Develop a clear concept from the user's exact request: setting, perspective, core loop, progression, controls, art direction, and the smallest set of files that would make it real.",
-    'Propose an original architecture and file tree; do not prescribe a reusable game template or force a genre the user did not request.',
+    "Analyze the user's specific request deeply: identify the exact genre, core gameplay loop, controls, mechanics, visual theme, and audio that will make THIS specific game uniquely fun and engaging.",
+    'Propose an original, tailored architecture and modular file tree designed specifically for this concept. Never force cookie-cutter templates, character classes, or unprompted boilerplate.',
     'Do NOT emit <boltArtifact>, <boltAction>, or file contents.',
     'End by asking whether the user wants you to build this plan.',
   ].join(' '),
   build: [
-    'STUDIO MODE = BUILD (FULL PRODUCTION SCALE).',
-    'Think deeply and architect the game thoroughly before writing code.',
-    'Build an expansive, feature-packed game with substantial depth tailored to the requested genre: implement at least 3 distinct playable stages/levels, multiple selectable characters/classes/ships with distinct handling and stats, an upgrade shop or progression system with currency saved to localStorage, intelligent AI opponents or dynamic enemies, a rich HUD (status gauges, mini-map/radar, combo popups), and a complete procedural Web Audio sound synthesizer.',
-    'Follow the Zero-ReferenceError Architecture: Define math helpers globally in utils.js on window and defensively inside physics/movement files (e.g. const vecLength = (v) => Math.hypot(v.x, v.y); const clamp = (v, min, max) => Math.max(min, Math.min(max, v));) so undefined functions never crash the game loop.',
-    'Take the full token budget to write complete, robust files across multiple modules rather than a minimal 1-minute prototype.',
-    'Choose unique, creative themes and original visual aesthetics tailored to the concept — never repeat generic prototypes.',
+    'STUDIO MODE = BUILD (HIGH-POLISH GAMEPLAY & ZERO COOKIE-CUTTER FORCING).',
+    "Analyze the user's prompt first: fully dedicate your design to their exact game concept and its unique mechanics.",
+    'Build a genuinely fun, polished, and responsive game. Prioritize exceptional game feel: tactile controls, satisfying physics, crisp collision detection, smooth camera tracking, responsive state machines, and rewarding feedback.',
+    'DO NOT force cookie-cutter tropes (do NOT force 3 character classes, upgrade shops, or currency grinds unless the game naturally calls for it). Every game must feel fresh, original, and tailored to the prompt.',
+    'Visual & Audio Juice: Use a distinct, cohesive color palette, dynamic particle effects (sparks, dust, smoke, impact ripples), camera shake on impacts, and real-time procedural Web Audio sound synthesis tailored to game actions.',
+    'Technical Safeguards: Flat root files, preventDefault on game keys (Arrow keys, Space) so page never scrolls, clamp delta-time (Math.min(dt, 0.05)), robust script loading order in index.html, global window attachment for shared classes, self-contained math helpers (clamp, lerp, dist, vecLength), and 100% syntactically complete code.',
   ].join(' '),
   auto: [
-    'STUDIO MODE = AUTO (FULL PRODUCTION SCALE).',
-    'Execute the game design reasoning protocol to invent a fresh, bold concept, architect all interfaces, and mitigate failure modes.',
-    'Build an expansive, ambitious game with deep mechanics: multiple stages/levels, character/class selection roster, upgrade systems, dynamic AI enemies/competitors, particle systems, and procedural sound synthesis.',
-    'Build all files as flat outside files directly in the root directory without home or project subfolders.',
-    'Ensure immediate playability, zero undefined math helpers, defensive fallbacks, null-safe constructors, and complete syntax in every file.',
+    'STUDIO MODE = AUTO (HIGH-POLISH GAMEPLAY & CREATIVE FREEDOM).',
+    "Analyze the user's prompt first and freely invent an original, creative, and immersive game concept tailored to their request.",
+    'Focus on deep, satisfying gameplay mechanics, polished controls, clean visuals, dynamic particles, and responsive procedural Web Audio.',
+    'Architect clean modular files directly in the root directory. Ensure immediate playability and zero runtime errors.',
   ].join(' '),
 };
 
