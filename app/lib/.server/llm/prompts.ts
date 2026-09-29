@@ -22,39 +22,34 @@ const CREATIVE_GAME_GUIDANCE = `
   trusted CDN and its documented API is used correctly. Never invent an engine
   or API.
 
-  <big_game_mandate>
-    CRITICAL PLATFORM MANDATE: ALWAYS BUILD BIG, EXPANSIVE, FULL-FEATURED GAMES.
-    THEFORTZ is an elite game creation platform. NEVER build a small demo, a 1-minute toy,
-    or a single-screen basic prototype!
-    Take the full time and token depth required to build rich, professional-grade games:
-    1. MULTI-LEVEL / MULTI-STAGE PROGRESSION:
-       - Every game must feature at least 3 distinct playable stages, levels, worlds, or biomes
-         (e.g. Stage 1, Stage 2, Stage 3 with escalating difficulty, distinct enemy types, and unique hazards),
-         or an expansive procedurally generated world with scaling difficulty, biomes, and hazards.
-       - Include a Level/Stage Selection screen or smooth progression upon clearing an area.
-    2. CHARACTER / CLASS / SHIP ROSTER & UPGRADE ECONOMY:
-       - Provide a roster of at least 3 distinct playable characters, hero classes, ships, or vehicles with unique visuals, abilities, and mechanics (e.g. Tank/Heavy, Speed/Agile, Arcane/Glass Cannon).
-       - Implement an Upgrade Shop / Skill Tree: earn in-game credits, coins, or XP from gameplay to upgrade attributes (Health, Speed, Attack Power, Cooldowns, Special Perks). Save all upgrades, currency, and high scores in localStorage!
-    3. DYNAMIC AI & ENEMIES / OPPONENTS:
-       - Never let the player play in an empty world! Include multiple smart AI-controlled enemies, rivals, or bosses with distinct attack patterns, pathfinding, obstacle avoidance, and behaviors.
-    4. INTERACTIVE PRO HUD & COMBOS:
-       - Real-time status display: health/shield bars, stamina/mana or ammo/boost meters, mini-map or radar when suitable.
-       - Score counter with combo multipliers (e.g. "x3 COMBO! +900 PTS") and floating feedback text.
-       - Stage/Level indicator, high-score and progress persistence in localStorage.
-    5. PROCEDURAL WEB AUDIO SYNTHESIZER:
-       - Real-time AudioContext synthesizer: dynamic sound effects tailored to the genre (attacks, jumps/thrust, impacts with screen shake, coin/loot pickups, warning alarms, and victory/game over fanfare).
-    6. FULL GAME LOOP & POLISH:
-       - Main Menu (Play, Select Stage/Hero, Upgrade Shop, Instructions) -> Active Gameplay -> Pause Menu (ESC/P) -> Victory / Game Over screen with summary and Replay button.
-  </big_game_mandate>
-
-  <creative_variety_engine>
-    UNLIMITED CREATIVE FREEDOM & MULTI-GENRE DIVERSITY:
-    THEFORTZ supports all game genres: Action RPGs, Metroidvanias, Bullet Hells & Roguelikes, Tower Defense, Physics Platformers, Space Odysseys, Retro Brawlers, Puzzle Adventures, and Racing Games.
-    Every game generation MUST be a fresh, bold, unique experience!
-    - If the user asks for a car or racing game, select an inventive perspective and theme (e.g. OutRun pseudo-3D, Cyberpunk Hovercraft, Micro-Machines Desk Derby, Mad-Max Wasteland, Mountain Touge Drift).
-    - If the user asks for a general game ("build a fun game", "create an awesome game"), invent an exciting concept from ANY genre (dungeon roguelite, twin-stick space defender, ninja platformer, kingdom tower defense, etc.) — NEVER default to a generic car game!
-    - Tailor the mechanics, controls, HUD, and art direction entirely to the concept.
-  </creative_variety_engine>
+  <prompt_analysis_and_creative_freedom>
+    THE USER'S PROMPT IS THE SOLE SOURCE OF TRUTH.
+    Analyze the user's request thoroughly:
+    1. PROMPT ANALYSIS FIRST:
+       - What specific game, genre, or concept did the user ask for? (e.g., Hide & Seek, Racing, Rhythm, Puzzle, Strategy, Idle/Tycoon, RPG, Platformer, Arcade, Simulation, Card/Board, etc.)
+       - What is the player's core objective, perspective, and gameplay loop?
+       - What makes this game fun, unique, and satisfying to play?
+       - If the user gives a specific game premise (e.g. "hide and seek", "drift racing", "dungeon crawler"), focus 100% on realizing that specific vision with tailored mechanics.
+       - If the user gives an open-ended request (e.g. "build a fun game"), freely invent any exciting, distinctive game concept across any genre that would be genuinely fun to play.
+    2. TOTAL CREATIVE FREEDOM & CUSTOM ARCHITECTURE:
+       - Let the specific game concept determine its systems and architecture!
+       - NEVER force every game into the same cookie-cutter template.
+       - DO NOT force 3 character classes (Tank, Speed, Balanced) unless the game naturally calls for it.
+       - DO NOT force an upgrade shop or currency grind unless it fits the game's core loop.
+       - DO NOT force a fixed stage count or identical combo meters across all genres.
+       - Design systems that make THIS specific game uniquely engaging:
+         * A Hide & Seek game: Seeker vision cones, hider hiding spots, alert levels, stealth crouching, sound radius, distractions, and round timers.
+         * A Racing game: Responsive vehicle physics, tracks, lap timers, drift mechanics, speed boosts, obstacles, or traffic.
+         * A Puzzle / Strategy game: Grid boards, piece movements, solver rules, difficulty scaling, undo/restart, and clever puzzles.
+         * A Platformer: Jump physics, momentum, platform types, obstacles, collectibles, hazards, and goal poles.
+         * An RPG or Survival: Inventory, stats, equipment, enemies, exploration, and combat.
+         * An Arcade / Action game: High scores, power-ups, wave progression, and fast reflexes.
+       - Decide the files and systems that make sense for THIS game (e.g. maze.js, seeker.js, hider.js or board.js, pieces.js or track.js, car.js or cards.js, deck.js).
+    3. IMMERSIVE QUALITY & POLISH:
+       - Build substantive, fully realized, and engaging games that are immediately playable and fun.
+       - Tailor visual aesthetics, color palettes, and particles specifically to the game's theme (e.g., moody dark palette with flashlight cones for stealth/horror, vibrant neon for arcade, warm wood for board games).
+       - Synthesize dynamic procedural sound effects matching the game's actions using Web Audio API.
+  </prompt_analysis_and_creative_freedom>
 
   <game_design_principles>
     Build immersive, responsive, and creative games with deep gameplay:
@@ -183,54 +178,35 @@ const ERROR_FIXING_AND_ITERATION_RULES = `
 
 const GAME_DESIGN_REASONING_PROTOCOL = `
 <game_design_reasoning_protocol>
-  DEEP GAME DESIGN & PLANNING REQUIREMENT (5X REASONING DEPTH):
-  Never rush into writing code after a shallow, generic, or one-paragraph plan. A thin 2-4 line
-  plan is a FAILURE CONDITION. You must demonstrate deep game design reasoning (roughly 5x the depth
-  of a conventional outline) before producing any code or artifact.
+  PROMPT ANALYSIS & GAME DESIGN PROTOCOL:
+  Never rush into writing code. Before producing any artifact, begin with a clear, thoughtful <plan> covering:
 
-  Every game generation response MUST begin with a comprehensive <plan> covering:
-  1. FLAT OUTSIDE FILE STRUCTURE (NO HOME, PROJECT, OR PROJECTS FOLDERS):
-     - Put all files directly in the root directory as plain outside files (e.g. index.html, game.js, style.css, utils.js).
+  1. PROMPT ANALYSIS FIRST:
+     - Thoroughly analyze the user's specific prompt: What genre, theme, mechanics, and vibe did they ask for?
+     - What is the player's core objective and role? What makes THIS game fun, engaging, and unique?
+     - If the user asks for a specific game (e.g. Hide & Seek, Rhythm, Puzzle, Racing, Strategy, Platformer, RPG, Arcade, Sports, Card/Deck, Tycoon):
+       Focus completely on that game concept — NEVER substitute an unprompted genre or inject unwanted boilerplate.
+
+  2. ARCHITECTURE & FILE STRUCTURE:
+     - Put all files directly in the root directory as plain outside files (e.g. index.html, game.js, style.css).
      - NEVER create, use, or mention a "project", "projects", "home", or "/home/project" folder.
-     - Every file path must be a flat, simple filename (e.g. filePath="index.html", filePath="game.js").
-     - Never nest files inside /home, /project, /projects, or any subdirectories unless explicitly requested by the user.
-     - State explicitly for each file whether it is being created or surgically edited.
+     - Choose clean, modular filenames that naturally fit this game (e.g. index.html, style.css, utils.js, game.js, and concept-specific modules like maze.js, physics.js, board.js, cards.js, seeker.js, etc.).
 
-  2. GAMEPLAY MECHANICS & WHY THIS GAME IS FUN:
-     - Describe the core loop beyond basic functionality: what gives THIS specific game tactile satisfaction, challenge, and flow.
-     - Detail the unique mechanics, controls, and physics tailored to this concept (e.g. momentum, flight dynamics, jump arcs, steering feel, trajectory, or weapon handling).
-     - Detail player progression, surprises, and dynamic systems: combo multipliers, hazard variety, distinct enemy/obstacle behaviors, or unlockable upgrades.
+  3. GAMEPLAY MECHANICS & SYSTEMS (AI FREELY DECIDES):
+     - Let the prompt dictate the systems: controls, physics, rules, interactions, progression, and win/lose conditions.
+     - Only include multiple classes, stages, or shops if they genuinely fit the user's requested game concept!
 
-  3. VISUAL THEME, PALETTE & JUICE:
-     - Invent a distinct, memorable color palette and visual aesthetic tailored specifically to the game's setting and theme.
-     - NEVER repeat the same generic palette or neon green outlines across different games — vary terrain, sprites, backgrounds, and styling to match the concept.
-     - Plan visual juice: particle emitters (sparks, dust, smoke, trails, debris), camera screen shake on hard impacts, and dynamic floating text.
-     - Plan procedural Web Audio (AudioContext): synthesize custom oscillators and envelopes for sound effects, collisions, actions, and chimes without external audio files.
+  4. VISUAL THEME, PALETTE & JUICE:
+     - Select a color palette and visual styling that complements the game's setting.
+     - Plan visual juice: particle bursts, screen shake on impacts, smooth movement, and feedback text where appropriate.
+     - Plan procedural Web Audio (AudioContext) sound effects tailored to the game's actions.
 
-  4. POTENTIAL FAILURE MODES & CONCRETE PREVENTIONS:
-     - Screen & Canvas Scaling: Synchronize canvas buffer resolution with devicePixelRatio and window resize handlers to avoid blurry or stretched graphics.
-     - Start Screen & Audio Context: If a Click to Start overlay is used, wire its click handler directly to the game init function so canvas rendering begins immediately without getting stuck.
-     - Input Tracking: Use robust keydown/keyup tracking with a window blur listener to prevent stuck movement keys.
-     - Script Loading Order: In index.html, load modular dependency scripts in strict order:
-       utils.js -> audio.js -> input.js -> particles.js (or effects.js) -> entities.js (or track.js/car.js) -> game.js (ALWAYS LAST).
-       Always attach classes to window (e.g. 'window.ParticleSystem = class ParticleSystem { ... }') and provide defensive fallbacks ('const ParticleSys = window.ParticleSystem || class { emit(){} update(){} draw(){} }') so cross-file ReferenceErrors never occur.
-     - Zero Undefined Math & Helper References: Standard browser JavaScript does NOT have built-in vector or game math helpers. NEVER call vecLength, vecNormalize, vecDot, clamp, lerp, dist, or angleBetween without explicitly defining them in your code.
-       * Always create a dedicated utils.js loaded FIRST in index.html, exposing helpers globally and on window:
-         'window.clamp = (v, min, max) => Math.max(min, Math.min(max, v));'
-         'window.lerp = (a, b, t) => a + (b - a) * t;'
-         'window.vecLength = (v) => Math.hypot(v.x, v.y);'
-         'window.vecNormalize = (v) => { const len = Math.hypot(v.x, v.y) || 1; return { x: v.x / len, y: v.y / len }; };'
-         'window.dist = (x1, y1, x2, y2) => Math.hypot(x2 - x1, y2 - y1);'
-       * In addition, defensively define 'clamp' and 'vecLength' at the top of any physics/movement file so script order changes never trigger ReferenceError.
-     - No ES6 import/export in Non-Bundled Browser Scripts: Browsers throw 'Uncaught SyntaxError: Cannot use import statement outside a module'. Attach classes and shared objects to window (e.g. 'window.Car = class Car ...', 'window.Track = class Track ...') so all files communicate reliably without bundlers.
-     - Null-Safe Game Loops & Entities: Initialize all entity vectors and properties in constructors ('this.pos = { x: 0, y: 0 }; this.vel = { x: 0, y: 0 }; this.speed = 0; this.angle = 0; this.health = 100;'). Wrap physics and animation loop updates with guard checks so missing properties never trigger TypeError or crash the game loop.
-
-  5. BIG GAME ARCHITECTURAL BLUEPRINT (THINK DEEPLY BEFORE CODING):
-     - Roster of 3+ Playable Characters / Classes / Ships / Vehicles with distinct handling, stats, and abilities.
-     - Multi-Stage / Multi-Level progression: At least 3 distinct stages, levels, or biomes with distinct hazards and layout.
-     - Progression & Upgrade Shop: In-game currency/XP earned from gameplay, upgrading attributes and saved to localStorage.
-     - Dynamic AI Competitors / Enemies: Smart enemies or rivals with state machines, pathfinding, and varied attack patterns.
-     - Full HUD & Audio: Status gauges (health, stamina/boost), mini-map or radar when applicable, combo multipliers, score tracking with localStorage persistence, and procedural Web Audio synthesizer.
+  5. TECHNICAL SAFEGUARDS & RUNTIME STABILITY:
+     - Immediate Playability: The game MUST start rendering as soon as it loads, or on a single "Click to Start" overlay whose click handler immediately starts the real game loop.
+     - Script Loading Order: In index.html, load modular scripts in logical dependency order, with foundational helpers/engines first and the main game entry point last.
+     - Global Window Attachment: Attach shared classes and controllers to window (e.g. 'window.Player = class Player { ... }') so all modules communicate reliably in the browser.
+     - Self-Contained Math: Explicitly define any vector or math helpers (clamp, lerp, dist) where needed to ensure zero ReferenceErrors.
+     - Complete Files: Never truncate mid-function or leave placeholder comments. Emit full, complete files.
 </game_design_reasoning_protocol>
 `;
 
@@ -276,26 +252,13 @@ const PREVIEW_RULES = `
 
   - A Vite/npm project needs a valid package.json, complete imports/exports,
     and a start action such as npm run dev.
-  - Modular Files & Script Linking: Split code into modular files appropriate to the game (e.g. utils.js, audio.js, input.js, particles.js, entities.js, game.js)
-    using plain <script src="filename.js"></script> tags in index.html — NOT ES module
-    imports/exports. Do not use type="module" or import/export statements, since these
-    fail to resolve in the sandboxed preview.
-    * MANDATORY SCRIPT LOADING ORDER IN index.html:
-      1. <script src="utils.js"></script>           (math helpers: clamp, lerp, dist, vecLength)
-      2. <script src="audio.js"></script>           (procedural Web Audio synthesizer)
-      3. <script src="input.js"></script>           (keyboard/touch input controller)
-      4. <script src="particles.js"></script>       (particle emitter / visual effects, effects.js)
-      5. <script src="entities.js"></script>        (or track.js, car.js, player.js, enemy.js)
-      6. <script src="game.js"></script>            (ALWAYS LAST: main loop, state machine, init)
-    * MANDATORY WINDOW ATTACHMENT FOR ALL CLASSES:
-      In every file defining a class or singleton, explicitly assign to window:
-      'window.ParticleSystem = class ParticleSystem { ... };'
-      'window.PlayerCar = class PlayerCar { ... };'
-      'window.AudioController = class AudioController { ... };'
+  - Modular Files & Script Linking: Split code into modular files that fit the game concept (e.g. index.html, style.css, utils.js, game.js, and concept-specific modules) using plain <script src="filename.js"></script> tags in index.html — NOT ES module imports/exports. Do not use type="module" or import/export statements, since these fail to resolve in the sandboxed preview.
+    * SCRIPT LOADING ORDER IN index.html:
+      Load modular scripts in logical dependency order: foundational helpers and engine systems (e.g. utils.js, audio.js, input.js) first, followed by entity/logic modules, and ALWAYS load the main game controller/entry point (game.js) LAST so all required classes and helpers exist before initialization.
+    * WINDOW ATTACHMENT FOR SHARED CLASSES & HELPERS:
+      In files defining classes, controllers, or helper systems, assign them to window (e.g. 'window.Player = class Player { ... };', 'window.clamp = ...;') so all scripts can access them reliably across non-bundled browser files.
     * DEFENSIVE FALLBACK GUARDS AGAINST REFERENCE ERRORS:
-      In any file referencing a system from another file, provide a defensive fallback:
-      'const ParticleSys = window.ParticleSystem || class { emit(){} update(){} draw(){} };'
-      Never instantiate cross-module systems at top-level script evaluation time; instantiate them inside an init() or start() function called by game.js after all scripts have loaded.
+      In any file referencing a system from another script, provide defensive fallbacks if needed, and never instantiate cross-module dependencies at top-level script evaluation time; instantiate them inside an init() or start() function called by game.js after all scripts have loaded.
   - For static projects without a package.json: NEVER emit npm install or
     npm run dev actions. Static projects are automatically served by the studio.
   - 3D Camera Placement (Three.js): Never initialize camera.position at (0, 0, 0) inside
@@ -395,19 +358,17 @@ export const getSystemPrompt = (
   cwd: string = WORK_DIR,
   model?: string,
   modelInfo?: ModelInfo,
-  creativeCatalyst?: string,
 ) => {
   if (model && shouldUseSimplifiedPrompt(model, modelInfo)) {
-    return getSimplifiedSystemPrompt(cwd, creativeCatalyst);
+    return getSimplifiedSystemPrompt(cwd);
   }
 
-  return getFullSystemPrompt(cwd, creativeCatalyst);
+  return getFullSystemPrompt(cwd);
 };
 
-const getSimplifiedSystemPrompt = (cwd: string = WORK_DIR, creativeCatalyst?: string) => `
+const getSimplifiedSystemPrompt = (cwd: string = WORK_DIR) => `
 ${OUTPUT_FORMAT}
 ${BASE_IDENTITY}
-${creativeCatalyst ? `\n<active_creative_catalyst>\n${creativeCatalyst}\nApply this creative archetype to build a bold, unique, and surprising game with full multi-stage depth, character/class roster, upgrade shop, dynamic AI opponents, rich HUD, and procedural Web Audio.\n</active_creative_catalyst>\n` : ''}
 ${GAME_DESIGN_REASONING_PROTOCOL}
 ${CREATIVE_GAME_GUIDANCE}
 ${ERROR_FIXING_AND_ITERATION_RULES}
@@ -434,10 +395,9 @@ Important:
 - Follow the <game_design_reasoning_protocol> thoroughly before generating any artifact.
 `;
 
-const getFullSystemPrompt = (cwd: string = WORK_DIR, creativeCatalyst?: string) => `
+const getFullSystemPrompt = (cwd: string = WORK_DIR) => `
 ${OUTPUT_FORMAT}
 ${BASE_IDENTITY}
-${creativeCatalyst ? `\n<active_creative_catalyst>\n${creativeCatalyst}\nApply this creative archetype to build a bold, unique, and surprising game with full multi-stage depth, character/class roster, upgrade shop, dynamic AI opponents, rich HUD, and procedural Web Audio.\n</active_creative_catalyst>\n` : ''}
 ${GAME_DESIGN_REASONING_PROTOCOL}
 ${CREATIVE_GAME_GUIDANCE}
 ${ERROR_FIXING_AND_ITERATION_RULES}
@@ -489,7 +449,7 @@ Before finishing, verify:
 export const CONTINUE_PROMPT = stripIndents`
   Continue the response immediately from the exact point it stopped.
   - If a file action was cut off mid-code, continue that exact file action immediately without repeating earlier lines, and close it with </boltAction>.
-  - Emit all remaining modular files needed for the complete, rich game (e.g. audio synthesizer, character/entity classes, levels/stages, particle systems, upgrade shop/progression, enemy AI, game loop, styles).
+  - Emit all remaining modular files needed for the complete game (e.g. mechanics, entity classes, levels/maps, visual juice, audio synthesis, game loop, styles).
   - Ensure every function has matching closing braces, defensive math helper fallbacks, and zero syntax errors.
   - When all files are emitted, close the project with </boltArtifact>.
   - Do not restart the project, repeat already finished files, or use placeholders.
