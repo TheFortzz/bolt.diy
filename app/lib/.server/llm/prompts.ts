@@ -86,18 +86,27 @@ const CREATIVE_GAME_GUIDANCE = `
 
   <image_assets_rules>
     GRAPHIC ASSETS & RESILIENT FALLBACK RENDERING:
-    - Graphic image assets reside under the /assets/ directory (e.g. assets/player.png, assets/enemy.png, assets/item.png).
-    - In rendering code, instantiate image assets using standard browser Image() objects:
+    - Graphic image assets reside under the /assets/ directory (e.g. assets/player_car.png, assets/rival_car.png, assets/track_background.png, assets/nitro.png).
+    - Diverse Asset Categories:
+      1. Player / Vehicle / Hero Sprites (e.g. assets/player_car.png, assets/player.png): 2D sprites with clean transparent PNG backgrounds.
+      2. Enemy / Rival Sprites (e.g. assets/rival_car.png, assets/enemy.png): 2D sprites with clean transparent PNG backgrounds.
+      3. Background Environment Backdrops (e.g. assets/track_background.png, assets/dungeon_bg.png, assets/arena_bg.png): Full-frame terrain or racetrack backdrop textures.
+      4. Pickups / Hazards / Projectiles (e.g. assets/nitro.png, assets/coin.png, assets/laser.png): 2D sprites with transparent backgrounds.
+    - In rendering code, instantiate image assets using Image() or window.GameAssets:
       const playerSprite = new Image();
-      playerSprite.src = 'assets/player.png';
-    - CRITICAL SHAPE-RENDERING FALLBACK: Always guard image drawing with complete and naturalWidth checks, and PRESERVE the shape-based drawing code in the else block:
+      playerSprite.src = 'assets/player_car.png';
+    - For rotated sprites (cars, ships), save context, translate, rotate, and draw centered:
       if (playerSprite.complete && playerSprite.naturalWidth > 0) {
-        ctx.drawImage(playerSprite, x, y, width, height);
+        ctx.save();
+        ctx.translate(car.x, car.y);
+        ctx.rotate(car.angle);
+        ctx.drawImage(playerSprite, -car.width / 2, -car.height / 2, car.width, car.height);
+        ctx.restore();
       } else {
-        // Fallback shape rendering (never remove):
-        ctx.fillStyle = '#...';
-        ctx.fillRect(x, y, width, height);
+        // Fallback shape rendering (always preserved):
+        [original shape drawing]
       }
+    - CRITICAL SHAPE-RENDERING FALLBACK: Always guard image drawing with complete and naturalWidth checks, and PRESERVE the shape-based drawing code in the else block.
     - This ensures that if asset generation fails, times out, or images are still loading, the game is 100% playable immediately with zero console errors or broken builds.
   </image_assets_rules>
 
@@ -202,7 +211,9 @@ const GAME_DESIGN_REASONING_PROTOCOL = `
      - Screen & Canvas Scaling: Synchronize canvas buffer resolution with devicePixelRatio and window resize handlers to avoid blurry or stretched graphics.
      - Start Screen & Audio Context: If a Click to Start overlay is used, wire its click handler directly to the game init function so canvas rendering begins immediately without getting stuck.
      - Input Tracking: Use robust keydown/keyup tracking with a window blur listener to prevent stuck movement keys.
-     - Script Loading Order: In index.html, load modular dependency scripts (utils.js -> audio.js -> input.js -> entities/track -> game.js) using standard <script src="..."></script> tags (without type="module").
+     - Script Loading Order: In index.html, load modular dependency scripts in strict order:
+       utils.js -> audio.js -> input.js -> particles.js (or effects.js) -> entities.js (or track.js/car.js) -> game.js (ALWAYS LAST).
+       Always attach classes to window (e.g. 'window.ParticleSystem = class ParticleSystem { ... }') and provide defensive fallbacks ('const ParticleSys = window.ParticleSystem || class { emit(){} update(){} draw(){} }') so cross-file ReferenceErrors never occur.
      - Zero Undefined Math & Helper References: Standard browser JavaScript does NOT have built-in vector or game math helpers. NEVER call vecLength, vecNormalize, vecDot, clamp, lerp, dist, or angleBetween without explicitly defining them in your code.
        * Always create a dedicated utils.js loaded FIRST in index.html, exposing helpers globally and on window:
          'window.clamp = (v, min, max) => Math.max(min, Math.min(max, v));'
@@ -265,12 +276,26 @@ const PREVIEW_RULES = `
 
   - A Vite/npm project needs a valid package.json, complete imports/exports,
     and a start action such as npm run dev.
-  - Modular Files & Script Linking: Split code into modular files appropriate to the game (e.g. audio.js, world.js, entities.js, game.js)
+  - Modular Files & Script Linking: Split code into modular files appropriate to the game (e.g. utils.js, audio.js, input.js, particles.js, entities.js, game.js)
     using plain <script src="filename.js"></script> tags in index.html — NOT ES module
     imports/exports. Do not use type="module" or import/export statements, since these
-    fail to resolve in the sandboxed preview. Every script file must be linked with a
-    script tag in index.html in the correct dependency order (dependencies before the
-    files that use them).
+    fail to resolve in the sandboxed preview.
+    * MANDATORY SCRIPT LOADING ORDER IN index.html:
+      1. <script src="utils.js"></script>           (math helpers: clamp, lerp, dist, vecLength)
+      2. <script src="audio.js"></script>           (procedural Web Audio synthesizer)
+      3. <script src="input.js"></script>           (keyboard/touch input controller)
+      4. <script src="particles.js"></script>       (particle emitter / visual effects, effects.js)
+      5. <script src="entities.js"></script>        (or track.js, car.js, player.js, enemy.js)
+      6. <script src="game.js"></script>            (ALWAYS LAST: main loop, state machine, init)
+    * MANDATORY WINDOW ATTACHMENT FOR ALL CLASSES:
+      In every file defining a class or singleton, explicitly assign to window:
+      'window.ParticleSystem = class ParticleSystem { ... };'
+      'window.PlayerCar = class PlayerCar { ... };'
+      'window.AudioController = class AudioController { ... };'
+    * DEFENSIVE FALLBACK GUARDS AGAINST REFERENCE ERRORS:
+      In any file referencing a system from another file, provide a defensive fallback:
+      'const ParticleSys = window.ParticleSystem || class { emit(){} update(){} draw(){} };'
+      Never instantiate cross-module systems at top-level script evaluation time; instantiate them inside an init() or start() function called by game.js after all scripts have loaded.
   - For static projects without a package.json: NEVER emit npm install or
     npm run dev actions. Static projects are automatically served by the studio.
   - 3D Camera Placement (Three.js): Never initialize camera.position at (0, 0, 0) inside

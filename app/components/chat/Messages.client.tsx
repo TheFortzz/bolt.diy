@@ -96,6 +96,21 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
             const isUserMessage = role === 'user';
             const isFirst = index === 0;
             const isLast = index === messages.length - 1;
+            const isInternalRepair =
+              isUserMessage && typeof content === 'string' && content.includes('[Internal Repair Prompt');
+
+            if (isInternalRepair) {
+              return (
+                <div key={index} className="w-full my-2">
+                  <div className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs font-mono shadow-sm">
+                    <div className="i-ph:wrench-fill text-emerald-400 text-base animate-pulse shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <span className="font-semibold text-emerald-200">FortzAI Auto-Repair:</span> Diagnosing runtime issue and automatically repairing code…
+                    </div>
+                  </div>
+                </div>
+              );
+            }
 
             return (
               <div

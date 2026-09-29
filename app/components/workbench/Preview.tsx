@@ -170,17 +170,18 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       }
     }
 
-    // Rank dependencies so foundational math/physics/utilities load before entities and gameplay
+    // Rank dependencies so foundational math/physics/utilities and effects load before entities and gameplay
     const getDepRank = (filename: string): number => {
       const lower = filename.toLowerCase();
       if (lower.includes('math') || lower.includes('vec') || lower.includes('util') || lower.includes('const') || lower.includes('config')) return 1;
-      if (lower.includes('audio') || lower.includes('sound')) return 2;
-      if (lower.includes('input') || lower.includes('control') || lower.includes('keyboard')) return 3;
-      if (lower.includes('physics') || lower.includes('collision')) return 4;
-      if (lower.includes('track') || lower.includes('map') || lower.includes('level') || lower.includes('world') || lower.includes('camera')) return 5;
-      if (lower.includes('car') || lower.includes('player') || lower.includes('enemy') || lower.includes('entity') || lower.includes('particle')) return 6;
-      if (lower.includes('ui') || lower.includes('hud') || lower.includes('score') || lower.includes('menu')) return 7;
-      return 10;
+      if (lower.includes('audio') || lower.includes('sound') || lower.includes('music')) return 2;
+      if (lower.includes('input') || lower.includes('control') || lower.includes('keyboard') || lower.includes('key')) return 3;
+      if (lower.includes('particle') || lower.includes('effect') || lower.includes('fx') || lower.includes('emitter') || lower.includes('smoke') || lower.includes('spark')) return 4;
+      if (lower.includes('physics') || lower.includes('collision')) return 5;
+      if (lower.includes('track') || lower.includes('map') || lower.includes('level') || lower.includes('world') || lower.includes('camera') || lower.includes('grid')) return 6;
+      if (lower.includes('car') || lower.includes('vehicle') || lower.includes('player') || lower.includes('enemy') || lower.includes('entity') || lower.includes('entities') || lower.includes('actor') || lower.includes('ai')) return 7;
+      if (lower.includes('ui') || lower.includes('hud') || lower.includes('score') || lower.includes('menu') || lower.includes('shop')) return 8;
+      return 9;
     };
     unlinkedDependencies.sort((a, b) => getDepRank(a) - getDepRank(b));
 
@@ -211,7 +212,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       }
     }
 
-    // Standard game math & vector helper polyfills so common helper functions never crash at runtime
+    // Standard game math, vector helpers, and resilient system fallbacks so scripts never crash at runtime
     const mathUtilsScript = `<script id="bolt-game-math-utils">
 (function() {
   var g = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this);
@@ -273,6 +274,49 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     g.vecScale = function(a, s) { return { x: (a.x || 0) * s, y: (a.y || 0) * s }; };
   }
   if (typeof g.vecMult === 'undefined') g.vecMult = g.vecScale;
+
+  // Safe fallback class stubs to prevent cross-file ReferenceError crashes
+  if (typeof g.ParticleSystem === 'undefined') {
+    g.ParticleSystem = class ParticleSystem {
+      constructor() { this.particles = []; }
+      emit() {}
+      update() {}
+      draw() {}
+      render() {}
+      clear() {}
+      reset() {}
+    };
+  }
+  if (typeof g.ParticleEmitter === 'undefined') {
+    g.ParticleEmitter = g.ParticleSystem;
+  }
+  if (typeof g.AudioController === 'undefined') {
+    g.AudioController = class AudioController {
+      constructor() { this.muted = false; }
+      play() {}
+      playEngine() {}
+      stopEngine() {}
+      playCrash() {}
+      playPickup() {}
+      playDrift() {}
+      playShoot() {}
+      playExplosion() {}
+      playVictory() {}
+    };
+  }
+  if (typeof g.SoundController === 'undefined') {
+    g.SoundController = g.AudioController;
+  }
+  if (typeof g.InputHandler === 'undefined') {
+    g.InputHandler = class InputHandler {
+      constructor() { this.keys = {}; }
+      isDown() { return false; }
+      isPressed() { return false; }
+    };
+  }
+  if (typeof g.Input === 'undefined') {
+    g.Input = new g.InputHandler();
+  }
 })();
 </script>`;
 

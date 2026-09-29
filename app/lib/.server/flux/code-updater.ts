@@ -120,8 +120,29 @@ ${assetEntries}
     if (typeof shapeFallback === 'function') {
       shapeFallback();
     }
+  },
+  drawRotated(ctx, id, x, y, width, height, angle, shapeFallback) {
+    const img = this.images[id];
+    if (img && img.complete && img.naturalWidth > 0) {
+      try {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(angle);
+        ctx.drawImage(img, -width / 2, -height / 2, width, height);
+        ctx.restore();
+        return;
+      } catch (e) {
+        ctx.restore();
+      }
+    }
+    if (typeof shapeFallback === 'function') {
+      shapeFallback();
+    }
   }
 };
+if (typeof window !== 'undefined') {
+  window.GameAssets = GameAssets;
+}
 // -----------------------------------------------------------------------------------\n\n`;
 }
 
@@ -135,7 +156,7 @@ export async function integrateAssetsWithModel(
   model: LanguageModelV1,
 ): Promise<string> {
   const elementDescriptions = elements
-    .map((e) => `- ID "${e.id}": file "${e.fileName}" (${e.description})`)
+    .map((e) => `- ID "${e.id}": file "${e.fileName}" (${e.description}, ${e.isSprite ? 'transparent sprite' : 'background backdrop'})`)
     .join('\n');
 
   const systemPrompt = `You are an expert game engine developer.
@@ -144,15 +165,31 @@ Assets generated under /assets/:
 ${elementDescriptions}
 
 CRITICAL RULES:
-1. Load each image using "new Image()" with its source set to its fileName (e.g. 'assets/player.png').
+1. Load each image using "new Image()" with its source set to its fileName (e.g. 'assets/player.png') or use window.GameAssets.
 2. In the render / draw routines for these elements:
-   Check if the image is ready:
-   if (img.complete && img.naturalWidth > 0) {
-     ctx.drawImage(img, x, y, width, height);
-   } else {
-     // PRESERVE THE ORIGINAL SHAPE-BASED DRAWING CODE IN THIS ELSE BLOCK!
-     [original rect / arc / path drawing code]
-   }
+   - For standard sprites:
+     if (img && img.complete && img.naturalWidth > 0) {
+       ctx.drawImage(img, x, y, width, height);
+     } else {
+       // PRESERVE THE ORIGINAL SHAPE-BASED DRAWING CODE IN THIS ELSE BLOCK!
+       [original rect / arc / path drawing code]
+     }
+   - For rotating sprites (e.g. cars, spaceships):
+     if (img && img.complete && img.naturalWidth > 0) {
+       ctx.save();
+       ctx.translate(x, y);
+       ctx.rotate(angle);
+       ctx.drawImage(img, -width / 2, -height / 2, width, height);
+       ctx.restore();
+     } else {
+       [original shape drawing code inside the rotation transform]
+     }
+   - For full backgrounds/terrain:
+     if (bgImg && bgImg.complete && bgImg.naturalWidth > 0) {
+       ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+     } else {
+       [original background fill / grid drawing code]
+     }
 3. The shape rendering MUST BE PRESERVED as the fallback whenever the image fails to load, is loading, or has zero width.
 4. Do NOT remove any game mechanics, physics, controls, sound, or state management.
 5. Return the ENTIRE, COMPLETE updated file content.

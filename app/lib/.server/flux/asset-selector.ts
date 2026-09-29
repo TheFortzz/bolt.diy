@@ -69,10 +69,17 @@ export function getHeuristicVisualElements(
         isSprite: true,
       },
       {
-        id: 'obstacle',
-        fileName: 'assets/hazard.png',
-        description: 'Track hazard or oil slick',
-        prompt: 'Industrial road hazard barrel with caution stripes, top-down view, transparent background',
+        id: 'background',
+        fileName: 'assets/track_background.png',
+        description: 'Asphalt race track surface environment',
+        prompt: 'Top-down asphalt race track surface texture, dark weathered asphalt with white lane dashes and red-and-white rumble strip curbs, seamless game background',
+        isSprite: false,
+      },
+      {
+        id: 'pickup',
+        fileName: 'assets/nitro.png',
+        description: 'Nitro boost powerup bottle',
+        prompt: 'Glowing blue nitro nitrous canister bottle sprite, electric lightning sparks, transparent background',
         isSprite: true,
       },
     ];
@@ -94,6 +101,13 @@ export function getHeuristicVisualElements(
         description: 'Dungeon goblin/orc monster',
         prompt: 'Menacing dungeon monster beast sprite, glowing red eyes, jagged claws, 2D game asset, transparent background',
         isSprite: true,
+      },
+      {
+        id: 'background',
+        fileName: 'assets/dungeon_bg.png',
+        description: 'Stone dungeon floor background',
+        prompt: 'Top-down ancient stone dungeon cobblestone floor texture, cracked flagstones and moss, seamless game background',
+        isSprite: false,
       },
       {
         id: 'item',
@@ -122,6 +136,13 @@ export function getHeuristicVisualElements(
       isSprite: true,
     },
     {
+      id: 'background',
+      fileName: 'assets/arena_bg.png',
+      description: 'Arcade battle arena floor',
+      prompt: 'Top-down futuristic arena floor grid backdrop with subtle neon circuit lines, seamless video game background',
+      isSprite: false,
+    },
+    {
       id: 'collectible',
       fileName: 'assets/coin.png',
       description: 'Gold bonus coin / star',
@@ -145,7 +166,7 @@ export async function selectVisualElementsWithModel(
     .join('\n\n');
 
   const systemInstruction = `You are a senior game art director. Analyze the user request and game source code, then select exactly 2 to 4 key visual elements that will be generated as PNG assets using FLUX.2-pro.
-Focus on the most important sprites (such as player, enemies, collectibles, projectiles, or stage backdrop).
+Focus on high-impact visual assets: include gameplay sprites (such as player vehicle/character, enemies/rivals, items/projectiles) and an environment background or track/terrain texture.
 
 Return ONLY a valid JSON array of 2 to 4 elements matching this exact schema:
 [
@@ -159,8 +180,8 @@ Return ONLY a valid JSON array of 2 to 4 elements matching this exact schema:
 ]
 Rules:
 - fileName MUST start with "assets/" and end with ".png".
-- Set isSprite: true for any character, enemy, vehicle, projectile, or item so transparent background is enforced.
-- Set isSprite: false only for full-screen backgrounds or terrain textures.
+- Set isSprite: true for any character, enemy, vehicle, projectile, or collectible so transparent background is enforced.
+- Set isSprite: false for full-screen game backgrounds, racetracks, dungeon floors, or arena backdrop textures.
 - Select at least 2 and at most 4 items.
 - Output ONLY the JSON array, no commentary or markdown code fences.`;
 

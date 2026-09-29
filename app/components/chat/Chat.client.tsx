@@ -184,10 +184,30 @@ export const ChatImpl = memo(
         workbenchStore.finishPendingActions();
         if (!result.ok) {
           lastValidationErrorRef.current = result.error || 'Build validation failed';
+
+          if (repairAttemptsRef.current < 2) {
+            repairAttemptsRef.current++;
+            validationState.set({ status: 'checking', detail: `Auto-repairing build (${repairAttemptsRef.current}/2)…` });
+            toast.info(`⚠️ Build issue detected — automatically diagnosing and repairing (${repairAttemptsRef.current}/2)…`, {
+              autoClose: 5000,
+            });
+
+            try {
+              await append({
+                role: 'user',
+                content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n[Studio Mode: ${agentMode.toUpperCase()}]\n\n[Internal Repair Prompt - Attempt ${repairAttemptsRef.current}/2]\n\nAutomatic build preview verification found runtime issue:\n${result.error?.slice(-1800)}\n\nCRITICAL FIX INSTRUCTIONS:\n1. Fix the error directly in the affected file(s). Emit the COMPLETE file inside <boltAction type="file" filePath="...">.\n2. If "ParticleSystem is not defined" or similar class ReferenceError: ensure the class is attached to window (e.g. window.ParticleSystem = class ParticleSystem { ... }) and loaded in index.html in correct order (utils.js -> audio.js -> input.js -> particles.js/effects.js -> entities.js -> game.js).\n3. Keep existing artifact id and close with </boltArtifact>.\n4. Output corrected file actions immediately with zero conversational fluff.`,
+              });
+              return;
+            } catch (error) {
+              validationState.set({ status: 'failed', detail: `Automatic repair failed: ${(error as Error).message}` });
+              toast.error('Automatic repair could not be started. The build is not verified.');
+            }
+          }
+
           validationState.set({ status: 'failed', detail: result.error || 'Build validation failed' });
           toast.error(`Build validation issue: ${result.error?.slice(0, 160)}`, { autoClose: 8000 });
 
-          // Inform directly in this chat message without dispatching a separate user prompt turn
+          // Inform directly in this chat message when auto-repairs are exhausted
           const errorNotice = `\n\n> ⚠️ **Build Issue Detected:**\n> ${result.error?.slice(-1800)}\n>\n> *Type "fix it" in chat to automatically repair and complete the game.*`;
           setMessages((prev) =>
             prev.map((entry) =>
