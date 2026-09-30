@@ -88,7 +88,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
         ...input,
         model: DEFAULT_MODEL,
         provider: DEFAULT_PROVIDER.name,
-        apiKeys: undefined,
+        apiKeys: input.apiKeys,
         env,
         imagesAvailable: Boolean(getFluxApiKey(env)),
         signal: request.signal,
@@ -114,7 +114,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
         {
           error: rateLimited
             ? `Azure token quota is exceeded for ${configuration}. Wait for the deployment quota to reset or request more TPM capacity. Upstream: ${upstreamMessage}`
-            : `Manager request failed (${configuration}). Check the server-side OPENAI_LIKE_API_KEY and Azure deployment settings. Upstream: ${upstreamMessage}`,
+            : `Manager request failed (${configuration}). Check the server-side OPENAI_LIKE_API_KEY or saved OpenAILike key and Azure deployment settings. Upstream: ${upstreamMessage}`,
         },
         { status: rateLimited ? 429 : 502 },
       );

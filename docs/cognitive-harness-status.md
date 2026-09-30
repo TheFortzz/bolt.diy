@@ -26,11 +26,11 @@ User request → Manager blueprint → user approval → approved image generati
 ### Model and image service configuration
 
 - The default model and legacy `fortz-ai` alias resolve to the Azure `gpt-6-luna` deployment (GPT 6 Luna).
-- Managed Manager and Editor calls are pinned to the server-side GPT 6 Luna deployment and do not use browser-selected provider keys.
+- Managed Manager and Editor calls are pinned to the GPT 6 Luna/OpenAILike deployment. They use a saved OpenAILike key when present, otherwise the server-side `OPENAI_LIKE_API_KEY`; the key and endpoint must belong to the same Azure resource.
 - Set server-only `FORTZ_AI_DEPLOYMENT` only if your Luna deployment uses a different Azure identifier.
 - Set `FORTZ_AI_RESPONSES_URL` when using a different trusted Azure Responses endpoint.
 - Production harness requests also require server-only `FORTZ_HARNESS_SIGNING_KEY` (at least 32 characters).
-- Keep `OPENAI_LIKE_API_KEY` and image-service credentials server-side. Never place credentials in generated games or preview messages.
+- Prefer server-side `OPENAI_LIKE_API_KEY`; saved BYOK keys are forwarded only to same-origin model routes. Keep image-service credentials server-side, and never place credentials in generated games or preview messages.
 - Existing source contains an embedded credential fallback in `app/lib/.server/llm/api-key.ts`. Rotate that credential and migrate it to secret storage before production deployment. This iteration does not rotate credentials or change authentication.
 
 ### Remaining architectural work

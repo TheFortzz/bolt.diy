@@ -126,7 +126,7 @@ export async function streamText(props: {
     currentProvider = DEFAULT_PROVIDER.name;
   }
 
-  const activeApiKeys = approvedBlueprint ? undefined : apiKeys;
+  const activeApiKeys = apiKeys;
   const activeProviderSettings = approvedBlueprint ? undefined : providerSettings;
 
   const hasKey = getAPIKey(env, currentProvider, activeApiKeys);
