@@ -13,9 +13,9 @@ import { blueprintSchema, workspaceManifestSchema } from '~/lib/harness/blueprin
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from '~/utils/constants';
 
 const sourceSchema = z
-  .record(z.string().max(20000))
+  .record(z.string().max(6000))
   .refine(
-    (files) => Object.values(files).reduce((size, source) => size + source.length, 0) <= 100000,
+    (files) => Object.values(files).reduce((size, source) => size + source.length, 0) <= 24000,
     'Source context exceeds the planning budget.',
   );
 const referenceImageSchema = z
@@ -31,7 +31,7 @@ const planRequestSchema = z
     request: z.string().min(1).max(16000),
     workspaceId: z.string().min(1).max(100),
     manifest: workspaceManifestSchema,
-    systemContext: z.string().max(12000),
+    systemContext: z.string().max(4000),
     sources: sourceSchema,
     images: z.array(referenceImageSchema).max(4).default([]),
     model: z.string().max(128).optional(),
@@ -96,6 +96,8 @@ export async function action({ request, context }: ActionFunctionArgs) {
     } catch (error) {
       console.error('Manager planning request failed:', error);
 
+      const upstreamMessage = (error as Error).message || 'no error details returned';
+      const rateLimited = /rate.?limit|too many requests|http 429/i.test(upstreamMessage);
       let configuration = 'deployment configuration could not be read';
 
       try {
@@ -110,9 +112,11 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
       return json(
         {
-          error: `Manager request failed (${configuration}). Check the server-side OPENAI_LIKE_API_KEY and Azure deployment settings. Upstream: ${(error as Error).message || 'no error details returned'}`,
+          error: rateLimited
+            ? `Azure token quota is exceeded for ${configuration}. Wait for the deployment quota to reset or request more TPM capacity. Upstream: ${upstreamMessage}`
+            : `Manager request failed (${configuration}). Check the server-side OPENAI_LIKE_API_KEY and Azure deployment settings. Upstream: ${upstreamMessage}`,
         },
-        { status: 502 },
+        { status: rateLimited ? 429 : 502 },
       );
     }
 

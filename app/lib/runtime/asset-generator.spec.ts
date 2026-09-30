@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { generateProjectAssets, isFluxAssetGenerationAvailable } from './asset-generator';
+import { decodeGeneratedPng, generateProjectAssets, isFluxAssetGenerationAvailable } from './asset-generator';
 import { validateAssetPath } from './asset-generator';
 import { getWebContainer } from '~/lib/webcontainer';
 import { getHeuristicVisualElements } from '~/lib/.server/flux/asset-selector';
@@ -11,14 +11,20 @@ vi.mock('~/lib/webcontainer', () => {
   const mockFs = {
     readdir: vi.fn(async () => {
       const dirents = [];
+
       for (const key of fileStore.keys()) {
         dirents.push({ name: key, isFile: () => !key.includes('/') });
       }
+
       return dirents;
     }),
     readFile: vi.fn(async (path: string) => {
       const content = fileStore.get(path);
-      if (content === undefined) throw new Error(`ENOENT: ${path}`);
+
+      if (content === undefined) {
+        throw new Error(`ENOENT: ${path}`);
+      }
+
       return content;
     }),
     writeFile: vi.fn(async (path: string, content: string | Uint8Array) => {
@@ -64,6 +70,7 @@ describe('Asset Generator & Real Test Game Verification', () => {
 
   it('rejects asset paths that can escape or alias the generated image folder', () => {
     expect(validateAssetPath('assets/vehicles/car.png')).toBe('assets/vehicles/car.png');
+
     for (const path of [
       '../car.png',
       'assets/../car.png',
@@ -74,6 +81,14 @@ describe('Asset Generator & Real Test Game Verification', () => {
     ]) {
       expect(() => validateAssetPath(path)).toThrow('Unsafe generated asset path');
     }
+  });
+
+  it('validates generated PNG structure and the approved dimensions before writing', () => {
+    const pixel = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=';
+
+    expect(decodeGeneratedPng(pixel, 'assets/pixel.png', { width: 1, height: 1 })).toBeInstanceOf(Uint8Array);
+    expect(() => decodeGeneratedPng(pixel, 'assets/car.png', { width: 512, height: 512 })).toThrow('expected 512×512');
+    expect(() => decodeGeneratedPng('not-an-image', 'assets/bad.png')).toThrow('valid bounded base64');
   });
 
   it('gracefully skips asset generation and retains shape rendering when FLUX_API_KEY is missing', async () => {
@@ -207,6 +222,7 @@ describe('Asset Generator & Real Test Game Verification', () => {
             }),
           };
         }
+
         return { ok: false };
       }),
     );
@@ -258,6 +274,7 @@ describe('Asset Generator & Real Test Game Verification', () => {
 
     // When image is not loaded / naturalWidth is 0, shapeFallback must execute
     const unreadyImg = { complete: false, naturalWidth: 0 };
+
     if (unreadyImg.complete && unreadyImg.naturalWidth > 0) {
       mockCtx.drawImage();
     } else {

@@ -211,7 +211,7 @@ export function createAzureResponsesModel(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
+          'api-key': apiKey,
         },
         body: JSON.stringify(body),
         signal: options.abortSignal,
@@ -229,7 +229,10 @@ export function createAzureResponsesModel(
       if (!response.ok) {
         const message =
           json?.error?.message || json?.message || rawText || `Azure Responses error (${response.status})`;
-        throw new Error(message);
+        const requestId = response.headers.get('apim-request-id') || response.headers.get('x-ms-request-id');
+        const requestLabel = requestId ? ` (request ID ${requestId})` : '';
+
+        throw new Error(`Azure Responses API HTTP ${response.status}${requestLabel}: ${message}`);
       }
 
       const text = extractCompletedText(json);
@@ -266,7 +269,7 @@ export function createAzureResponsesModel(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
+          'api-key': apiKey,
           Accept: 'text/event-stream',
         },
         body: JSON.stringify(body),
@@ -276,6 +279,7 @@ export function createAzureResponsesModel(
       if (!response.ok || !response.body) {
         const rawText = await response.text().catch(() => '');
         let message = rawText || `Azure Responses stream error (${response.status})`;
+        const requestId = response.headers.get('apim-request-id') || response.headers.get('x-ms-request-id');
 
         try {
           const parsed = JSON.parse(rawText);
@@ -284,7 +288,9 @@ export function createAzureResponsesModel(
           // keep message
         }
 
-        throw new Error(message);
+        const requestLabel = requestId ? ` (request ID ${requestId})` : '';
+
+        throw new Error(`Azure Responses stream HTTP ${response.status}${requestLabel}: ${message}`);
       }
 
       const reader = response.body.getReader();

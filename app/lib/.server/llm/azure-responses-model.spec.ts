@@ -26,8 +26,11 @@ describe('Azure Responses model adapter', () => {
     } as any);
 
     const request = JSON.parse(fetchMock.mock.calls[0][1]?.body as string);
+    const headers = fetchMock.mock.calls[0][1]?.headers as Record<string, string>;
     expect(request.max_output_tokens).toBe(1000);
     expect(request).not.toHaveProperty('temperature');
+    expect(headers['api-key']).toBe('test-key');
+    expect(headers.Authorization).toBeUndefined();
     expect(request.input).toEqual([
       {
         role: 'user',
@@ -55,5 +58,24 @@ describe('Azure Responses model adapter', () => {
     const request = JSON.parse(fetchMock.mock.calls[0][1]?.body as string);
     expect(request.max_output_tokens).toBe(2000);
     expect(request.temperature).toBe(0.2);
+  });
+
+  it('preserves the Azure status and request ID for configuration diagnostics', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: { message: 'Invalid subscription key.' } }), {
+        status: 401,
+        headers: { 'apim-request-id': 'azure-request-test' },
+      }),
+    );
+
+    const model = createAzureResponsesModel('test-key', 'gpt-6-luna', 'https://example.test/responses');
+
+    await expect(
+      model.doGenerate({
+        prompt: [{ role: 'user', content: 'Say ok.' }],
+        maxTokens: 32,
+        abortSignal: new AbortController().signal,
+      } as any),
+    ).rejects.toThrow('Azure Responses API HTTP 401 (request ID azure-request-test): Invalid subscription key.');
   });
 });

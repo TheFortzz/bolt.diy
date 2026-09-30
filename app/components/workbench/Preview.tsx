@@ -7,6 +7,7 @@ import { cleanWorkDirRelativePath } from '~/utils/diff';
 import { PortDropdown } from './PortDropdown';
 import { generatedAssets, inlineGeneratedAssetUrls } from '~/lib/stores/generated-assets';
 import { createPreviewProbe, injectPreviewProbe } from '~/lib/runtime/preview-probe';
+import { injectStaticScripts, resolveStaticPreviewFile } from '~/lib/runtime/static-preview';
 import { getWebContainer } from '~/lib/webcontainer';
 
 type ResizeSide = 'left' | 'right' | null;
@@ -82,7 +83,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       if (
         dirent?.type === 'file' &&
         dirent.content &&
-        (path.endsWith('/index.html') || path === 'index.html' || path.endsWith('index.html'))
+        (path.endsWith('/index.html') || path === 'index.html')
       ) {
         htmlContent = dirent.content;
         break;
@@ -131,27 +132,23 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     let bundled = cleanContent;
 
     // Helper to find file content from path
-    const getFileContent = (refPath: string): string | undefined => {
-      const clean = cleanWorkDirRelativePath(refPath);
-      for (const [p, dirent] of Object.entries(files)) {
-        if (dirent?.type === 'file' && dirent.content) {
-          const normP = cleanWorkDirRelativePath(p);
-          if (normP === clean || normP.endsWith(`/${clean}`) || clean.endsWith(`/${normP}`)) {
-            return dirent.content;
-          }
-        }
-      }
-      return undefined;
-    };
+    const sourceFiles = Object.entries(files).flatMap(([path, dirent]) =>
+      dirent?.type === 'file' && dirent.content
+        ? [{ path: cleanWorkDirRelativePath(path), content: dirent.content }]
+        : [],
+    );
+    const getFileEntry = (refPath: string) => resolveStaticPreviewFile(sourceFiles, refPath);
 
     // 1. Inline local stylesheets
     bundled = bundled.replace(
       /<link\b[^>]*\bhref\s*=\s*["'](?!https?:\/\/|\/\/|data:|blob:)([^"']+)["'][^>]*>/gi,
       (match, href) => {
-        const css = getFileContent(href);
+        const css = getFileEntry(href);
+
         if (css !== undefined) {
-          return `<style data-inlined="${href}">\n${css}\n</style>`;
+          return `<style data-inlined="${css.path}">\n${css.content}\n</style>`;
         }
+
         return match;
       },
     );
@@ -160,13 +157,16 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     bundled = bundled.replace(
       /<script\b([^>]*)\bsrc\s*=\s*["'](?!https?:\/\/|\/\/|data:|blob:)([^"']+)["']([^>]*)>[\s\S]*?<\/script>/gi,
       (match, before, src, after) => {
-        const js = getFileContent(src);
+        const js = getFileEntry(src);
+
         if (js !== undefined) {
-          const isModule = /type\s*=\s*["']module["']/i.test(`${before} ${after}`);
+          const isModule = /type\s*=\s*["']module["']/i.test(`${before} ${after}`) || js.path.endsWith('.mjs');
           const typeAttr = isModule ? ' type="module"' : '';
-          const normSrc = cleanWorkDirRelativePath(src);
-          return `<script${typeAttr} data-inlined="${normSrc}">\n${js}\n</script>`;
+          const safePath = js.path.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+
+          return `<script${typeAttr} data-inlined="${safePath}">\n${js.content}\n</script>`;
         }
+
         // File not found in virtual FS — strip rather than leave a broken src= that 404s in blob context
         return `<!-- bolt-stripped: could not resolve "${src}" in virtual filesystem -->`;
       },
@@ -180,20 +180,23 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     for (const match of bundled.matchAll(/data-inlined=["']([^"']+)["']/g)) {
       const normMatch = cleanWorkDirRelativePath(match[1]).toLowerCase();
       inlinedFiles.add(normMatch);
-      inlinedFiles.add(normMatch.replace(/^.*[\\/]/, ''));
     }
 
     const isAlreadyInlined = (filename: string): boolean => {
       const clean = cleanWorkDirRelativePath(filename).toLowerCase();
-      const base = clean.replace(/^.*[\\/]/, '');
-      return inlinedFiles.has(clean) || inlinedFiles.has(base);
+
+      return inlinedFiles.has(clean);
     };
 
     const entryCandidates = [
       'main.js',
       'game.js',
+      'main.mjs',
+      'game.mjs',
       'src/main.js',
       'src/game.js',
+      'src/main.mjs',
+      'src/game.mjs',
       'index.js',
       'app.js',
       'engine.js',
@@ -287,32 +290,51 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     };
     unlinkedDependencies.sort((a, b) => getDepRank(a) - getDepRank(b));
 
-    const scriptsToInject: string[] = [];
-    // Inject all dependencies first
+    const toInlineScript = (path: string) => {
+      const entry = getFileEntry(path);
+
+      if (!entry) {
+        return undefined;
+      }
+
+      const safePath = entry.path.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+      const typeAttr = entry.path.endsWith('.mjs') ? ' type="module"' : '';
+
+      return `<script${typeAttr} data-inlined="${safePath}">\n${entry.content}\n</script>`;
+    };
+    const dependencyScripts: string[] = [];
+    const entryScripts: string[] = [];
+
+    // Put any missing helpers before declared local scripts that may depend on them.
     for (const dep of unlinkedDependencies) {
-      const js = getFileContent(dep);
-      if (js) {
-        scriptsToInject.push(`<script data-inlined="${dep}">\n${js}\n</script>`);
+      const script = toInlineScript(dep);
+
+      if (script) {
+        dependencyScripts.push(script);
       }
     }
 
-    // Inject entry point last
-    for (const entry of unlinkedEntries) {
-      const js = getFileContent(entry);
-      if (js) {
-        scriptsToInject.push(`<script data-inlined="${entry}">\n${js}\n</script>`);
-        break;
+    const hasDeclaredEntry = Array.from(inlinedFiles).some((path) =>
+      entryCandidates.some((candidate) => path === candidate || path.endsWith(`/${candidate}`)),
+    );
+
+    // Respect declared entry scripts. Otherwise inject one discovered entry after helpers.
+    if (!hasDeclaredEntry) {
+      const entry =
+        entryCandidates
+          .map((candidate) => unlinkedEntries.find((path) => path === candidate || path.endsWith(`/${candidate}`)))
+          .find(Boolean) || unlinkedEntries[0];
+
+      if (entry) {
+        const script = toInlineScript(entry);
+
+        if (script) {
+          entryScripts.push(script);
+        }
       }
     }
 
-    if (scriptsToInject.length > 0) {
-      const injectionBlock = '\n' + scriptsToInject.join('\n') + '\n';
-      if (bundled.includes('</body>')) {
-        bundled = bundled.replace('</body>', `${injectionBlock}</body>`);
-      } else {
-        bundled = bundled + injectionBlock;
-      }
-    }
+    bundled = injectStaticScripts(bundled, dependencyScripts, entryScripts);
 
     // Standard game math, vector helpers, and resilient system fallbacks so scripts never crash at runtime
     const mathUtilsScript = `<script id="bolt-game-math-utils">

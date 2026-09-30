@@ -158,18 +158,29 @@ export function useCognitiveHarness(options: HarnessOptions) {
 
         const snapshot = await captureProject(await getWebContainer());
         const manifest = await createWorkspaceManifest(snapshot);
+        const validation = validationState.get();
+        const managerContext = [
+          `Validation state: ${validation.status}`,
+          validation.detail ? `Latest validation report: ${validation.detail.slice(0, 1200)}` : '',
+          `Existing generated assets: ${Object.keys(generatedAssets.get()).slice(0, 40).join(', ')}`,
+        ]
+          .filter(Boolean)
+          .join('\n')
+          .slice(0, 2500);
         const result = await postHarness<{ blueprint: Blueprint; reviewToken: string }>(
           {
             intent: 'plan',
             request,
             workspaceId: options.workspaceId,
             manifest,
-            systemContext: compileSystemContext(
-              workbenchStore.files.get(),
-              generatedAssets.get(),
-              validationState.get(),
-            ),
-            sources: sourceContext(snapshot, 100000, 20000),
+            systemContext: managerContext,
+            sources: sourceContext(snapshot, 24000, 6000, [
+              'index.html',
+              'game.js',
+              'main.js',
+              'src/game.js',
+              'src/main.js',
+            ]),
             images,
             model: options.model,
             provider: options.provider,

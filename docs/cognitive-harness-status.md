@@ -10,8 +10,9 @@ User request → Manager blueprint → user approval → approved image generati
 - Manual scroll position is respected; a jump-to-latest control resumes following.
 - Source-file completion is not presented as game verification.
 - Image generation happens before the final verification and checkpoint.
-- Generated PNG paths and signatures are validated; failed writes fail verification.
+- Generated PNG paths, base64, PNG structure, size, and approved dimensions are validated before writes; failed asset batches roll back newly created files.
 - Generated images resolve inside the assembled static preview, including checkpoint reloads.
+- Static preview resolves exact or unique relative source paths, injects missing helpers before declared game scripts, and preserves module-script tags; unresolved references fail the iframe probe instead of silently verifying.
 - The iframe probe observes application animation callbacks, repeated Canvas/WebGL rendering, image loading, resource failures, console errors, and rejected promises.
 - The probe is a bounded startup/rendering smoke test, not proof of simulation correctness or every gameplay scenario.
 - Managed static-game verification now exercises Enter, a movement key, restart, and resize, then requires the game diagnostics contract and configured simulation-step threshold before passing. These synthetic events are smoke checks, not proof that every gameplay mechanic is correct.
