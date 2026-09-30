@@ -45,6 +45,19 @@ describe('final game verification pipeline', () => {
     expect(activitySteps.get().build.find((entry) => entry.id === 'assets:generate')?.status).toBe('failed');
   });
 
+  it('passes the approved gameplay verification contract to the preview gate', async () => {
+    const verification = {
+      scenarios: ['startup', 'controls', 'restart', 'resize'],
+      minimumSimulationSteps: 120,
+      requireDiagnostics: true,
+    } as const;
+
+    await verifyGameBuild('build', { approvedBlueprint: { verification } as any });
+
+    expect(mocks.generate).not.toHaveBeenCalled();
+    expect(mocks.validate).toHaveBeenCalledWith('build', [], verification);
+  });
+
   it('does not generate paid images for an incomplete build', async () => {
     mocks.artifact.closed = false;
     await verifyGameBuild('build');

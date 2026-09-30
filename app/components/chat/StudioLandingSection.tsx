@@ -59,16 +59,16 @@ export function StudioLandingSection({ isWorkbenchActive }: StudioLandingSection
       {/* ── Typewriter Sentence Hero — Clean and close to input ── */}
       <div className="text-center w-full mx-auto min-h-[28px] flex items-center justify-center">
         <h1
-          className={`font-black uppercase text-white font-['Anton',sans-serif] flex items-center justify-center transition-all ${
+          className={`font-black uppercase text-slate-900 font-['Anton',sans-serif] flex items-center justify-center transition-all ${
             isWorkbenchActive
               ? 'text-xs sm:text-sm tracking-normal px-2 break-words leading-tight text-center'
               : 'text-sm sm:text-base md:text-xl tracking-wider whitespace-nowrap overflow-hidden text-ellipsis'
           }`}
         >
-          <span className="text-white">
-            {displayedText}
-          </span>
-          <span className={`inline-block bg-[#c084fc] ml-1.5 animate-pulse ${isWorkbenchActive ? 'w-1 h-3.5' : 'w-1.5 h-5 sm:h-6'}`} />
+          <span className="text-slate-900">{displayedText}</span>
+          <span
+            className={`inline-block bg-[#c084fc] ml-1.5 animate-pulse ${isWorkbenchActive ? 'w-1 h-3.5' : 'w-1.5 h-5 sm:h-6'}`}
+          />
         </h1>
       </div>
     </div>

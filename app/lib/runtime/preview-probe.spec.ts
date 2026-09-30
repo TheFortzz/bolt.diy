@@ -9,6 +9,15 @@ describe('iframe game runtime probe', () => {
     parent: { postMessage: ReturnType<typeof vi.fn> };
     Image: typeof Image;
     addEventListener: ReturnType<typeof vi.fn>;
+    dispatchEvent: ReturnType<typeof vi.fn>;
+    __GAME_DIAGNOSTICS__?: {
+      ready: boolean;
+      simulationSteps: number;
+      inputsHandled: number;
+      restartCount: number;
+      resizeCount: number;
+      gameState: string;
+    };
   };
   let documentImages: Array<{ complete: boolean; naturalWidth: number; getAttribute: () => string }>;
   let context: { fillRect: () => void };
@@ -16,6 +25,7 @@ describe('iframe game runtime probe', () => {
   const advance = (frames: number) => {
     for (let index = 0; index < frames; index++) {
       now += 17;
+
       const callbacks = queue.splice(0);
       callbacks.forEach((callback) => callback(now));
     }
@@ -25,9 +35,11 @@ describe('iframe game runtime probe', () => {
     now = 0;
     queue = [];
     documentImages = [];
+
     class Context {
       fillRect() {}
     }
+
     class TestImage {
       addEventListener() {}
     }
@@ -40,6 +52,7 @@ describe('iframe game runtime probe', () => {
       parent: { postMessage: vi.fn() },
       Image: TestImage as unknown as typeof Image,
       addEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
     };
     vi.stubGlobal('window', win);
     vi.stubGlobal('performance', { now: () => now });
@@ -58,6 +71,7 @@ describe('iframe game runtime probe', () => {
 
   it('passes only with actual application callbacks and repeated canvas rendering', () => {
     installPreviewProbe('run-token', 'https://ide.example');
+
     const loop = () => {
       context.fillRect();
       win.requestAnimationFrame(loop);
@@ -103,10 +117,92 @@ describe('iframe game runtime probe', () => {
 
   it('captures resource failures before gameplay initialization', () => {
     installPreviewProbe('token', 'https://ide.example');
+
     const errorHandler = win.addEventListener.mock.calls.find(([type]) => type === 'error')?.[1];
     errorHandler({ target: { getAttribute: () => 'missing.js' } });
     expect(win.parent.postMessage).toHaveBeenCalledWith(
       expect.objectContaining({ error: 'Resource failed to load: missing.js' }),
+      'https://ide.example',
+    );
+  });
+
+  it('requires managed builds to handle controls, restart, resize, and simulation diagnostics', () => {
+    const diagnostics = {
+      ready: true,
+      simulationSteps: 0,
+      inputsHandled: 0,
+      restartCount: 0,
+      resizeCount: 0,
+      gameState: 'menu',
+    };
+    win.__GAME_DIAGNOSTICS__ = diagnostics;
+    win.dispatchEvent.mockImplementation((event: Event) => {
+      if (event.type === 'keydown') {
+        diagnostics.inputsHandled++;
+
+        if ((event as KeyboardEvent).key.toLowerCase() === 'r') {
+          diagnostics.restartCount++;
+        }
+
+        if ((event as KeyboardEvent).key === 'Enter') {
+          diagnostics.gameState = 'playing';
+        }
+      } else if (event.type === 'resize') {
+        diagnostics.resizeCount++;
+      }
+
+      return true;
+    });
+    installPreviewProbe('managed', 'https://ide.example', {
+      requireDiagnostics: true,
+      minimumSimulationSteps: 120,
+      scenarios: ['startup', 'controls', 'restart', 'resize'],
+    });
+
+    const loop = () => {
+      diagnostics.simulationSteps++;
+      context.fillRect();
+      win.requestAnimationFrame(loop);
+    };
+    win.requestAnimationFrame(loop);
+    advance(160);
+
+    expect(win.parent.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'preview-loaded', token: 'managed' }),
+      'https://ide.example',
+    );
+    expect(diagnostics).toMatchObject({ inputsHandled: 3, restartCount: 1, resizeCount: 1, gameState: 'playing' });
+  });
+
+  it('does not verify managed builds that ignore the exercised game controls', () => {
+    win.__GAME_DIAGNOSTICS__ = {
+      ready: true,
+      simulationSteps: 120,
+      inputsHandled: 10,
+      restartCount: 1,
+      resizeCount: 1,
+      gameState: 'menu',
+    };
+    installPreviewProbe('managed', 'https://ide.example', {
+      requireDiagnostics: true,
+      minimumSimulationSteps: 120,
+      scenarios: ['startup', 'controls', 'restart', 'resize'],
+    });
+
+    const loop = () => {
+      win.__GAME_DIAGNOSTICS__!.simulationSteps++;
+      context.fillRect();
+      win.requestAnimationFrame(loop);
+    };
+    win.requestAnimationFrame(loop);
+    advance(600);
+
+    expect(win.parent.postMessage.mock.calls.some(([message]) => message.type === 'preview-loaded')).toBe(false);
+    expect(win.parent.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'preview-error',
+        error: 'Game did not report handling the verification control input.',
+      }),
       'https://ide.example',
     );
   });

@@ -5,6 +5,7 @@ import { workbenchStore } from '~/lib/stores/workbench';
 import { actionStepId, runActivityStep, startActivity, updateActivity } from '~/lib/stores/activity';
 import { cleanWorkDirRelativePath } from '~/utils/diff';
 import { validatePreview } from './preview-validation';
+import type { PreviewVerificationRequirements } from '~/lib/runtime/preview-probe';
 
 export type ValidationState = { status: 'idle' | 'checking' | 'passed' | 'failed'; detail: string };
 export const validationState = atom<ValidationState>({ status: 'idle', detail: '' });
@@ -97,6 +98,7 @@ async function runCheck(
 export async function validateBuild(
   messageId: string,
   additionalPaths: string[] = [],
+  verification?: PreviewVerificationRequirements,
 ): Promise<{ ok: boolean; error?: string }> {
   validationState.set({ status: 'checking', detail: 'Waiting for files…' });
 
@@ -279,7 +281,7 @@ export async function validateBuild(
       'validation:preview',
       'Loading preview',
       async () => {
-        const preview = await validatePreview();
+        const preview = await validatePreview(verification);
 
         if (!preview.ok) {
           throw new Error(preview.error);

@@ -9,7 +9,7 @@ export async function verifyGameBuild(messageId: string, options: GenerateProjec
 
   // Managed runs already generated their approved assets before the Editor.
   if (options.approvedBlueprint) {
-    return validateBuild(messageId);
+    return validateBuild(messageId, [], options.approvedBlueprint.verification);
   }
 
   try {

@@ -581,7 +581,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
   }, [activePreview, fallbackHtml, fallbackIncomplete, isStreaming]);
 
   useEffect(() => {
-    return registerPreviewValidator(async (): Promise<PreviewValidationResult> => {
+    return registerPreviewValidator(async (verification): Promise<PreviewValidationResult> => {
       if (fallbackIncomplete) {
         return { ok: false, error: 'Preview is still incomplete.' };
       }
@@ -647,7 +647,10 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
         };
         window.addEventListener('message', onMessage);
         timer = setTimeout(() => finish({ ok: false, error: 'Preview did not load within 12 seconds.' }), 12000);
-        frame.srcdoc = injectPreviewProbe(fallbackHtml!, createPreviewProbe(token, window.location.origin));
+        frame.srcdoc = injectPreviewProbe(
+          fallbackHtml!,
+          createPreviewProbe(token, window.location.origin, verification),
+        );
         document.body.appendChild(frame);
       });
     });

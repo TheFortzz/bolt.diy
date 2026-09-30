@@ -14,6 +14,7 @@ User request → Manager blueprint → user approval → approved image generati
 - Generated images resolve inside the assembled static preview, including checkpoint reloads.
 - The iframe probe observes application animation callbacks, repeated Canvas/WebGL rendering, image loading, resource failures, console errors, and rejected promises.
 - The probe is a bounded startup/rendering smoke test, not proof of simulation correctness or every gameplay scenario.
+- Managed static-game verification now exercises Enter, a movement key, restart, and resize, then requires the game diagnostics contract and configured simulation-step threshold before passing. These synthetic events are smoke checks, not proof that every gameplay mechanic is correct.
 - Cross-origin dev-server load events no longer count as runtime verification. Such projects need a browser verification worker or authenticated preview bridge.
 - A bounded, read-only SYSTEM_CONTEXT.md projection travels with chat requests and continuation segments. It is context data, not an authorization mechanism or a physical project file.
 - A separate Manager request returns a schema-validated, revision-hashed blueprint; reference images are passed as vision input when supported.
@@ -37,7 +38,7 @@ User request → Manager blueprint → user approval → approved image generati
 - Server-side validation of every generated action before it reaches the WebContainer; current path enforcement runs in the client parser.
 - Immutable candidate revisions and atomic publication of only verified revisions; the current WebContainer is mutable.
 - Durable backend workflow persistence, asset-job idempotency, and revision-bound evidence.
-- Independent browser-worker watchdogs, gameplay scenarios, simulation telemetry, and cross-origin runtime verification.
+- An independent browser-worker watchdog for dev servers/cross-origin previews, plus richer gameplay scenarios and telemetry beyond the current static iframe smoke checks.
 - A structured repair-proposal object and server-side approval record; today a repair starts as a new user request and receives a fresh blueprint.
 
 Do not market this iteration as the complete approved multi-agent backend or guaranteed Replit-equivalent one-prompt generation.

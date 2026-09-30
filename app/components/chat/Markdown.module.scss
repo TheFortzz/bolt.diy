@@ -32,13 +32,13 @@ $code-font-size: 13px;
 
   h1 {
     font-size: 1.35em;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    border-bottom: 1px solid var(--bolt-elements-borderColor);
     padding-bottom: 0.25em;
   }
 
   h2 {
     font-size: 1.2em;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--bolt-elements-borderColor);
     padding-bottom: 0.2em;
   }
 
@@ -56,7 +56,7 @@ $code-font-size: 13px;
 
   h6 {
     font-size: 0.85em;
-    color: #94a3b8;
+    color: var(--bolt-elements-textTertiary);
   }
 
   p {
@@ -85,8 +85,8 @@ $code-font-size: 13px;
     @include not-inside-actions {
       border-radius: 0;
       padding: 0.1em 0.25em;
-      background-color: transparent;
-      color: #7dd3fc;
+      background-color: var(--bolt-elements-messages-inlineCode-background);
+      color: var(--bolt-elements-messages-inlineCode-text);
       border: none;
     }
   }

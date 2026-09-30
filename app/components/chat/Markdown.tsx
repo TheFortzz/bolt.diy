@@ -52,7 +52,14 @@ export const Markdown = memo(({ children, html = false, limitedMarkdown = false 
           const { className, ...rest } = firstChild.properties;
           const [, language = 'plaintext'] = /language-(\w+)/.exec(String(className) || '') ?? [];
 
-          return <CodeBlock code={firstChild.children[0].value} language={language as BundledLanguage} {...rest} />;
+          return (
+            <CodeBlock
+              code={firstChild.children[0].value}
+              language={language as BundledLanguage}
+              theme="light-plus"
+              {...rest}
+            />
+          );
         }
 
         return <pre {...rest}>{children}</pre>;

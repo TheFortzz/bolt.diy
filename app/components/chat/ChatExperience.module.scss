@@ -411,3 +411,185 @@
     transition: none !important;
   }
 }
+
+/* Light chat surface; the workbench and code editor keep their own theme. */
+.Conversation {
+  color: #0f172a;
+  scrollbar-color: #94a3b8 transparent;
+}
+
+.Avatar {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.AgentAvatar {
+  border-color: #ddd6fe;
+  background: linear-gradient(145deg, #f5f3ff, #eef2ff);
+  color: #6d28d9;
+}
+
+.MessageMeta {
+  color: #334155;
+}
+
+.UserMeta {
+  color: #64748b;
+}
+
+.Badge {
+  background: #f3e8ff;
+  color: #6d28d9;
+}
+
+.UserBubble {
+  border-color: #c7d2fe;
+  background: linear-gradient(140deg, #eef2ff, #f5f3ff);
+  color: #1e293b;
+  box-shadow: 0 3px 12px rgba(15, 23, 42, 0.06);
+}
+
+.AssistantContent {
+  color: #1e293b;
+}
+
+.MessageActions button {
+  color: #64748b;
+
+  &:hover {
+    color: #334155;
+    background: #f1f5f9;
+  }
+}
+
+.Activity {
+  border-color: #e2e8f0;
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+}
+
+.ActivityHeader:hover {
+  background: #f8fafc;
+}
+
+.ActivityIcon {
+  background: #f3e8ff;
+  color: #7c3aed;
+}
+
+.ActivityTitle {
+  color: #0f172a;
+}
+
+.ActivitySubtitle,
+.ActivityMetrics,
+.StepPath,
+.StepDuration,
+.ActivityFootnote,
+.CodeMeta,
+.CodeCaption,
+.PlanNote {
+  color: #64748b;
+}
+
+.Step {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+  color: #334155;
+
+  &:not(:disabled):hover {
+    border-color: #c4b5fd;
+    background: #f5f3ff;
+  }
+
+  &[data-status='running'] {
+    background: #f5f3ff;
+    color: #6d28d9;
+  }
+
+  &[data-status='failed'] {
+    background: #fff1f2;
+    color: #be123c;
+  }
+
+  &[data-status='pending'],
+  &[data-status='aborted'] {
+    color: #64748b;
+  }
+}
+
+.ActivityFootnote,
+.CodePreview,
+.ApprovalActions {
+  border-color: #e2e8f0;
+}
+
+.JumpToLatest {
+  border-color: #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+}
+
+.CodePreview {
+  border-top-color: #e2e8f0;
+
+  button {
+    color: #64748b;
+
+    &:hover {
+      color: #6d28d9;
+    }
+  }
+
+  pre {
+    background: #f1f5f9 !important;
+    color: #1e293b;
+  }
+}
+
+.Blueprint {
+  border-color: #ddd6fe;
+  background: linear-gradient(140deg, #ffffff, #faf8ff);
+}
+
+.BlueprintHeader {
+  color: #475569;
+}
+
+.BlueprintBody {
+  color: #475569;
+
+  h4 {
+    color: #334155;
+  }
+}
+
+.BlueprintMetrics {
+  color: #64748b;
+}
+
+.PlannedFiles {
+  > div {
+    border-color: #e2e8f0;
+    background: #f8fafc;
+  }
+
+  code {
+    color: #1e293b;
+  }
+
+  p {
+    color: #64748b;
+  }
+}
+
+.ApprovalActions {
+  border-top-color: #e2e8f0;
+
+  button {
+    border-color: #cbd5e1;
+    color: #475569;
+  }
+}

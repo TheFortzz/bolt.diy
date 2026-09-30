@@ -3,7 +3,45 @@
 
 .Chat {
   opacity: 1;
-  background: linear-gradient(180deg, rgba(15, 19, 30, 0.96), rgba(12, 16, 26, 0.98));
+  min-width: 0;
+  min-height: 0;
+  color-scheme: light;
+  color: #0f172a;
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  --bolt-elements-borderColor: #e2e8f0;
+  --bolt-elements-borderColorActive: #8b5cf6;
+  --bolt-elements-bg-depth-1: #f8fafc;
+  --bolt-elements-bg-depth-2: #ffffff;
+  --bolt-elements-bg-depth-3: #f1f5f9;
+  --bolt-elements-bg-depth-4: #e2e8f0;
+  --bolt-elements-textPrimary: #0f172a;
+  --bolt-elements-textSecondary: #334155;
+  --bolt-elements-textTertiary: #64748b;
+  --bolt-elements-code-background: #f1f5f9;
+  --bolt-elements-code-text: #334155;
+  --bolt-elements-button-secondary-background: #f1f5f9;
+  --bolt-elements-button-secondary-backgroundHover: #e2e8f0;
+  --bolt-elements-button-secondary-text: #334155;
+  --bolt-elements-item-contentDefault: #334155;
+  --bolt-elements-item-contentActive: #0f172a;
+  --bolt-elements-item-contentAccent: #7c3aed;
+  --bolt-elements-item-backgroundActive: #f3e8ff;
+  --bolt-elements-artifacts-background: #ffffff;
+  --bolt-elements-artifacts-backgroundHover: #f8fafc;
+  --bolt-elements-artifacts-borderColor: #e2e8f0;
+  --bolt-elements-artifacts-inlineCode-background: #f1f5f9;
+  --bolt-elements-artifacts-inlineCode-text: #334155;
+  --bolt-elements-actions-background: #ffffff;
+  --bolt-elements-actions-code-background: #f8fafc;
+  --bolt-elements-messages-background: #ffffff;
+  --bolt-elements-messages-linkColor: #6d28d9;
+  --bolt-elements-messages-code-background: #f1f5f9;
+  --bolt-elements-messages-inlineCode-background: #ede9fe;
+  --bolt-elements-messages-inlineCode-text: #6d28d9;
+  --bolt-elements-icon-primary: #334155;
+  --bolt-elements-icon-secondary: #64748b;
+  --bolt-elements-dividerColor: #e2e8f0;
+  --bolt-elements-prompt-background: #ffffff;
 }
 
 .WorkspaceHeader {
@@ -12,31 +50,31 @@
   justify-content: space-between;
   gap: 12px;
   padding: 14px 16px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.13);
+  border-bottom: 1px solid #e2e8f0;
   flex-shrink: 0;
-  color: #e2e8f0;
+  color: #0f172a;
 
   button {
     display: flex;
     align-items: center;
     gap: 5px;
     padding: 6px 9px;
-    border: 1px solid rgba(148, 163, 184, 0.2);
+    border: 1px solid #cbd5e1;
     border-radius: 7px;
-    color: #cbd5e1;
+    color: #475569;
     font-size: 11px;
     &:hover {
-      background: rgba(148, 163, 184, 0.08);
+      background: #f1f5f9;
     }
   }
 }
 
 .Composer {
   overflow: hidden;
-  border: 1px solid rgba(148, 163, 184, 0.28);
+  border: 1px solid #cbd5e1;
   border-radius: 14px;
-  background: #171e2e;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+  background: #ffffff;
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.08);
   transition:
     border-color 150ms,
     box-shadow 150ms;
@@ -45,7 +83,7 @@
     border-color: rgba(167, 139, 250, 0.7);
     box-shadow:
       0 0 0 3px rgba(139, 92, 246, 0.08),
-      0 8px 30px rgba(0, 0, 0, 0.18);
+      0 8px 30px rgba(15, 23, 42, 0.1);
   }
 }
 
@@ -56,8 +94,8 @@
   flex-wrap: wrap;
   gap: 6px;
   padding: 8px 10px;
-  border-top: 1px solid rgba(148, 163, 184, 0.1);
-  background: rgba(15, 23, 42, 0.35);
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
 }
 
 .ModelBadge {
@@ -65,7 +103,7 @@
   align-items: center;
   gap: 5px;
   max-width: 130px;
-  color: #94a3b8;
+  color: #64748b;
   font-size: 10px;
   span:last-child {
     overflow: hidden;
