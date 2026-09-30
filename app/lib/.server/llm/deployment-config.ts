@@ -9,9 +9,19 @@ export function getFortzDeploymentConfig(values: { deployment?: string; response
   }
 
   const endpoint = new URL(responsesUrl);
+  const hostname = endpoint.hostname.toLowerCase();
+  const isAzureHost =
+    hostname === 'services.ai.azure.com' ||
+    hostname.endsWith('.services.ai.azure.com') ||
+    hostname.endsWith('.openai.azure.com') ||
+    hostname.endsWith('.cognitiveservices.azure.com');
 
   if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password || endpoint.hash) {
     throw new Error('FORTZ_AI_RESPONSES_URL must be a trusted HTTPS Responses API endpoint.');
+  }
+
+  if (!isAzureHost) {
+    throw new Error('FORTZ_AI_RESPONSES_URL must use an Azure AI Foundry or Azure OpenAI hostname.');
   }
 
   return { deployment, responsesUrl: endpoint.toString() };

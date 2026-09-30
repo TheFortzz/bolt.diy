@@ -25,6 +25,7 @@ User request → Manager blueprint → user approval → approved image generati
 ### Model and image service configuration
 
 - The default model and legacy `fortz-ai` alias resolve to the Azure `gpt-6-luna` deployment (GPT 6 Luna).
+- Managed Manager and Editor calls are pinned to the server-side GPT 6 Luna deployment and do not use browser-selected provider keys.
 - Set server-only `FORTZ_AI_DEPLOYMENT` only if your Luna deployment uses a different Azure identifier.
 - Set `FORTZ_AI_RESPONSES_URL` when using a different trusted Azure Responses endpoint.
 - Production harness requests also require server-only `FORTZ_HARNESS_SIGNING_KEY` (at least 32 characters).

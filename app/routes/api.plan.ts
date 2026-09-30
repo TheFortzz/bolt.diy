@@ -2,6 +2,7 @@ import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { z } from 'zod';
 import { getFluxApiKey } from '~/lib/.server/flux/flux-client';
 import { runManagerAgent } from '~/lib/.server/harness/agents';
+import { getFortzDeploymentConfig } from '~/lib/.server/llm/deployment-config';
 import {
   getHarnessSecret,
   issueCapability,
@@ -9,6 +10,7 @@ import {
   verifyCapability,
 } from '~/lib/.server/harness/capabilities';
 import { blueprintSchema, workspaceManifestSchema } from '~/lib/harness/blueprint';
+import { DEFAULT_MODEL, DEFAULT_PROVIDER } from '~/utils/constants';
 
 const sourceSchema = z
   .record(z.string().max(20000))
@@ -84,6 +86,9 @@ export async function action({ request, context }: ActionFunctionArgs) {
     try {
       blueprint = await runManagerAgent({
         ...input,
+        model: DEFAULT_MODEL,
+        provider: DEFAULT_PROVIDER.name,
+        apiKeys: undefined,
         env,
         imagesAvailable: Boolean(getFluxApiKey(env)),
         signal: request.signal,
@@ -91,8 +96,22 @@ export async function action({ request, context }: ActionFunctionArgs) {
     } catch (error) {
       console.error('Manager planning request failed:', error);
 
+      let configuration = 'deployment configuration could not be read';
+
+      try {
+        const modelConfig = getFortzDeploymentConfig({
+          deployment: process.env.FORTZ_AI_DEPLOYMENT || env.FORTZ_AI_DEPLOYMENT,
+          responsesUrl: process.env.FORTZ_AI_RESPONSES_URL || env.FORTZ_AI_RESPONSES_URL,
+        });
+        configuration = `deployment "${modelConfig.deployment}" at ${new URL(modelConfig.responsesUrl).host}`;
+      } catch (configurationError) {
+        configuration = `invalid Azure configuration: ${(configurationError as Error).message}`;
+      }
+
       return json(
-        { error: (error as Error).message || 'The Manager model could not prepare a valid build plan.' },
+        {
+          error: `Manager request failed (${configuration}). Check the server-side OPENAI_LIKE_API_KEY and Azure deployment settings. Upstream: ${(error as Error).message || 'no error details returned'}`,
+        },
         { status: 502 },
       );
     }
