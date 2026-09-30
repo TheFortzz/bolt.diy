@@ -211,7 +211,7 @@ export function createAzureResponsesModel(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'api-key': apiKey,
+          Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify(body),
         signal: options.abortSignal,
@@ -269,7 +269,7 @@ export function createAzureResponsesModel(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'api-key': apiKey,
+          Authorization: `Bearer ${apiKey}`,
           Accept: 'text/event-stream',
         },
         body: JSON.stringify(body),

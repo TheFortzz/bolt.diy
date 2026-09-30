@@ -29,8 +29,8 @@ describe('Azure Responses model adapter', () => {
     const headers = fetchMock.mock.calls[0][1]?.headers as Record<string, string>;
     expect(request.max_output_tokens).toBe(1000);
     expect(request).not.toHaveProperty('temperature');
-    expect(headers['api-key']).toBe('test-key');
-    expect(headers.Authorization).toBeUndefined();
+    expect(headers.Authorization).toBe('Bearer test-key');
+    expect(headers['api-key']).toBeUndefined();
     expect(request.input).toEqual([
       {
         role: 'user',
