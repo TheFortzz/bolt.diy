@@ -1,8 +1,35 @@
 import { FORTZ_DEPLOYMENT_MODEL, FORTZ_RESPONSES_URL } from '~/lib/.server/llm/azure-responses-model';
 
-export function getFortzDeploymentConfig(values: { deployment?: string; responsesUrl?: string }) {
+function responsesUrlFromBaseUrl(baseUrl: string) {
+  const endpoint = new URL(baseUrl.trim());
+  const path = endpoint.pathname.replace(/\/+$/, '');
+
+  if (/\/responses$/i.test(path)) {
+    endpoint.pathname = path;
+  } else if (/\/openai\/v1$/i.test(path)) {
+    endpoint.pathname = `${path}/responses`;
+  } else if (/\/api\/projects\/[^/]+$/i.test(path)) {
+    endpoint.pathname = `${path}/openai/v1/responses`;
+  } else if (!path || path === '/') {
+    endpoint.pathname = '/openai/v1/responses';
+  } else {
+    endpoint.pathname = `${path}/responses`;
+  }
+
+  return endpoint.toString();
+}
+
+export function getFortzDeploymentConfig(values: {
+  deployment?: string;
+  responsesUrl?: string;
+  openAILikeBaseUrl?: string;
+}) {
   const deployment = values.deployment?.trim() || FORTZ_DEPLOYMENT_MODEL;
-  const responsesUrl = values.responsesUrl?.trim() || FORTZ_RESPONSES_URL;
+  const responsesUrl =
+    values.responsesUrl?.trim() ||
+    (values.openAILikeBaseUrl?.trim()
+      ? responsesUrlFromBaseUrl(values.openAILikeBaseUrl)
+      : FORTZ_RESPONSES_URL);
 
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(deployment)) {
     throw new Error('FORTZ_AI_DEPLOYMENT must be an actual Azure deployment identifier.');

@@ -167,6 +167,7 @@ export function getModel(
       const deploymentConfig = getFortzDeploymentConfig({
         deployment: process.env.FORTZ_AI_DEPLOYMENT || env.FORTZ_AI_DEPLOYMENT,
         responsesUrl: process.env.FORTZ_AI_RESPONSES_URL || env.FORTZ_AI_RESPONSES_URL,
+        openAILikeBaseUrl: baseURL,
       });
       const targetModel =
         model === 'fortz-ai' || model === 'Fortz AI' || model === 'gpt-6-luna' || model === 'gpt-oss-120b' || !model

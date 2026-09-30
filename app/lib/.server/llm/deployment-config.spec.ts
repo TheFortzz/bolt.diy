@@ -18,6 +18,34 @@ describe('workspace model deployment configuration', () => {
     });
   });
 
+  it('derives the Responses endpoint from the OpenAILike base URL', () => {
+    expect(
+      getFortzDeploymentConfig({
+        openAILikeBaseUrl: 'https://models.services.ai.azure.com/openai/v1/',
+      }),
+    ).toEqual({
+      deployment: 'gpt-6-luna',
+      responsesUrl: 'https://models.services.ai.azure.com/openai/v1/responses',
+    });
+  });
+
+  it('adds the OpenAI v1 route to a Foundry project endpoint', () => {
+    expect(
+      getFortzDeploymentConfig({
+        openAILikeBaseUrl: 'https://models.services.ai.azure.com/api/projects/game-studio',
+      }).responsesUrl,
+    ).toBe('https://models.services.ai.azure.com/api/projects/game-studio/openai/v1/responses');
+  });
+
+  it('prefers the explicit Responses URL over the OpenAILike base URL', () => {
+    expect(
+      getFortzDeploymentConfig({
+        responsesUrl: 'https://primary.services.ai.azure.com/openai/v1/responses',
+        openAILikeBaseUrl: 'https://ignored.services.ai.azure.com/openai/v1',
+      }).responsesUrl,
+    ).toBe('https://primary.services.ai.azure.com/openai/v1/responses');
+  });
+
   it('rejects unsafe endpoint and deployment values', () => {
     expect(() => getFortzDeploymentConfig({ responsesUrl: 'http://models.example/responses' })).toThrow('HTTPS');
     expect(() => getFortzDeploymentConfig({ deployment: 'invalid deployment' })).toThrow('deployment identifier');
