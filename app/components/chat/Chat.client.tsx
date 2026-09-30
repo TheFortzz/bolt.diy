@@ -201,7 +201,7 @@ export const ChatImpl = memo(
         const mode = managedBlueprint ? 'build' : lastAgentModeRef.current;
 
         if (managedBlueprint) {
-          transitionHarness('verifying', { detail: 'Verifier is checking the approved build…' });
+          transitionHarness('verifying', { detail: 'Checking the approved build…' });
         }
 
         if (mode === 'plan' && !builtFiles && !managedBlueprint) {

@@ -118,7 +118,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
 
       const messageId = crypto.randomUUID();
       transitionHarness('planning', {
-        detail: 'Manager is designing your game…',
+        detail: 'Planning your game…',
         request,
         blueprint: undefined,
         blueprintMessageId: messageId,
@@ -143,7 +143,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
           : {}),
       };
       options.setMessages((messages) => [...messages, userMessage]);
-      startActivity(messageId, 'manager:plan', 'Designing game systems and file changes', 'Blueprint prepared');
+      startActivity(messageId, 'manager:plan', 'Planning game systems and file changes', 'Build plan prepared');
 
       try {
         if (
@@ -196,8 +196,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
           {
             id: messageId,
             role: 'assistant',
-            content:
-              'Your game blueprint is ready. Review the systems, files, and images below, then approve the build.',
+            content: 'Your build plan is ready. Review the systems, files, and images below, then approve the build.',
             annotations: [{ type: 'studio-blueprint', blueprint }],
           },
         ]);
@@ -205,7 +204,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
         transitionHarness('awaiting-approval', {
           blueprint,
           reviewToken: result.reviewToken,
-          detail: 'Review the blueprint · code and images are blocked',
+          detail: 'Review the build plan · code and images are blocked',
         });
       } catch (error) {
         if (sequence !== requestSequence.current || controller.signal.aborted) {
@@ -220,7 +219,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
           {
             id: messageId,
             role: 'assistant',
-            content: `The Manager could not prepare a valid blueprint. No files were changed.\n\n${detail}`,
+            content: `I could not prepare a valid build plan. No files were changed.\n\n${detail}`,
           },
         ]);
         toast.error(detail);
@@ -266,7 +265,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
       transitionHarness('preparing-assets', {
         executionToken: approval.executionToken,
         detail: blueprint.assetOperations.length
-          ? 'Image Builder is creating the approved assets…'
+          ? 'Preparing approved game visuals…'
           : 'Using existing assets and procedural visuals…',
       });
       validationState.set({ status: 'checking', detail: 'Preparing approved game assets…' });
@@ -293,7 +292,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
       }
 
       executionPolicy.approve(blueprint);
-      transitionHarness('editing', { detail: 'Editor is implementing the approved game systems…' });
+      transitionHarness('editing', { detail: 'Building your game…' });
       validationState.set({ status: 'idle', detail: '' });
 
       const artifactId = workbenchStore.firstArtifact?.id || `game-${blueprint.workspaceId}`;

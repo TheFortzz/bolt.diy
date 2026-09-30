@@ -32,7 +32,6 @@ import { SpeechRecognitionButton } from '~/components/chat/SpeechRecognition';
 import type { IProviderSetting, ProviderInfo } from '~/types/model';
 import { validationState } from '~/lib/runtime/build-validator';
 import { harnessState, harnessIsBusy } from '~/lib/stores/harness';
-import { AgentPipeline } from '~/components/chat/AgentPipeline';
 import { DEFAULT_MODEL_LABEL } from '~/utils/constants';
 
 const TEXTAREA_MIN_HEIGHT = 70;
@@ -497,7 +496,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     </div>
                   </div>
                 </div>
-                {(isStreaming || isVerifying) && (
+                {(isStreaming || isVerifying || isAgentBusy) && (
                   <span className="i-svg-spinners:90-ring-with-bg text-violet-300 shrink-0" aria-hidden="true" />
                 )}
                 {!showWorkbench && !isStreaming && !isVerifying && (
@@ -507,7 +506,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 )}
               </div>
             )}
-            {chatStarted && <AgentPipeline />}
             <div
               className={classNames('pt-2 px-2 sm:px-4 flex-1 flex flex-col min-h-0 overflow-hidden', {
                 'h-full': isWorkbenchActive || chatStarted,

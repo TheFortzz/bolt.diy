@@ -79,18 +79,37 @@ export async function action({ request, context }: ActionFunctionArgs) {
       throw new Error('Source excerpts must belong to the workspace manifest.');
     }
 
-    const blueprint = await runManagerAgent({
-      ...input,
-      env,
-      imagesAvailable: Boolean(getFluxApiKey(env)),
-      signal: request.signal,
-    });
+    let blueprint;
+
+    try {
+      blueprint = await runManagerAgent({
+        ...input,
+        env,
+        imagesAvailable: Boolean(getFluxApiKey(env)),
+        signal: request.signal,
+      });
+    } catch (error) {
+      console.error('Manager planning request failed:', error);
+
+      return json(
+        { error: (error as Error).message || 'The Manager model could not prepare a valid build plan.' },
+        { status: 502 },
+      );
+    }
 
     return json(
       { blueprint, reviewToken: await issueCapability(blueprint, 'review', secret, audience) },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (error) {
-    return json({ error: (error as Error).message || 'Could not validate the blueprint.' }, { status: 400 });
+    const message = (error as Error).message || 'Could not validate the blueprint.';
+    const status =
+      error instanceof z.ZodError || error instanceof SyntaxError
+        ? 400
+        : message.includes('same studio origin')
+          ? 403
+          : 500;
+
+    return json({ error: message }, { status });
   }
 }

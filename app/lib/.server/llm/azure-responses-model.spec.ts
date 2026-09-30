@@ -26,6 +26,8 @@ describe('Azure Responses model adapter', () => {
     } as any);
 
     const request = JSON.parse(fetchMock.mock.calls[0][1]?.body as string);
+    expect(request.max_output_tokens).toBe(1000);
+    expect(request).not.toHaveProperty('temperature');
     expect(request.input).toEqual([
       {
         role: 'user',
@@ -35,5 +37,23 @@ describe('Azure Responses model adapter', () => {
         ],
       },
     ]);
+  });
+
+  it('keeps the requested output limit and sampling temperature for standard models', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ output_text: 'ok' }), { status: 200 }));
+    const model = createAzureResponsesModel('test-key', 'gpt-4.1', 'https://example.test/responses');
+
+    await model.doGenerate({
+      prompt: [{ role: 'user', content: 'Say ok.' }],
+      maxTokens: 2000,
+      temperature: 0.2,
+      abortSignal: new AbortController().signal,
+    } as any);
+
+    const request = JSON.parse(fetchMock.mock.calls[0][1]?.body as string);
+    expect(request.max_output_tokens).toBe(2000);
+    expect(request.temperature).toBe(0.2);
   });
 });

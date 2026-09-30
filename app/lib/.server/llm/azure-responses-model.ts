@@ -163,6 +163,20 @@ function extractCompletedText(payload: any): string {
   return chunks.join('');
 }
 
+function applyGenerationSettings(body: Record<string, unknown>, options: LanguageModelV1CallOptions, modelId: string) {
+  body.max_output_tokens =
+    typeof options.maxTokens === 'number' && Number.isFinite(options.maxTokens)
+      ? Math.max(1, Math.floor(options.maxTokens))
+      : 16384;
+
+  // Omit temperature for GPT-6 deployments because some reasoning variants reject overrides.
+  if (/^gpt-6(?:-|$)/i.test(modelId)) {
+    return;
+  }
+
+  body.temperature = typeof options.temperature === 'number' ? options.temperature : 0.85;
+}
+
 export function createAzureResponsesModel(
   apiKey: string,
   modelId: string = FORTZ_DEPLOYMENT_MODEL,
@@ -191,17 +205,7 @@ export function createAzureResponsesModel(
         body.instructions = instructions;
       }
 
-      if (typeof options.maxTokens === 'number') {
-        body.max_output_tokens = Math.max(options.maxTokens, 16384);
-      } else {
-        body.max_output_tokens = 16384;
-      }
-
-      if (typeof options.temperature === 'number') {
-        body.temperature = options.temperature;
-      } else {
-        body.temperature = 0.85;
-      }
+      applyGenerationSettings(body, options, resolvedModel);
 
       const response = await fetch(responsesUrl, {
         method: 'POST',
@@ -256,17 +260,7 @@ export function createAzureResponsesModel(
         body.instructions = instructions;
       }
 
-      if (typeof options.maxTokens === 'number') {
-        body.max_output_tokens = Math.max(options.maxTokens, 16384);
-      } else {
-        body.max_output_tokens = 16384;
-      }
-
-      if (typeof options.temperature === 'number') {
-        body.temperature = options.temperature;
-      } else {
-        body.temperature = 0.85;
-      }
+      applyGenerationSettings(body, options, resolvedModel);
 
       const response = await fetch(responsesUrl, {
         method: 'POST',
