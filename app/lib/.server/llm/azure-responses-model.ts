@@ -1,9 +1,4 @@
-import type {
-  LanguageModelV1,
-  LanguageModelV1CallOptions,
-  LanguageModelV1Prompt,
-  LanguageModelV1StreamPart,
-} from 'ai';
+import type { LanguageModelV1, LanguageModelV1CallOptions, LanguageModelV1Prompt, LanguageModelV1StreamPart } from 'ai';
 
 type LanguageModelV1FinishReason = 'stop' | 'length' | 'content-filter' | 'tool-calls' | 'error' | 'other' | 'unknown';
 
@@ -11,9 +6,59 @@ export const FORTZ_RESPONSES_URL =
   'https://fortz-ai-resource.services.ai.azure.com/api/projects/fortz-ai/openai/v1/responses';
 
 /** Deployment id Azure expects (display name can differ). */
-export const FORTZ_DEPLOYMENT_MODEL = 'gpt-4.1-mini';
+export const FORTZ_DEPLOYMENT_MODEL = 'gpt-6-luna';
 
-function extractTextContent(content: LanguageModelV1Prompt[number]['content']): string {
+type ResponsesContentPart = { type: 'input_text'; text: string } | { type: 'input_image'; image_url: string };
+type ResponsesMessage = { role: 'user' | 'assistant'; content: string | ResponsesContentPart[] };
+
+function bytesToBase64(bytes: Uint8Array) {
+  let binary = '';
+  const chunkSize = 0x8000;
+
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+
+  return btoa(binary);
+}
+
+function imageDataUrl(part: Record<string, unknown>): string | undefined {
+  const image = part.image;
+  const mimeType =
+    typeof part.mimeType === 'string' && /^image\/(?:png|jpeg|webp|gif)$/i.test(part.mimeType)
+      ? part.mimeType
+      : 'image/png';
+
+  if (typeof image === 'string') {
+    if (/^data:image\/(?:png|jpeg|webp|gif);base64,/i.test(image)) {
+      return image;
+    }
+
+    if (/^[A-Za-z0-9+/]+={0,2}$/.test(image)) {
+      return `data:${mimeType};base64,${image}`;
+    }
+  }
+
+  if (image instanceof Uint8Array) {
+    return `data:${mimeType};base64,${bytesToBase64(image)}`;
+  }
+
+  if (image instanceof ArrayBuffer) {
+    return `data:${mimeType};base64,${bytesToBase64(new Uint8Array(image))}`;
+  }
+
+  if (
+    image instanceof URL &&
+    image.protocol === 'data:' &&
+    /^data:image\/(?:png|jpeg|webp|gif);base64,/i.test(image.href)
+  ) {
+    return image.href;
+  }
+
+  return undefined;
+}
+
+function convertMessageContent(content: LanguageModelV1Prompt[number]['content']): string | ResponsesContentPart[] {
   if (typeof content === 'string') {
     return content;
   }
@@ -22,49 +67,73 @@ function extractTextContent(content: LanguageModelV1Prompt[number]['content']): 
     return '';
   }
 
-  return content
-    .map((part) => {
-      if (!part || typeof part !== 'object') {
-        return '';
-      }
+  const parts: ResponsesContentPart[] = [];
 
-      if ('text' in part && typeof (part as { text?: string }).text === 'string') {
-        return (part as { text: string }).text;
-      }
+  for (const part of content) {
+    if (!part || typeof part !== 'object') {
+      continue;
+    }
 
-      return '';
-    })
-    .filter(Boolean)
-    .join('\n');
+    if ('text' in part && typeof (part as { text?: string }).text === 'string') {
+      parts.push({ type: 'input_text', text: (part as { text: string }).text });
+    } else if ('image' in part) {
+      const dataUrl = imageDataUrl(part as unknown as Record<string, unknown>);
+
+      if (dataUrl) {
+        parts.push({ type: 'input_image', image_url: dataUrl });
+      }
+    }
+  }
+
+  if (!parts.some((part) => part.type === 'input_image')) {
+    return parts
+      .filter((part): part is Extract<ResponsesContentPart, { type: 'input_text' }> => part.type === 'input_text')
+      .map((part) => part.text)
+      .join('\n');
+  }
+
+  return parts;
 }
 
 function convertPrompt(prompt: LanguageModelV1Prompt): {
   instructions?: string;
-  input: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> | string;
+  input: ResponsesMessage[] | string;
 } {
   const instructionsParts: string[] = [];
-  const input: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [];
+  const input: ResponsesMessage[] = [];
 
   for (const message of prompt) {
-    const text = extractTextContent(message.content).trim();
+    const content = convertMessageContent(message.content);
+    const hasContent = typeof content === 'string' ? Boolean(content.trim()) : content.length > 0;
 
-    if (!text) {
+    if (!hasContent) {
       continue;
     }
 
     if (message.role === 'system') {
-      instructionsParts.push(text);
+      if (typeof content === 'string') {
+        instructionsParts.push(content.trim());
+      } else {
+        instructionsParts.push(
+          content
+            .filter((part): part is Extract<ResponsesContentPart, { type: 'input_text' }> => part.type === 'input_text')
+            .map((part) => part.text)
+            .join('\n'),
+        );
+      }
+
       continue;
     }
 
     if (message.role === 'user' || message.role === 'assistant') {
-      input.push({ role: message.role, content: text });
+      input.push({ role: message.role, content });
     }
   }
 
   return {
     instructions: instructionsParts.length > 0 ? instructionsParts.join('\n\n') : undefined,
-    input: input.length === 1 && input[0].role === 'user' ? input[0].content : input,
+    input:
+      input.length === 1 && input[0].role === 'user' && typeof input[0].content === 'string' ? input[0].content : input,
   };
 }
 
@@ -94,10 +163,15 @@ function extractCompletedText(payload: any): string {
   return chunks.join('');
 }
 
-export function createAzureResponsesModel(apiKey: string, modelId: string = FORTZ_DEPLOYMENT_MODEL): LanguageModelV1 {
-  const resolvedModel = !modelId || modelId === 'fortz-ai' || modelId === 'gpt-6-luna' || modelId === 'gpt-oss-120b'
-    ? FORTZ_DEPLOYMENT_MODEL
-    : modelId;
+export function createAzureResponsesModel(
+  apiKey: string,
+  modelId: string = FORTZ_DEPLOYMENT_MODEL,
+  responsesUrl: string = FORTZ_RESPONSES_URL,
+): LanguageModelV1 {
+  const resolvedModel =
+    !modelId || modelId === 'fortz-ai' || modelId === 'Fortz AI' || modelId === 'gpt-oss-120b'
+      ? FORTZ_DEPLOYMENT_MODEL
+      : modelId;
 
   return {
     specificationVersion: 'v1',
@@ -129,7 +203,7 @@ export function createAzureResponsesModel(apiKey: string, modelId: string = FORT
         body.temperature = 0.85;
       }
 
-      const response = await fetch(FORTZ_RESPONSES_URL, {
+      const response = await fetch(responsesUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -149,7 +223,8 @@ export function createAzureResponsesModel(apiKey: string, modelId: string = FORT
       }
 
       if (!response.ok) {
-        const message = json?.error?.message || json?.message || rawText || `Azure Responses error (${response.status})`;
+        const message =
+          json?.error?.message || json?.message || rawText || `Azure Responses error (${response.status})`;
         throw new Error(message);
       }
 
@@ -193,7 +268,7 @@ export function createAzureResponsesModel(apiKey: string, modelId: string = FORT
         body.temperature = 0.85;
       }
 
-      const response = await fetch(FORTZ_RESPONSES_URL, {
+      const response = await fetch(responsesUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -237,6 +312,7 @@ export function createAzureResponsesModel(apiKey: string, modelId: string = FORT
               }
 
               buffer += decoder.decode(value, { stream: true });
+
               const chunks = buffer.split('\n');
               buffer = chunks.pop() || '';
 
@@ -271,11 +347,6 @@ export function createAzureResponsesModel(apiKey: string, modelId: string = FORT
                   enqueue({ type: 'text-delta', textDelta: event.delta });
                 } else if (event?.type === 'response.output_text.delta' && typeof event.delta?.text === 'string') {
                   enqueue({ type: 'text-delta', textDelta: event.delta.text });
-                } else if (
-                  (event?.type === 'response.reasoning_text.delta' || event?.type === 'response.thought.delta') &&
-                  typeof event.delta === 'string'
-                ) {
-                  enqueue({ type: 'reasoning', textDelta: event.delta } as any);
                 } else if (event?.type === 'response.completed' || event?.type === 'response.done') {
                   usage = {
                     promptTokens: event?.response?.usage?.input_tokens ?? usage.promptTokens,
@@ -291,6 +362,7 @@ export function createAzureResponsesModel(apiKey: string, modelId: string = FORT
                   }
                 } else if (event?.type === 'response.failed' || event?.type === 'error') {
                   finishReason = 'error';
+
                   const message = event?.error?.message || event?.message || 'Azure Responses stream failed';
                   enqueue({ type: 'error', error: new Error(message) } as any);
                 }

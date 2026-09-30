@@ -8,8 +8,16 @@ import type { ActionCallbackData } from './message-parser';
 import type { BoltShell } from '~/utils/shell';
 import { cleanWorkDirRelativePath } from '~/utils/diff';
 import { actionStepId, updateActivity } from '~/lib/stores/activity';
+import { contentHash } from '~/lib/harness/blueprint';
+import { executionPolicy } from '~/lib/harness/execution-policy';
 
 const logger = createScopedLogger('ActionRunner');
+
+function isMissingFileError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+
+  return /(?:ENOENT|no such file|not found)/i.test(message);
+}
 
 export type ActionStatus = 'pending' | 'running' | 'complete' | 'aborted' | 'failed';
 
@@ -137,6 +145,7 @@ export class ActionRunner {
   async #hasPackageJson(): Promise<boolean> {
     try {
       const webcontainer = await this.#webcontainer;
+
       if (!webcontainer) {
         return false;
       }
@@ -144,6 +153,7 @@ export class ActionRunner {
       for (const p of ['package.json', '/package.json', './package.json', '/home/project/package.json']) {
         try {
           const content = await webcontainer.fs.readFile(p, 'utf8');
+
           if (content && content.trim().length > 0) {
             return true;
           }
@@ -152,6 +162,7 @@ export class ActionRunner {
 
       try {
         const rootEntries = await webcontainer.fs.readdir('.');
+
         if (rootEntries.includes('package.json')) {
           return true;
         }
@@ -159,6 +170,7 @@ export class ActionRunner {
 
       try {
         const rootEntries = await webcontainer.fs.readdir('/');
+
         if (rootEntries.includes('package.json')) {
           return true;
         }
@@ -174,6 +186,7 @@ export class ActionRunner {
     if (this.#staticServerStarted) {
       return;
     }
+
     this.#staticServerStarted = true;
 
     try {
@@ -183,9 +196,13 @@ export class ActionRunner {
       }
 
       const wc = await this.#webcontainer;
-      if (!wc) return;
+
+      if (!wc) {
+        return;
+      }
 
       await wc.fs.writeFile('/.static_server.cjs', STATIC_SERVER_SCRIPT);
+
       const process = await wc.spawn('node', ['/.static_server.cjs']);
       logger.info('Started .static_server.cjs for static project');
 
@@ -217,6 +234,7 @@ export class ActionRunner {
     const abortController = new AbortController();
 
     const actionData = { ...data.action };
+
     if (actionData.type === 'file') {
       actionData.filePath = cleanWorkDirRelativePath(actionData.filePath) || 'index.html';
     }
@@ -231,7 +249,37 @@ export class ActionRunner {
       },
       abortSignal: abortController.signal,
     });
+  }
+  addRejectedAction(data: ActionCallbackData, error: string) {
+    const { actionId } = data;
 
+    if (this.actions.get()[actionId]) {
+      return;
+    }
+
+    const abortController = new AbortController();
+    const actionData = { ...data.action };
+
+    if (actionData.type === 'file') {
+      actionData.filePath = cleanWorkDirRelativePath(actionData.filePath) || 'index.html';
+    }
+
+    this.actions.setKey(actionId, {
+      ...actionData,
+      status: 'failed',
+      error,
+      executed: true,
+      abort: () => abortController.abort(),
+      abortSignal: abortController.signal,
+    });
+  }
+
+  rejectAction(actionId: string, error: string) {
+    if (!this.actions.get()[actionId]) {
+      return;
+    }
+
+    this.#updateAction(actionId, { status: 'failed', error, executed: true });
   }
 
   async runAction(data: ActionCallbackData, isStreaming: boolean = false) {
@@ -251,6 +299,7 @@ export class ActionRunner {
     }
 
     const actionData = { ...data.action };
+
     if (actionData.type === 'file') {
       actionData.filePath = cleanWorkDirRelativePath(actionData.filePath) || 'index.html';
     }
@@ -282,7 +331,7 @@ export class ActionRunner {
           break;
         }
         case 'file': {
-          await this.#runFileAction(action);
+          await this.#runFileAction(actionId, action);
           break;
         }
         case 'start': {
@@ -319,13 +368,20 @@ export class ActionRunner {
       unreachable('Expected shell action');
     }
 
+    if (!action.content || !action.content.trim()) {
+      logger.info('[ActionRunner] Empty shell action content received, skipping execution.');
+      return;
+    }
+
     if (this.#isNpmCommand(action.content)) {
       const hasPkg = await this.#hasPackageJson();
+
       if (!hasPkg) {
         logger.info(
           `[ActionRunner] No package.json found in project root. Skipping npm shell command: "${action.content}" and ensuring static server is started.`,
         );
         await this.#startStaticServer();
+
         return;
       }
     }
@@ -374,7 +430,9 @@ export class ActionRunner {
 
       if (resp?.exitCode != 0) {
         const errorDetail = resp?.output ? resp.output.trim().slice(-600) : '';
-        throw new Error(errorDetail ? `Command failed (code ${resp?.exitCode}):\n${errorDetail}` : 'Failed To Execute Shell Command');
+        throw new Error(
+          errorDetail ? `Command failed (code ${resp?.exitCode}):\n${errorDetail}` : 'Failed To Execute Shell Command',
+        );
       }
     } finally {
       clearTimeout(timer);
@@ -388,11 +446,13 @@ export class ActionRunner {
 
     if (this.#isNpmCommand(action.content)) {
       const hasPkg = await this.#hasPackageJson();
+
       if (!hasPkg) {
         logger.info(
           `[ActionRunner] No package.json found in project root. Skipping npm start command: "${action.content}" and starting .static_server.cjs directly.`,
         );
         await this.#startStaticServer();
+
         return;
       }
     }
@@ -421,7 +481,7 @@ export class ActionRunner {
     return resp;
   }
 
-  async #runFileAction(action: ActionState) {
+  async #runFileAction(actionId: string, action: ActionState) {
     if (action.type !== 'file') {
       unreachable('Expected file action');
     }
@@ -438,6 +498,30 @@ export class ActionRunner {
 
     const cleanedFilePath = cleanWorkDirRelativePath(action.filePath) || 'index.html';
     action.filePath = cleanedFilePath;
+
+    const approvedOperation = executionPolicy.getApprovedOperation(this.#messageId, actionId, cleanedFilePath);
+
+    if (approvedOperation) {
+      let existingBytes: Uint8Array | undefined;
+
+      try {
+        existingBytes = await webcontainer.fs.readFile(cleanedFilePath);
+      } catch (error) {
+        if (!isMissingFileError(error)) {
+          throw error;
+        }
+      }
+
+      if (approvedOperation.expectedHash === null && existingBytes) {
+        throw new Error(`${cleanedFilePath} appeared after approval; the create precondition failed.`);
+      }
+
+      if (approvedOperation.expectedHash !== null) {
+        if (!existingBytes || (await contentHash(existingBytes)) !== approvedOperation.expectedHash) {
+          throw new Error(`${cleanedFilePath} changed after approval; the edit precondition failed.`);
+        }
+      }
+    }
 
     let folder = nodePath.dirname(action.filePath);
 

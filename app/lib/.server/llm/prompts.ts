@@ -204,7 +204,7 @@ const GAME_DESIGN_REASONING_PROTOCOL = `
 
   5. TECHNICAL SAFEGUARDS & RUNTIME STABILITY:
      - Immediate Playability: The game MUST start rendering as soon as it loads, or on a single "Click to Start" overlay whose click handler immediately starts the real game loop.
-     - Prevent Default on Controls: Always call e.preventDefault() on game control keys (ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Space) so the browser page does NOT scroll while playing.
+     - Window-Level Keyboard Listeners: ALWAYS attach keyboard listeners to window (window.addEventListener('keydown', ...), window.addEventListener('keyup', ...)), NEVER to canvas or a child element! Attaching to canvas breaks controls when clicking "Click to Start" buttons because focus is lost. Always call e.preventDefault() on game keys (WASD, Arrow keys, Space) to prevent browser scrolling.
      - Clamped Delta-Time: In the animation loop, clamp delta-time: 'const dt = Math.min(deltaTime, 0.05);' so physics never explode or clip through walls on frame drops.
      - Smooth Movement & Collision: Use acceleration, friction damping, and wall-sliding collision so movement feels responsive and never snags or sticks on walls.
      - Working Restart: Provide an instant restart on pressing 'R' or clicking "Play Again" that smoothly resets game state without breaking the loop or listeners.

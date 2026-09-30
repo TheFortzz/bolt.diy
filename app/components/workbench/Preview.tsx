@@ -5,6 +5,9 @@ import { workbenchStore } from '~/lib/stores/workbench';
 import { registerPreviewValidator, type PreviewValidationResult } from '~/lib/runtime/preview-validation';
 import { cleanWorkDirRelativePath } from '~/utils/diff';
 import { PortDropdown } from './PortDropdown';
+import { generatedAssets, inlineGeneratedAssetUrls } from '~/lib/stores/generated-assets';
+import { createPreviewProbe, injectPreviewProbe } from '~/lib/runtime/preview-probe';
+import { getWebContainer } from '~/lib/webcontainer';
 
 type ResizeSide = 'left' | 'right' | null;
 
@@ -19,7 +22,59 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
   const hasSelectedPreview = useRef(false);
   const previews = useStore(workbenchStore.previews);
   const files = useStore(workbenchStore.files);
+  const imageAssets = useStore(generatedAssets);
   const activePreview = previews[activePreviewIndex] ?? previews.find((preview) => preview.ready) ?? previews[0];
+
+  // Rehydrate binary URLs after a saved checkpoint or a page reload. Binary
+  // file-tree entries intentionally do not contain their payloads.
+  useEffect(() => {
+    let cancelled = false;
+    const missing = Object.entries(files).filter(
+      ([path, file]) =>
+        file?.type === 'file' &&
+        file.isBinary &&
+        /\.png$/i.test(path) &&
+        !generatedAssets.get()[cleanWorkDirRelativePath(path)],
+    );
+
+    if (!missing.length) {
+      return undefined;
+    }
+
+    const restore = async () => {
+      const container = await getWebContainer();
+
+      for (const [rawPath] of missing.slice(0, 40)) {
+        try {
+          const path = cleanWorkDirRelativePath(rawPath);
+          const bytes = await container.fs.readFile(path);
+          if (cancelled) {
+            return;
+          }
+          if (bytes.length > 5 * 1024 * 1024) {
+            continue;
+          }
+          let binary = '';
+          for (let offset = 0; offset < bytes.length; offset += 32768) {
+            binary += String.fromCharCode(...bytes.subarray(offset, offset + 32768));
+          }
+          generatedAssets.setKey(path, {
+            id: path,
+            path,
+            byteLength: bytes.length,
+            dataUrl: `data:image/png;base64,${btoa(binary)}`,
+          });
+        } catch {
+          // Leave missing images unresolved so the runtime probe reports them.
+        }
+      }
+    };
+    void restore();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [files]);
 
   const fallbackHtml = useMemo(() => {
     let htmlContent: string | undefined;
@@ -98,7 +153,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
           return `<style data-inlined="${href}">\n${css}\n</style>`;
         }
         return match;
-      }
+      },
     );
 
     // 2. Inline local script tags in their exact declared order in the HTML
@@ -114,7 +169,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
         }
         // File not found in virtual FS — strip rather than leave a broken src= that 404s in blob context
         return `<!-- bolt-stripped: could not resolve "${src}" in virtual filesystem -->`;
-      }
+      },
     );
 
     // 3. Dynamic Script Discovery (Bugs 1 & 2):
@@ -135,8 +190,14 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     };
 
     const entryCandidates = [
-      'main.js', 'game.js', 'src/main.js', 'src/game.js',
-      'index.js', 'app.js', 'engine.js', 'start.js',
+      'main.js',
+      'game.js',
+      'src/main.js',
+      'src/game.js',
+      'index.js',
+      'app.js',
+      'engine.js',
+      'start.js',
     ];
 
     const projectJsFiles: string[] = [];
@@ -173,14 +234,55 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     // Rank dependencies so foundational math/physics/utilities and effects load before entities and gameplay
     const getDepRank = (filename: string): number => {
       const lower = filename.toLowerCase();
-      if (lower.includes('math') || lower.includes('vec') || lower.includes('util') || lower.includes('const') || lower.includes('config')) return 1;
+      if (
+        lower.includes('math') ||
+        lower.includes('vec') ||
+        lower.includes('util') ||
+        lower.includes('const') ||
+        lower.includes('config')
+      )
+        return 1;
       if (lower.includes('audio') || lower.includes('sound') || lower.includes('music')) return 2;
-      if (lower.includes('input') || lower.includes('control') || lower.includes('keyboard') || lower.includes('key')) return 3;
-      if (lower.includes('particle') || lower.includes('effect') || lower.includes('fx') || lower.includes('emitter') || lower.includes('smoke') || lower.includes('spark')) return 4;
+      if (lower.includes('input') || lower.includes('control') || lower.includes('keyboard') || lower.includes('key'))
+        return 3;
+      if (
+        lower.includes('particle') ||
+        lower.includes('effect') ||
+        lower.includes('fx') ||
+        lower.includes('emitter') ||
+        lower.includes('smoke') ||
+        lower.includes('spark')
+      )
+        return 4;
       if (lower.includes('physics') || lower.includes('collision')) return 5;
-      if (lower.includes('track') || lower.includes('map') || lower.includes('level') || lower.includes('world') || lower.includes('camera') || lower.includes('grid')) return 6;
-      if (lower.includes('car') || lower.includes('vehicle') || lower.includes('player') || lower.includes('enemy') || lower.includes('entity') || lower.includes('entities') || lower.includes('actor') || lower.includes('ai')) return 7;
-      if (lower.includes('ui') || lower.includes('hud') || lower.includes('score') || lower.includes('menu') || lower.includes('shop')) return 8;
+      if (
+        lower.includes('track') ||
+        lower.includes('map') ||
+        lower.includes('level') ||
+        lower.includes('world') ||
+        lower.includes('camera') ||
+        lower.includes('grid')
+      )
+        return 6;
+      if (
+        lower.includes('car') ||
+        lower.includes('vehicle') ||
+        lower.includes('player') ||
+        lower.includes('enemy') ||
+        lower.includes('entity') ||
+        lower.includes('entities') ||
+        lower.includes('actor') ||
+        lower.includes('ai')
+      )
+        return 7;
+      if (
+        lower.includes('ui') ||
+        lower.includes('hud') ||
+        lower.includes('score') ||
+        lower.includes('menu') ||
+        lower.includes('shop')
+      )
+        return 8;
       return 9;
     };
     unlinkedDependencies.sort((a, b) => getDepRank(a) - getDepRank(b));
@@ -336,7 +438,10 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     } else if (bundled.includes('<head ')) {
       bundled = bundled.replace(/(<head[^>]*>)/i, `$1\n  <meta charset="UTF-8" />\n${mathUtilsScript}`);
     } else if (bundled.includes('<html')) {
-      bundled = bundled.replace(/(<html[^>]*>)/i, `$1\n<head>\n  <meta charset="UTF-8" />\n${mathUtilsScript}\n</head>`);
+      bundled = bundled.replace(
+        /(<html[^>]*>)/i,
+        `$1\n<head>\n  <meta charset="UTF-8" />\n${mathUtilsScript}\n</head>`,
+      );
     } else {
       bundled = mathUtilsScript + '\n' + bundled;
     }
@@ -396,8 +501,15 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       bundled = bundled + '\n' + focusHelper + '\n' + errorOverlayScript;
     }
 
-    return bundled;
-  }, [files]);
+    const livePaths = new Set(
+      Object.entries(files)
+        .filter(([, file]) => file?.type === 'file')
+        .map(([path]) => cleanWorkDirRelativePath(path)),
+    );
+    const liveAssets = Object.fromEntries(Object.entries(imageAssets).filter(([path]) => livePaths.has(path)));
+
+    return inlineGeneratedAssetUrls(bundled, liveAssets);
+  }, [files, imageAssets]);
 
   const fallbackIncomplete = useMemo(() => {
     if (!fallbackHtml) {
@@ -497,13 +609,23 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
         }
       }
 
-      // Run the same assembled static HTML the user sees, in an isolated offscreen
-      // iframe. This catches synchronous errors and unhandled promise rejections.
-      // Cross-origin dev-server console output cannot be observed from here.
+      if (serverUrl && (projectHasPackage || !fallbackHtml)) {
+        return {
+          ok: false,
+          error:
+            'Dev-server preview is reachable, but runtime verification needs a browser worker or an authenticated preview bridge. Load events alone cannot verify this build.',
+        };
+      }
+
+      // Exercise the same static bundle in an opaque-origin sandbox. Keep it in
+      // the viewport so animation frames are not suspended for being offscreen.
       return new Promise<PreviewValidationResult>((resolve) => {
         const frame = document.createElement('iframe');
         frame.setAttribute('sandbox', 'allow-scripts');
-        frame.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:800px;height:600px;visibility:visible;pointer-events:none';
+        frame.style.cssText =
+          'position:fixed;top:0;left:0;width:800px;height:600px;opacity:0.01;pointer-events:none;z-index:-1';
+        frame.setAttribute('aria-hidden', 'true');
+        frame.setAttribute('tabindex', '-1');
         const token = crypto.randomUUID();
         let finished = false;
         let timer: ReturnType<typeof setTimeout>;
@@ -520,90 +642,12 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
           if (event.data.type === 'preview-error') {
             finish({ ok: false, error: `Preview runtime error: ${String(event.data.error).slice(0, 1200)}` });
           } else if (event.data.type === 'preview-loaded') {
-            setTimeout(() => finish({ ok: true }), 1200);
+            finish({ ok: true });
           }
         };
         window.addEventListener('message', onMessage);
         timer = setTimeout(() => finish({ ok: false, error: 'Preview did not load within 12 seconds.' }), 12000);
-        if (serverUrl && (projectHasPackage || !fallbackHtml)) {
-          frame.onload = () => setTimeout(() => finish({ ok: true }), 1200);
-          frame.onerror = () => finish({ ok: false, error: 'Preview failed to load.' });
-          frame.src = serverUrl;
-        } else {
-          const instrumentation = `<script>
-(function() {
-  var token = ${JSON.stringify(token)};
-  var reported = false;
-
-  function reportLoaded() {
-    if (reported) return;
-    reported = true;
-    parent.postMessage({ token: token, type: 'preview-loaded' }, '*');
-  }
-
-  function reportError(err) {
-    if (reported) return;
-    reported = true;
-    parent.postMessage({ token: token, type: 'preview-error', error: String(err || 'Script error') }, '*');
-  }
-
-  window.addEventListener('error', function(e) {
-    reportError(e.message || 'Script error');
-  });
-
-  window.addEventListener('unhandledrejection', function(e) {
-    reportError(String(e.reason?.message || e.reason));
-  });
-
-  function triggerStarts() {
-    try {
-      var elements = document.querySelectorAll('button, canvas, [id*="start"], [class*="start"], [id*="play"], [class*="overlay"], [class*="menu"], [onclick]');
-      for (var i = 0; i < elements.length; i++) {
-        elements[i].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-      }
-      if (document.body) {
-        document.body.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-      }
-    } catch (e) {}
-  }
-
-  function onReady() {
-    var frameCount = 0;
-
-    // Safety fallback timer:
-    // If requestAnimationFrame is throttled or suspended by the browser engine (due to the iframe being positioned offscreen at top: -9999px),
-    // report preview-loaded after 600ms as long as no runtime exception was captured!
-    var fallbackTimer = setTimeout(function() {
-      reportLoaded();
-    }, 600);
-
-    function checkFrames() {
-      frameCount++;
-      if (frameCount >= 3) {
-        clearTimeout(fallbackTimer);
-        reportLoaded();
-      } else {
-        requestAnimationFrame(checkFrames);
-      }
-    }
-    requestAnimationFrame(checkFrames);
-
-    // Trigger start screen clicks immediately and after short delays
-    triggerStarts();
-    setTimeout(triggerStarts, 50);
-    setTimeout(triggerStarts, 200);
-  }
-
-  if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    onReady();
-  } else {
-    window.addEventListener('load', onReady);
-    document.addEventListener('DOMContentLoaded', onReady);
-  }
-})();
-</script>`;
-          frame.srcdoc = fallbackHtml!.replace(/(<!doctype[^>]*>)/i, `$1${instrumentation}`);
-        }
+        frame.srcdoc = injectPreviewProbe(fallbackHtml!, createPreviewProbe(token, window.location.origin));
         document.body.appendChild(frame);
       });
     });

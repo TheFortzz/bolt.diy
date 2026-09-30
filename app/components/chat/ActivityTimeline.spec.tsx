@@ -24,4 +24,13 @@ describe('chat activity timeline', () => {
     expect(renderToStaticMarkup(<ActivityTimeline isStreaming />)).toContain('Thinking…');
     expect(renderToStaticMarkup(<ActivityTimeline />)).toBe('');
   });
+
+  it('exposes an accessible expansion control and real file paths', () => {
+    startActivity('build', 'action:file', 'Editing game.js', 'Edited game.js', 'running', '/home/project/game.js');
+    const markup = renderToStaticMarkup(<ActivityTimeline messageId="build" />);
+    expect(markup).toContain('aria-expanded="false"');
+    expect(markup).toContain('Expand');
+    expect(markup).toContain('game.js');
+    expect(markup).toContain('data-status="running"');
+  });
 });

@@ -7,6 +7,9 @@ interface Env {
   OLLAMA_API_BASE_URL: string;
   OPENAI_LIKE_API_KEY: string;
   OPENAI_LIKE_API_BASE_URL: string;
+  FORTZ_AI_DEPLOYMENT?: string;
+  FORTZ_AI_RESPONSES_URL?: string;
+  FORTZ_HARNESS_SIGNING_KEY?: string;
   TOGETHER_API_KEY: string;
   TOGETHER_API_BASE_URL: string;
   DEEPSEEK_API_KEY: string;

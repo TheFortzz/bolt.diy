@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { generateProjectAssets, isFluxAssetGenerationAvailable } from './asset-generator';
+import { validateAssetPath } from './asset-generator';
 import { getWebContainer } from '~/lib/webcontainer';
 import { getHeuristicVisualElements } from '~/lib/.server/flux/asset-selector';
 import { generateAssetLoaderSnippet } from '~/lib/.server/flux/code-updater';
@@ -49,13 +50,30 @@ describe('Asset Generator & Real Test Game Verification', () => {
   });
 
   it('checks availability and returns false when FLUX_API_KEY is not configured', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ available: false }),
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ available: false }),
+      }),
+    );
 
     const available = await isFluxAssetGenerationAvailable();
     expect(available).toBe(false);
+  });
+
+  it('rejects asset paths that can escape or alias the generated image folder', () => {
+    expect(validateAssetPath('assets/vehicles/car.png')).toBe('assets/vehicles/car.png');
+    for (const path of [
+      '../car.png',
+      'assets/../car.png',
+      '/assets/car.png',
+      'assets//car.png',
+      'assets/car.js',
+      'assets/./car.png',
+    ]) {
+      expect(() => validateAssetPath(path)).toThrow('Unsafe generated asset path');
+    }
   });
 
   it('gracefully skips asset generation and retains shape rendering when FLUX_API_KEY is missing', async () => {
@@ -78,10 +96,13 @@ describe('Asset Generator & Real Test Game Verification', () => {
     await container.fs.writeFile('game.js', gameJsContent);
 
     // Mock API returning available: false (FLUX_API_KEY missing)
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ available: false }),
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ available: false }),
+      }),
+    );
 
     const result = await generateProjectAssets({
       userPrompt: 'build a retro space shooter game',
@@ -129,7 +150,7 @@ describe('Asset Generator & Real Test Game Verification', () => {
     expect(elements.length).toBeGreaterThanOrEqual(2);
     expect(elements.length).toBeLessThanOrEqual(4);
 
-    const sampleBase64 = btoa('mock-png-sprite-bytes');
+    const sampleBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=';
 
     // Mock server response when FLUX_API_KEY is active
     const updatedGameCode = `
@@ -167,25 +188,28 @@ describe('Asset Generator & Real Test Game Verification', () => {
       }
     `;
 
-    vi.stubGlobal('fetch', vi.fn().mockImplementation(async (url: string) => {
-      if (url === '/api/generate-assets') {
-        return {
-          ok: true,
-          json: async () => ({
-            available: true,
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (url: string) => {
+        if (url === '/api/generate-assets') {
+          return {
             ok: true,
-            assets: [
-              { id: 'player', fileName: 'assets/player.png', base64: sampleBase64 },
-              { id: 'enemy', fileName: 'assets/enemy.png', base64: sampleBase64 },
-            ],
-            updatedFiles: {
-              'game.js': updatedGameCode,
-            },
-          }),
-        };
-      }
-      return { ok: false };
-    }));
+            json: async () => ({
+              available: true,
+              ok: true,
+              assets: [
+                { id: 'player', fileName: 'assets/player.png', base64: sampleBase64 },
+                { id: 'enemy', fileName: 'assets/enemy.png', base64: sampleBase64 },
+              ],
+              updatedFiles: {
+                'game.js': updatedGameCode,
+              },
+            }),
+          };
+        }
+        return { ok: false };
+      }),
+    );
 
     // 3. Execute asset generation pipeline
     const pipelineResult = await generateProjectAssets({

@@ -23,10 +23,30 @@ export const latestCheckpoint = atom<CheckpointInfo | undefined>();
 export const checkpointBusy = atom<'idle' | 'saving' | 'restoring'>('idle');
 
 function includeFile(name: string): boolean {
-  return name !== '.env' && !name.startsWith('.env.');
+  return name !== '.env' && !name.startsWith('.env.') && name !== '.static_server.cjs';
 }
 
-function safeProjectPath(relativePath: string): string {
+async function resolveProjectBase(wc: WebContainer): Promise<string> {
+  try {
+    const entries = await wc.fs.readdir(WORK_DIR);
+    if (entries.length > 0) {
+      return WORK_DIR;
+    }
+  } catch {
+    return '.';
+  }
+
+  try {
+    const rootEntries = await wc.fs.readdir('.');
+    if (rootEntries.some((e: any) => (typeof e === 'string' ? e === 'index.html' : e.name === 'index.html'))) {
+      return '.';
+    }
+  } catch {}
+
+  return WORK_DIR;
+}
+
+function safeProjectPath(relativePath: string, baseDir: string = WORK_DIR): string {
   const normalized = nodePath.posix.normalize(relativePath);
 
   if (
@@ -42,25 +62,27 @@ function safeProjectPath(relativePath: string): string {
     throw new Error(`Invalid checkpoint path: ${relativePath}`);
   }
 
-  return nodePath.posix.join(WORK_DIR, normalized);
+  return baseDir === '.' ? normalized : nodePath.posix.join(baseDir, normalized);
 }
 
 export async function captureProject(wc: WebContainer): Promise<Record<string, Uint8Array>> {
+  const baseDir = await resolveProjectBase(wc);
   const files: Record<string, Uint8Array> = {};
   let totalBytes = 0;
 
   async function visit(directory: string) {
-    const entries = await wc.fs.readdir(nodePath.posix.join(WORK_DIR, directory), { withFileTypes: true });
+    const dirToRead = baseDir === '.' ? (directory || '.') : nodePath.posix.join(baseDir, directory);
+    const entries = await wc.fs.readdir(dirToRead, { withFileTypes: true });
 
     for (const entry of entries) {
-      const relativePath = nodePath.posix.join(directory, entry.name);
+      const relativePath = directory ? nodePath.posix.join(directory, entry.name) : entry.name;
 
       if (entry.isDirectory()) {
         if (!SKIPPED_DIRECTORIES.has(entry.name)) {
           await visit(relativePath);
         }
       } else if (entry.isFile() && includeFile(entry.name)) {
-        const data = await wc.fs.readFile(safeProjectPath(relativePath));
+        const data = await wc.fs.readFile(safeProjectPath(relativePath, baseDir));
         totalBytes += data.byteLength;
 
         if (totalBytes > MAX_BYTES) {
@@ -80,23 +102,27 @@ export async function captureProject(wc: WebContainer): Promise<Record<string, U
 }
 
 export async function applyProjectSnapshot(wc: WebContainer, files: Record<string, Uint8Array>) {
+  const baseDir = await resolveProjectBase(wc);
   const target = new Set(Object.keys(files));
 
   for (const path of target) {
-    safeProjectPath(path);
+    safeProjectPath(path, baseDir);
   }
 
   const current = await captureProject(wc);
 
   for (const path of Object.keys(current)) {
     if (!target.has(path)) {
-      await wc.fs.rm(safeProjectPath(path));
+      await wc.fs.rm(safeProjectPath(path, baseDir));
     }
   }
 
   for (const [path, data] of Object.entries(files)) {
-    const absolutePath = safeProjectPath(path);
-    await wc.fs.mkdir(nodePath.posix.dirname(absolutePath), { recursive: true });
+    const absolutePath = safeProjectPath(path, baseDir);
+    const dirname = nodePath.posix.dirname(absolutePath);
+    if (dirname !== '.' && dirname !== '') {
+      await wc.fs.mkdir(dirname, { recursive: true });
+    }
     await wc.fs.writeFile(absolutePath, data);
   }
 }

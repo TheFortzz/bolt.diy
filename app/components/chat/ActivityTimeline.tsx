@@ -1,15 +1,19 @@
 import { useStore } from '@nanostores/react';
-import { memo, useMemo, useState } from 'react';
+import { memo, useId, useMemo, useState } from 'react';
 import { activitySteps, type ActivityStep } from '~/lib/stores/activity';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { classNames } from '~/utils/classNames';
+import { WORK_DIR } from '~/utils/constants';
+import { cleanWorkDirRelativePath } from '~/utils/diff';
+import { summarizeActivity } from '~/components/chat/activity-summary';
+import styles from '~/components/chat/ChatExperience.module.scss';
 
 interface ActivityTimelineProps {
   messageId?: string;
   isStreaming?: boolean;
 }
 
-const VISIBLE_STEPS = 12;
+const VISIBLE_STEPS = 3;
 
 function stepLabel(step: ActivityStep) {
   switch (step.status) {
@@ -30,87 +34,117 @@ export const ActivityTimeline = memo(({ messageId, isStreaming = false }: Activi
   const messageKeys = useMemo(() => (messageId ? [messageId] : []), [messageId]);
   const stepsByMessage = useStore(activitySteps, { keys: messageKeys });
   const [showAll, setShowAll] = useState(false);
+  const listId = useId();
   const steps = messageId ? (stepsByMessage[messageId] ?? []) : [];
-  const hiddenCount = Math.max(0, steps.length - VISIBLE_STEPS);
-  const displayed = showAll ? steps : steps.slice(hiddenCount);
+  const summary = summarizeActivity(steps, isStreaming);
+  const important = steps.filter((step) => step.status === 'running' || step.status === 'failed');
+  const displayed = showAll ? steps : important.length ? important : steps.slice(-VISIBLE_STEPS);
 
   if (steps.length === 0 && !isStreaming) {
     return null;
   }
 
   return (
-    <div className="flex flex-col gap-2 my-2.5" aria-label="Build activity" role="status" aria-live="polite">
-      {hiddenCount > 0 && (
-        <button
-          type="button"
-          className="text-left text-[11px] text-bolt-elements-textSecondary hover:underline px-1"
-          onClick={() => setShowAll((value) => !value)}
-        >
-          {showAll ? 'Show recent steps' : `Show ${hiddenCount} earlier steps`}
-        </button>
+    <section className={styles.Activity} data-state={summary.state} aria-label="Build activity">
+      <button
+        type="button"
+        className={styles.ActivityHeader}
+        aria-expanded={showAll}
+        aria-controls={listId}
+        onClick={() => setShowAll((value) => !value)}
+      >
+        <span className={styles.ActivityIcon} aria-hidden="true">
+          <span
+            className={
+              summary.state === 'running'
+                ? 'i-svg-spinners:90-ring-with-bg'
+                : summary.state === 'failed'
+                  ? 'i-ph:warning-circle'
+                  : summary.state === 'verified'
+                    ? 'i-ph:shield-check'
+                    : 'i-ph:stack'
+            }
+          />
+        </span>
+        <span className="min-w-0 flex-1" role="status" aria-live="polite">
+          <span className={styles.ActivityTitle}>{summary.title}</span>
+          <span className={classNames(styles.ActivitySubtitle, 'truncate')}>{summary.subtitle}</span>
+        </span>
+        <span className={styles.Expand}>
+          <span>{showAll ? 'Collapse' : 'Expand'}</span>
+          <span className={showAll ? 'i-ph:caret-up' : 'i-ph:caret-down'} aria-hidden="true" />
+        </span>
+      </button>
+      {steps.length > 0 && (
+        <div className={styles.ActivityMetrics}>
+          <span>
+            <span className="i-ph:files" aria-hidden="true" />
+            {summary.fileCount} files
+          </span>
+          <span>
+            <span className="i-ph:check-circle" aria-hidden="true" />
+            {summary.completedCount}/{steps.length} steps
+          </span>
+          {summary.state === 'running' && <span className="text-violet-300">Live activity</span>}
+        </div>
       )}
-
-      <div className="flex flex-wrap gap-1.5 items-center">
+      <ol id={listId} className={styles.StepList}>
         {displayed.map((step) => {
           const isComplete = step.status === 'complete';
           const isRunning = step.status === 'running';
           const isFailed = step.status === 'failed';
-          const isPending = step.status === 'pending' || step.status === 'aborted';
 
           return (
-            <button
-              key={step.id}
-              type="button"
-              disabled={!step.filePath}
-              onClick={() => {
-                if (!step.filePath) {
-                  return;
-                }
+            <li key={step.id}>
+              <button
+                type="button"
+                data-status={step.status}
+                disabled={!step.filePath}
+                onClick={() => {
+                  if (!step.filePath) {
+                    return;
+                  }
 
-                workbenchStore.setSelectedFile(step.filePath);
-                workbenchStore.showWorkbench.set(true);
-                workbenchStore.preferPlayView.set(false);
-                workbenchStore.currentView.set('code');
-              }}
-              title={step.filePath ? `Open ${step.filePath} in Code` : stepLabel(step)}
-              className={classNames(
-                'inline-flex items-center gap-2 px-3 py-1.5 text-left text-[12px] font-mono tracking-tight rounded-lg border transition-all duration-200 disabled:cursor-default',
-                {
-                  'bg-slate-900/90 border-emerald-500/40 text-slate-100 hover:border-emerald-400 hover:text-emerald-200 hover:bg-slate-900 shadow-[0_2px_8px_rgba(0,0,0,0.25)]':
-                    isComplete,
-                  'bg-slate-900/95 border-emerald-400 text-emerald-100 shadow-[0_0_14px_rgba(16,185,129,0.35)]':
-                    isRunning,
-                  'bg-slate-900/90 border-rose-500/50 text-rose-200 hover:border-rose-400/80 shadow-[0_2px_8px_rgba(244,63,94,0.15)]':
-                    isFailed,
-                  'bg-slate-900/50 border-slate-800 text-slate-400':
-                    isPending,
-                },
-              )}
-            >
-              {isRunning ? (
-                <div className="i-svg-spinners:90-ring-with-bg text-emerald-400 text-xs shrink-0 drop-shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
-              ) : isComplete ? (
-                <div className="i-ph:check-circle-fill text-emerald-400 text-xs shrink-0 drop-shadow-[0_0_6px_rgba(52,211,153,0.5)]" />
-              ) : isFailed ? (
-                <div className="i-ph:x-circle-fill text-rose-400 text-xs shrink-0 drop-shadow-[0_0_6px_rgba(244,63,94,0.5)]" />
-              ) : (
-                <div className="i-ph:circle text-slate-500 text-xs shrink-0" />
-              )}
-              <span className="truncate max-w-[280px]">{stepLabel(step)}</span>
-              {step.filePath && (
-                <span className="i-ph:arrow-square-out text-[11px] opacity-70 text-emerald-400" aria-hidden="true" />
-              )}
-            </button>
+                  workbenchStore.setSelectedFile(`${WORK_DIR}/${cleanWorkDirRelativePath(step.filePath)}`);
+                  workbenchStore.showWorkbench.set(true);
+                  workbenchStore.preferPlayView.set(false);
+                  workbenchStore.currentView.set('code');
+                }}
+                title={step.filePath ? `Open ${step.filePath} in Code` : stepLabel(step)}
+                className={styles.Step}
+              >
+                {isRunning ? (
+                  <div className="i-svg-spinners:90-ring-with-bg text-emerald-400 text-xs shrink-0 drop-shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
+                ) : isComplete ? (
+                  <div className="i-ph:check-circle-fill text-emerald-400 text-xs shrink-0 drop-shadow-[0_0_6px_rgba(52,211,153,0.5)]" />
+                ) : isFailed ? (
+                  <div className="i-ph:x-circle-fill text-rose-400 text-xs shrink-0 drop-shadow-[0_0_6px_rgba(244,63,94,0.5)]" />
+                ) : (
+                  <div className="i-ph:circle text-slate-500 text-xs shrink-0" />
+                )}
+                <span className={styles.StepCopy}>
+                  <span className={styles.StepLabel}>{stepLabel(step)}</span>
+                  {step.filePath && <span className={styles.StepPath}>{cleanWorkDirRelativePath(step.filePath)}</span>}
+                </span>
+                {step.finishedAt !== undefined && (
+                  <span className={styles.StepDuration}>
+                    {Math.max(0, (step.finishedAt - step.startedAt) / 1000).toFixed(1)}s
+                  </span>
+                )}
+                {step.filePath && (
+                  <span className="i-ph:arrow-square-out text-[11px] opacity-70 text-emerald-400" aria-hidden="true" />
+                )}
+              </button>
+            </li>
           );
         })}
-
-        {isStreaming && (
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-mono text-emerald-100 bg-slate-900/95 border border-emerald-400/80 rounded-lg shadow-[0_0_12px_rgba(16,185,129,0.25)]">
-            <div className="i-svg-spinners:90-ring-with-bg text-emerald-400 text-xs shrink-0 drop-shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
-            <span className="font-sans font-medium">{steps.length === 0 ? 'Thinking…' : 'Building game systems…'}</span>
-          </div>
-        )}
-      </div>
-    </div>
+      </ol>
+      {showAll && (
+        <div className={styles.ActivityFootnote}>
+          Observed tool activity and progress summaries. File steps open in the editor. Passing checks does not
+          guarantee every gameplay scenario.
+        </div>
+      )}
+    </section>
   );
 });

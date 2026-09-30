@@ -18,6 +18,7 @@ import { WORK_DIR } from '~/utils/constants';
 import { description } from '~/lib/persistence';
 import Cookies from 'js-cookie';
 import { actionStepId, startActionActivity, updateActivity } from '~/lib/stores/activity';
+import { executionPolicy } from '~/lib/harness/execution-policy';
 
 export interface ArtifactState {
   id: string;
@@ -69,8 +70,10 @@ export class WorkbenchStore {
 
   showWorkbench: WritableAtom<boolean> = import.meta.hot?.data.showWorkbench ?? atom(false);
   currentView: WritableAtom<WorkbenchViewType> = import.meta.hot?.data.currentView ?? atom('preview');
+
   /** File currently receiving streamed content, if any. */
   streamingFile: WritableAtom<string | undefined> = import.meta.hot?.data.streamingFile ?? atom(undefined);
+
   /** When true, file-write actions must not yank the user off the Play tab. */
   preferPlayView: WritableAtom<boolean> = import.meta.hot?.data.preferPlayView ?? atom(false);
   unsavedFiles: WritableAtom<Set<string>> = import.meta.hot?.data.unsavedFiles ?? atom(new Set<string>());
@@ -104,6 +107,7 @@ export class WorkbenchStore {
   addToExecutionQueue(callback: () => Promise<void>) {
     const next = this.#globalExecutionQueue.then(() => callback());
     this.#globalExecutionQueue = next.catch(() => {});
+
     return next;
   }
 
@@ -185,20 +189,25 @@ export class WorkbenchStore {
 
     this.#editorStore.updateFile(filePath, newContent);
 
-    // A debounced edit can finish after the user selected another file. Keep
-    // the write attached to its source path and only update the visible file's
-    // unsaved marker when it is still selected.
+    /*
+     * A debounced edit can finish after the user selected another file. Keep
+     * the write attached to its source path and only update the visible file's
+     * unsaved marker when it is still selected.
+     */
     const currentDocument = this.currentDocument.get();
+
     if (!currentDocument || currentDocument.filePath !== filePath) {
       return;
     }
 
     const previousUnsavedFiles = this.unsavedFiles.get();
+
     if (unsavedChanges && previousUnsavedFiles.has(filePath)) {
       return;
     }
 
     const newUnsavedFiles = new Set(previousUnsavedFiles);
+
     if (unsavedChanges) {
       newUnsavedFiles.add(filePath);
     } else {
@@ -227,6 +236,7 @@ export class WorkbenchStore {
   async createFile(filePath: string, content = '') {
     const absolutePath = await this.#filesStore.createFile(filePath, content);
     this.setSelectedFile(absolutePath);
+
     return absolutePath;
   }
 
@@ -324,9 +334,14 @@ export class WorkbenchStore {
 
   abortAllActions() {
     const artifacts = this.artifacts.get();
+
     for (const artifact of Object.values(artifacts)) {
       const actions = artifact.runner?.actions?.get();
-      if (!actions) continue;
+
+      if (!actions) {
+        continue;
+      }
+
       for (const action of Object.values(actions)) {
         if (action.status === 'pending' || action.status === 'running') {
           action.abort?.();
@@ -337,13 +352,19 @@ export class WorkbenchStore {
 
   finishPendingActions() {
     const artifacts = this.artifacts.get();
+
     for (const [messageId, artifact] of Object.entries(artifacts)) {
       const runner = artifact.runner;
-      if (!runner) continue;
+
+      if (!runner) {
+        continue;
+      }
 
       for (const [actionId, action] of Object.entries(runner.actions.get())) {
-        // A streamed action without a close callback is incomplete. Do not
-        // claim that its partial file was written or mark it executable.
+        /*
+         * A streamed action without a close callback is incomplete. Do not
+         * claim that its partial file was written or mark it executable.
+         */
         if ((action.status === 'pending' || action.status === 'running') && !action.executed) {
           runner.actions.setKey(actionId, { ...action, status: 'aborted', executed: false });
           updateActivity(messageId, actionStepId(actionId), 'aborted');
@@ -358,7 +379,9 @@ export class WorkbenchStore {
     if (this.#staticServerStarted) {
       return;
     }
+
     this.#staticServerStarted = true;
+
     try {
       const wc = await Promise.race([
         getWebContainer(),
@@ -432,6 +455,7 @@ http.createServer((req, res) => {
 }).listen(0, '0.0.0.0');
 `;
       await wc.fs.writeFile('/.static_server.cjs', serveCode);
+
       const process = await wc.spawn('node', ['/.static_server.cjs']);
       void process.exit.then(
         () => {
@@ -458,6 +482,7 @@ http.createServer((req, res) => {
     try {
       const wc = await getWebContainer();
       const entries = await wc.fs.readdir('.', { withFileTypes: true });
+
       for (const entry of entries) {
         if (
           entry.name === 'node_modules' ||
@@ -467,6 +492,7 @@ http.createServer((req, res) => {
         ) {
           continue;
         }
+
         try {
           await wc.fs.rm(entry.name, { recursive: true });
         } catch {}
@@ -520,9 +546,25 @@ http.createServer((req, res) => {
   }
   addAction(data: ActionCallbackData) {
     const normalizedData = normalizeActionData(data);
-    const isExisting = normalizedData.action.type === 'file' && Boolean(this.#filesStore.getFile(normalizedData.action.filePath));
+    const isExisting =
+      normalizedData.action.type === 'file' && Boolean(this.#filesStore.getFile(normalizedData.action.filePath));
 
     startActionActivity(normalizedData.messageId, normalizedData.actionId, normalizedData.action, isExisting);
+
+    try {
+      executionPolicy.authorize(normalizedData.messageId, normalizedData.actionId, normalizedData.action, 'reserve');
+    } catch (error) {
+      const artifact = this.#getArtifact(normalizedData.messageId);
+
+      if (!artifact) {
+        unreachable('Artifact not found');
+      }
+
+      artifact.runner.addRejectedAction(normalizedData, (error as Error).message || 'Action is not approved.');
+      updateActivity(normalizedData.messageId, actionStepId(normalizedData.actionId), 'failed');
+
+      return;
+    }
 
     if (normalizedData.action.type === 'file') {
       const fullPath = normalizedData.action.filePath;
@@ -554,6 +596,32 @@ http.createServer((req, res) => {
 
   runAction(data: ActionCallbackData, isStreaming: boolean = false) {
     const normalizedData = normalizeActionData(data);
+    const artifact = this.#getArtifact(normalizedData.messageId);
+    const registeredAction = artifact?.runner.actions.get()[normalizedData.actionId];
+
+    if (registeredAction?.status === 'failed' || registeredAction?.status === 'aborted') {
+      updateActivity(
+        normalizedData.messageId,
+        actionStepId(normalizedData.actionId),
+        registeredAction.status === 'failed' ? 'failed' : 'aborted',
+      );
+
+      return;
+    }
+
+    if (!isStreaming && normalizedData.action.type === 'file') {
+      try {
+        executionPolicy.authorize(normalizedData.messageId, normalizedData.actionId, normalizedData.action, 'complete');
+      } catch (error) {
+        artifact?.runner.rejectAction(
+          normalizedData.actionId,
+          (error as Error).message || 'File action is not approved.',
+        );
+        updateActivity(normalizedData.messageId, actionStepId(normalizedData.actionId), 'failed');
+
+        return;
+      }
+    }
 
     if (isStreaming) {
       if (normalizedData.action.type === 'file') {
@@ -561,11 +629,14 @@ http.createServer((req, res) => {
       }
 
       this._runAction(normalizedData, true);
+
       return;
     }
 
-    // Keep the editor and virtual file map current immediately. Only the
-    // WebContainer write is queued behind earlier shell/file actions.
+    /*
+     * Keep the editor and virtual file map current immediately. Only the
+     * WebContainer write is queued behind earlier shell/file actions.
+     */
     if (normalizedData.action.type === 'file') {
       this.#commitFileState(normalizedData);
     }
@@ -615,6 +686,7 @@ http.createServer((req, res) => {
 
       // Wait for the real write before reporting the file as completed.
       await artifact.runner.runAction(normalizedData);
+
       const actionState = artifact.runner.actions.get()[normalizedData.actionId];
 
       if (this.streamingFile.get() === normalizedData.action.filePath) {

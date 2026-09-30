@@ -9,7 +9,8 @@ export const MODIFICATIONS_TAG_NAME = 'bolt_file_modifications';
 export const MODEL_REGEX = /^\[Model: (.*?)\]\n\n/;
 export const PROVIDER_REGEX = /\[Provider: (.*?)\]\n\n/;
 export const STUDIO_MODE_REGEX = /\[Studio Mode: (PLAN|BUILD|AUTO)\]\n?/i;
-export const DEFAULT_MODEL = 'fortz-ai';
+export const DEFAULT_MODEL = 'gpt-6-luna';
+export const DEFAULT_MODEL_LABEL = 'GPT 6 Luna';
 export const PROMPT_COOKIE_KEY = 'cachedPrompt';
 
 export type StudioAgentMode = 'plan' | 'build' | 'auto';
@@ -28,7 +29,7 @@ export const STUDIO_MODE_INSTRUCTIONS: Record<StudioAgentMode, string> = {
     'Build a genuinely fun, polished, and responsive game. Prioritize exceptional game feel: tactile controls, satisfying physics, crisp collision detection, smooth camera tracking, responsive state machines, and rewarding feedback.',
     'DO NOT force cookie-cutter tropes (do NOT force 3 character classes, upgrade shops, or currency grinds unless the game naturally calls for it). Every game must feel fresh, original, and tailored to the prompt.',
     'Visual & Audio Juice: Use a distinct, cohesive color palette, dynamic particle effects (sparks, dust, smoke, impact ripples), camera shake on impacts, and real-time procedural Web Audio sound synthesis tailored to game actions.',
-    'Technical Safeguards: Flat root files, preventDefault on game keys (Arrow keys, Space) so page never scrolls, clamp delta-time (Math.min(dt, 0.05)), robust script loading order in index.html, global window attachment for shared classes, self-contained math helpers (clamp, lerp, dist, vecLength), and 100% syntactically complete code.',
+    'Technical Safeguards: Flat root files, window-level keyboard listeners (never canvas which loses focus on button clicks), preventDefault on game keys (Arrow keys, Space) so page never scrolls, clamp delta-time (Math.min(dt, 0.05)), robust script loading order in index.html, global window attachment for shared classes, self-contained math helpers (clamp, lerp, dist, vecLength), and 100% syntactically complete code.',
   ].join(' '),
   auto: [
     'STUDIO MODE = AUTO (HIGH-POLISH GAMEPLAY & CREATIVE FREEDOM).',

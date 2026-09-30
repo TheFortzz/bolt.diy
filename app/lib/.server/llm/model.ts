@@ -12,7 +12,8 @@ import { createMistral } from '@ai-sdk/mistral';
 import { createCohere } from '@ai-sdk/cohere';
 import type { LanguageModelV1 } from 'ai';
 import type { IProviderSetting } from '~/types/model';
-import { createAzureResponsesModel, FORTZ_DEPLOYMENT_MODEL } from '~/lib/.server/llm/azure-responses-model';
+import { createAzureResponsesModel } from '~/lib/.server/llm/azure-responses-model';
+import { getFortzDeploymentConfig } from '~/lib/.server/llm/deployment-config';
 
 export const DEFAULT_NUM_CTX = process.env.DEFAULT_NUM_CTX ? parseInt(process.env.DEFAULT_NUM_CTX, 10) : 32768;
 
@@ -144,7 +145,7 @@ export function getModel(
   let apiKey = getAPIKey(env, provider, apiKeys);
   if (!apiKey && provider !== 'OpenAILike') {
     provider = 'OpenAILike';
-    model = 'fortz-ai';
+    model = 'gpt-6-luna';
     apiKey = getAPIKey(env, provider, apiKeys);
   }
   const baseURL = (providerSettings?.[provider]?.baseUrl || '').trim() || getBaseURL(env, provider);
@@ -163,19 +164,19 @@ export function getModel(
     case 'Google':
       return getGoogleModel(apiKey, model);
     case 'OpenAILike': {
+      const deploymentConfig = getFortzDeploymentConfig({
+        deployment: process.env.FORTZ_AI_DEPLOYMENT || env.FORTZ_AI_DEPLOYMENT,
+        responsesUrl: process.env.FORTZ_AI_RESPONSES_URL || env.FORTZ_AI_RESPONSES_URL,
+      });
       const targetModel =
-        model === 'fortz-ai' ||
-        model === 'Fortz AI' ||
-        model === 'gpt-6-luna' ||
-        model === 'gpt-oss-120b' ||
-        !model
-          ? FORTZ_DEPLOYMENT_MODEL
+        model === 'fortz-ai' || model === 'Fortz AI' || model === 'gpt-6-luna' || model === 'gpt-oss-120b' || !model
+          ? deploymentConfig.deployment
           : model === 'gpt-4.1-mini'
-            ? FORTZ_DEPLOYMENT_MODEL
+            ? deploymentConfig.deployment
             : model;
 
       // Use Azure Responses API (not legacy chat/completions) for Fortz AI.
-      return createAzureResponsesModel(apiKey || '', targetModel);
+      return createAzureResponsesModel(apiKey || '', targetModel, deploymentConfig.responsesUrl);
     }
     case 'Together':
       return getOpenAILikeModel(baseURL, apiKey, model);

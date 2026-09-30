@@ -1,0 +1,96 @@
+import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
+import { z } from 'zod';
+import { getFluxApiKey } from '~/lib/.server/flux/flux-client';
+import { runManagerAgent } from '~/lib/.server/harness/agents';
+import {
+  getHarnessSecret,
+  issueCapability,
+  requireSameOrigin,
+  verifyCapability,
+} from '~/lib/.server/harness/capabilities';
+import { blueprintSchema, workspaceManifestSchema } from '~/lib/harness/blueprint';
+
+const sourceSchema = z
+  .record(z.string().max(20000))
+  .refine(
+    (files) => Object.values(files).reduce((size, source) => size + source.length, 0) <= 100000,
+    'Source context exceeds the planning budget.',
+  );
+const referenceImageSchema = z
+  .string()
+  .max(2000000)
+  .regex(
+    /^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/i,
+    'Reference images must be PNG, JPEG, WebP, or GIF data URLs.',
+  );
+const planRequestSchema = z
+  .object({
+    intent: z.literal('plan'),
+    request: z.string().min(1).max(16000),
+    workspaceId: z.string().min(1).max(100),
+    manifest: workspaceManifestSchema,
+    systemContext: z.string().max(12000),
+    sources: sourceSchema,
+    images: z.array(referenceImageSchema).max(4).default([]),
+    model: z.string().max(128).optional(),
+    provider: z.string().max(60).optional(),
+    apiKeys: z.record(z.string()).optional(),
+  })
+  .strict();
+const approvalSchema = z
+  .object({
+    intent: z.literal('approve'),
+    blueprint: blueprintSchema,
+    reviewToken: z.string().max(4096),
+    currentRevision: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+    confirmed: z.literal(true),
+  })
+  .strict();
+
+export async function action({ request, context }: ActionFunctionArgs) {
+  try {
+    requireSameOrigin(request);
+
+    const env = context.cloudflare.env;
+    const secret = getHarnessSecret(env);
+    const audience = new URL(request.url).origin;
+    const payload: unknown = await request.json();
+
+    if (typeof payload === 'object' && payload !== null && 'intent' in payload && payload.intent === 'approve') {
+      const approval = approvalSchema.parse(payload);
+      const blueprint = await verifyCapability(approval.reviewToken, approval.blueprint, 'review', secret, audience);
+
+      if (approval.currentRevision !== blueprint.baseRevision) {
+        return json(
+          { error: 'Workspace changed after planning. Request a fresh plan before building.' },
+          { status: 409 },
+        );
+      }
+
+      return json(
+        { executionToken: await issueCapability(blueprint, 'execute', secret, audience) },
+        { headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
+
+    const input = planRequestSchema.parse(payload);
+
+    if (Object.keys(input.sources).some((path) => !input.manifest.some((file) => file.path === path))) {
+      throw new Error('Source excerpts must belong to the workspace manifest.');
+    }
+
+    const blueprint = await runManagerAgent({
+      ...input,
+      env,
+      imagesAvailable: Boolean(getFluxApiKey(env)),
+      signal: request.signal,
+    });
+
+    return json(
+      { blueprint, reviewToken: await issueCapability(blueprint, 'review', secret, audience) },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
+  } catch (error) {
+    return json({ error: (error as Error).message || 'Could not validate the blueprint.' }, { status: 400 });
+  }
+}

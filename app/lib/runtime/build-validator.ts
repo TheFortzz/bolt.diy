@@ -94,7 +94,10 @@ async function runCheck(
   }
 }
 
-export async function validateBuild(messageId: string): Promise<{ ok: boolean; error?: string }> {
+export async function validateBuild(
+  messageId: string,
+  additionalPaths: string[] = [],
+): Promise<{ ok: boolean; error?: string }> {
   validationState.set({ status: 'checking', detail: 'Waiting for files…' });
 
   try {
@@ -138,7 +141,12 @@ export async function validateBuild(messageId: string): Promise<{ ok: boolean; e
       'Generated files applied',
     );
 
-    const changedPaths = actions.filter((action) => action.type === 'file').map((action) => action.filePath);
+    const changedPaths = [
+      ...new Set([
+        ...actions.filter((action) => action.type === 'file').map((action) => action.filePath),
+        ...additionalPaths,
+      ]),
+    ];
 
     if (!changedPaths.length) {
       throw new Error('No generated files were found in this build.');
@@ -196,9 +204,7 @@ export async function validateBuild(messageId: string): Promise<{ ok: boolean; e
               throw new Error(syntaxErr);
             }
 
-            const checkTarget = rawPath.startsWith(wc.workdir)
-              ? rawPath
-              : `${wc.workdir.replace(/\/+$/, '')}/${name}`;
+            const checkTarget = rawPath.startsWith(wc.workdir) ? rawPath : `${wc.workdir.replace(/\/+$/, '')}/${name}`;
 
             let error = await runCheck(wc, 'node', ['--check', checkTarget]);
 

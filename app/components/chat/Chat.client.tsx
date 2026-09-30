@@ -10,12 +10,23 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { cssTransition, toast, ToastContainer } from 'react-toastify';
 import { useMessageParser, usePromptEnhancer, useShortcuts, useSnapScroll } from '~/lib/hooks';
 import { chatId, dbPromise, description, useChatHistory } from '~/lib/persistence';
-import { applyProjectSnapshot, checkpointBusy, getLatestCheckpoint, saveCheckpoint } from '~/lib/persistence/checkpoints';
+import {
+  applyProjectSnapshot,
+  checkpointBusy,
+  getLatestCheckpoint,
+  saveCheckpoint,
+} from '~/lib/persistence/checkpoints';
 import { getWebContainer } from '~/lib/webcontainer';
 import { runActivityStep, startActivity } from '~/lib/stores/activity';
 import { chatStore } from '~/lib/stores/chat';
 import { workbenchStore } from '~/lib/stores/workbench';
-import { DEFAULT_MODEL, DEFAULT_PROVIDER, PROMPT_COOKIE_KEY, PROVIDER_LIST, type StudioAgentMode } from '~/utils/constants';
+import {
+  DEFAULT_MODEL,
+  DEFAULT_PROVIDER,
+  PROMPT_COOKIE_KEY,
+  PROVIDER_LIST,
+  type StudioAgentMode,
+} from '~/utils/constants';
 import { cubicEasingFn } from '~/utils/easings';
 import { createScopedLogger, renderLogger } from '~/utils/logger';
 import { BaseChat } from './BaseChat';
@@ -25,8 +36,11 @@ import { useSettings } from '~/lib/hooks/useSettings';
 import type { ProviderInfo } from '~/types/model';
 import { authStore, isAuthModalOpen } from '~/lib/auth/appwrite';
 import { finalizeAssistantMessage } from '~/lib/hooks/useMessageParser';
-import { validateBuild, validationState } from '~/lib/runtime/build-validator';
-import { generateProjectAssets } from '~/lib/runtime/asset-generator';
+import { validationState } from '~/lib/runtime/build-validator';
+import { verifyGameBuild } from '~/lib/runtime/game-build-pipeline';
+import { useCognitiveHarness } from '~/lib/hooks/useCognitiveHarness';
+import { executionPolicy } from '~/lib/harness/execution-policy';
+import { harnessIsBusy, harnessState, transitionHarness } from '~/lib/stores/harness';
 
 const toastAnimation = cssTransition({
   enter: 'animated fadeInRight',
@@ -102,17 +116,29 @@ export const ChatImpl = memo(
     const [agentMode, setAgentMode] = useState<StudioAgentMode>('auto');
     const lastAgentModeRef = useRef<StudioAgentMode>('auto');
     const repairAttemptsRef = useRef(0);
-    const lastValidationErrorRef = useRef<string>('');
+    const lastUserPromptRef = useRef('');
     const { activeProviders } = useSettings();
 
     const [model, setModel] = useState(() => {
       const savedModel = Cookies.get('selectedModel');
-      return (!savedModel || savedModel === 'claude-3-5-sonnet-latest' || savedModel === 'gpt-oss-120b' || savedModel === 'gpt-4.1-mini') ? DEFAULT_MODEL : savedModel;
+      return !savedModel ||
+        savedModel === 'fortz-ai' ||
+        savedModel === 'claude-3-5-sonnet-latest' ||
+        savedModel === 'gpt-oss-120b' ||
+        savedModel === 'gpt-4.1-mini'
+        ? DEFAULT_MODEL
+        : savedModel;
     });
 
     useEffect(() => {
       const savedModel = Cookies.get('selectedModel');
-      if (savedModel === 'gpt-oss-120b' || savedModel === 'claude-3-5-sonnet-latest' || savedModel === 'gpt-4.1-mini') {
+
+      if (
+        savedModel === 'fortz-ai' ||
+        savedModel === 'gpt-oss-120b' ||
+        savedModel === 'claude-3-5-sonnet-latest' ||
+        savedModel === 'gpt-4.1-mini'
+      ) {
         Cookies.set('selectedModel', DEFAULT_MODEL);
         setModel(DEFAULT_MODEL);
       }
@@ -120,9 +146,11 @@ export const ChatImpl = memo(
 
     const [provider, setProvider] = useState(() => {
       const savedProvider = Cookies.get('selectedProvider');
+
       if (!savedProvider || savedProvider === 'Anthropic') {
         return DEFAULT_PROVIDER;
       }
+
       return PROVIDER_LIST.find((p) => p.name === savedProvider) || DEFAULT_PROVIDER;
     });
 
@@ -143,6 +171,14 @@ export const ChatImpl = memo(
         logger.error('Request failed\n\n', error);
         validationState.set({ status: 'failed', detail: `AI request failed: ${error.message}` });
         workbenchStore.finishPendingActions();
+
+        const currentHarness = harnessState.get();
+
+        if (currentHarness.phase === 'editing' || currentHarness.phase === 'verifying') {
+          executionPolicy.revoke();
+          transitionHarness('failed', { detail: `AI request failed: ${error.message}` });
+        }
+
         toast.error(
           'There was an error processing your request: ' + (error.message ? error.message : 'No details were returned'),
         );
@@ -151,46 +187,91 @@ export const ChatImpl = memo(
         logger.debug('Finished streaming');
         finalizeAssistantMessage(message);
         scrollToBottomRef.current?.(true);
+
         const finalMessages = messages.some((entry) => entry.id === message.id)
-          ? messages.map((entry) => entry.id === message.id ? message : entry)
+          ? messages.map((entry) => (entry.id === message.id ? message : entry))
           : [...messages, message];
         const historySave = storeMessageHistory(finalMessages);
         void historySave.catch((error) => console.warn('Final save error:', error));
 
         const content = typeof message?.content === 'string' ? message.content : '';
         const builtFiles = content.includes('boltArtifact') || content.includes('boltAction');
-        const mode = lastAgentModeRef.current;
+        const activeHarness = harnessState.get();
+        const managedBlueprint = activeHarness.phase === 'editing' ? activeHarness.blueprint : undefined;
+        const mode = managedBlueprint ? 'build' : lastAgentModeRef.current;
 
-        if (mode === 'plan' && !builtFiles) {
+        if (managedBlueprint) {
+          transitionHarness('verifying', { detail: 'Verifier is checking the approved build…' });
+        }
+
+        if (mode === 'plan' && !builtFiles && !managedBlueprint) {
           workbenchStore.finishPendingActions();
           toast.info('📋 Plan ready — ask FortzAI to build it, or send again in Build mode.', {
             autoClose: 5500,
             position: 'top-right',
           });
+
           return;
         }
 
         if (!builtFiles) {
           workbenchStore.finishPendingActions();
+
+          if (managedBlueprint) {
+            const detail = 'Editor did not return the approved game files. No build was verified.';
+            executionPolicy.revoke();
+            transitionHarness('failed', { detail });
+            validationState.set({ status: 'failed', detail });
+            toast.error(detail);
+          }
+
           if (repairAttemptsRef.current > 0) {
-            startActivity(message.id, 'repair:missing', 'No corrected files returned', 'No corrected files returned', 'failed');
+            startActivity(
+              message.id,
+              'repair:missing',
+              'No corrected files returned',
+              'No corrected files returned',
+              'failed',
+            );
             validationState.set({ status: 'failed', detail: 'Automatic repair did not return any corrected files.' });
             toast.error('Automatic repair did not produce a corrected build.', { autoClose: false });
           }
+
           return;
         }
 
-        const result = await validateBuild(message.id);
+        const userPrompt = lastUserPromptRef.current;
+        const result = await verifyGameBuild(message.id, {
+          userPrompt,
+          model,
+          provider: provider.name,
+          apiKeys,
+          approvedBlueprint: managedBlueprint,
+        });
         workbenchStore.finishPendingActions();
-        if (!result.ok) {
-          lastValidationErrorRef.current = result.error || 'Build validation failed';
 
-          if (repairAttemptsRef.current < 2) {
+        if (!result.ok) {
+          if (managedBlueprint) {
+            executionPolicy.revoke();
+            transitionHarness('failed', { detail: result.error || 'Build validation failed.' });
+          }
+
+          if (
+            !managedBlueprint &&
+            repairAttemptsRef.current < 2 &&
+            !result.error?.includes('runtime verification needs')
+          ) {
             repairAttemptsRef.current++;
-            validationState.set({ status: 'checking', detail: `Auto-repairing build (${repairAttemptsRef.current}/2)…` });
-            toast.info(`⚠️ Build issue detected — automatically diagnosing and repairing (${repairAttemptsRef.current}/2)…`, {
-              autoClose: 5000,
+            validationState.set({
+              status: 'checking',
+              detail: `Auto-repairing build (${repairAttemptsRef.current}/2)…`,
             });
+            toast.info(
+              `⚠️ Build issue detected — automatically diagnosing and repairing (${repairAttemptsRef.current}/2)…`,
+              {
+                autoClose: 5000,
+              },
+            );
 
             try {
               await append({
@@ -208,52 +289,57 @@ export const ChatImpl = memo(
           toast.error(`Build validation issue: ${result.error?.slice(0, 160)}`, { autoClose: 8000 });
 
           // Inform directly in this chat message when auto-repairs are exhausted
-          const errorNotice = `\n\n> ⚠️ **Build Issue Detected:**\n> ${result.error?.slice(-1800)}\n>\n> *Type "fix it" in chat to automatically repair and complete the game.*`;
+          const errorNotice = managedBlueprint
+            ? `\n\n> ⚠️ **Build not verified:**\n> ${result.error?.slice(-1800)}\n>\n> No automatic repair was applied. Describe the repair you want; the Manager will propose a new blueprint for your approval.`
+            : result.error?.includes('runtime verification needs')
+              ? `\n\n> ⚠️ **Runtime verification unavailable:**\n> ${result.error?.slice(-1800)}\n>\n> A browser verification worker or preview bridge must be configured before this build can be marked verified.`
+              : `\n\n> ⚠️ **Build Issue Detected:**\n> ${result.error?.slice(-1800)}\n>\n> *Ask for a targeted repair to address these checks.*`;
           setMessages((prev) =>
             prev.map((entry) =>
-              entry.id === message.id
-                ? { ...entry, content: `${entry.content}${errorNotice}` }
-                : entry,
+              entry.id === message.id ? { ...entry, content: `${entry.content}${errorNotice}` } : entry,
             ),
           );
+
           const updatedMessage = {
             ...message,
             content: `${message.content}${errorNotice}`,
           };
-          void storeMessageHistory(
-            messages.map((entry) => (entry.id === message.id ? updatedMessage : entry)),
-          );
+          void storeMessageHistory(messages.map((entry) => (entry.id === message.id ? updatedMessage : entry)));
+
           return;
         }
 
-        lastValidationErrorRef.current = '';
         repairAttemptsRef.current = 0;
         validationState.set({ status: 'checking', detail: 'Saving working checkpoint…' });
 
         try {
-          await runActivityStep(message.id, 'checkpoint:save', 'Saving working checkpoint', async () => {
-            await historySave;
-            const database = await dbPromise;
-            const projectId = chatId.get() || workbenchStore.firstArtifact?.id || workbenchStore.artifactIdList[0] || 'default_project';
+          await runActivityStep(
+            message.id,
+            'checkpoint:save',
+            'Saving working checkpoint',
+            async () => {
+              await historySave;
 
-            await saveCheckpoint(database, await getWebContainer(), projectId, message.id);
-          }, 'Working checkpoint saved');
+              const database = await dbPromise;
+              const projectId =
+                chatId.get() ||
+                workbenchStore.firstArtifact?.id ||
+                workbenchStore.artifactIdList[0] ||
+                'default_project';
+
+              await saveCheckpoint(database, await getWebContainer(), projectId, message.id);
+            },
+            'Working checkpoint saved',
+          );
         } catch (error) {
           logger.warn('Non-fatal checkpoint save warning:', error);
         } finally {
           validationState.set({ status: 'passed', detail: 'Build verified' });
         }
 
-        // Isolated Image Asset Generation (FLUX.2-pro deployment)
-        try {
-          await generateProjectAssets({
-            userPrompt: content.slice(0, 500),
-            model,
-            provider: provider.name,
-            apiKeys,
-          });
-        } catch (assetErr) {
-          logger.warn('Non-fatal asset generation error caught:', assetErr);
+        if (managedBlueprint) {
+          executionPolicy.revoke();
+          transitionHarness('verified', { detail: 'Build checks passed and a working checkpoint was saved.' });
         }
 
         if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
@@ -295,6 +381,22 @@ export const ChatImpl = memo(
       initialInput: Cookies.get(PROMPT_COOKIE_KEY) || '',
     });
 
+    const harnessWorkspaceIdRef = useRef<string>();
+
+    if (!harnessWorkspaceIdRef.current) {
+      harnessWorkspaceIdRef.current =
+        chatId.get() || workbenchStore.firstArtifact?.id || `workspace-${crypto.randomUUID()}`;
+    }
+
+    const { requestPlan, approvePlan, cancelPlan } = useCognitiveHarness({
+      model,
+      provider: provider.name,
+      apiKeys,
+      workspaceId: harnessWorkspaceIdRef.current,
+      setMessages,
+      append,
+    });
+
     const { enhancingPrompt, promptEnhanced, enhancePrompt, resetEnhancer } = usePromptEnhancer();
     const { parsedMessages, parseMessages } = useMessageParser();
 
@@ -305,6 +407,9 @@ export const ChatImpl = memo(
     }, []);
 
     useEffect(() => {
+      executionPolicy.registerHistory(
+        initialMessages.filter((message) => message.role === 'assistant').map((message) => message.id),
+      );
       parseMessages(messages, isLoading);
 
       if (messages.length > initialMessages.length) {
@@ -313,7 +418,9 @@ export const ChatImpl = memo(
     }, [messages, isLoading, parseMessages]);
 
     useEffect(() => {
-      if (!initialMessages.length) return;
+      if (!initialMessages.length) {
+        return;
+      }
 
       let cancelled = false;
       const restoreVerifiedFiles = async () => {
@@ -321,18 +428,30 @@ export const ChatImpl = memo(
         const projectId = chatId.get() || workbenchStore.firstArtifact?.id || 'default_project';
 
         const checkpoint = await getLatestCheckpoint(database, projectId);
-        if (!checkpoint || initialMessages[initialMessages.length - 1]?.id !== checkpoint.messageId) return;
+
+        if (!checkpoint || initialMessages[initialMessages.length - 1]?.id !== checkpoint.messageId) {
+          return;
+        }
 
         await workbenchStore.waitForExecutionQueue();
-        if (cancelled) return;
+
+        if (cancelled) {
+          return;
+        }
 
         const wc = await getWebContainer();
         await applyProjectSnapshot(wc, checkpoint.files);
-        if (!cancelled) workbenchStore.showRestoredCheckpoint(checkpoint.files);
+
+        if (!cancelled) {
+          workbenchStore.showRestoredCheckpoint(checkpoint.files);
+        }
       };
 
       void restoreVerifiedFiles().catch((error) => console.warn('Could not reload working checkpoint:', error));
-      return () => { cancelled = true; };
+
+      return () => {
+        cancelled = true;
+      };
     }, [initialMessages]);
 
     const scrollTextArea = () => {
@@ -344,6 +463,7 @@ export const ChatImpl = memo(
     };
 
     const abort = () => {
+      cancelPlan();
       stop();
       chatStore.setKey('aborted', true);
       workbenchStore.abortAllActions();
@@ -381,16 +501,22 @@ export const ChatImpl = memo(
     const sendMessage = async (_event: React.UIEvent, messageInput?: string) => {
       const _input = messageInput || input;
 
-      if (_input.length === 0 || isLoading || validationState.get().status === 'checking' || checkpointBusy.get() !== 'idle') {
+      if (
+        !_input.trim() ||
+        isLoading ||
+        validationState.get().status === 'checking' ||
+        checkpointBusy.get() !== 'idle' ||
+        harnessIsBusy(harnessState.get().phase)
+      ) {
         return;
       }
 
-      const previousValidation = validationState.get();
+      lastUserPromptRef.current = _input;
       repairAttemptsRef.current = 0;
       lastAgentModeRef.current = agentMode;
-      validationState.set({ status: 'idle', detail: '' });
 
       const auth = authStore.get();
+
       if (!auth.user) {
         if (typeof window !== 'undefined') {
           if (window.parent && window.parent !== window) {
@@ -399,83 +525,14 @@ export const ChatImpl = memo(
             window.dispatchEvent(new CustomEvent('thefortz-open-login'));
           }
         }
+
         return;
       }
 
-      /**
-       * @note (delm) Usually saving files shouldn't take long but it may take longer if there
-       * many unsaved files. In that case we need to block user input and show an indicator
-       * of some kind so the user is aware that something is happening. But I consider the
-       * happy case to be no unsaved files and I would expect users to save their changes
-       * before they send another message.
-       */
-      await workbenchStore.saveAllFiles();
-
       const fileModifications = workbenchStore.getFileModifcations();
-
       chatStore.setKey('aborted', false);
-
-      runAnimation();
-
-      // Collect any failed or aborted actions and build validation errors to inform AI of recent issues
-      let failedActionContext = '';
-
-      const validationError =
-        previousValidation.status === 'failed' && previousValidation.detail
-          ? previousValidation.detail
-          : lastValidationErrorRef.current;
-
-      if (validationError) {
-        failedActionContext += `\n[Recent Build Validation Failure:\n${validationError}\nYou MUST fix all errors described above, complete any cut-off files, and ensure the game is fully playable without syntax or runtime errors!]`;
-        lastValidationErrorRef.current = '';
-      }
-
-      try {
-        const artifacts = workbenchStore.artifacts.get();
-        for (const art of Object.values(artifacts)) {
-          if (!art.closed) {
-            failedActionContext += `\n[Recent Build Warning: The artifact "${art.title}" (id: "${art.id}") was NOT closed (generation was interrupted or cut off). You must finish any incomplete files and close the artifact with </boltArtifact>.]`;
-          }
-          const runnerActions = art.runner?.actions?.get();
-          if (runnerActions) {
-            for (const act of Object.values(runnerActions)) {
-              if (act.status === 'failed') {
-                const target = (act as any).filePath || (act as any).content?.slice(0, 100) || '';
-                failedActionContext += `\n[Recent Action Failure: ${act.type} action on "${target}" failed with error: "${(act as any).error || 'Execution failed'}"]`;
-              } else if (act.status === 'aborted') {
-                const target = (act as any).filePath || (act as any).content?.slice(0, 100) || '';
-                failedActionContext += `\n[Recent Action Incomplete/Cut-off: ${act.type} action on "${target}" was cut off or aborted before completion. You must emit the full, complete file for "${target}"!]`;
-              }
-            }
-          }
-        }
-      } catch (e) {
-        /* ignore */
-      }
-
-      let textPayload = `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n[Studio Mode: ${agentMode.toUpperCase()}]\n\n${_input}`;
-
-      if (failedActionContext) {
-        textPayload = `${failedActionContext}\n\n${textPayload}`;
-      }
-
-      if (fileModifications !== undefined) {
-        textPayload = `${fileModifications}\n\n${textPayload}`;
-      }
-
-      append({
-        role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: textPayload,
-          },
-          ...imageDataList.map((imageData) => ({
-            type: 'image',
-            image: imageData,
-          })),
-        ] as any, // Type assertion to bypass compiler check
-      });
+      void runAnimation();
+      void requestPlan(_input, imageDataList);
 
       if (fileModifications !== undefined) {
         workbenchStore.resetAllFileModifications();
@@ -483,13 +540,9 @@ export const ChatImpl = memo(
 
       setInput('');
       Cookies.remove(PROMPT_COOKIE_KEY);
-
-      // Add file cleanup here
       setUploadedFiles([]);
       setImageDataList([]);
-
       resetEnhancer();
-
       textareaRef.current?.blur();
     };
 
@@ -572,6 +625,7 @@ export const ChatImpl = memo(
           }
 
           const parsed = parsedMessages[i];
+
           // While streaming, keep showing prior parsed content rather than flashing empty/raw dumps.
           const content =
             typeof parsed === 'string' && parsed.length > 0
@@ -603,6 +657,8 @@ export const ChatImpl = memo(
         setImageDataList={setImageDataList}
         agentMode={agentMode}
         setAgentMode={setAgentMode}
+        onApprovePlan={approvePlan}
+        onCancelPlan={cancelPlan}
       />
     );
   },

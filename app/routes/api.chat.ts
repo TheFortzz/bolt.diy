@@ -3,9 +3,11 @@ import { CONTINUE_PROMPT } from '~/lib/.server/llm/prompts';
 import { streamText, type Messages, type StreamingOptions } from '~/lib/.server/llm/stream-text';
 import SwitchableStream from '~/lib/.server/llm/switchable-stream';
 import type { IProviderSetting } from '~/types/model';
+import { z } from 'zod';
+import { blueprintSchema, type Blueprint } from '~/lib/harness/blueprint';
+import { getHarnessSecret, requireSameOrigin, verifyCapability } from '~/lib/.server/harness/capabilities';
 
-const MAX_TOKENS = 16384;
-const MAX_RESPONSE_SEGMENTS = 16;
+const MAX_RESPONSE_SEGMENTS = 8;
 
 export async function action(args: ActionFunctionArgs) {
   return chatAction(args);
@@ -32,10 +34,50 @@ function parseCookies(cookieHeader: string) {
 }
 
 async function chatAction({ context, request }: ActionFunctionArgs) {
-  const { messages } = await request.json<{
+  const {
+    messages,
+    systemContext,
+    approvedBlueprint: rawBlueprint,
+    executionToken,
+    workspaceSources: rawSources,
+  } = await request.json<{
     messages: Messages;
     model: string;
+    systemContext?: string;
+    approvedBlueprint?: unknown;
+    executionToken?: string;
+    workspaceSources?: unknown;
   }>();
+  let approvedBlueprint: Blueprint;
+  let workspaceSources: Record<string, string>;
+
+  try {
+    requireSameOrigin(request);
+    approvedBlueprint = await verifyCapability(
+      executionToken || '',
+      blueprintSchema.parse(rawBlueprint),
+      'execute',
+      getHarnessSecret(context.cloudflare.env),
+      new URL(request.url).origin,
+    );
+    workspaceSources = z.record(z.string().max(200000)).parse(rawSources || {});
+
+    if (
+      Object.entries(workspaceSources).some(
+        ([path]) => !approvedBlueprint.manifest.some((file) => file.path === path),
+      ) ||
+      Object.values(workspaceSources).reduce((size, text) => size + text.length, 0) > 300000
+    ) {
+      throw new Error('Editor context is outside the approved workspace or exceeds its budget.');
+    }
+  } catch (error) {
+    return new Response(JSON.stringify({ error: `Plan approval required: ${(error as Error).message}` }), {
+      status: 409,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  const workspaceContext = typeof systemContext === 'string' ? systemContext.slice(0, 12000) : undefined;
 
   const cookieHeader = request.headers.get('Cookie');
 
@@ -51,9 +93,11 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
   try {
     const options: StreamingOptions = {
       toolChoice: 'none',
+      abortSignal: request.signal,
       onFinish: async ({ text: content, finishReason }) => {
         try {
           fullContent += content;
+
           const hasUnclosedArtifact = fullContent.includes('<boltArtifact') && !fullContent.includes('</boltArtifact>');
           const hasUnclosedAction =
             fullContent.includes('<boltAction') &&
@@ -79,17 +123,35 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
           messages.push({ role: 'assistant', content });
           messages.push({ role: 'user', content: CONTINUE_PROMPT });
 
-          const result = await streamText({ messages, env: context.cloudflare.env, options, apiKeys, providerSettings });
+          const result = await streamText({
+            messages,
+            env: context.cloudflare.env,
+            options,
+            apiKeys,
+            providerSettings,
+            systemContext: workspaceContext,
+            approvedBlueprint,
+            workspaceSources,
+          });
 
           return stream.switchSource(result.toAIStream());
         } catch (err) {
           console.error('Error during onFinish stream continuation:', err);
-          stream.close();
+          return stream.close();
         }
       },
     };
 
-    const result = await streamText({ messages, env: context.cloudflare.env, options, apiKeys, providerSettings });
+    const result = await streamText({
+      messages,
+      env: context.cloudflare.env,
+      options,
+      apiKeys,
+      providerSettings,
+      systemContext: workspaceContext,
+      approvedBlueprint,
+      workspaceSources,
+    });
 
     stream.switchSource(result.toAIStream());
 
@@ -111,6 +173,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
     }
 
     const errorMessage = error?.message || error?.toString() || 'Internal Server Error';
+
     return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

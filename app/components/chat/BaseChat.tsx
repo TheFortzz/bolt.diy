@@ -1,4 +1,5 @@
 import type { Message } from 'ai';
+import { useStore } from '@nanostores/react';
 import React, { type RefCallback, useEffect, useState } from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
 import { Menu } from '~/components/sidebar/Menu.client';
@@ -29,9 +30,12 @@ import FilePreview from './FilePreview';
 import { ModelSelector } from '~/components/chat/ModelSelector';
 import { SpeechRecognitionButton } from '~/components/chat/SpeechRecognition';
 import type { IProviderSetting, ProviderInfo } from '~/types/model';
+import { validationState } from '~/lib/runtime/build-validator';
+import { harnessState, harnessIsBusy } from '~/lib/stores/harness';
+import { AgentPipeline } from '~/components/chat/AgentPipeline';
+import { DEFAULT_MODEL_LABEL } from '~/utils/constants';
 
 const TEXTAREA_MIN_HEIGHT = 70;
-
 
 interface BaseChatProps {
   textareaRef?: React.RefObject<HTMLTextAreaElement> | undefined;
@@ -62,6 +66,8 @@ interface BaseChatProps {
   setImageDataList?: (dataList: string[]) => void;
   agentMode?: StudioAgentMode;
   setAgentMode?: (mode: StudioAgentMode) => void;
+  onApprovePlan?: () => void;
+  onCancelPlan?: () => void;
 }
 
 export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
@@ -94,10 +100,17 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       messages,
       agentMode = 'auto',
       setAgentMode,
+      onApprovePlan,
+      onCancelPlan,
     },
     ref,
   ) => {
     const TEXTAREA_MAX_HEIGHT = chatStarted ? 400 : 200;
+    const validation = useStore(validationState);
+    const harness = useStore(harnessState);
+    const isVerifying = validation.status === 'checking';
+    const isAgentBusy = harnessIsBusy(harness.phase);
+    const canStopAgent = isStreaming || ['planning', 'preparing-assets', 'editing'].includes(harness.phase);
     const [apiKeys, setApiKeys] = useState<Record<string, string>>(() => {
       const savedKeys = Cookies.get('apiKeys');
 
@@ -118,6 +131,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const [recognition, setRecognition] = useState<any>(null);
     const [transcript, setTranscript] = useState('');
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
     // Use safe SSR defaults; real values are hydrated client-side via useEffect
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [galleryOpen, setGalleryOpen] = useState(false);
@@ -131,12 +145,15 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       setGalleryOpen(isGalleryOpen.get());
       setShowWorkbench(workbenchStore.showWorkbench.get());
       setAuth(authStore.get());
+
       const unsubSidebar = isSidebarOpen.subscribe((v) => setSidebarOpen(v));
       const unsubGallery = isGalleryOpen.subscribe((v) => setGalleryOpen(v));
       const unsubWorkbench = workbenchStore.showWorkbench.subscribe((v) => setShowWorkbench(v));
       const unsubAuth = authStore.subscribe((v) => setAuth(v));
+
       // Kick off auth session check (client-only)
       checkAuthSession();
+
       return () => {
         unsubSidebar();
         unsubGallery();
@@ -146,15 +163,20 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     }, []);
 
     const FORTZ_PROMPT_COST = 10;
+
     // Safe initializer: never read localStorage during SSR
     const [fortzBalance, setFortzBalance] = useState<number>(100);
 
     // Read persisted balance from localStorage after client hydration
     useEffect(() => {
       const saved = localStorage.getItem('thefortz_fortz_balance');
+
       if (saved !== null) {
         const parsed = parseInt(saved, 10);
-        if (!isNaN(parsed)) setFortzBalance(parsed);
+
+        if (!isNaN(parsed)) {
+          setFortzBalance(parsed);
+        }
       } else {
         localStorage.setItem('thefortz_fortz_balance', '100');
       }
@@ -164,6 +186,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     useEffect(() => {
       if (auth.user?.prefs?.fortz_balance !== undefined) {
         const userBal = auth.user.prefs.fortz_balance;
+
         if (typeof userBal === 'number') {
           setFortzBalance(userBal);
           localStorage.setItem('thefortz_fortz_balance', String(userBal));
@@ -264,11 +287,16 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
 
     const handleSendMessage = (event: React.UIEvent, messageInput?: string) => {
       const text = messageInput || input;
-      if (!text || !text.trim()) return;
+
+      if (!text || !text.trim()) {
+        return;
+      }
 
       const currentAuth = authStore.get();
+
       if (!currentAuth.user) {
         toast.info('🔒 Please sign in on thefortz.me to start building your game!');
+
         if (typeof window !== 'undefined') {
           if (window.parent && window.parent !== window) {
             window.parent.postMessage({ type: 'thefortz-open-login' }, '*');
@@ -276,6 +304,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
             window.dispatchEvent(new CustomEvent('thefortz-open-login'));
           }
         }
+
         return;
       }
 
@@ -287,10 +316,13 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       // Deduct Fortz prompt cost
       const newBalance = Math.max(0, fortzBalance - FORTZ_PROMPT_COST);
       setFortzBalance(newBalance);
+
       if (typeof window !== 'undefined') {
         localStorage.setItem('thefortz_fortz_balance', String(newBalance));
+
         try {
           const rawAuth = localStorage.getItem('fortz_auth_v2');
+
           if (rawAuth) {
             const authObj = JSON.parse(rawAuth);
             authObj.fortz = newBalance;
@@ -299,10 +331,15 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
           }
         } catch (e) {}
         window.dispatchEvent(new CustomEvent('thefortz-balance-updated', { detail: { balance: newBalance } }));
+
         if (window.parent && window.parent !== window) {
-          window.parent.postMessage({ type: 'thefortz-balance-deducted', cost: FORTZ_PROMPT_COST, balance: newBalance }, '*');
+          window.parent.postMessage(
+            { type: 'thefortz-balance-deducted', cost: FORTZ_PROMPT_COST, balance: newBalance },
+            '*',
+          );
         }
       }
+
       toast.info(`🪙 -${FORTZ_PROMPT_COST} Fortz • Balance: ${newBalance} Fortz`, { autoClose: 3500 });
 
       if (sendMessage) {
@@ -331,6 +368,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         } as React.ChangeEvent<HTMLTextAreaElement>;
         handleInputChange(syntheticEvent);
       }
+
       if (textareaRef?.current) {
         textareaRef.current.focus();
         textareaRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -344,6 +382,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         } as React.ChangeEvent<HTMLTextAreaElement>;
         handleInputChange(syntheticEvent);
       }
+
       handleSendMessage?.(event, templatePrompt);
     };
 
@@ -408,16 +447,16 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         ref={ref}
         className={classNames(styles.BaseChat, 'relative flex h-full w-full overflow-hidden')}
         data-chat-visible="true"
-        style={{
-          '--sidebar-width': `${sidebarWidth}px`,
-          '--chat-compact-width': `${chatCompactWidth}px`,
-          '--workbench-inner-width': isSmallViewport
-            ? '100%'
-            : `calc(100% - ${sidebarWidth}px - ${chatCompactWidth}px - 1.1rem)`,
-          '--workbench-left': isSmallViewport
-            ? '0px'
-            : `${sidebarWidth + chatCompactWidth + 6}px`,
-        } as React.CSSProperties}
+        style={
+          {
+            '--sidebar-width': `${sidebarWidth}px`,
+            '--chat-compact-width': `${chatCompactWidth}px`,
+            '--workbench-inner-width': isSmallViewport
+              ? '100%'
+              : `calc(100% - ${sidebarWidth}px - ${chatCompactWidth}px - 1.1rem)`,
+            '--workbench-left': isSmallViewport ? '0px' : `${sidebarWidth + chatCompactWidth + 6}px`,
+          } as React.CSSProperties
+        }
       >
         <ClientOnly>{() => <Menu />}</ClientOnly>
         <div
@@ -437,24 +476,38 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   : 'w-full flex-grow overflow-y-auto',
             )}
           >
-            {isStreaming && (
-              <div className="flex items-center justify-between px-3 py-1.5 bg-[#20103a]/90 border-b border-[#a855f7]/40 text-purple-200 text-xs font-bold uppercase tracking-wider select-none shrink-0">
-                <div className="flex items-center gap-1.5">
-                  <div className="i-svg-spinners:bars-scale-fade text-sm text-amber-300" />
-                  <span>AI Working…</span>
+            {chatStarted && (
+              <div className={styles.WorkspaceHeader}>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="i-ph:sparkle-fill text-violet-300 text-lg shrink-0" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold">Game agent</div>
+                    <div className="text-[10px] text-slate-400 mt-0.5 truncate" role="status" aria-live="polite">
+                      {harness.phase !== 'idle'
+                        ? harness.detail
+                        : isStreaming
+                          ? 'Creating your game…'
+                          : isVerifying
+                            ? validation.detail
+                            : validation.status === 'failed'
+                              ? 'Build needs attention'
+                              : validation.status === 'passed'
+                                ? 'Build checks passed'
+                                : 'Ready for your next idea'}
+                    </div>
+                  </div>
                 </div>
-                {!showWorkbench && (
-                  <button
-                    type="button"
-                    onClick={() => workbenchStore.showWorkbench.set(true)}
-                    className="px-2 py-0.5 bg-[#8b5cf6] text-white hover:bg-[#7c3aed] text-[10px] font-black uppercase tracking-wide cursor-pointer"
-                    style={{ borderRadius: 0 }}
-                  >
-                    Open Workspace →
+                {(isStreaming || isVerifying) && (
+                  <span className="i-svg-spinners:90-ring-with-bg text-violet-300 shrink-0" aria-hidden="true" />
+                )}
+                {!showWorkbench && !isStreaming && !isVerifying && (
+                  <button type="button" onClick={() => workbenchStore.showWorkbench.set(true)}>
+                    <span className="i-ph:sidebar-simple" aria-hidden="true" /> Workspace
                   </button>
                 )}
               </div>
             )}
+            {chatStarted && <AgentPipeline />}
             <div
               className={classNames('pt-2 px-2 sm:px-4 flex-1 flex flex-col min-h-0 overflow-hidden', {
                 'h-full': isWorkbenchActive || chatStarted,
@@ -473,6 +526,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       )}
                       messages={messages}
                       isStreaming={isStreaming}
+                      onApprovePlan={onApprovePlan}
+                      onCancelPlan={onCancelPlan}
                     />
                   ) : null;
                 }}
@@ -528,23 +583,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   }}
                 />
 
-                <div
-                  style={{
-                    borderRadius: 0,
-                    boxShadow: '0 0 30px rgba(192, 132, 252, 0.4), 0 5px 0 0 #0f071f, 0 16px 36px rgba(0,0,0,0.65)',
-                    background: '#20103a',
-                  }}
-                  className={classNames(
-                    'group/inputbox relative border-2 border-[#c084fc] ring-2 ring-[#8340ed]/50 border-r-2 border-b-[5px] border-r-[#0f071f] border-b-[#0f071f] transition-all duration-300',
-                    'shadow-[0_0_30px_rgba(192,132,252,0.4),0_5px_0_0_#0f071f,0_16px_36px_rgba(0,0,0,0.65)] bg-[#20103a]',
-                    'focus-within:border-[#e9d5ff] focus-within:ring-2 focus-within:ring-[#c084fc]/70 focus-within:shadow-[0_0_42px_rgba(192,132,252,0.6),0_5px_0_0_#0f071f,0_18px_40px_rgba(0,0,0,0.75)]',
-                  )}
-                >
-                  {/* Permanent vibrant purple edge line strips always active even when not clicked */}
-                  <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-[#8b5cf6] via-[#c084fc] to-[#8b5cf6] opacity-100 shadow-[0_0_12px_#c084fc] pointer-events-none z-10" />
-                  <div className="absolute top-0 right-0 bottom-0 w-[2.5px] bg-gradient-to-b from-[#c084fc] via-[#8b5cf6] to-transparent opacity-100 shadow-[0_0_12px_#c084fc] pointer-events-none z-10" />
-                  <div className="absolute top-0 left-0 bottom-0 w-[2.5px] bg-gradient-to-b from-[#c084fc] via-[#8b5cf6] to-transparent opacity-100 shadow-[0_0_12px_#c084fc] pointer-events-none z-10" />
-                  <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#8b5cf6] via-[#c084fc] to-[#8b5cf6] opacity-90 shadow-[0_0_12px_#c084fc] pointer-events-none z-10" />
+                <div className={classNames(styles.Composer, 'group/inputbox relative')}>
                   <textarea
                     ref={textareaRef}
                     className={classNames(
@@ -578,6 +617,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       });
                     }}
                     onKeyDown={(event) => {
+                      if (event.nativeEvent.isComposing) {
+                        return;
+                      }
+
                       if (event.key === 'Enter') {
                         if (event.shiftKey) {
                           return;
@@ -585,8 +628,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
 
                         event.preventDefault();
 
-                        if (isStreaming) {
-                          handleStop?.();
+                        if (isStreaming || isVerifying || isAgentBusy) {
                           return;
                         }
 
@@ -602,17 +644,25 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       minHeight: chatStarted ? 56 : TEXTAREA_MIN_HEIGHT,
                       maxHeight: TEXTAREA_MAX_HEIGHT,
                     }}
-                    placeholder="What do you want to build today?"
+                    placeholder={
+                      chatStarted
+                        ? 'Ask for a change, a new level, or a fix…'
+                        : 'Describe your game: genre, world, controls, and art style…'
+                    }
+                    aria-label="Message the game agent"
                     translate="no"
                   />
                   <ClientOnly>
                     {() => (
                       <SendButton
-                        show={input.length > 0 || isStreaming || uploadedFiles.length > 0}
-                        isStreaming={isStreaming}
-                        disabled={!providerList || providerList.length === 0}
+                        show={input.length > 0 || canStopAgent || uploadedFiles.length > 0}
+                        isStreaming={canStopAgent}
+                        disabled={
+                          (isVerifying && !canStopAgent) ||
+                          ((!providerList || providerList.length === 0) && !canStopAgent)
+                        }
                         onClick={(event) => {
-                          if (isStreaming) {
+                          if (canStopAgent) {
                             handleStop?.();
                             return;
                           }
@@ -625,12 +675,13 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     )}
                   </ClientOnly>
 
-                  <div
-                    style={{ borderRadius: 0 }}
-                    className="flex justify-between items-center text-sm p-3 pt-2 bg-[#0c2242] border-t border-[#38bdf8]/40 shadow-inner"
-                  >
-                    <div className="flex gap-1.5 items-center">
-                      <IconButton title="Upload file" className="transition-all text-sky-300 hover:text-white hover:bg-sky-500/20" onClick={() => handleFileUpload()}>
+                  <div className={styles.ComposerToolbar}>
+                    <div className="flex gap-1 items-center flex-wrap min-w-0">
+                      <IconButton
+                        title="Upload file"
+                        className="transition-all text-sky-300 hover:text-white hover:bg-sky-500/20"
+                        onClick={() => handleFileUpload()}
+                      >
                         <div className="i-ph:paperclip text-xl"></div>
                       </IconButton>
                       <IconButton
@@ -674,14 +725,13 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         <div className="i-ph:gear-six text-xl text-[#38bdf8]" />
                       </IconButton>
 
-                      {/* Active Engine Badge — GPT 6 Luna */}
-                      <div
-                        style={{ borderRadius: 0 }}
-                        className="flex items-center gap-1.5 px-2.5 py-1 border border-[#38bdf8]/40 bg-[#0c1f36] text-sky-200 text-xs font-semibold select-none shadow-sm"
-                        title="Active AI Model: GPT 6 Luna"
-                      >
-                        <span className="w-1.5 h-1.5 bg-[#4ade80] rounded-full animate-pulse" />
-                        <span className="font-mono">gpt 6 luna</span>
+                      <div className={styles.ModelBadge} title={`Configured model: ${model || 'gpt-6-luna'}`}>
+                        <span className="i-ph:cpu" aria-hidden="true" />
+                        <span>
+                          {model === 'gpt-6-luna' || model === 'fortz-ai'
+                            ? DEFAULT_MODEL_LABEL
+                            : model || DEFAULT_MODEL_LABEL}
+                        </span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-sky-200/80 select-none">
@@ -690,19 +740,21 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         className="px-2 py-0.5 font-mono font-bold bg-[#071526] border border-[#38bdf8]/40 text-amber-300 flex items-center gap-1.5"
                         title="10 FortzCoins per prompt"
                       >
-                        <img
-                          src="/fortz-coin.png"
-                          alt="FortzCoin"
-                          className="w-4 h-4 object-contain"
-                        />
+                        <img src="/fortz-coin.png" alt="FortzCoin" className="w-4 h-4 object-contain" />
                         <span>10</span>
                       </span>
                       {input.length > 3 && (
                         <>
                           <span className="text-sky-400/40">•</span>
                           <span className="text-[11px] text-sky-300/70">
-                            <kbd className="kdb px-1.5 py-0.5 rounded-none bg-sky-950/80 border border-sky-500/30 text-sky-200 font-mono">Shift</kbd> +{' '}
-                            <kbd className="kdb px-1.5 py-0.5 rounded-none bg-sky-950/80 border border-sky-500/30 text-sky-200 font-mono">Return</kbd> for new line
+                            <kbd className="kdb px-1.5 py-0.5 rounded-none bg-sky-950/80 border border-sky-500/30 text-sky-200 font-mono">
+                              Shift
+                            </kbd>{' '}
+                            +{' '}
+                            <kbd className="kdb px-1.5 py-0.5 rounded-none bg-sky-950/80 border border-sky-500/30 text-sky-200 font-mono">
+                              Return
+                            </kbd>{' '}
+                            for new line
                           </span>
                         </>
                       )}
@@ -712,14 +764,12 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               </div>
             </div>
           </div>
-          <ClientOnly>{() => <Workbench chatStarted={chatStarted || showWorkbench} isStreaming={isStreaming} />}</ClientOnly>
+          <ClientOnly>
+            {() => <Workbench chatStarted={chatStarted || showWorkbench} isStreaming={isStreaming} />}
+          </ClientOnly>
         </div>
         <AppwriteAuthModal />
-        <SettingsWindow
-          open={isSettingsOpen}
-          initialTab="providers"
-          onClose={() => setIsSettingsOpen(false)}
-        />
+        <SettingsWindow open={isSettingsOpen} initialTab="providers" onClose={() => setIsSettingsOpen(false)} />
         <CommunityGalleryModal
           open={galleryOpen}
           onClose={() => isGalleryOpen.set(false)}
