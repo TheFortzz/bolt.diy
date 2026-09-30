@@ -22,7 +22,7 @@ function bytesToBase64(bytes: Uint8Array) {
   return btoa(binary);
 }
 
-function imageDataUrl(part: Record<string, unknown>): string | undefined {
+export function imageDataUrl(part: Record<string, unknown>): string | undefined {
   const image = part.image;
   const mimeType =
     typeof part.mimeType === 'string' && /^image\/(?:png|jpeg|webp|gif)$/i.test(part.mimeType)

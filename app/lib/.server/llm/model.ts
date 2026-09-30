@@ -12,8 +12,8 @@ import { createMistral } from '@ai-sdk/mistral';
 import { createCohere } from '@ai-sdk/cohere';
 import type { LanguageModelV1 } from 'ai';
 import type { IProviderSetting } from '~/types/model';
-import { createAzureResponsesModel } from '~/lib/.server/llm/azure-responses-model';
-import { getFortzDeploymentConfig } from '~/lib/.server/llm/deployment-config';
+import { createAzureChatCompletionsModel } from '~/lib/.server/llm/azure-chat-completions-model';
+import { getFortzChatCompletionsUrl, getFortzDeploymentConfig } from '~/lib/.server/llm/deployment-config';
 
 export const DEFAULT_NUM_CTX = process.env.DEFAULT_NUM_CTX ? parseInt(process.env.DEFAULT_NUM_CTX, 10) : 32768;
 
@@ -176,8 +176,10 @@ export function getModel(
             ? deploymentConfig.deployment
             : model;
 
-      // Use Azure Responses API (not legacy chat/completions) for Fortz AI.
-      return createAzureResponsesModel(apiKey || '', targetModel, deploymentConfig.responsesUrl);
+      const chatCompletionsUrl = getFortzChatCompletionsUrl(deploymentConfig.responsesUrl);
+
+      // Use the standard Chat Completions route as a compatibility path for Foundry projects.
+      return createAzureChatCompletionsModel(apiKey || '', targetModel, chatCompletionsUrl);
     }
     case 'Together':
       return getOpenAILikeModel(baseURL, apiKey, model);

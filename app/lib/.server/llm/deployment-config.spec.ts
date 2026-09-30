@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getFortzDeploymentConfig } from '~/lib/.server/llm/deployment-config';
+import { getFortzChatCompletionsUrl, getFortzDeploymentConfig } from '~/lib/.server/llm/deployment-config';
 
 describe('workspace model deployment configuration', () => {
   it('keeps the actual existing model as the explicit default', () => {
@@ -44,6 +44,12 @@ describe('workspace model deployment configuration', () => {
         openAILikeBaseUrl: 'https://ignored.services.ai.azure.com/openai/v1',
       }).responsesUrl,
     ).toBe('https://primary.services.ai.azure.com/openai/v1/responses');
+  });
+
+  it('derives the Chat Completions route from the configured Responses URL', () => {
+    expect(
+      getFortzChatCompletionsUrl('https://models.services.ai.azure.com/api/projects/game-studio/openai/v1/responses'),
+    ).toBe('https://models.services.ai.azure.com/api/projects/game-studio/openai/v1/chat/completions');
   });
 
   it('rejects unsafe endpoint and deployment values', () => {

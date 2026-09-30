@@ -27,9 +27,7 @@ export function getFortzDeploymentConfig(values: {
   const deployment = values.deployment?.trim() || FORTZ_DEPLOYMENT_MODEL;
   const responsesUrl =
     values.responsesUrl?.trim() ||
-    (values.openAILikeBaseUrl?.trim()
-      ? responsesUrlFromBaseUrl(values.openAILikeBaseUrl)
-      : FORTZ_RESPONSES_URL);
+    (values.openAILikeBaseUrl?.trim() ? responsesUrlFromBaseUrl(values.openAILikeBaseUrl) : FORTZ_RESPONSES_URL);
 
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(deployment)) {
     throw new Error('FORTZ_AI_DEPLOYMENT must be an actual Azure deployment identifier.');
@@ -52,4 +50,16 @@ export function getFortzDeploymentConfig(values: {
   }
 
   return { deployment, responsesUrl: endpoint.toString() };
+}
+
+export function getFortzChatCompletionsUrl(responsesUrl: string) {
+  const endpoint = new URL(responsesUrl);
+
+  if (!/\/responses\/?$/i.test(endpoint.pathname)) {
+    throw new Error('The configured Azure v1 endpoint must end with /responses.');
+  }
+
+  endpoint.pathname = endpoint.pathname.replace(/\/responses\/?$/i, '/chat/completions');
+
+  return endpoint.toString();
 }

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getFluxApiKey } from '~/lib/.server/flux/flux-client';
 import { runManagerAgent } from '~/lib/.server/harness/agents';
 import { getBaseURL } from '~/lib/.server/llm/api-key';
-import { getFortzDeploymentConfig } from '~/lib/.server/llm/deployment-config';
+import { getFortzChatCompletionsUrl, getFortzDeploymentConfig } from '~/lib/.server/llm/deployment-config';
 import {
   getHarnessSecret,
   issueCapability,
@@ -107,7 +107,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
           responsesUrl: process.env.FORTZ_AI_RESPONSES_URL || env.FORTZ_AI_RESPONSES_URL,
           openAILikeBaseUrl: getBaseURL(env, 'OpenAILike'),
         });
-        const endpoint = new URL(modelConfig.responsesUrl);
+        const endpoint = new URL(getFortzChatCompletionsUrl(modelConfig.responsesUrl));
         configuration = `deployment "${modelConfig.deployment}" at ${endpoint.host}${endpoint.pathname}`;
       } catch (configurationError) {
         configuration = `invalid Azure configuration: ${(configurationError as Error).message}`;
