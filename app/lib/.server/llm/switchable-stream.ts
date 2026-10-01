@@ -1,20 +1,25 @@
-export default class SwitchableStream extends TransformStream {
-  private _controller: TransformStreamDefaultController | null = null;
+export default class SwitchableStream {
+  private _controller: ReadableStreamDefaultController | null = null;
+  private _readable: ReadableStream;
   private _currentReader: ReadableStreamDefaultReader | null = null;
   private _switches = 0;
   private _isSwitchPending = false;
   private _closed = false;
   private _idleTimeout: ReturnType<typeof setTimeout> | null = null;
+  private _keepAliveInterval: ReturnType<typeof setInterval> | null = null;
   private _textDecoder = new TextDecoder();
   private _textEncoder = new TextEncoder();
   private _lineBuffer = '';
 
   constructor() {
-    let controllerRef: TransformStreamDefaultController | undefined;
+    let controllerRef: ReadableStreamDefaultController | undefined;
 
-    super({
+    this._readable = new ReadableStream({
       start(controller) {
         controllerRef = controller;
+      },
+      cancel: () => {
+        this.close();
       },
     });
 
@@ -25,11 +30,35 @@ export default class SwitchableStream extends TransformStream {
     this._controller = controllerRef;
   }
 
+  get readable(): ReadableStream {
+    return this._readable;
+  }
+
   markSwitchPending() {
     this._isSwitchPending = true;
     if (this._idleTimeout) {
       clearTimeout(this._idleTimeout);
       this._idleTimeout = null;
+    }
+
+    // Keep the HTTP connection and QUIC channel active while waiting for the next segment to start
+    if (!this._keepAliveInterval && !this._closed) {
+      this._keepAliveInterval = setInterval(() => {
+        if (this._closed || !this._isSwitchPending) {
+          if (this._keepAliveInterval) {
+            clearInterval(this._keepAliveInterval);
+            this._keepAliveInterval = null;
+          }
+          return;
+        }
+
+        try {
+          // A blank line is discarded by readDataStream on the client, but keeps the transport layer active
+          this._controller?.enqueue(this._textEncoder.encode('\n'));
+        } catch {
+          // ignore
+        }
+      }, 5000);
     }
   }
 
@@ -42,6 +71,10 @@ export default class SwitchableStream extends TransformStream {
     if (this._idleTimeout) {
       clearTimeout(this._idleTimeout);
       this._idleTimeout = null;
+    }
+    if (this._keepAliveInterval) {
+      clearInterval(this._keepAliveInterval);
+      this._keepAliveInterval = null;
     }
 
     if (this._currentReader) {
@@ -106,7 +139,11 @@ export default class SwitchableStream extends TransformStream {
     } catch (error) {
       if (!this._closed) {
         console.error('Error pumping switchable stream:', error);
-        this._controller.error(error);
+        try {
+          this._controller.error(error);
+        } catch {
+          // ignore
+        }
       }
     }
   }
@@ -120,6 +157,11 @@ export default class SwitchableStream extends TransformStream {
     if (this._idleTimeout) {
       clearTimeout(this._idleTimeout);
       this._idleTimeout = null;
+    }
+
+    if (this._keepAliveInterval) {
+      clearInterval(this._keepAliveInterval);
+      this._keepAliveInterval = null;
     }
 
     if (this._currentReader) {
@@ -141,10 +183,10 @@ export default class SwitchableStream extends TransformStream {
         this._controller.enqueue(
           this._textEncoder.encode('e:{"finishReason":"stop","isContinued":false}\nd:{"finishReason":"stop"}\n'),
         );
-        this._controller.terminate();
+        this._controller.close();
       }
     } catch {
-      // ignore if already terminated
+      // ignore if already closed
     }
   }
 
