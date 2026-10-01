@@ -17,14 +17,12 @@
   z-index: 0;
   //   background-color: transparent;
 
-  mix-blend-mode: screen;
   opacity: 0.35;
 }
 
 .lightRay {
   position: absolute;
   border-radius: 100%;
-  mix-blend-mode: screen;
   opacity: 0.35;
   will-change: transform;
   transform: translateZ(0);
@@ -193,11 +191,9 @@
   0%,
   100% {
     transform: rotate(75deg) scale(1);
-    filter: blur(75px);
   }
   50% {
     transform: rotate(85deg) scale(1.1);
-    filter: blur(65px);
   }
 }
 

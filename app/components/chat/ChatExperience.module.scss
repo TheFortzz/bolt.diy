@@ -706,6 +706,8 @@
 .WorkingTurn {
   padding-top: 6px;
   animation: working-enter 220ms ease-out both;
+  will-change: transform, opacity;
+  contain: layout paint;
 }
 
 .ThinkingCard {
@@ -727,9 +729,7 @@
   flex: 0 0 auto;
   border-radius: 50%;
   background: #7c3aed;
-  box-shadow:
-    0 0 0 4px rgba(124, 58, 237, 0.15),
-    0 0 12px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.2);
   animation: thinking-pulse 1.8s ease-in-out infinite;
   will-change: transform, opacity;
 }
@@ -754,57 +754,42 @@
   margin-top: 12px;
 
   span {
-    position: relative;
     display: block;
     height: 5px;
     border-radius: 999px;
-    background: #ede9fe;
-    overflow: hidden;
-
-    &::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(90deg, transparent 0%, #a78bfa 50%, transparent 100%);
-      transform: translateX(-100%);
-      animation: thinking-slide 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-      will-change: transform;
-    }
+    background: #c4b5fd;
+    animation: thinking-bar-pulse 1.6s ease-in-out infinite;
+    will-change: opacity;
   }
 
   span:nth-child(1) {
     width: 88%;
-    &::after {
-      animation-delay: 0ms;
-    }
+    animation-delay: 0ms;
   }
   span:nth-child(2) {
     width: 68%;
-    &::after {
-      animation-delay: 150ms;
-    }
+    animation-delay: 200ms;
   }
   span:nth-child(3) {
     width: 78%;
-    &::after {
-      animation-delay: 300ms;
-    }
+    animation-delay: 400ms;
   }
 }
 
-@keyframes thinking-slide {
-  from {
-    transform: translateX(-100%);
+@keyframes thinking-bar-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
   }
-  to {
-    transform: translateX(100%);
+  50% {
+    opacity: 0.95;
   }
 }
 
 @keyframes thinking-pulse {
   0%,
   100% {
-    opacity: 0.72;
+    opacity: 0.6;
     transform: scale(0.92);
   }
   50% {
