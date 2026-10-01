@@ -54,6 +54,166 @@ const ParsedBlueprintCard = React.memo(
   },
 );
 
+interface MessageRowProps {
+  message: Message;
+  index: number;
+  isLast: boolean;
+  isStreaming: boolean;
+  userPhoto?: string;
+  userName?: string;
+  canApprovePlan: boolean;
+  isApprovingPlan: boolean;
+  onApprovePlan?: () => void;
+  onCancelPlan?: () => void;
+  onRewind: (messageId: string) => void;
+  onFork: (messageId: string) => void;
+}
+
+const MessageRow = React.memo((props: MessageRowProps) => {
+  const {
+    message,
+    index,
+    isLast,
+    isStreaming,
+    userPhoto,
+    userName,
+    canApprovePlan,
+    isApprovingPlan,
+    onApprovePlan,
+    onCancelPlan,
+    onRewind,
+    onFork,
+  } = props;
+  const { role, content, id: messageId } = message;
+  const isUserMessage = role === 'user';
+  const isInternalRepair = isUserMessage && typeof content === 'string' && content.includes('[Internal Repair Prompt');
+  const isInternalBuild = message.annotations?.some(
+    (annotation) =>
+      typeof annotation === 'object' &&
+      annotation !== null &&
+      'type' in annotation &&
+      annotation.type === 'harness-execution',
+  );
+  const rawPlan = message.annotations?.find(
+    (annotation) =>
+      typeof annotation === 'object' &&
+      annotation !== null &&
+      'type' in annotation &&
+      annotation.type === 'studio-blueprint',
+  );
+  const planBlueprint =
+    rawPlan && typeof rawPlan === 'object' && 'blueprint' in rawPlan ? rawPlan.blueprint : undefined;
+
+  if (isInternalBuild) {
+    return null;
+  }
+
+  if (isInternalRepair) {
+    return (
+      <div key={index} className="w-full my-2">
+        <div className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono shadow-sm">
+          <div className="i-ph:wrench-fill text-emerald-600 text-base animate-pulse shrink-0" />
+          <div className="flex-1 min-w-0">
+            <span className="font-semibold text-emerald-700">FortzAI Auto-Repair:</span> Diagnosing runtime issue and
+            automatically repairing code…
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      key={messageId || index}
+      className={classNames(styles.Turn, isUserMessage ? styles.UserTurn : undefined)}
+      data-message-role={role}
+    >
+      {isUserMessage && (
+        <div className={styles.Avatar}>
+          {userPhoto ? (
+            <img
+              src={userPhoto}
+              alt={userName || 'User'}
+              referrerPolicy="no-referrer"
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          ) : userName ? (
+            <div className="w-full h-full bg-[#10b981]/25 flex items-center justify-center text-emerald-300 font-extrabold text-xs">
+              {userName.charAt(0).toUpperCase()}
+            </div>
+          ) : (
+            <div className="i-ph:user-fill text-lg text-emerald-400"></div>
+          )}
+        </div>
+      )}
+      {!isUserMessage && (
+        <div className={classNames(styles.Avatar, styles.AgentAvatar)} aria-hidden="true">
+          <span className="i-ph:sparkle-fill text-base" />
+        </div>
+      )}
+      <div className={isUserMessage ? styles.UserBody : styles.MessageBody}>
+        {isUserMessage ? (
+          <>
+            <div className={classNames(styles.MessageMeta, styles.UserMeta)}>You</div>
+            <div className={styles.UserBubble}>
+              <UserMessage content={content} annotations={message.annotations} />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className={styles.MessageMeta}>
+              FortzAI <span className={styles.Badge}>{isStreaming && isLast ? 'Working' : 'Assistant'}</span>
+            </div>
+            <AssistantMessage content={content} isStreaming={isStreaming && isLast} />
+            {planBlueprint !== undefined && (
+              <ParsedBlueprintCard
+                blueprint={planBlueprint}
+                canApprove={canApprovePlan}
+                isApproving={isApprovingPlan}
+                onApprove={onApprovePlan}
+                onReject={onCancelPlan}
+              />
+            )}
+            <ActivityTimeline messageId={messageId} isStreaming={isStreaming && isLast} />
+            <div className={styles.MessageActions}>
+              <WithTooltip tooltip="Revert to this message">
+                {messageId && (
+                  <button
+                    type="button"
+                    aria-label="Revert to this message"
+                    onClick={() => onRewind(messageId)}
+                    key="i-ph:arrow-u-up-left"
+                    className={classNames(
+                      'i-ph:arrow-u-up-left',
+                      'text-xl text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary transition-colors',
+                    )}
+                  />
+                )}
+              </WithTooltip>
+
+              <WithTooltip tooltip="Fork chat from this message">
+                <button
+                  type="button"
+                  aria-label="Fork chat from this message"
+                  onClick={() => onFork(messageId)}
+                  key="i-ph:git-fork"
+                  className={classNames(
+                    'i-ph:git-fork',
+                    'text-xl text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary transition-colors',
+                  )}
+                />
+              </WithTooltip>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+});
+
 export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: MessagesProps, ref) => {
   const { id, isStreaming = false, messages = [] } = props;
   const location = useLocation();
@@ -145,13 +305,16 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
     return () => observer.disconnect();
   }, [scheduleFollowLatest]);
 
-  const handleRewind = (messageId: string) => {
-    const searchParams = new URLSearchParams(location.search);
-    searchParams.set('rewindTo', messageId);
-    window.location.search = searchParams.toString();
-  };
+  const handleRewind = useCallback(
+    (messageId: string) => {
+      const searchParams = new URLSearchParams(location.search);
+      searchParams.set('rewindTo', messageId);
+      window.location.search = searchParams.toString();
+    },
+    [location.search],
+  );
 
-  const handleFork = async (messageId: string) => {
+  const handleFork = useCallback(async (messageId: string) => {
     try {
       if (!db || !chatId.get()) {
         toast.error('Chat persistence is not available');
@@ -163,7 +326,7 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
     } catch (error) {
       toast.error('Failed to fork chat: ' + (error as Error).message);
     }
-  };
+  }, []);
 
   return (
     <div
@@ -182,140 +345,25 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
       <div ref={contentRef} className="w-full min-w-0">
         {messages.length > 0
           ? messages.map((message, index) => {
-              const { role, content, id: messageId } = message;
-              const isUserMessage = role === 'user';
               const isLast = index === messages.length - 1;
-              const isInternalRepair =
-                isUserMessage && typeof content === 'string' && content.includes('[Internal Repair Prompt');
-              const isInternalBuild = message.annotations?.some(
-                (annotation) =>
-                  typeof annotation === 'object' &&
-                  annotation !== null &&
-                  'type' in annotation &&
-                  annotation.type === 'harness-execution',
-              );
-              const rawPlan = message.annotations?.find(
-                (annotation) =>
-                  typeof annotation === 'object' &&
-                  annotation !== null &&
-                  'type' in annotation &&
-                  annotation.type === 'studio-blueprint',
-              );
-              const planBlueprint =
-                rawPlan && typeof rawPlan === 'object' && 'blueprint' in rawPlan ? rawPlan.blueprint : undefined;
-
-              if (isInternalBuild) {
-                return null;
-              }
-
-              if (isInternalRepair) {
-                return (
-                  <div key={index} className="w-full my-2">
-                    <div className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono shadow-sm">
-                      <div className="i-ph:wrench-fill text-emerald-600 text-base animate-pulse shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <span className="font-semibold text-emerald-700">FortzAI Auto-Repair:</span> Diagnosing runtime
-                        issue and automatically repairing code…
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
+              const messageId = message.id;
 
               return (
-                <div
+                <MessageRow
                   key={messageId || index}
-                  className={classNames(styles.Turn, isUserMessage ? styles.UserTurn : undefined)}
-                  data-message-role={role}
-                >
-                  {isUserMessage && (
-                    <div className={styles.Avatar}>
-                      {userPhoto ? (
-                        <img
-                          src={userPhoto}
-                          alt={auth.user?.name || 'User'}
-                          referrerPolicy="no-referrer"
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            (e.currentTarget as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                      ) : auth.user?.name ? (
-                        <div className="w-full h-full bg-[#10b981]/25 flex items-center justify-center text-emerald-300 font-extrabold text-xs">
-                          {auth.user.name.charAt(0).toUpperCase()}
-                        </div>
-                      ) : (
-                        <div className="i-ph:user-fill text-lg text-emerald-400"></div>
-                      )}
-                    </div>
-                  )}
-                  {!isUserMessage && (
-                    <div className={classNames(styles.Avatar, styles.AgentAvatar)} aria-hidden="true">
-                      <span className="i-ph:sparkle-fill text-base" />
-                    </div>
-                  )}
-                  <div className={isUserMessage ? styles.UserBody : styles.MessageBody}>
-                    {isUserMessage ? (
-                      <>
-                        <div className={classNames(styles.MessageMeta, styles.UserMeta)}>You</div>
-                        <div className={styles.UserBubble}>
-                          <UserMessage content={content} annotations={message.annotations} />
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className={styles.MessageMeta}>
-                          FortzAI{' '}
-                          <span className={styles.Badge}>{isStreaming && isLast ? 'Working' : 'Assistant'}</span>
-                        </div>
-                        <AssistantMessage content={content} isStreaming={isStreaming && isLast} />
-                        {planBlueprint !== undefined && (
-                          <ParsedBlueprintCard
-                            blueprint={planBlueprint}
-                            canApprove={
-                              harness.phase === 'awaiting-approval' && harness.blueprintMessageId === messageId
-                            }
-                            isApproving={
-                              harness.phase === 'preparing-assets' && harness.blueprintMessageId === messageId
-                            }
-                            onApprove={props.onApprovePlan}
-                            onReject={props.onCancelPlan}
-                          />
-                        )}
-                        <ActivityTimeline messageId={messageId} isStreaming={isStreaming && isLast} />
-                        <div className={styles.MessageActions}>
-                          <WithTooltip tooltip="Revert to this message">
-                            {messageId && (
-                              <button
-                                type="button"
-                                aria-label="Revert to this message"
-                                onClick={() => handleRewind(messageId)}
-                                key="i-ph:arrow-u-up-left"
-                                className={classNames(
-                                  'i-ph:arrow-u-up-left',
-                                  'text-xl text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary transition-colors',
-                                )}
-                              />
-                            )}
-                          </WithTooltip>
-
-                          <WithTooltip tooltip="Fork chat from this message">
-                            <button
-                              type="button"
-                              aria-label="Fork chat from this message"
-                              onClick={() => handleFork(messageId)}
-                              key="i-ph:git-fork"
-                              className={classNames(
-                                'i-ph:git-fork',
-                                'text-xl text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary transition-colors',
-                              )}
-                            />
-                          </WithTooltip>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
+                  message={message}
+                  index={index}
+                  isLast={isLast}
+                  isStreaming={isStreaming}
+                  userPhoto={userPhoto}
+                  userName={auth.user?.name}
+                  canApprovePlan={harness.phase === 'awaiting-approval' && harness.blueprintMessageId === messageId}
+                  isApprovingPlan={harness.phase === 'preparing-assets' && harness.blueprintMessageId === messageId}
+                  onApprovePlan={props.onApprovePlan}
+                  onCancelPlan={props.onCancelPlan}
+                  onRewind={handleRewind}
+                  onFork={handleFork}
+                />
               );
             })
           : null}

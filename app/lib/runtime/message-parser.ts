@@ -3,6 +3,7 @@ import type { BoltArtifactData } from '~/types/artifact';
 import { createScopedLogger } from '~/utils/logger';
 import { unreachable } from '~/utils/unreachable';
 import { cleanWorkDirRelativePath } from '~/utils/diff';
+import { balanceAndCloseJs } from '~/lib/runtime/static-preview';
 
 const ARTIFACT_TAG_OPEN = '<boltArtifact';
 const ARTIFACT_TAG_CLOSE = '</boltArtifact>';
@@ -317,6 +318,10 @@ export class StreamingMessageParser {
       }
 
       if ('type' in currentAction && currentAction.type === 'file') {
+        const filePath = (currentAction as any).filePath || '';
+        if (filePath.endsWith('.js') || filePath.endsWith('.mjs')) {
+          content = balanceAndCloseJs(content);
+        }
         content += '\n';
       }
 

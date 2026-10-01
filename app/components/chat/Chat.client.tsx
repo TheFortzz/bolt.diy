@@ -329,16 +329,7 @@ export const ChatImpl = memo(
         workbenchStore.finishPendingActions();
 
         if (!result.ok) {
-          if (managedBlueprint) {
-            executionPolicy.revoke();
-            transitionHarness('failed', { detail: result.error || 'Build validation failed.' });
-          }
-
-          if (
-            !managedBlueprint &&
-            repairAttemptsRef.current < 2 &&
-            !result.error?.includes('runtime verification needs')
-          ) {
+          if (repairAttemptsRef.current < 2 && !result.error?.includes('runtime verification needs')) {
             repairAttemptsRef.current++;
             validationState.set({
               status: 'checking',
@@ -352,15 +343,52 @@ export const ChatImpl = memo(
             );
 
             try {
-              await append({
-                role: 'user',
-                content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n[Studio Mode: ${agentMode.toUpperCase()}]\n\n[Internal Repair Prompt - Attempt ${repairAttemptsRef.current}/2]\n\nAutomatic build preview verification found runtime issue:\n${result.error?.slice(-1800)}\n\nCRITICAL FIX INSTRUCTIONS:\n1. Fix the error directly in the affected file(s). Emit the COMPLETE file inside <boltAction type="file" filePath="...">.\n2. If "ParticleSystem is not defined" or similar class ReferenceError: ensure the class is attached to window (e.g. window.ParticleSystem = class ParticleSystem { ... }) and loaded in index.html in correct order (utils.js -> audio.js -> input.js -> particles.js/effects.js -> entities.js -> game.js).\n3. Keep existing artifact id and close with </boltArtifact>.\n4. Output corrected file actions immediately with zero conversational fluff.`,
-              });
+              const rawFiles = workbenchStore.files.get();
+              const workspaceSources: Record<string, string> = {};
+              for (const [path, dirent] of Object.entries(rawFiles)) {
+                if (dirent?.type === 'file' && typeof dirent.content === 'string') {
+                  const cleanPath = path.startsWith('/home/project/') ? path.slice('/home/project/'.length) : path;
+                  if (!managedBlueprint || managedBlueprint.manifest.some((f) => f.path === cleanPath)) {
+                    workspaceSources[cleanPath] = dirent.content.slice(0, 200000);
+                  }
+                }
+              }
+
+              const artifactId =
+                workbenchStore.firstArtifact?.id ||
+                (managedBlueprint ? `game-${managedBlueprint.workspaceId}` : 'default_project');
+              await append(
+                {
+                  role: 'user',
+                  content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n[Studio Mode: BUILD]\n\n[Internal Repair Prompt - Attempt ${repairAttemptsRef.current}/2]\n\nAutomatic build preview verification found runtime issue:\n${result.error?.slice(-1800)}\n\nCRITICAL FIX INSTRUCTIONS:\n1. Fix the error directly in the affected file(s). Emit the COMPLETE, fully closed, syntactically valid file inside <boltAction type="file" filePath="...">.\n2. Ensure all scripts are loaded in index.html in correct order and classes attached to window.\n3. Keep existing artifact id="${artifactId}" and close with </boltArtifact>.\n4. Output corrected file actions immediately with zero conversational fluff.`,
+                  annotations: managedBlueprint
+                    ? [{ type: 'harness-execution', planId: managedBlueprint.id }]
+                    : undefined,
+                },
+                managedBlueprint && activeHarness.executionToken
+                  ? {
+                      body: {
+                        approvedBlueprint: managedBlueprint,
+                        executionToken: activeHarness.executionToken,
+                        workspaceSources,
+                      },
+                    }
+                  : undefined,
+              );
               return;
             } catch (error) {
+              if (managedBlueprint) {
+                executionPolicy.revoke();
+                transitionHarness('failed', { detail: `Automatic repair failed: ${(error as Error).message}` });
+              }
               validationState.set({ status: 'failed', detail: `Automatic repair failed: ${(error as Error).message}` });
               toast.error('Automatic repair could not be started. The build is not verified.');
             }
+          }
+
+          if (managedBlueprint) {
+            executionPolicy.revoke();
+            transitionHarness('failed', { detail: result.error || 'Build validation failed.' });
           }
 
           validationState.set({ status: 'failed', detail: result.error || 'Build validation failed' });
@@ -368,7 +396,7 @@ export const ChatImpl = memo(
 
           // Inform directly in this chat message when auto-repairs are exhausted
           const errorNotice = managedBlueprint
-            ? `\n\n> ⚠️ **Build not verified:**\n> ${result.error?.slice(-1800)}\n>\n> No automatic repair was applied. Describe the repair you want; the Manager will propose a new blueprint for your approval.`
+            ? `\n\n> ⚠️ **Build not verified:**\n> ${result.error?.slice(-1800)}\n>\n> Describe the repair you want; FortzAI will propose a new blueprint for your approval.`
             : result.error?.includes('runtime verification needs')
               ? `\n\n> ⚠️ **Runtime verification unavailable:**\n> ${result.error?.slice(-1800)}\n>\n> A browser verification worker or preview bridge must be configured before this build can be marked verified.`
               : `\n\n> ⚠️ **Build Issue Detected:**\n> ${result.error?.slice(-1800)}\n>\n> *Ask for a targeted repair to address these checks.*`;

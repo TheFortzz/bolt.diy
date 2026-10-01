@@ -37,6 +37,77 @@ export function resolveStaticPreviewFile(files: StaticPreviewFile[], reference: 
   return suffixMatches.length === 1 ? suffixMatches[0] : undefined;
 }
 
+/**
+ * Gracefully balance and close unclosed brackets, braces, and parentheses if a JavaScript file
+ * was cut off mid-expression or mid-function, preventing syntax errors in the sandboxed preview.
+ */
+export function balanceAndCloseJs(code: string): string {
+  if (!code || typeof code !== 'string') {
+    return code;
+  }
+
+  try {
+    new Function(code);
+    return code;
+  } catch {
+    // Attempt healing
+  }
+
+  const lines = code.split('\n');
+  while (lines.length > 0) {
+    const candidate = lines.join('\n');
+    let openBraces = 0;
+    let openParens = 0;
+    let openBrackets = 0;
+    let inString: string | null = null;
+    let escape = false;
+
+    for (let i = 0; i < candidate.length; i++) {
+      const char = candidate[i];
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (char === '\\') {
+        escape = true;
+        continue;
+      }
+      if (inString) {
+        if (char === inString) {
+          inString = null;
+        }
+        continue;
+      }
+      if (char === '"' || char === "'" || char === '`') {
+        inString = char;
+        continue;
+      }
+      if (char === '{') openBraces++;
+      else if (char === '}') openBraces = Math.max(0, openBraces - 1);
+      else if (char === '(') openParens++;
+      else if (char === ')') openParens = Math.max(0, openParens - 1);
+      else if (char === '[') openBrackets++;
+      else if (char === ']') openBrackets = Math.max(0, openBrackets - 1);
+    }
+
+    let patch = '';
+    if (inString) patch += inString;
+    if (openBrackets > 0) patch += ']'.repeat(openBrackets);
+    if (openParens > 0) patch += ')'.repeat(openParens);
+    patch += ';';
+    if (openBraces > 0) patch += '\n' + '}'.repeat(openBraces);
+
+    try {
+      new Function(candidate + patch);
+      return candidate + patch;
+    } catch {
+      lines.pop();
+    }
+  }
+
+  return code;
+}
+
 /** Keep injected helpers before all document scripts and append an unlinked entry last. */
 export function injectStaticScripts(html: string, dependencies: string[], entries: string[]) {
   let result = html;
@@ -326,7 +397,9 @@ export function buildFallbackHtml(
         const isModule = /type\s*=\s*["']module["']/i.test(`${before} ${after}`) || js.path.endsWith('.mjs');
         const typeAttr = isModule ? ' type="module"' : '';
         const safePath = js.path.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-        return `<script${typeAttr} data-inlined="${safePath}">\n${js.content}\n</script>`;
+        const safeContent =
+          js.path.endsWith('.js') || js.path.endsWith('.mjs') ? balanceAndCloseJs(js.content) : js.content;
+        return `<script${typeAttr} data-inlined="${safePath}">\n${safeContent}\n</script>`;
       }
       return `<!-- bolt-stripped: could not resolve "${src}" in virtual filesystem -->`;
     },
@@ -450,7 +523,9 @@ export function buildFallbackHtml(
     if (!entry) return undefined;
     const safePath = entry.path.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
     const typeAttr = entry.path.endsWith('.mjs') ? ' type="module"' : '';
-    return `<script${typeAttr} data-inlined="${safePath}">\n${entry.content}\n</script>`;
+    const safeContent =
+      entry.path.endsWith('.js') || entry.path.endsWith('.mjs') ? balanceAndCloseJs(entry.content) : entry.content;
+    return `<script${typeAttr} data-inlined="${safePath}">\n${safeContent}\n</script>`;
   };
 
   const dependencyScripts: string[] = [];

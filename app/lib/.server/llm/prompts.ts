@@ -360,11 +360,7 @@ system with something appropriate to the user's request.
 </examples>
 `;
 
-export const getSystemPrompt = (
-  cwd: string = WORK_DIR,
-  model?: string,
-  modelInfo?: ModelInfo,
-) => {
+export const getSystemPrompt = (cwd: string = WORK_DIR, model?: string, modelInfo?: ModelInfo) => {
   if (model && shouldUseSimplifiedPrompt(model, modelInfo)) {
     return getSimplifiedSystemPrompt(cwd);
   }
@@ -453,10 +449,12 @@ Before finishing, verify:
 `;
 
 export const CONTINUE_PROMPT = stripIndents`
-  Continue the response immediately from the exact point it stopped.
-  - If a file action was cut off mid-code, continue that exact file action immediately without repeating earlier lines, and close it with </boltAction>.
-  - Emit all remaining modular files needed for the complete game (e.g. mechanics, entity classes, levels/maps, visual juice, audio synthesis, game loop, styles).
-  - Ensure every function has matching closing braces, defensive math helper fallbacks, and zero syntax errors.
+  CRITICAL: Continue the response IMMEDIATELY from the exact character it stopped.
+  - DO NOT output any introductory text, greetings, apologies, or markdown explanations (NEVER say "Sure", "Continuing", "Here is the code", etc.).
+  - DO NOT output markdown code fences (\`\`\`).
+  - Output ONLY the raw missing code starting immediately from the cutoff point.
+  - Complete the file and close it cleanly with </boltAction>.
+  - Emit all remaining files required by the blueprint.
+  - Ensure every function, object, and argument list is syntactically closed.
   - When all files are emitted, close the project with </boltArtifact>.
-  - Do not restart the project, repeat already finished files, or use placeholders.
 `;

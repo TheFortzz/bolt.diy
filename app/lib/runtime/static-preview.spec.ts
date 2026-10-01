@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { injectStaticScripts, resolveStaticPreviewFile } from '~/lib/runtime/static-preview';
+import { balanceAndCloseJs, injectStaticScripts, resolveStaticPreviewFile } from '~/lib/runtime/static-preview';
 
 describe('static preview file resolution', () => {
   const files = [
@@ -48,5 +48,27 @@ describe('static preview script assembly', () => {
     const result = injectStaticScripts('<html></html>', [], ['<script data-inlined="game.js"></script>']);
 
     expect(result).toBe('<html></html>\n<script data-inlined="game.js"></script>');
+  });
+});
+
+describe('balanceAndCloseJs syntax healing', () => {
+  it('returns valid JavaScript untouched', () => {
+    const code = 'function init() { console.log("ready"); }';
+    expect(balanceAndCloseJs(code)).toBe(code);
+  });
+
+  it('heals truncated method arguments list cut off mid-call', () => {
+    const broken = 'function draw() {\n  ctx.strokeRect(-8, -8, 16';
+    const healed = balanceAndCloseJs(broken);
+
+    expect(() => new Function(healed)).not.toThrow();
+    expect(healed).toContain('ctx.strokeRect');
+  });
+
+  it('heals cut-off string literal and unclosed function braces', () => {
+    const broken = 'function welcome() {\n  const message = "welcome to the game';
+    const healed = balanceAndCloseJs(broken);
+
+    expect(() => new Function(healed)).not.toThrow();
   });
 });

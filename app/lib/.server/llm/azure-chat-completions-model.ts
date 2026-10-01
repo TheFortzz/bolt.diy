@@ -131,7 +131,7 @@ function createRequestBody(options: LanguageModelV1CallOptions, modelId: string,
     max_completion_tokens:
       typeof options.maxTokens === 'number' && Number.isFinite(options.maxTokens)
         ? Math.max(1, Math.floor(options.maxTokens))
-        : 16384,
+        : 32768,
   };
 
   if (/^gpt-6(?:-|$)/i.test(modelId)) {
