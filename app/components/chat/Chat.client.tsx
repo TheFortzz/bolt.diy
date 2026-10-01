@@ -161,6 +161,47 @@ export const ChatImpl = memo(
     const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
 
     const scrollToBottomRef = useRef<((smooth?: boolean) => void) | null>(null);
+    const historySaveTimerRef = useRef<ReturnType<typeof setTimeout>>();
+    const latestMessagesRef = useRef<Message[]>(initialMessages);
+    const storeMessageHistoryRef = useRef(storeMessageHistory);
+    storeMessageHistoryRef.current = storeMessageHistory;
+
+    const persistMessages = useCallback((nextMessages: Message[], immediate = false) => {
+      latestMessagesRef.current = nextMessages;
+
+      if (immediate) {
+        if (historySaveTimerRef.current) {
+          clearTimeout(historySaveTimerRef.current);
+          historySaveTimerRef.current = undefined;
+        }
+
+        return storeMessageHistoryRef.current(nextMessages);
+      }
+
+      if (!historySaveTimerRef.current) {
+        historySaveTimerRef.current = setTimeout(() => {
+          historySaveTimerRef.current = undefined;
+          void storeMessageHistoryRef
+            .current(latestMessagesRef.current)
+            .catch((error) => console.warn('Auto save error:', error));
+        }, 1000);
+      }
+
+      return Promise.resolve();
+    }, []);
+
+    useEffect(
+      () => () => {
+        if (historySaveTimerRef.current) {
+          clearTimeout(historySaveTimerRef.current);
+          historySaveTimerRef.current = undefined;
+          void storeMessageHistoryRef
+            .current(latestMessagesRef.current)
+            .catch((error) => console.warn('Final chat save error:', error));
+        }
+      },
+      [],
+    );
 
     const { messages, isLoading, input, handleInputChange, setInput, stop, append, setMessages } = useChat({
       api: '/api/chat',
@@ -169,6 +210,9 @@ export const ChatImpl = memo(
       },
       onError: (error) => {
         logger.error('Request failed\n\n', error);
+        void persistMessages(latestMessagesRef.current, true).catch((saveError) =>
+          console.warn('Error chat save failed:', saveError),
+        );
         validationState.set({ status: 'failed', detail: `AI request failed: ${error.message}` });
         workbenchStore.finishPendingActions();
 
@@ -191,7 +235,7 @@ export const ChatImpl = memo(
         const finalMessages = messages.some((entry) => entry.id === message.id)
           ? messages.map((entry) => (entry.id === message.id ? message : entry))
           : [...messages, message];
-        const historySave = storeMessageHistory(finalMessages);
+        const historySave = persistMessages(finalMessages, true);
         void historySave.catch((error) => console.warn('Final save error:', error));
 
         const content = typeof message?.content === 'string' ? message.content : '';
@@ -304,7 +348,10 @@ export const ChatImpl = memo(
             ...message,
             content: `${message.content}${errorNotice}`,
           };
-          void storeMessageHistory(messages.map((entry) => (entry.id === message.id ? updatedMessage : entry)));
+          void persistMessages(
+            messages.map((entry) => (entry.id === message.id ? updatedMessage : entry)),
+            true,
+          ).catch((error) => console.warn('Verification notice save error:', error));
 
           return;
         }
@@ -380,6 +427,7 @@ export const ChatImpl = memo(
       initialMessages,
       initialInput: Cookies.get(PROMPT_COOKIE_KEY) || '',
     });
+    latestMessagesRef.current = messages;
 
     const harnessWorkspaceIdRef = useRef<string>();
 
@@ -410,12 +458,15 @@ export const ChatImpl = memo(
       executionPolicy.registerHistory(
         initialMessages.filter((message) => message.role === 'assistant').map((message) => message.id),
       );
+    }, [initialMessages]);
+
+    useEffect(() => {
       parseMessages(messages, isLoading);
 
       if (messages.length > initialMessages.length) {
-        storeMessageHistory(messages).catch((error) => console.warn('Auto save error:', error));
+        void persistMessages(messages).catch((error) => console.warn('Auto save error:', error));
       }
-    }, [messages, isLoading, parseMessages]);
+    }, [messages, isLoading, parseMessages, persistMessages, initialMessages.length]);
 
     useEffect(() => {
       if (!initialMessages.length) {

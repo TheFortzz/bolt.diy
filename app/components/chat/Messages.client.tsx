@@ -1,5 +1,5 @@
 import type { Message } from 'ai';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { classNames } from '~/utils/classNames';
 import { AssistantMessage } from './AssistantMessage';
 import { UserMessage } from './UserMessage';
@@ -26,6 +26,34 @@ interface MessagesProps {
   onCancelPlan?: () => void;
 }
 
+interface ParsedBlueprintCardProps {
+  blueprint: unknown;
+  canApprove: boolean;
+  isApproving: boolean;
+  onApprove?: () => void;
+  onReject?: () => void;
+}
+
+const ParsedBlueprintCard = React.memo(
+  ({ blueprint, canApprove, isApproving, onApprove, onReject }: ParsedBlueprintCardProps) => {
+    const parsed = useMemo(() => blueprintSchema.safeParse(blueprint), [blueprint]);
+
+    if (!parsed.success) {
+      return null;
+    }
+
+    return (
+      <BlueprintCard
+        blueprint={parsed.data}
+        canApprove={canApprove}
+        isApproving={isApproving}
+        onApprove={onApprove}
+        onReject={onReject}
+      />
+    );
+  },
+);
+
 export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: MessagesProps, ref) => {
   const { id, isStreaming = false, messages = [] } = props;
   const location = useLocation();
@@ -37,6 +65,7 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const followingRef = useRef(true);
+  const scrollFrame = useRef<number>();
   const [showJump, setShowJump] = useState(false);
 
   const followLatest = useCallback(() => {
@@ -46,6 +75,31 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
       node.scrollTop = node.scrollHeight;
     }
   }, []);
+
+  const scheduleFollowLatest = useCallback(() => {
+    if (typeof requestAnimationFrame !== 'function') {
+      followLatest();
+      return;
+    }
+
+    if (scrollFrame.current !== undefined) {
+      return;
+    }
+
+    scrollFrame.current = requestAnimationFrame(() => {
+      scrollFrame.current = undefined;
+      followLatest();
+    });
+  }, [followLatest]);
+
+  useEffect(
+    () => () => {
+      if (scrollFrame.current !== undefined && typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(scrollFrame.current);
+      }
+    },
+    [],
+  );
 
   const setRefs = useCallback(
     (node: HTMLDivElement | null) => {
@@ -64,19 +118,19 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
   const lastMessageContent = lastMessage?.content;
 
   useEffect(() => {
-    followLatest();
-  }, [messages.length, lastMessageContent, isStreaming, followLatest]);
+    scheduleFollowLatest();
+  }, [messages.length, lastMessageContent, isStreaming, scheduleFollowLatest]);
 
   useEffect(() => {
     if (!contentRef.current || typeof ResizeObserver === 'undefined') {
       return undefined;
     }
 
-    const observer = new ResizeObserver(followLatest);
+    const observer = new ResizeObserver(scheduleFollowLatest);
     observer.observe(contentRef.current);
 
     return () => observer.disconnect();
-  }, [followLatest]);
+  }, [scheduleFollowLatest]);
 
   const handleRewind = (messageId: string) => {
     const searchParams = new URLSearchParams(location.search);
@@ -120,13 +174,22 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
               const isLast = index === messages.length - 1;
               const isInternalRepair =
                 isUserMessage && typeof content === 'string' && content.includes('[Internal Repair Prompt');
-              const isInternalBuild = message.annotations?.some((annotation) =>
-                typeof annotation === 'object' && annotation !== null && 'type' in annotation && annotation.type === 'harness-execution',
+              const isInternalBuild = message.annotations?.some(
+                (annotation) =>
+                  typeof annotation === 'object' &&
+                  annotation !== null &&
+                  'type' in annotation &&
+                  annotation.type === 'harness-execution',
               );
-              const rawPlan = message.annotations?.find((annotation) =>
-                typeof annotation === 'object' && annotation !== null && 'type' in annotation && annotation.type === 'studio-blueprint',
+              const rawPlan = message.annotations?.find(
+                (annotation) =>
+                  typeof annotation === 'object' &&
+                  annotation !== null &&
+                  'type' in annotation &&
+                  annotation.type === 'studio-blueprint',
               );
-              const planResult = blueprintSchema.safeParse(rawPlan && typeof rawPlan === 'object' && 'blueprint' in rawPlan ? rawPlan.blueprint : undefined);
+              const planBlueprint =
+                rawPlan && typeof rawPlan === 'object' && 'blueprint' in rawPlan ? rawPlan.blueprint : undefined;
 
               if (isInternalBuild) {
                 return null;
@@ -189,17 +252,23 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
                     ) : (
                       <>
                         <div className={styles.MessageMeta}>
-                            FortzAI{' '}
+                          FortzAI{' '}
                           <span className={styles.Badge}>{isStreaming && isLast ? 'Working' : 'Assistant'}</span>
                         </div>
-                          <AssistantMessage content={content} />
-                          {planResult.success && <BlueprintCard
-                            blueprint={planResult.data}
-                            canApprove={harness.phase === 'awaiting-approval' && harness.blueprintMessageId === messageId}
-                            isApproving={harness.phase === 'preparing-assets' && harness.blueprintMessageId === messageId}
+                        <AssistantMessage content={content} isStreaming={isStreaming && isLast} />
+                        {planBlueprint !== undefined && (
+                          <ParsedBlueprintCard
+                            blueprint={planBlueprint}
+                            canApprove={
+                              harness.phase === 'awaiting-approval' && harness.blueprintMessageId === messageId
+                            }
+                            isApproving={
+                              harness.phase === 'preparing-assets' && harness.blueprintMessageId === messageId
+                            }
                             onApprove={props.onApprovePlan}
                             onReject={props.onCancelPlan}
-                          />}
+                          />
+                        )}
                         <ActivityTimeline messageId={messageId} isStreaming={isStreaming && isLast} />
                         <div className={styles.MessageActions}>
                           <WithTooltip tooltip="Revert to this message">

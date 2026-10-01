@@ -1,5 +1,5 @@
 import type { Message } from 'ai';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StreamingMessageParser } from '~/lib/runtime/message-parser';
 import type { ActionCallbackData } from '~/lib/runtime/message-parser';
 import { workbenchStore } from '~/lib/stores/workbench';
@@ -37,7 +37,7 @@ function scheduleStreamAction(data: ActionCallbackData) {
   pendingStreamActions.set(streamActionKey(data.messageId, data.actionId), data);
 
   if (!streamFlushTimer) {
-    streamFlushTimer = setTimeout(flushPendingStreamActions, 120);
+    streamFlushTimer = setTimeout(flushPendingStreamActions, 250);
   }
 }
 
@@ -100,22 +100,105 @@ export function finalizeAssistantMessage(message: Message) {
 
 export function useMessageParser() {
   const [parsedMessages, setParsedMessages] = useState<{ [key: number]: string }>({});
+  const pendingParsedMessages = useRef<Record<number, string>>({});
+  const flushTimer = useRef<ReturnType<typeof setTimeout>>();
+  const pendingParse = useRef<{ messages: Message[]; isLoading: boolean }>();
+  const parseTimer = useRef<ReturnType<typeof setTimeout>>();
 
-  const parseMessages = useCallback((messages: Message[], _isLoading: boolean) => {
-    // Never replay completed file actions just because streaming stopped (or
-    // because React rendered again). The parser remembers each message offset.
-
-    for (const [index, message] of messages.entries()) {
-      if (message.role === 'assistant') {
-        const newParsedContent = messageParser.parse(message.id, message.content);
-
-        setParsedMessages((prevParsed) => ({
-          ...prevParsed,
-          [index]: (prevParsed[index] || '') + newParsedContent,
-        }));
-      }
+  const flushParsedMessages = useCallback(() => {
+    if (flushTimer.current) {
+      clearTimeout(flushTimer.current);
+      flushTimer.current = undefined;
     }
+
+    const updates = pendingParsedMessages.current;
+    const indices = Object.keys(updates);
+
+    if (indices.length === 0) {
+      return;
+    }
+
+    pendingParsedMessages.current = {};
+    setParsedMessages((previous) => {
+      const next = { ...previous };
+
+      for (const key of indices) {
+        const index = Number(key);
+        next[index] = `${previous[index] || ''}${updates[index]}`;
+      }
+
+      return next;
+    });
   }, []);
+
+  useEffect(
+    () => () => {
+      if (flushTimer.current) {
+        clearTimeout(flushTimer.current);
+      }
+      if (parseTimer.current) {
+        clearTimeout(parseTimer.current);
+      }
+    },
+    [],
+  );
+
+  const processMessages = useCallback(
+    (messages: Message[], isLoading: boolean) => {
+      // Never replay completed file actions just because streaming stopped (or
+      // because React rendered again). The parser remembers each message offset.
+
+      for (const [index, message] of messages.entries()) {
+        if (message.role === 'assistant') {
+          const newParsedContent = messageParser.parse(message.id, message.content);
+
+          if (newParsedContent) {
+            pendingParsedMessages.current[index] = `${pendingParsedMessages.current[index] || ''}${newParsedContent}`;
+
+            if (!flushTimer.current) {
+              flushTimer.current = setTimeout(flushParsedMessages, 50);
+            }
+          }
+        }
+      }
+
+      if (!isLoading) {
+        flushParsedMessages();
+      }
+    },
+    [flushParsedMessages],
+  );
+
+  const parseMessages = useCallback(
+    (messages: Message[], isLoading: boolean) => {
+      pendingParse.current = { messages, isLoading };
+
+      if (!isLoading) {
+        if (parseTimer.current) {
+          clearTimeout(parseTimer.current);
+          parseTimer.current = undefined;
+        }
+
+        pendingParse.current = undefined;
+        processMessages(messages, false);
+
+        return;
+      }
+
+      if (!parseTimer.current) {
+        parseTimer.current = setTimeout(() => {
+          parseTimer.current = undefined;
+          const pending = pendingParse.current;
+          pendingParse.current = undefined;
+
+          if (pending) {
+            processMessages(pending.messages, pending.isLoading);
+          }
+        }, 50);
+      }
+    },
+    [processMessages],
+  );
 
   return { parsedMessages, parseMessages };
 }
