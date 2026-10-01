@@ -27,6 +27,7 @@ User request → Manager blueprint → user approval → approved image generati
 
 - The default model and legacy `fortz-ai` alias resolve to the Azure `gpt-6-luna` deployment (GPT 6 Luna).
 - Managed Manager and Editor calls are pinned to the GPT 6 Luna/OpenAILike deployment and use Azure Chat Completions. They use a saved OpenAILike key when present, otherwise the server-side `OPENAI_LIKE_API_KEY`; the key and endpoint must belong to the same Azure resource.
+- GPT-6 Chat Completions calls use low reasoning effort to reduce latency for interactive planning and editing.
 - Set server-only `FORTZ_AI_DEPLOYMENT` only if your Luna deployment uses a different Azure identifier.
 - `FORTZ_AI_RESPONSES_URL` explicitly overrides the Azure v1 endpoint; otherwise it is derived from `OPENAI_LIKE_API_BASE_URL` (or the built-in Azure default). The app sends Chat Completions requests to the matching `/chat/completions` route.
 - Production harness requests also require server-only `FORTZ_HARNESS_SIGNING_KEY` (at least 32 characters).

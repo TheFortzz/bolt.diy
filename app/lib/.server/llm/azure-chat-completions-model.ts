@@ -134,8 +134,10 @@ function createRequestBody(options: LanguageModelV1CallOptions, modelId: string,
         : 16384,
   };
 
-  // GPT-6 reasoning deployments may reject sampling overrides.
-  if (!/^gpt-6(?:-|$)/i.test(modelId)) {
+  if (/^gpt-6(?:-|$)/i.test(modelId)) {
+    // Avoid GPT-6's default medium reasoning effort for this latency-sensitive studio workflow.
+    body.reasoning_effort = 'low';
+  } else {
     body.temperature = typeof options.temperature === 'number' ? options.temperature : 0.85;
   }
 

@@ -44,6 +44,7 @@ describe('Azure Chat Completions model adapter', () => {
       ],
       stream: false,
       max_completion_tokens: 64,
+      reasoning_effort: 'low',
     });
     expect(result.text).toBe('ok');
     expect(result.usage).toEqual({ promptTokens: 3, completionTokens: 1 });
