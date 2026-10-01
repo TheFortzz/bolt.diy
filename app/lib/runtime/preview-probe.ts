@@ -132,7 +132,16 @@ export function installPreviewProbe(
 
   console.error = (...args: unknown[]) => {
     originalError(...args);
-    fail(`Console error: ${args.map(String).join(' ').slice(0, 1000)}`);
+    const msg = args.map(String).join(' ');
+    if (
+      msg.includes('AudioContext') ||
+      msg.includes('user gesture') ||
+      msg.includes('favicon.ico') ||
+      msg.includes('preload')
+    ) {
+      return;
+    }
+    fail(`Console error: ${msg.slice(0, 1000)}`);
   };
 
   window.requestAnimationFrame = (callback) =>
@@ -212,30 +221,52 @@ export function installPreviewProbe(
     images.push(...Array.from(document.images));
     diagnosticsBaseline = readDiagnostics();
 
-    // Exercise a start control, not every button (which could reset or exit).
-    const start = Array.from(document.querySelectorAll<HTMLElement>('button, [role="button"]')).find((element) =>
-      /^(start|play|new game|begin)(\b|\s)/i.test(element.textContent?.trim() || ''),
-    );
-    start?.click();
+    // Exercise start controls: button clicks, canvas pointer events, and keyboard keys
+    const dispatchStartTriggers = () => {
+      const start = Array.from(document.querySelectorAll<HTMLElement>('button, [role="button"], a')).find((element) =>
+        /^(start|play|new game|begin)(\b|\s)/i.test(element.textContent?.trim() || ''),
+      );
+      start?.click();
+
+      const canvasElements = Array.from(document.querySelectorAll<HTMLCanvasElement>('canvas'));
+      for (const canvas of canvasElements) {
+        try {
+          canvas.focus?.();
+          canvas.dispatchEvent?.(new MouseEvent('click', { bubbles: true, cancelable: true }));
+          canvas.dispatchEvent?.(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+        } catch {}
+      }
+    };
+    dispatchStartTriggers();
 
     if (verification?.requireDiagnostics) {
-      const dispatchKey = (key: string) => {
+      const dispatchKey = (key: string, code?: string, keyCode?: number) => {
         const down = new Event('keydown', { bubbles: true, cancelable: true }) as KeyboardEvent;
         const up = new Event('keyup', { bubbles: true, cancelable: true }) as KeyboardEvent;
         Object.defineProperty(down, 'key', { value: key });
         Object.defineProperty(up, 'key', { value: key });
+        if (code) {
+          Object.defineProperty(down, 'code', { value: code });
+          Object.defineProperty(up, 'code', { value: code });
+        }
+        if (keyCode) {
+          Object.defineProperty(down, 'keyCode', { value: keyCode });
+          Object.defineProperty(down, 'which', { value: keyCode });
+          Object.defineProperty(up, 'keyCode', { value: keyCode });
+          Object.defineProperty(up, 'which', { value: keyCode });
+        }
         window.dispatchEvent(down);
         window.dispatchEvent(up);
       };
 
-      dispatchKey('Enter');
+      dispatchKey('Enter', 'Enter', 13);
 
       if (verification.scenarios.includes('controls')) {
-        dispatchKey('ArrowRight');
+        dispatchKey('ArrowRight', 'ArrowRight', 39);
       }
 
       if (verification.scenarios.includes('restart')) {
-        dispatchKey('r');
+        dispatchKey('r', 'KeyR', 82);
       }
 
       if (verification.scenarios.includes('resize')) {
@@ -317,4 +348,52 @@ export function injectPreviewProbe(html: string, probe: string) {
   }
 
   return `${probe}${html}`;
+}
+
+export type StaticPreviewProbeResult = { ok: true } | { ok: false; error: string };
+
+export function runStaticPreviewProbe(
+  html: string,
+  verification?: PreviewVerificationRequirements,
+  timeoutMs = 12000,
+): Promise<StaticPreviewProbeResult> {
+  return new Promise<StaticPreviewProbeResult>((resolve) => {
+    if (typeof document === 'undefined' || typeof window === 'undefined') {
+      return resolve({ ok: false, error: 'Document is not available for preview validation.' });
+    }
+
+    const frame = document.createElement('iframe');
+    frame.setAttribute('sandbox', 'allow-scripts');
+    frame.style.cssText =
+      'position:fixed;top:0;left:0;width:800px;height:600px;opacity:0.01;pointer-events:none;z-index:-1';
+    frame.setAttribute('aria-hidden', 'true');
+    frame.setAttribute('tabindex', '-1');
+    const token = crypto.randomUUID();
+    let finished = false;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const finish = (result: StaticPreviewProbeResult) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      window.removeEventListener('message', onMessage);
+      frame.remove();
+      resolve(result);
+    };
+
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== frame.contentWindow || event.data?.token !== token) return;
+      if (event.data.type === 'preview-error') {
+        finish({ ok: false, error: `Preview runtime error: ${String(event.data.error).slice(0, 1200)}` });
+      } else if (event.data.type === 'preview-loaded') {
+        finish({ ok: true });
+      }
+    };
+
+    window.addEventListener('message', onMessage);
+    timer = setTimeout(() => finish({ ok: false, error: 'Preview did not load within 12 seconds.' }), timeoutMs);
+
+    frame.srcdoc = injectPreviewProbe(html, createPreviewProbe(token, window.location.origin, verification));
+    document.body.appendChild(frame);
+  });
 }

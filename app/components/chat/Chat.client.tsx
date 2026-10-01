@@ -497,7 +497,7 @@ export const ChatImpl = memo(
     useEffect(() => {
       parseMessages(messages, isLoading);
 
-      if (messages.length > initialMessages.length) {
+      if (!isLoading && messages.length > initialMessages.length) {
         void persistMessages(messages).catch((error) => console.warn('Auto save error:', error));
       }
     }, [messages, isLoading, parseMessages, persistMessages, initialMessages.length]);

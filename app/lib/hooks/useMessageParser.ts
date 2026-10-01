@@ -175,7 +175,7 @@ export function useMessageParser() {
             pendingParsedMessages.current[index] = `${pendingParsedMessages.current[index] || ''}${newParsedContent}`;
 
             if (!flushTimer.current) {
-              flushTimer.current = setTimeout(flushParsedMessages, 50);
+              flushTimer.current = setTimeout(flushParsedMessages, 100);
             }
           }
         }
@@ -213,7 +213,7 @@ export function useMessageParser() {
           if (pending) {
             processMessages(pending.messages, pending.isLoading);
           }
-        }, 50);
+        }, 100);
       }
     },
     [processMessages],

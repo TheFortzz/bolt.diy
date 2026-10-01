@@ -69,6 +69,7 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
   const scrollFrame = useRef<number>();
   const [showJump, setShowJump] = useState(false);
 
+  const lastFollowTime = useRef(0);
   const followLatest = useCallback(() => {
     const node = containerRef.current;
 
@@ -77,21 +78,28 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
     }
   }, []);
 
-  const scheduleFollowLatest = useCallback(() => {
-    if (typeof requestAnimationFrame !== 'function') {
-      followLatest();
-      return;
-    }
+  const scheduleFollowLatest = useCallback(
+    (force = false) => {
+      if (typeof requestAnimationFrame !== 'function') {
+        followLatest();
+        return;
+      }
 
-    if (scrollFrame.current !== undefined) {
-      return;
-    }
+      if (scrollFrame.current !== undefined) {
+        return;
+      }
 
-    scrollFrame.current = requestAnimationFrame(() => {
-      scrollFrame.current = undefined;
-      followLatest();
-    });
-  }, [followLatest]);
+      scrollFrame.current = requestAnimationFrame(() => {
+        scrollFrame.current = undefined;
+        const now = performance.now();
+        if (force || now - lastFollowTime.current >= 80) {
+          lastFollowTime.current = now;
+          followLatest();
+        }
+      });
+    },
+    [followLatest],
+  );
 
   useEffect(
     () => () => {
@@ -119,7 +127,11 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
   const lastMessageContent = lastMessage?.content;
 
   useEffect(() => {
-    scheduleFollowLatest();
+    if (!isStreaming) {
+      scheduleFollowLatest(true);
+    } else {
+      scheduleFollowLatest(false);
+    }
   }, [messages.length, lastMessageContent, isStreaming, scheduleFollowLatest]);
 
   useEffect(() => {
@@ -127,7 +139,7 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
       return undefined;
     }
 
-    const observer = new ResizeObserver(scheduleFollowLatest);
+    const observer = new ResizeObserver(() => scheduleFollowLatest(false));
     observer.observe(contentRef.current);
 
     return () => observer.disconnect();

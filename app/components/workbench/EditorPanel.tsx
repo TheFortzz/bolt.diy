@@ -163,9 +163,7 @@ const ImageViewer = memo(({ filePath }: ImageViewerProps) => {
           >
             <div className="i-ph:magnifying-glass-minus text-sm" />
           </button>
-          <span className="font-mono text-xs w-12 text-center text-slate-300">
-            {Math.round(zoom * 100)}%
-          </span>
+          <span className="font-mono text-xs w-12 text-center text-slate-300">{Math.round(zoom * 100)}%</span>
           <button
             type="button"
             onClick={() => setZoom((z) => Math.min(4, Number((z + 0.25).toFixed(2))))}
@@ -209,8 +207,7 @@ const ImageViewer = memo(({ filePath }: ImageViewerProps) => {
           <div
             className="rounded-lg shadow-2xl p-4 border border-slate-700/60 transition-transform duration-100 ease-out flex items-center justify-center max-w-[90%] max-h-[85%]"
             style={{
-              backgroundImage:
-                'repeating-conic-gradient(#1e293b 0% 25%, #0f172a 0% 50%)',
+              backgroundImage: 'repeating-conic-gradient(#1e293b 0% 25%, #0f172a 0% 50%)',
               backgroundSize: '20px 20px',
               transform: `scale(${zoom})`,
               transformOrigin: 'center center',
@@ -276,20 +273,24 @@ export const EditorPanel = memo(
     const diffKey = `${editorDocument?.filePath ?? ''}:${editorDocument?.aiEditMessageId ?? ''}`;
 
     const hasDiff = Boolean(
-      editorDocument?.originalContent !== undefined &&
-      editorDocument.originalContent !== editorDocument.value,
+      editorDocument?.originalContent !== undefined && editorDocument.originalContent !== editorDocument.value,
     );
-    const diffTooLarge = hasDiff &&
-      (editorDocument!.originalContent!.length + editorDocument!.value.length > MAX_LIVE_DIFF_LENGTH);
-    const showDiff = Boolean(hasDiff && !diffTooLarge &&
-      (manualMode?.key === diffKey ? manualMode.value === 'diff' : editorDocument?.aiEditMessageId && !editorDocument.aiCreated));
+    const diffTooLarge =
+      hasDiff && editorDocument!.originalContent!.length + editorDocument!.value.length > MAX_LIVE_DIFF_LENGTH;
+    const showDiff = Boolean(
+      hasDiff &&
+        !diffTooLarge &&
+        (manualMode?.key === diffKey
+          ? manualMode.value === 'diff'
+          : editorDocument?.aiEditMessageId && !editorDocument.aiCreated),
+    );
 
     const diffStats = useMemo(() => {
-      if (!hasDiff || diffTooLarge || editorDocument?.originalContent === undefined) return undefined;
+      if (!hasDiff || diffTooLarge || editorDocument?.originalContent === undefined || !showDiff) return undefined;
       return followStream
         ? computeStreamingDiffDocument(editorDocument.originalContent, editorDocument.value)
         : computeDiffDocument(editorDocument.originalContent, editorDocument.value);
-    }, [hasDiff, diffTooLarge, followStream, editorDocument?.originalContent, editorDocument?.value]);
+    }, [hasDiff, diffTooLarge, showDiff, followStream, editorDocument?.originalContent, editorDocument?.value]);
 
     const handleAddFile = async () => {
       const folder = parentFolderOf(selectedFile);
@@ -434,7 +435,10 @@ export const EditorPanel = memo(
                         </div>
                       )}
                       {!isImage && diffTooLarge && (
-                        <span className="ml-auto mr-2 text-xs text-bolt-elements-textSecondary" title="Large file: showing code to keep the editor responsive">
+                        <span
+                          className="ml-auto mr-2 text-xs text-bolt-elements-textSecondary"
+                          title="Large file: showing code to keep the editor responsive"
+                        >
                           Diff unavailable for large file
                         </span>
                       )}
