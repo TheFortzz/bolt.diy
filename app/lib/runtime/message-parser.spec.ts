@@ -202,6 +202,79 @@ describe('StreamingMessageParser', () => {
       runTest(input, expected);
     });
   });
+
+  describe('finalize', () => {
+    it('should close unclosed action and artifact on finalize', () => {
+      const onArtifactOpen = vi.fn();
+      const onArtifactClose = vi.fn();
+      const onActionOpen = vi.fn();
+      const onActionClose = vi.fn();
+
+      const parser = new StreamingMessageParser({
+        callbacks: {
+          onArtifactOpen,
+          onArtifactClose,
+          onActionOpen,
+          onActionClose,
+        },
+      });
+
+      const message =
+        '<boltArtifact id="test" title="Test"><boltAction type="file" filePath="index.js">console.log("hello");';
+      parser.parse('msg_1', message);
+
+      expect(onArtifactOpen).toHaveBeenCalledTimes(1);
+      expect(onActionOpen).toHaveBeenCalledTimes(1);
+      expect(onActionClose).toHaveBeenCalledTimes(0);
+      expect(onArtifactClose).toHaveBeenCalledTimes(0);
+
+      parser.finalize('msg_1', message);
+
+      expect(onActionClose).toHaveBeenCalledTimes(1);
+      expect(onActionClose).toHaveBeenCalledWith({
+        artifactId: 'test',
+        messageId: 'msg_1',
+        actionId: '0',
+        action: {
+          type: 'file',
+          filePath: 'index.js',
+          content: 'console.log("hello");\n',
+        },
+      });
+
+      expect(onArtifactClose).toHaveBeenCalledTimes(1);
+      expect(onArtifactClose).toHaveBeenCalledWith({
+        id: 'test',
+        title: 'Test',
+        type: 'bundled',
+        messageId: 'msg_1',
+      });
+    });
+
+    it('should do nothing if artifact is already closed', () => {
+      const onArtifactClose = vi.fn();
+      const onActionClose = vi.fn();
+
+      const parser = new StreamingMessageParser({
+        callbacks: {
+          onArtifactClose,
+          onActionClose,
+        },
+      });
+
+      const message =
+        '<boltArtifact id="test" title="Test"><boltAction type="shell">echo 1</boltAction></boltArtifact>';
+      parser.parse('msg_1', message);
+
+      expect(onArtifactClose).toHaveBeenCalledTimes(1);
+      expect(onActionClose).toHaveBeenCalledTimes(1);
+
+      parser.finalize('msg_1', message);
+
+      expect(onArtifactClose).toHaveBeenCalledTimes(1);
+      expect(onActionClose).toHaveBeenCalledTimes(1);
+    });
+  });
 });
 
 function runTest(input: string | string[], outputOrExpectedResult: string | ExpectedResult) {

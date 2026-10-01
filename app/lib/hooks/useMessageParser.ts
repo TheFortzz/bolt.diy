@@ -95,6 +95,7 @@ const messageParser = new StreamingMessageParser({
 export function finalizeAssistantMessage(message: Message) {
   if (typeof message.content === 'string') {
     messageParser.parse(message.id, message.content);
+    messageParser.finalize(message.id, message.content);
   }
 }
 

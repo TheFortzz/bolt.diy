@@ -5,6 +5,9 @@ export default class SwitchableStream extends TransformStream {
   private _isSwitchPending = false;
   private _closed = false;
   private _idleTimeout: ReturnType<typeof setTimeout> | null = null;
+  private _textDecoder = new TextDecoder();
+  private _textEncoder = new TextEncoder();
+  private _lineBuffer = '';
 
   constructor() {
     let controllerRef: TransformStreamDefaultController | undefined;
@@ -67,7 +70,25 @@ export default class SwitchableStream extends TransformStream {
           break;
         }
 
-        this._controller.enqueue(value);
+        const chunkText = this._textDecoder.decode(value, { stream: true });
+        this._lineBuffer += chunkText;
+
+        const lines = this._lineBuffer.split('\n');
+        this._lineBuffer = lines.pop() ?? '';
+
+        let passThrough = '';
+        for (const line of lines) {
+          // Suppress finish_message ('d:') and finish_step ('e:') so the AI SDK client
+          // does not finalize the assistant message prematurely between continuation segments.
+          if (line.startsWith('d:') || line.startsWith('e:')) {
+            continue;
+          }
+          passThrough += line + '\n';
+        }
+
+        if (passThrough.length > 0) {
+          this._controller.enqueue(this._textEncoder.encode(passThrough));
+        }
       }
 
       // If no switch is pending, give onFinish enough time to inspect the text and decide
@@ -110,7 +131,18 @@ export default class SwitchableStream extends TransformStream {
     }
 
     try {
-      this._controller?.terminate();
+      if (this._controller) {
+        const remaining = this._lineBuffer + this._textDecoder.decode();
+        this._lineBuffer = '';
+        if (remaining && !remaining.startsWith('d:') && !remaining.startsWith('e:')) {
+          this._controller.enqueue(this._textEncoder.encode(remaining.endsWith('\n') ? remaining : remaining + '\n'));
+        }
+
+        this._controller.enqueue(
+          this._textEncoder.encode('e:{"finishReason":"stop","isContinued":false}\nd:{"finishReason":"stop"}\n'),
+        );
+        this._controller.terminate();
+      }
     } catch {
       // ignore if already terminated
     }

@@ -1,13 +1,12 @@
 import { type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { CONTINUE_PROMPT } from '~/lib/.server/llm/prompts';
+import { MAX_RESPONSE_SEGMENTS } from '~/lib/.server/llm/constants';
 import { streamText, type Messages, type StreamingOptions } from '~/lib/.server/llm/stream-text';
 import SwitchableStream from '~/lib/.server/llm/switchable-stream';
 import type { IProviderSetting } from '~/types/model';
 import { z } from 'zod';
 import { blueprintSchema, type Blueprint } from '~/lib/harness/blueprint';
 import { getHarnessSecret, requireSameOrigin, verifyCapability } from '~/lib/.server/harness/capabilities';
-
-const MAX_RESPONSE_SEGMENTS = 8;
 
 export async function action(args: ActionFunctionArgs) {
   return chatAction(args);
@@ -117,10 +116,16 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
             return stream.close();
           }
 
-          const hasUnclosedArtifact = fullContent.includes('<boltArtifact') && !fullContent.includes('</boltArtifact>');
+          const normalized = fullContent
+            .replace(/\[boltArtifact(\s[^\]]*?)?\]/gi, (_, attrs = '') => `<boltArtifact${attrs}>`)
+            .replace(/\[boltAction(\s[^\]]*?)?\]/gi, (_, attrs = '') => `<boltAction${attrs}>`)
+            .replace(/\[\/boltArtifact\]/gi, '</boltArtifact>')
+            .replace(/\[\/boltAction\]/gi, '</boltAction>');
+
+          const hasUnclosedArtifact = normalized.includes('<boltArtifact') && !normalized.includes('</boltArtifact>');
           const hasUnclosedAction =
-            fullContent.includes('<boltAction') &&
-            fullContent.lastIndexOf('<boltAction') > fullContent.lastIndexOf('</boltAction>');
+            normalized.includes('<boltAction') &&
+            normalized.lastIndexOf('<boltAction') > normalized.lastIndexOf('</boltAction>');
           const shouldContinue = finishReason === 'length' || hasUnclosedArtifact || hasUnclosedAction;
 
           if (!shouldContinue || !content || content.trim().length === 0) {

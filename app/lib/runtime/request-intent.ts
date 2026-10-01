@@ -35,11 +35,7 @@ export function shouldUseBuildPlanner(request: string, mode: StudioAgentMode = '
 
   const afterGreeting = text.replace(/^(?:hi|hello|hey|yo)[,!\s]+/i, '').trim();
 
-  if (
-    DIRECT_ACTION.test(text) ||
-    DIRECT_ACTION.test(afterGreeting) ||
-    REQUESTED_FIRST_PERSON_ACTION.test(text)
-  ) {
+  if (DIRECT_ACTION.test(text) || DIRECT_ACTION.test(afterGreeting) || REQUESTED_FIRST_PERSON_ACTION.test(text)) {
     return true;
   }
 
