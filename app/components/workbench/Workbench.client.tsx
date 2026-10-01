@@ -95,8 +95,8 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
   const files = useStore(workbenchStore.files);
   const selectedView = useStore(workbenchStore.currentView);
   const [mountedViews, setMountedViews] = useState<Record<WorkbenchViewType, boolean>>(() => ({
-    code: selectedView === 'code',
-    preview: selectedView === 'preview',
+    code: true,
+    preview: true,
   }));
   const validation = useStore(validationState);
   const activeChatId = useStore(chatId);

@@ -6,7 +6,7 @@ import { useStore } from '@nanostores/react';
 import type { Message } from 'ai';
 import { useChat } from 'ai/react';
 import { useAnimate } from 'framer-motion';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { cssTransition, toast, ToastContainer } from 'react-toastify';
 import { useMessageParser, usePromptEnhancer, useShortcuts, useSnapScroll } from '~/lib/hooks';
 import { chatId, dbPromise, description, useChatHistory } from '~/lib/persistence';
@@ -699,6 +699,29 @@ export const ChatImpl = memo(
       Cookies.set('selectedProvider', newProvider.name, { expires: 30 });
     };
 
+    const displayMessages = useMemo(() => {
+      return messages.map((message, i) => {
+        if (message.role === 'user') {
+          return message;
+        }
+
+        const parsed = parsedMessages[i];
+
+        // While streaming, keep showing prior parsed content rather than flashing empty/raw dumps.
+        const content =
+          typeof parsed === 'string' && parsed.length > 0
+            ? parsed
+            : typeof message.content === 'string' && !message.content.includes('<boltArtifact')
+              ? message.content
+              : parsed || '';
+
+        return {
+          ...message,
+          content,
+        };
+      });
+    }, [messages, parsedMessages]);
+
     return (
       <BaseChat
         ref={animationScope}
@@ -725,26 +748,7 @@ export const ChatImpl = memo(
         description={description}
         importChat={importChat}
         exportChat={exportChat}
-        messages={messages.map((message, i) => {
-          if (message.role === 'user') {
-            return message;
-          }
-
-          const parsed = parsedMessages[i];
-
-          // While streaming, keep showing prior parsed content rather than flashing empty/raw dumps.
-          const content =
-            typeof parsed === 'string' && parsed.length > 0
-              ? parsed
-              : typeof message.content === 'string' && !message.content.includes('<boltArtifact')
-                ? message.content
-                : parsed || '';
-
-          return {
-            ...message,
-            content,
-          };
-        })}
+        messages={displayMessages}
         enhancePrompt={() => {
           enhancePrompt(
             input,

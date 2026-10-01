@@ -26,6 +26,8 @@
   border-radius: 100%;
   mix-blend-mode: screen;
   opacity: 0.35;
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 .ray1 {

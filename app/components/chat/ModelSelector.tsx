@@ -74,7 +74,7 @@ export const ModelSelector = ({
     updateProvidersFromCookies();
 
     // Set up an interval to check for cookie changes
-    const interval = setInterval(updateProvidersFromCookies, 1000);
+    const interval = setInterval(updateProvidersFromCookies, 10000);
 
     return () => clearInterval(interval);
   }, [providerList, provider, setProvider, modelList, setModel]);
@@ -85,9 +85,7 @@ export const ModelSelector = ({
         style={{ borderRadius: 0 }}
         className="mb-1.5 p-2 border border-purple-500/40 bg-[#130b22] text-purple-200 text-xs"
       >
-        <p className="text-center">
-          No AI providers enabled. Click the gear icon to configure providers or API keys.
-        </p>
+        <p className="text-center">No AI providers enabled. Click the gear icon to configure providers or API keys.</p>
       </div>
     );
   }
@@ -127,9 +125,7 @@ export const ModelSelector = ({
         </select>
       </div>
       <div className="flex items-center gap-1.5 flex-1 min-w-0 w-full">
-        <span className="text-[10.5px] font-bold text-purple-300 uppercase tracking-wider flex-shrink-0">
-          Model:
-        </span>
+        <span className="text-[10.5px] font-bold text-purple-300 uppercase tracking-wider flex-shrink-0">Model:</span>
         <select
           key={provider?.name}
           value={model}
