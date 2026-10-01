@@ -15,7 +15,7 @@ import { ActivityTimeline } from './ActivityTimeline';
 import styles from '~/components/chat/ChatExperience.module.scss';
 import { BlueprintCard } from '~/components/chat/BlueprintCard';
 import { blueprintSchema } from '~/lib/harness/blueprint';
-import { harnessState } from '~/lib/stores/harness';
+import { harnessIsBusy, harnessState } from '~/lib/stores/harness';
 
 interface MessagesProps {
   id?: string;
@@ -59,6 +59,7 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
   const location = useLocation();
   const auth = useStore(authStore);
   const harness = useStore(harnessState);
+  const isHarnessBusy = harnessIsBusy(harness.phase);
   const rawUserPhoto = auth.user?.prefs?.photoURL || auth.user?.photoURL;
   const userPhoto = normalizeAvatarUrl(rawUserPhoto);
 
@@ -306,13 +307,29 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
               );
             })
           : null}
-        {isStreaming && messages[messages.length - 1]?.role === 'user' && (
-          <div className={styles.Turn}>
+        {(isStreaming || isHarnessBusy) && messages[messages.length - 1]?.role === 'user' && (
+          <div className={classNames(styles.Turn, styles.WorkingTurn)}>
             <div className={classNames(styles.Avatar, styles.AgentAvatar)} aria-hidden="true">
-              <span className="i-ph:sparkle-fill" />
+              <span className="i-svg-spinners:90-ring-with-bg" />
             </div>
             <div className={styles.MessageBody}>
-              <ActivityTimeline isStreaming />
+              <div className={styles.MessageMeta}>
+                FortzAI <span className={styles.Badge}>Working</span>
+              </div>
+              <div className={styles.ThinkingCard} role="status" aria-live="polite">
+                <span className={styles.ThinkingGlow} aria-hidden="true" />
+                <div className="min-w-0 flex-1">
+                  <div className={styles.ThinkingTitle}>
+                    {isHarnessBusy ? harness.detail || 'Planning your game…' : 'Thinking through your message…'}
+                  </div>
+                  <div className={styles.ThinkingSubtitle}>Your workspace stays safe while I work.</div>
+                  <div className={styles.ThinkingBars} aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}

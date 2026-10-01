@@ -39,6 +39,7 @@ import { finalizeAssistantMessage } from '~/lib/hooks/useMessageParser';
 import { validationState } from '~/lib/runtime/build-validator';
 import { verifyGameBuild } from '~/lib/runtime/game-build-pipeline';
 import { useCognitiveHarness } from '~/lib/hooks/useCognitiveHarness';
+import { shouldUseBuildPlanner } from '~/lib/runtime/request-intent';
 import { executionPolicy } from '~/lib/harness/execution-policy';
 import { harnessIsBusy, harnessState, transitionHarness } from '~/lib/stores/harness';
 
@@ -229,20 +230,53 @@ export const ChatImpl = memo(
       },
       onFinish: async (message) => {
         logger.debug('Finished streaming');
-        finalizeAssistantMessage(message);
+        const activeHarness = harnessState.get();
+        const managedBlueprint = activeHarness.phase === 'editing' ? activeHarness.blueprint : undefined;
+        const lastUserMessage = [...messages].reverse().find((entry) => entry.role === 'user');
+        const hasChatOnlyAnnotation =
+          message.annotations?.some(
+            (annotation: any) =>
+              typeof annotation === 'object' &&
+              annotation !== null &&
+              'type' in annotation &&
+              annotation.type === 'studio-chat-only',
+          ) ||
+          lastUserMessage?.annotations?.some(
+            (annotation: any) =>
+              typeof annotation === 'object' &&
+              annotation !== null &&
+              'type' in annotation &&
+              annotation.type === 'studio-chat-only',
+          );
+        const mode = managedBlueprint ? 'build' : lastAgentModeRef.current;
+        const isConversationOnly = mode === 'chat' || Boolean(hasChatOnlyAnnotation);
+        const completedMessage = isConversationOnly
+          ? {
+              ...message,
+              annotations: [...(message.annotations || []), { type: 'studio-chat-only' }],
+            }
+          : message;
+
+        if (!isConversationOnly) {
+          finalizeAssistantMessage(completedMessage);
+        }
         scrollToBottomRef.current?.(true);
 
         const finalMessages = messages.some((entry) => entry.id === message.id)
-          ? messages.map((entry) => (entry.id === message.id ? message : entry))
-          : [...messages, message];
+          ? messages.map((entry) => (entry.id === message.id ? completedMessage : entry))
+          : [...messages, completedMessage];
         const historySave = persistMessages(finalMessages, true);
         void historySave.catch((error) => console.warn('Final save error:', error));
 
-        const content = typeof message?.content === 'string' ? message.content : '';
+        if (isConversationOnly) {
+          setMessages((previous) => previous.map((entry) => (entry.id === message.id ? completedMessage : entry)));
+          workbenchStore.finishPendingActions();
+
+          return;
+        }
+
+        const content = typeof completedMessage.content === 'string' ? completedMessage.content : '';
         const builtFiles = content.includes('boltArtifact') || content.includes('boltAction');
-        const activeHarness = harnessState.get();
-        const managedBlueprint = activeHarness.phase === 'editing' ? activeHarness.blueprint : undefined;
-        const mode = managedBlueprint ? 'build' : lastAgentModeRef.current;
 
         if (managedBlueprint) {
           transitionHarness('verifying', { detail: 'Checking the approved build…' });
@@ -564,7 +598,8 @@ export const ChatImpl = memo(
 
       lastUserPromptRef.current = _input;
       repairAttemptsRef.current = 0;
-      lastAgentModeRef.current = agentMode;
+      const shouldPlan = shouldUseBuildPlanner(_input, agentMode);
+      lastAgentModeRef.current = shouldPlan ? agentMode : 'chat';
 
       const auth = authStore.get();
 
@@ -580,13 +615,33 @@ export const ChatImpl = memo(
         return;
       }
 
-      const fileModifications = workbenchStore.getFileModifcations();
       chatStore.setKey('aborted', false);
       void runAnimation();
-      void requestPlan(_input, imageDataList);
 
-      if (fileModifications !== undefined) {
-        workbenchStore.resetAllFileModifications();
+      if (shouldPlan) {
+        const fileModifications = workbenchStore.getFileModifcations();
+        void requestPlan(_input, imageDataList);
+
+        if (fileModifications !== undefined) {
+          workbenchStore.resetAllFileModifications();
+        }
+      } else {
+        const conversationalMessage: Message = {
+          id: crypto.randomUUID(),
+          role: 'user',
+          content: _input,
+          annotations: [{ type: 'studio-chat-only' }],
+          ...(imageDataList.length
+            ? {
+                experimental_attachments: imageDataList.map((url) => ({
+                  url,
+                  contentType: /^data:(image\/[^;]+);/i.exec(url)?.[1] || 'image/png',
+                })),
+              }
+            : {}),
+        };
+
+        void append(conversationalMessage, { body: { chatOnly: true } });
       }
 
       setInput('');

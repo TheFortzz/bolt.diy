@@ -1,10 +1,9 @@
 import type { Message } from 'ai';
 import { useStore } from '@nanostores/react';
-import React, { type RefCallback, useEffect, useState } from 'react';
+import React, { lazy, Suspense, type RefCallback, useEffect, useState } from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
 import { Menu } from '~/components/sidebar/Menu.client';
 import { IconButton } from '~/components/ui/IconButton';
-import { Workbench } from '~/components/workbench/Workbench.client';
 import { classNames } from '~/utils/classNames';
 import { MODEL_LIST, PROVIDER_LIST, initializeModelList, type StudioAgentMode } from '~/utils/constants';
 import { Messages } from './Messages.client';
@@ -33,6 +32,10 @@ import type { IProviderSetting, ProviderInfo } from '~/types/model';
 import { validationState } from '~/lib/runtime/build-validator';
 import { harnessState, harnessIsBusy } from '~/lib/stores/harness';
 import { DEFAULT_MODEL_LABEL } from '~/utils/constants';
+
+const Workbench = lazy(() =>
+  import('~/components/workbench/Workbench.client').then((module) => ({ default: module.Workbench })),
+);
 
 const TEXTAREA_MIN_HEIGHT = 70;
 
@@ -775,7 +778,22 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
             </div>
           </div>
           <ClientOnly>
-            {() => <Workbench chatStarted={chatStarted || showWorkbench} isStreaming={isStreaming} />}
+            {() =>
+              showWorkbench ? (
+                <Suspense
+                  fallback={
+                    <div className={styles.WorkspaceLoading} role="status" aria-live="polite">
+                      <div className="grid h-12 w-12 place-items-center rounded-2xl border border-blue-200 bg-white/80 text-blue-600 shadow-sm">
+                        <span className="i-svg-spinners:90-ring-with-bg text-2xl" aria-hidden="true" />
+                      </div>
+                      <span>Opening your workspace…</span>
+                    </div>
+                  }
+                >
+                  <Workbench chatStarted={chatStarted} isStreaming={isStreaming} />
+                </Suspense>
+              ) : null
+            }
           </ClientOnly>
         </div>
         <AppwriteAuthModal />

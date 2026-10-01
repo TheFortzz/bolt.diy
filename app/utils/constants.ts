@@ -8,12 +8,12 @@ export const WORK_DIR = `/home/${WORK_DIR_NAME}`;
 export const MODIFICATIONS_TAG_NAME = 'bolt_file_modifications';
 export const MODEL_REGEX = /^\[Model: (.*?)\]\n\n/;
 export const PROVIDER_REGEX = /\[Provider: (.*?)\]\n\n/;
-export const STUDIO_MODE_REGEX = /\[Studio Mode: (PLAN|BUILD|AUTO)\]\n?/i;
+export const STUDIO_MODE_REGEX = /\[Studio Mode: (PLAN|BUILD|AUTO|CHAT)\]\n?/i;
 export const DEFAULT_MODEL = 'gpt-6-luna';
 export const DEFAULT_MODEL_LABEL = 'GPT 6 Luna';
 export const PROMPT_COOKIE_KEY = 'cachedPrompt';
 
-export type StudioAgentMode = 'plan' | 'build' | 'auto';
+export type StudioAgentMode = 'plan' | 'build' | 'auto' | 'chat';
 
 export const STUDIO_MODE_INSTRUCTIONS: Record<StudioAgentMode, string> = {
   plan: [
@@ -36,6 +36,11 @@ export const STUDIO_MODE_INSTRUCTIONS: Record<StudioAgentMode, string> = {
     "Analyze the user's prompt first and freely invent an original, creative, and immersive game concept tailored to their request.",
     'Focus on deep, satisfying gameplay mechanics, polished controls, clean visuals, dynamic particles, and responsive procedural Web Audio.',
     'Architect clean modular files directly in the root directory. Ensure immediate playability and zero runtime errors.',
+  ].join(' '),
+  chat: [
+    'STUDIO MODE = CHAT (ordinary conversation only).',
+    'Answer greetings and questions directly, clearly, and concisely.',
+    'Do not make a build plan, ask for approval, emit file actions, or claim to change the workspace.',
   ].join(' '),
 };
 

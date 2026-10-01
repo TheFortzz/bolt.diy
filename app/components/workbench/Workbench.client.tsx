@@ -1,7 +1,7 @@
 import { useStore } from '@nanostores/react';
 import { motion, type HTMLMotionProps, type Variants } from 'framer-motion';
 import { computed } from 'nanostores';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, memo, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import {
   type OnChangeCallback as OnEditorChange,
@@ -14,21 +14,28 @@ import { workbenchStore, type WorkbenchViewType } from '~/lib/stores/workbench';
 import { classNames } from '~/utils/classNames';
 import { cubicEasingFn } from '~/utils/easings';
 import { renderLogger } from '~/utils/logger';
-import { EditorPanel } from './EditorPanel';
-import { Preview } from './Preview';
 import useViewport from '~/lib/hooks';
 import Cookies from 'js-cookie';
 import { validationState } from '~/lib/runtime/build-validator';
-import { applyProjectSnapshot, captureProject, checkpointBusy, latestCheckpoint, refreshLatestCheckpoint, restoreCheckpoint } from '~/lib/persistence/checkpoints';
+import {
+  applyProjectSnapshot,
+  captureProject,
+  checkpointBusy,
+  latestCheckpoint,
+  refreshLatestCheckpoint,
+  restoreCheckpoint,
+} from '~/lib/persistence/checkpoints';
 import { chatId, dbPromise, getMessages, setMessages } from '~/lib/persistence';
 import { getWebContainer } from '~/lib/webcontainer';
 import { startActivity, updateActivity } from '~/lib/stores/activity';
+
+const EditorPanel = lazy(() => import('./EditorPanel').then((module) => ({ default: module.EditorPanel })));
+const Preview = lazy(() => import('./Preview').then((module) => ({ default: module.Preview })));
 
 interface WorkspaceProps {
   chatStarted?: boolean;
   isStreaming?: boolean;
 }
-
 
 const sliderOptions: SliderOptions<WorkbenchViewType> = {
   left: {
@@ -40,6 +47,19 @@ const sliderOptions: SliderOptions<WorkbenchViewType> = {
     text: 'Preview',
   },
 };
+
+function WorkspacePanelLoader({ label }: { label: string }) {
+  return (
+    <div
+      className="grid h-full w-full place-content-center justify-items-center gap-3 bg-gradient-to-br from-blue-50 via-white to-violet-50 text-sm font-medium text-slate-600"
+      role="status"
+      aria-live="polite"
+    >
+      <span className="i-svg-spinners:90-ring-with-bg text-2xl text-blue-600" aria-hidden="true" />
+      {label}
+    </div>
+  );
+}
 
 const workbenchVariants = {
   closed: {
@@ -74,6 +94,10 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
   const completedFiles = useStore(workbenchStore.completedFiles);
   const files = useStore(workbenchStore.files);
   const selectedView = useStore(workbenchStore.currentView);
+  const [mountedViews, setMountedViews] = useState<Record<WorkbenchViewType, boolean>>(() => ({
+    code: selectedView === 'code',
+    preview: selectedView === 'preview',
+  }));
   const validation = useStore(validationState);
   const activeChatId = useStore(chatId);
   const checkpoint = useStore(latestCheckpoint);
@@ -93,16 +117,33 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
       }
     });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [activeChatId]);
 
   const handleRestoreCheckpoint = async () => {
-    if (!activeChatId || isStreaming || validation.status === 'checking' || checkpointOperation !== 'idle' || isRestoring) return;
+    if (
+      !activeChatId ||
+      isStreaming ||
+      validation.status === 'checking' ||
+      checkpointOperation !== 'idle' ||
+      isRestoring
+    )
+      return;
 
-    if (!window.confirm('Restore the last verified build? This discards unsaved changes and removes later chat messages.')) return;
+    if (
+      !window.confirm('Restore the last verified build? This discards unsaved changes and removes later chat messages.')
+    )
+      return;
 
     if (checkpoint?.chatId === activeChatId) {
-      startActivity(checkpoint.messageId, 'checkpoint:restore', 'Restoring working checkpoint', 'Working checkpoint restored');
+      startActivity(
+        checkpoint.messageId,
+        'checkpoint:restore',
+        'Restoring working checkpoint',
+        'Working checkpoint restored',
+      );
     }
 
     setIsRestoring(true);
@@ -116,7 +157,8 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
       const chat = await getMessages(database, activeChatId);
       if (!chat) throw new Error('Project chat could not be loaded.');
 
-      const latest = checkpoint?.chatId === activeChatId ? checkpoint : await refreshLatestCheckpoint(database, activeChatId);
+      const latest =
+        checkpoint?.chatId === activeChatId ? checkpoint : await refreshLatestCheckpoint(database, activeChatId);
       const messageIndex = chat.messages.findIndex((message) => message.id === latest?.messageId);
       if (messageIndex < 0) throw new Error('Checkpoint message is missing from the saved chat.');
 
@@ -126,9 +168,19 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
       const restored = await restoreCheckpoint(database, wc, activeChatId);
       restoredFiles = true;
       checkpointBusy.set('restoring');
-      await setMessages(database, activeChatId, chat.messages.slice(0, messageIndex + 1), chat.urlId, chat.description, chat.timestamp);
+      await setMessages(
+        database,
+        activeChatId,
+        chat.messages.slice(0, messageIndex + 1),
+        chat.urlId,
+        chat.description,
+        chat.timestamp,
+      );
       const savedChat = await getMessages(database, activeChatId);
-      if (savedChat?.messages.length !== messageIndex + 1 || savedChat.messages[messageIndex]?.id !== restored.messageId) {
+      if (
+        savedChat?.messages.length !== messageIndex + 1 ||
+        savedChat.messages[messageIndex]?.id !== restored.messageId
+      ) {
         throw new Error('Restored chat history could not be persisted.');
       }
       workbenchStore.showRestoredCheckpoint(restored.files);
@@ -211,8 +263,16 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
   }, [isStreaming, showWorkbench, pinPlayView, setSelectedView]);
 
   useEffect(() => {
-    workbenchStore.setDocuments(files);
-  }, [files]);
+    setMountedViews((previous) => (previous[selectedView] ? previous : { ...previous, [selectedView]: true }));
+  }, [selectedView]);
+
+  useEffect(() => {
+    // Streamed file chunks already update the active editor directly. Avoid
+    // rebuilding every editor document from the complete file map per chunk.
+    if (!streamingFile) {
+      workbenchStore.setDocuments(files);
+    }
+  }, [files, streamingFile]);
 
   const onEditorChange = useCallback<OnEditorChange>((update) => {
     workbenchStore.setCurrentDocumentContent(update.content, update.filePath);
@@ -276,15 +336,15 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
             <div
               style={{
                 borderRadius: 0,
-                borderColor: '#e26e03',
-                boxShadow: '0 0 24px rgba(226, 110, 3, 0.35)',
+                borderColor: '#3b82f6',
+                boxShadow: '0 0 28px rgba(79, 70, 229, 0.22)',
               }}
               className="h-full flex flex-col bg-bolt-elements-background-depth-2 border-2 rounded-none overflow-hidden"
             >
               <div
                 style={{
-                  background: 'linear-gradient(rgb(226 110 3) 0%, rgb(215 100 0) 55%, rgb(229 100 0) 100%)',
-                  borderBottom: '2px solid #b45309',
+                  background: 'linear-gradient(100deg, #2563eb 0%, #4f46e5 55%, #7c3aed 100%)',
+                  borderBottom: '2px solid #4338ca',
                 }}
                 className="flex items-center px-3 py-2 text-white shadow-sm"
               >
@@ -297,8 +357,16 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
                   Chat
                 </PanelHeaderButton>
                 <Slider selected={selectedView} options={sliderOptions} setSelected={setSelectedView} />
-                {validation.status === 'checking' && <span className="ml-2 text-xs" role="status">{validation.detail || 'Checking build…'}</span>}
-                {validation.status === 'failed' && <span className="ml-2 text-xs" role="status" title={validation.detail}>Build not verified</span>}
+                {validation.status === 'checking' && (
+                  <span className="ml-2 text-xs" role="status">
+                    {validation.detail || 'Checking build…'}
+                  </span>
+                )}
+                {validation.status === 'failed' && (
+                  <span className="ml-2 text-xs" role="status" title={validation.detail}>
+                    Build not verified
+                  </span>
+                )}
                 <div className="ml-auto" />
                 <div className="flex items-center overflow-x-auto no-scrollbar gap-1 mr-2">
                   <PanelHeaderButton
@@ -399,37 +467,50 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
                 />
               </div>
               <div className="relative flex-1 overflow-hidden">
-                <div
-                  className={classNames('absolute inset-0 transition-opacity duration-150', {
-                    'visible opacity-100 z-10 pointer-events-auto': selectedView === 'code',
-                    'invisible opacity-0 pointer-events-none -z-10': selectedView !== 'code',
-                  })}
-                  aria-hidden={selectedView !== 'code'}
-                >
-                  <EditorPanel
-                    editorDocument={currentDocument}
-                    isStreaming={Boolean(isStreaming || validation.status === 'checking' || checkpointOperation !== 'idle' || isRestoring)}
-                    followStream={Boolean(isStreaming && streamingFile && selectedFile === streamingFile)}
-                    selectedFile={selectedFile}
-                    files={files}
-                    unsavedFiles={unsavedFiles}
-                    completedFiles={completedFiles}
-                    onFileSelect={onFileSelect}
-                    onEditorScroll={onEditorScroll}
-                    onEditorChange={onEditorChange}
-                    onFileSave={onFileSave}
-                    onFileReset={onFileReset}
-                  />
-                </div>
-                <div
-                  className={classNames('absolute inset-0 transition-opacity duration-150', {
-                    'visible opacity-100 z-10 pointer-events-auto': selectedView === 'preview',
-                    'invisible opacity-0 pointer-events-none -z-10': selectedView !== 'preview',
-                  })}
-                  aria-hidden={selectedView !== 'preview'}
-                >
-                  <Preview isStreaming={isStreaming} />
-                </div>
+                {mountedViews.code && (
+                  <div
+                    className={classNames('absolute inset-0 transition-opacity duration-150', {
+                      'visible opacity-100 z-10 pointer-events-auto': selectedView === 'code',
+                      'invisible opacity-0 pointer-events-none -z-10': selectedView !== 'code',
+                    })}
+                    aria-hidden={selectedView !== 'code'}
+                  >
+                    <Suspense fallback={<WorkspacePanelLoader label="Opening code editor…" />}>
+                      <EditorPanel
+                        editorDocument={currentDocument}
+                        isStreaming={Boolean(
+                          isStreaming ||
+                            validation.status === 'checking' ||
+                            checkpointOperation !== 'idle' ||
+                            isRestoring,
+                        )}
+                        followStream={Boolean(isStreaming && streamingFile && selectedFile === streamingFile)}
+                        selectedFile={selectedFile}
+                        files={files}
+                        unsavedFiles={unsavedFiles}
+                        completedFiles={completedFiles}
+                        onFileSelect={onFileSelect}
+                        onEditorScroll={onEditorScroll}
+                        onEditorChange={onEditorChange}
+                        onFileSave={onFileSave}
+                        onFileReset={onFileReset}
+                      />
+                    </Suspense>
+                  </div>
+                )}
+                {mountedViews.preview && (
+                  <div
+                    className={classNames('absolute inset-0 transition-opacity duration-150', {
+                      'visible opacity-100 z-10 pointer-events-auto': selectedView === 'preview',
+                      'invisible opacity-0 pointer-events-none -z-10': selectedView !== 'preview',
+                    })}
+                    aria-hidden={selectedView !== 'preview'}
+                  >
+                    <Suspense fallback={<WorkspacePanelLoader label="Opening preview…" />}>
+                      <Preview isStreaming={isStreaming} />
+                    </Suspense>
+                  </div>
+                )}
               </div>
             </div>
           </div>

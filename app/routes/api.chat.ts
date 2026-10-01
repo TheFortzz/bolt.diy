@@ -40,35 +40,49 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
     approvedBlueprint: rawBlueprint,
     executionToken,
     workspaceSources: rawSources,
+    chatOnly = false,
   } = await request.json<{
     messages: Messages;
     model: string;
+    chatOnly?: boolean;
     systemContext?: string;
     approvedBlueprint?: unknown;
     executionToken?: string;
     workspaceSources?: unknown;
   }>();
-  let approvedBlueprint: Blueprint;
-  let workspaceSources: Record<string, string>;
+  const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user');
+  const hasChatOnlyAnnotation = lastUserMessage?.annotations?.some(
+    (annotation: any) =>
+      typeof annotation === 'object' &&
+      annotation !== null &&
+      'type' in annotation &&
+      annotation.type === 'studio-chat-only',
+  );
+  const conversationOnly = chatOnly === true || Boolean(hasChatOnlyAnnotation);
+  let approvedBlueprint: Blueprint | undefined;
+  let workspaceSources: Record<string, string> = {};
 
   try {
     requireSameOrigin(request);
-    approvedBlueprint = await verifyCapability(
-      executionToken || '',
-      blueprintSchema.parse(rawBlueprint),
-      'execute',
-      getHarnessSecret(context.cloudflare.env),
-      new URL(request.url).origin,
-    );
-    workspaceSources = z.record(z.string().max(200000)).parse(rawSources || {});
 
-    if (
-      Object.entries(workspaceSources).some(
-        ([path]) => !approvedBlueprint.manifest.some((file) => file.path === path),
-      ) ||
-      Object.values(workspaceSources).reduce((size, text) => size + text.length, 0) > 300000
-    ) {
-      throw new Error('Editor context is outside the approved workspace or exceeds its budget.');
+    if (!conversationOnly) {
+      approvedBlueprint = await verifyCapability(
+        executionToken || '',
+        blueprintSchema.parse(rawBlueprint),
+        'execute',
+        getHarnessSecret(context.cloudflare.env),
+        new URL(request.url).origin,
+      );
+      workspaceSources = z.record(z.string().max(200000)).parse(rawSources || {});
+
+      if (
+        Object.entries(workspaceSources).some(
+          ([path]) => !approvedBlueprint?.manifest.some((file) => file.path === path),
+        ) ||
+        Object.values(workspaceSources).reduce((size, text) => size + text.length, 0) > 300000
+      ) {
+        throw new Error('Editor context is outside the approved workspace or exceeds its budget.');
+      }
     }
   } catch (error) {
     return new Response(JSON.stringify({ error: `Plan approval required: ${(error as Error).message}` }), {
@@ -77,7 +91,8 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
     });
   }
 
-  const workspaceContext = typeof systemContext === 'string' ? systemContext.slice(0, 12000) : undefined;
+  const workspaceContext =
+    !conversationOnly && typeof systemContext === 'string' ? systemContext.slice(0, 12000) : undefined;
 
   const cookieHeader = request.headers.get('Cookie');
 
@@ -97,6 +112,10 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
       onFinish: async ({ text: content, finishReason }) => {
         try {
           fullContent += content;
+
+          if (conversationOnly) {
+            return stream.close();
+          }
 
           const hasUnclosedArtifact = fullContent.includes('<boltArtifact') && !fullContent.includes('</boltArtifact>');
           const hasUnclosedAction =
@@ -132,6 +151,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
             systemContext: workspaceContext,
             approvedBlueprint,
             workspaceSources,
+            conversationOnly,
           });
 
           return stream.switchSource(result.toAIStream());
@@ -151,6 +171,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
       systemContext: workspaceContext,
       approvedBlueprint,
       workspaceSources,
+      conversationOnly,
     });
 
     stream.switchSource(result.toAIStream());

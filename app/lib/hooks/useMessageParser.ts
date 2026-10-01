@@ -149,7 +149,25 @@ export function useMessageParser() {
       // because React rendered again). The parser remembers each message offset.
 
       for (const [index, message] of messages.entries()) {
-        if (message.role === 'assistant') {
+        const previousMessage = messages[index - 1];
+        const isChatOnly =
+          message.annotations?.some(
+            (annotation) =>
+              typeof annotation === 'object' &&
+              annotation !== null &&
+              'type' in annotation &&
+              annotation.type === 'studio-chat-only',
+          ) ||
+          (previousMessage?.role === 'user' &&
+            previousMessage.annotations?.some(
+              (annotation) =>
+                typeof annotation === 'object' &&
+                annotation !== null &&
+                'type' in annotation &&
+                annotation.type === 'studio-chat-only',
+            ));
+
+        if (message.role === 'assistant' && !isChatOnly) {
           const newParsedContent = messageParser.parse(message.id, message.content);
 
           if (newParsedContent) {

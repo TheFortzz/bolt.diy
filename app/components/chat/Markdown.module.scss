@@ -8,12 +8,12 @@ $code-font-size: 13px;
 }
 
 .MarkdownContent {
-  font-size: 13.5px;
-  line-height: 1.52;
+  font-size: 14px;
+  line-height: 1.72;
   color: var(--bolt-elements-textPrimary);
 
   > *:not(:last-child) {
-    margin-block-end: 10px;
+    margin-block-end: 12px;
   }
 
   :global(.artifact) {
@@ -31,15 +31,15 @@ $code-font-size: 13px;
   }
 
   h1 {
-    font-size: 1.35em;
-    border-bottom: 1px solid var(--bolt-elements-borderColor);
-    padding-bottom: 0.25em;
+    font-size: 1.45em;
+    border-bottom: 1px solid #dbeafe;
+    padding-bottom: 0.3em;
   }
 
   h2 {
-    font-size: 1.2em;
-    border-bottom: 1px solid var(--bolt-elements-borderColor);
-    padding-bottom: 0.2em;
+    font-size: 1.25em;
+    border-bottom: 1px solid #e9d5ff;
+    padding-bottom: 0.25em;
   }
 
   h3 {
@@ -69,7 +69,7 @@ $code-font-size: 13px;
   }
 
   a {
-    color: var(--bolt-elements-messages-linkColor);
+    color: #5b21b6;
     text-decoration: none;
     cursor: pointer;
 
@@ -92,8 +92,8 @@ $code-font-size: 13px;
   }
 
   pre {
-    padding: 12px 14px;
-    border-radius: 0;
+    padding: 14px 16px;
+    border-radius: 12px;
   }
 
   pre:has(> code) {
