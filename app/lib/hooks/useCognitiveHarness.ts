@@ -49,19 +49,38 @@ function sourceContext(snapshot: Record<string, Uint8Array>, budget: number, per
 }
 
 async function postHarness<T>(payload: unknown, signal: AbortSignal): Promise<T> {
-  const response = await fetch('/api/plan', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-    signal,
-  });
-  const result = (await response.json()) as T & { error?: string };
+  let attempt = 0;
 
-  if (!response.ok) {
-    throw new Error(result.error || `Plan service returned HTTP ${response.status}.`);
+  while (true) {
+    attempt++;
+
+    try {
+      const response = await fetch('/api/plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal,
+      });
+      const result = (await response.json()) as T & { error?: string };
+
+      if (!response.ok) {
+        throw new Error(result.error || `Plan service returned HTTP ${response.status}.`);
+      }
+
+      return result;
+    } catch (error: any) {
+      const isNetworkError =
+        error?.name === 'TypeError' ||
+        /network|failed to fetch|quic|load failed/i.test(error?.message || '');
+
+      if (attempt < 2 && !signal.aborted && isNetworkError) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        continue;
+      }
+
+      throw error;
+    }
   }
-
-  return result;
 }
 
 export function useCognitiveHarness(options: HarnessOptions) {

@@ -185,6 +185,9 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
       status: 200,
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
+        'X-Vercel-AI-Data-Stream': 'v1',
+        'Cache-Control': 'no-cache, no-transform',
+        'X-Accel-Buffering': 'no',
       },
     });
   } catch (error: any) {

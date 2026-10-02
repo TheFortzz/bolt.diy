@@ -64,10 +64,12 @@ export function updateActivity(messageId: string, id: string, status: ActivitySt
   }
 
   const next = [...steps];
+  const now = Date.now();
   next[index] = {
     ...steps[index],
     status,
-    finishedAt: status === 'pending' || status === 'running' ? undefined : Date.now(),
+    startedAt: status === 'running' && steps[index].status === 'pending' ? now : steps[index].startedAt,
+    finishedAt: status === 'pending' || status === 'running' ? undefined : now,
   };
   activitySteps.setKey(messageId, next);
 }

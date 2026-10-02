@@ -53,8 +53,8 @@ export default class SwitchableStream {
         }
 
         try {
-          // A blank line is discarded by readDataStream on the client, but keeps the transport layer active
-          this._controller?.enqueue(this._textEncoder.encode('\n'));
+          // Send an empty AI SDK text delta to keep the HTTP/QUIC transport layer active without causing parse errors
+          this._controller?.enqueue(this._textEncoder.encode('0:""\n'));
         } catch {
           // ignore
         }
@@ -113,7 +113,7 @@ export default class SwitchableStream {
         for (const line of lines) {
           // Suppress finish_message ('d:') and finish_step ('e:') so the AI SDK client
           // does not finalize the assistant message prematurely between continuation segments.
-          if (line.startsWith('d:') || line.startsWith('e:')) {
+          if (line.startsWith('d:') || line.startsWith('e:') || !line.trim()) {
             continue;
           }
           passThrough += line + '\n';
