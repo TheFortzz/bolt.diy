@@ -10,6 +10,7 @@ import {
 import { IconButton } from '~/components/ui/IconButton';
 import { PanelHeaderButton } from '~/components/ui/PanelHeaderButton';
 import { Slider, type SliderOptions } from '~/components/ui/Slider';
+import { PublishButton } from '~/components/header/PublishButton.client';
 import { workbenchStore, type WorkbenchViewType } from '~/lib/stores/workbench';
 import { classNames } from '~/utils/classNames';
 import { cubicEasingFn } from '~/utils/easings';
@@ -433,29 +434,7 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
                     <div className="i-ph:github-logo" />
                     Push to GitHub
                   </PanelHeaderButton>
-                  <div className="publish-glow-container mr-1.5">
-                    <button
-                      type="button"
-                      className="publish-glow-button"
-                      title="Publish Game"
-                      onClick={async () => {
-                        try {
-                          await workbenchStore.downloadZip();
-                          toast.success('Game package downloaded! Upload this ZIP on TheFortz to publish.', {
-                            autoClose: 6000,
-                          });
-                          if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
-                            window.parent.postMessage({ type: 'fortz-open-upload' }, '*');
-                          }
-                        } catch (err: any) {
-                          toast.error('Failed to package game: ' + (err?.message || 'Unknown error'));
-                        }
-                      }}
-                    >
-                      <div className="i-ph:rocket-launch text-[#03a9f4] text-xs" />
-                      <span>Publish Game</span>
-                    </button>
-                  </div>
+                  <PublishButton />
                 </div>
                 <IconButton
                   icon="i-ph:x-circle"

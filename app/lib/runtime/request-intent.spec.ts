@@ -46,6 +46,14 @@ describe('Studio request intent routing', () => {
     'buils a game',
     'crate a game',
     'please fixx',
+    'very nice can u now improve the view like the ui and colors use like blue and white color and make the enviroment feel real space',
+    'nice can u also add sound',
+    'looks great! now make the ship faster',
+    'use blue and white color',
+    'tweak the jump height',
+    'adjust the player speed',
+    'polish the controls',
+    'i want blue and white colors',
   ])('uses the approval planner for clear workspace changes: %s', (prompt) => {
     expect(shouldUseBuildPlanner(prompt)).toBe(true);
   });

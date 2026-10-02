@@ -185,9 +185,25 @@ export function PublishButton() {
         toast.success(`🚀 Publishing "${finalTitle}" to thefortz.me…`);
         setIsOpen(false);
       } else {
-        // Standalone — download zip as fallback
-        await handleExportZip();
-        window.open('https://thefortz.me', '_blank', 'noopener,noreferrer');
+        // Standalone — publish directly to Appwrite via /api/publish!
+        toast.info(`🚀 Publishing "${finalTitle}" to Appwrite…`);
+        const res = await fetch('/api/publish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: finalTitle,
+            genre: finalGenre,
+            description: description.trim(),
+            thumbDataUrl,
+            files: projectFiles,
+          }),
+        });
+        const data = (await res.json()) as any;
+        if (!res.ok || data.error) {
+          throw new Error(data.error || 'Direct publish failed');
+        }
+        toast.success(`🎮 "${finalTitle}" published successfully to Appwrite!`);
+        setIsOpen(false);
       }
     } catch (err: any) {
       toast.error('Publish failed: ' + (err?.message || 'Unknown error'));

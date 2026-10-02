@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 
 const useViewport = (threshold = 1024) => {
-  const [isSmallViewport, setIsSmallViewport] = useState(
-    typeof window !== 'undefined' ? window.innerWidth < threshold : false,
-  );
+  const [isSmallViewport, setIsSmallViewport] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -11,6 +9,7 @@ const useViewport = (threshold = 1024) => {
     }
 
     const handleResize = () => setIsSmallViewport(window.innerWidth < threshold);
+    handleResize();
     window.addEventListener('resize', handleResize);
 
     return () => {

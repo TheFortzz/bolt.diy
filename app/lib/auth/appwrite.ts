@@ -3,6 +3,8 @@ import { atom } from 'nanostores';
 
 export const APPWRITE_ENDPOINT = 'https://fra.cloud.appwrite.io/v1';
 export const APPWRITE_PROJECT_ID = '6a83071d00217ab38269';
+export const APPWRITE_API_KEY =
+  'standard_7fe71eb4f155a39814240f07a84ba98b1fe70f439e2443e9718d75fb55e33c6cbd046a106b22f38ba8c0725aa66851318755ed32037fd4ab7e9dfbf18341ad8a9ad6e21a555ff48ea4f8698031ecf707959e31459bf9efb692b55cfe7efe055d7eabbf85eaa2c3bfc8ac722d2cd7e71ab31e35cac1a9c4fcc27a56eab3e67676';
 
 export interface AppwriteUser {
   $id: string;
@@ -27,20 +29,34 @@ export const authStore = atom<AuthState>({
 export const isAuthModalOpen = atom<boolean>(false);
 
 let client: Client | null = null;
+let authClient: Client | null = null;
 let account: Account | null = null;
+
+export function getAuthClient(): Client {
+  if (!authClient) {
+    authClient = new Client()
+      .setEndpoint(APPWRITE_ENDPOINT)
+      .setProject(APPWRITE_PROJECT_ID);
+  }
+  return authClient;
+}
 
 export function getAppwriteClient(): Client {
   if (!client) {
     client = new Client()
       .setEndpoint(APPWRITE_ENDPOINT)
       .setProject(APPWRITE_PROJECT_ID);
+
+    if (APPWRITE_API_KEY) {
+      (client as any).headers['X-Appwrite-Key'] = APPWRITE_API_KEY;
+    }
   }
   return client;
 }
 
 export function getAppwriteAccount(): Account {
   if (!account) {
-    account = new Account(getAppwriteClient());
+    account = new Account(getAuthClient());
   }
   return account;
 }

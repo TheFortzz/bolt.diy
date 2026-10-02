@@ -1,10 +1,12 @@
 import { useStore } from '@nanostores/react';
+import { useLocation } from '@remix-run/react';
 import { chatStore } from '~/lib/stores/chat';
 import styles from './styles.module.scss';
 
 const BackgroundRays = () => {
   const chat = useStore(chatStore);
-  const isChatRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/chat/');
+  const location = useLocation();
+  const isChatRoute = location.pathname.startsWith('/chat/');
 
   if (chat.started || isChatRoute) {
     return null;
