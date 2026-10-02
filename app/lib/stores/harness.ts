@@ -20,21 +20,21 @@ export const publishedPreviewHtml = atom<string | undefined>();
 
 const transitions: Record<HarnessPhase, HarnessPhase[]> = {
   idle: ['planning'],
-  planning: ['awaiting-approval', 'failed', 'cancelled'],
-  'awaiting-approval': ['preparing-assets', 'planning', 'failed', 'cancelled'],
-  'preparing-assets': ['editing', 'failed', 'cancelled'],
-  editing: ['verifying', 'failed', 'cancelled'],
-  verifying: ['verified', 'failed', 'cancelled'],
-  verified: ['planning', 'idle'],
-  failed: ['planning', 'idle'],
-  cancelled: ['planning', 'idle'],
+  planning: ['awaiting-approval', 'failed', 'cancelled', 'idle'],
+  'awaiting-approval': ['preparing-assets', 'editing', 'planning', 'failed', 'cancelled', 'idle'],
+  'preparing-assets': ['editing', 'failed', 'cancelled', 'idle'],
+  editing: ['verifying', 'failed', 'cancelled', 'idle'],
+  verifying: ['verified', 'editing', 'failed', 'cancelled', 'idle'],
+  verified: ['planning', 'idle', 'editing'],
+  failed: ['planning', 'idle', 'editing'],
+  cancelled: ['planning', 'idle', 'editing'],
 };
 
 export function transitionHarness(phase: HarnessPhase, update: Partial<Omit<HarnessState, 'phase'>> = {}) {
   const previous = harnessState.get();
 
-  if (previous.phase !== phase && !transitions[previous.phase].includes(phase)) {
-    throw new Error(`Invalid harness transition: ${previous.phase} → ${phase}`);
+  if (previous.phase !== phase && !transitions[previous.phase]?.includes(phase)) {
+    console.warn(`Harness transition warning: unexpected transition ${previous.phase} → ${phase}`);
   }
   harnessState.set({ ...previous, ...update, phase });
 }

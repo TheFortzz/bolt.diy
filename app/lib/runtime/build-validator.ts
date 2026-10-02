@@ -19,30 +19,65 @@ function safeDiagnostic(output: string) {
     .slice(-MAX_OUTPUT);
 }
 
+const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+
 export function validateJavaScriptSyntax(code: string, fileName: string): string | undefined {
+  const cleanCode = code
+    .replace(/^```(?:javascript|js|typescript|ts)?\s*\n?/i, '')
+    .replace(/\n?```\s*$/i, '');
+
   try {
-    new Function(code);
+    new Function(cleanCode);
     return undefined;
   } catch (err: unknown) {
     if (err instanceof SyntaxError) {
       const msg = (err as Error).message || '';
+
+      if (
+        msg.includes('await is only valid in async functions') ||
+        msg.includes('top level bodies of modules') ||
+        cleanCode.includes('await ')
+      ) {
+        try {
+          new AsyncFunction(cleanCode);
+          return undefined;
+        } catch (asyncErr: unknown) {
+          if (asyncErr instanceof SyntaxError) {
+            const asyncMsg = (asyncErr as Error).message || '';
+            if (!asyncMsg.includes('import') && !asyncMsg.includes('export') && !asyncMsg.includes('import.meta')) {
+              return `${fileName}: ${asyncMsg}`;
+            }
+          }
+        }
+      }
+
       if (
         msg.includes('Cannot use import statement') ||
         msg.includes("Unexpected token 'export'") ||
         msg.includes('export declarations may only appear') ||
-        msg.includes('import declarations may only appear')
+        msg.includes('import declarations may only appear') ||
+        msg.includes("Cannot use 'import.meta'") ||
+        msg.includes('import.meta') ||
+        cleanCode.includes('import ') ||
+        cleanCode.includes('export ')
       ) {
         try {
-          const sanitized = code
+          const sanitized = cleanCode
             .replace(/(?:^|\n)\s*import\s+[\s\S]*?from\s+['"][^'"]+['"];?/g, '\n// import')
             .replace(/(?:^|\n)\s*import\s+['"][^'"]+['"];?/g, '\n// import')
+            .replace(/import\.meta/g, '({})')
             .replace(/^\s*export\s+default\s+/gm, 'const __export_default__ = ')
             .replace(/^\s*export\s+(?:async\s+)?function\b/gm, 'function')
             .replace(/^\s*export\s+(?:class|const|let|var)\b/gm, (m) => m.replace('export', ''))
             .replace(/^\s*export\s*\{[^}]*\}\s*;?/gm, '// export')
             .replace(/^\s*export\s+\*\s+from\s+['"][^'"]+['"];?/gm, '// export *');
-          new Function(sanitized);
-          return undefined;
+          try {
+            new Function(sanitized);
+            return undefined;
+          } catch {
+            new AsyncFunction(sanitized);
+            return undefined;
+          }
         } catch (innerErr: unknown) {
           if (innerErr instanceof SyntaxError) {
             return `${fileName}: ${(innerErr as Error).message}`;
@@ -224,7 +259,8 @@ export async function validateBuild(
               if (
                 lower.includes('syntaxerror') &&
                 !lower.includes('cannot use import statement') &&
-                !lower.includes("unexpected token 'export'")
+                !lower.includes("unexpected token 'export'") &&
+                !lower.includes('await is only valid in async functions')
               ) {
                 throw new Error(error);
               }

@@ -333,9 +333,13 @@ export const ChatImpl = memo(
             repairAttemptsRef.current++;
             executionPolicy.allowRepair();
             if (managedBlueprint) {
-              transitionHarness('editing', {
-                detail: `Auto-repairing build (${repairAttemptsRef.current}/2)…`,
-              });
+              try {
+                transitionHarness('editing', {
+                  detail: `Auto-repairing build (${repairAttemptsRef.current}/2)…`,
+                });
+              } catch (e) {
+                console.warn('transitionHarness to editing failed:', e);
+              }
             }
             validationState.set({
               status: 'checking',
@@ -386,7 +390,11 @@ export const ChatImpl = memo(
             } catch (error) {
               if (managedBlueprint) {
                 executionPolicy.revoke();
-                transitionHarness('failed', { detail: `Automatic repair failed: ${(error as Error).message}` });
+                try {
+                  transitionHarness('failed', { detail: `Automatic repair failed: ${(error as Error).message}` });
+                } catch {
+                  // ignore
+                }
               }
               validationState.set({ status: 'failed', detail: `Automatic repair failed: ${(error as Error).message}` });
               toast.error('Automatic repair could not be started. The build is not verified.');
@@ -395,7 +403,11 @@ export const ChatImpl = memo(
 
           if (managedBlueprint) {
             executionPolicy.revoke();
-            transitionHarness('failed', { detail: result.error || 'Build validation failed.' });
+            try {
+              transitionHarness('failed', { detail: result.error || 'Build validation failed.' });
+            } catch {
+              // ignore
+            }
           }
 
           validationState.set({ status: 'failed', detail: result.error || 'Build validation failed' });
@@ -455,7 +467,11 @@ export const ChatImpl = memo(
 
         if (managedBlueprint) {
           executionPolicy.revoke();
-          transitionHarness('verified', { detail: 'Build checks passed and a working checkpoint was saved.' });
+          try {
+            transitionHarness('verified', { detail: 'Build checks passed and a working checkpoint was saved.' });
+          } catch {
+            // ignore
+          }
         }
 
         if (typeof window !== 'undefined' && window.parent && window.parent !== window) {

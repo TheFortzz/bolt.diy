@@ -137,6 +137,9 @@ export class StreamingMessageParser {
             }
 
             if ('type' in currentAction && currentAction.type === 'file') {
+              content = content
+                .replace(/^```(?:javascript|js|typescript|ts|html|css|json)?\s*\n?/i, '')
+                .replace(/\n?```\s*$/i, '');
               content += '\n';
             }
 

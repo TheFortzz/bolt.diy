@@ -16,7 +16,7 @@ vi.mock('~/lib/stores/workbench', () => ({
 vi.mock('~/lib/webcontainer', () => ({ getWebContainer: mocks.getWebContainer }));
 vi.mock('./preview-validation', () => ({ validatePreview: mocks.validatePreview }));
 
-import { validateBuild, validationState } from './build-validator';
+import { validateBuild, validateJavaScriptSyntax, validationState } from './build-validator';
 import { activitySteps } from '~/lib/stores/activity';
 
 describe('build validation gate', () => {
@@ -165,5 +165,34 @@ describe('build validation gate', () => {
     expect(spawn).toHaveBeenCalledWith('node', ['--check', '/home/project/input.js'], { cwd: '/home/project' });
     expect(mocks.validatePreview).toHaveBeenCalledOnce();
     expect(validationState.get().status).toBe('passed');
+  });
+
+  describe('validateJavaScriptSyntax', () => {
+    it('returns undefined for valid JavaScript', () => {
+      expect(validateJavaScriptSyntax('const a = 1; function test() { return a + 1; }', 'game.js')).toBeUndefined();
+    });
+
+    it('returns error message for syntax errors like missing parentheses', () => {
+      expect(validateJavaScriptSyntax('console.log("missing parenthesis"', 'game.js')).toContain('game.js:');
+    });
+
+    it('handles top-level await gracefully', () => {
+      expect(validateJavaScriptSyntax('await Promise.resolve(42);', 'game.js')).toBeUndefined();
+    });
+
+    it('handles import and export statements gracefully', () => {
+      const code = `import { foo } from './foo.js';\nexport default function bar() { return foo; }`;
+      expect(validateJavaScriptSyntax(code, 'game.js')).toBeUndefined();
+    });
+
+    it('handles import.meta gracefully', () => {
+      const code = `const url = import.meta.url || '';\nconsole.log(url);`;
+      expect(validateJavaScriptSyntax(code, 'game.js')).toBeUndefined();
+    });
+
+    it('strips markdown code fences before validating', () => {
+      const code = '```javascript\nconst x = 10;\n```';
+      expect(validateJavaScriptSyntax(code, 'game.js')).toBeUndefined();
+    });
   });
 });
