@@ -35,6 +35,17 @@ describe('Studio request intent routing', () => {
     'why did it stop',
     'can you finish it',
     'complete the game',
+    'finish the build',
+    'buils a hide and seek game like mecachameloen',
+    'ya can u build a game like that?',
+    'contunue building',
+    'continew building',
+    'bro it lags.. fix it pleas and it always fails pleas fix build a car game',
+    'can u build a car game',
+    'bro please fix',
+    'buils a game',
+    'crate a game',
+    'please fixx',
   ])('uses the approval planner for clear workspace changes: %s', (prompt) => {
     expect(shouldUseBuildPlanner(prompt)).toBe(true);
   });

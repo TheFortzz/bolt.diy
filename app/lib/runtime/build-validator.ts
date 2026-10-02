@@ -34,11 +34,13 @@ export function validateJavaScriptSyntax(code: string, fileName: string): string
       ) {
         try {
           const sanitized = code
-            .replace(/^\s*import\b[^;]*;?/gm, '// import')
+            .replace(/(?:^|\n)\s*import\s+[\s\S]*?from\s+['"][^'"]+['"];?/g, '\n// import')
+            .replace(/(?:^|\n)\s*import\s+['"][^'"]+['"];?/g, '\n// import')
             .replace(/^\s*export\s+default\s+/gm, 'const __export_default__ = ')
             .replace(/^\s*export\s+(?:async\s+)?function\b/gm, 'function')
             .replace(/^\s*export\s+(?:class|const|let|var)\b/gm, (m) => m.replace('export', ''))
-            .replace(/^\s*export\s*\{[^}]*\}\s*;?/gm, '// export');
+            .replace(/^\s*export\s*\{[^}]*\}\s*;?/gm, '// export')
+            .replace(/^\s*export\s+\*\s+from\s+['"][^'"]+['"];?/gm, '// export *');
           new Function(sanitized);
           return undefined;
         } catch (innerErr: unknown) {

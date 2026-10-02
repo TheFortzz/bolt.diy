@@ -69,7 +69,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
         executionToken || '',
         blueprintSchema.parse(rawBlueprint),
         'execute',
-        getHarnessSecret(context.cloudflare.env),
+        await getHarnessSecret(context.cloudflare.env),
         new URL(request.url).origin,
       );
       workspaceSources = z.record(z.string().max(200000)).parse(rawSources || {});

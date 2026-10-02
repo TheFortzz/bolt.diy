@@ -55,7 +55,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     requireSameOrigin(request);
 
     const env = context.cloudflare.env;
-    const secret = getHarnessSecret(env);
+    const secret = await getHarnessSecret(env);
     const audience = new URL(request.url).origin;
     const payload: unknown = await request.json();
 

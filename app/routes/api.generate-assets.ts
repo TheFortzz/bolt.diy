@@ -24,7 +24,7 @@ export async function action({ context, request }: ActionFunctionArgs) {
     requireSameOrigin(request);
     const input = z.object({ approvedBlueprint: blueprintSchema, executionToken: z.string().max(4096) }).strict().parse(await request.json());
     const env = context.cloudflare.env;
-    const blueprint = await verifyCapability(input.executionToken, input.approvedBlueprint, 'execute', getHarnessSecret(env), new URL(request.url).origin);
+    const blueprint = await verifyCapability(input.executionToken, input.approvedBlueprint, 'execute', await getHarnessSecret(env), new URL(request.url).origin);
     const apiKey = getFluxApiKey(env);
 
     if (!apiKey && blueprint.assetOperations.length) {
