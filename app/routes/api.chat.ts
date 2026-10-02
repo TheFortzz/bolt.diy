@@ -192,6 +192,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
         'X-Vercel-AI-Data-Stream': 'v1',
         'Cache-Control': 'no-cache, no-transform',
         'X-Accel-Buffering': 'no',
+        'Connection': 'keep-alive',
       },
     });
   } catch (error: any) {

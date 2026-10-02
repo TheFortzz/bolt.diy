@@ -10,6 +10,7 @@ import { cleanWorkDirRelativePath } from '~/utils/diff';
 import { actionStepId, updateActivity } from '~/lib/stores/activity';
 import { contentHash } from '~/lib/harness/blueprint';
 import { executionPolicy } from '~/lib/harness/execution-policy';
+import { balanceAndCloseJs } from '~/lib/runtime/static-preview';
 
 const logger = createScopedLogger('ActionRunner');
 
@@ -538,7 +539,11 @@ export class ActionRunner {
     }
 
     try {
-      await webcontainer.fs.writeFile(action.filePath, action.content);
+      const contentToWrite =
+        action.filePath.endsWith('.js') || action.filePath.endsWith('.mjs')
+          ? balanceAndCloseJs(action.content)
+          : action.content;
+      await webcontainer.fs.writeFile(action.filePath, contentToWrite);
       executionPolicy.recordWritten(cleanedFilePath);
       logger.debug(`File written ${action.filePath}`);
     } catch (error) {

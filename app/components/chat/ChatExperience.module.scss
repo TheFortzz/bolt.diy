@@ -730,9 +730,9 @@
   flex: 0 0 auto;
   border-radius: 50%;
   background: #a855f7;
-  box-shadow: 0 0 16px rgba(168, 85, 247, 0.8);
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.6);
   animation: thinking-pulse 1.8s ease-in-out infinite;
-  will-change: transform, opacity;
+  will-change: opacity;
 }
 
 .ThinkingTitle {
@@ -753,6 +753,7 @@
   display: grid;
   gap: 6px;
   margin-top: 12px;
+  contain: layout paint;
 
   span {
     display: block;
@@ -790,12 +791,10 @@
 @keyframes thinking-pulse {
   0%,
   100% {
-    opacity: 0.6;
-    transform: scale(0.92);
+    opacity: 0.5;
   }
   50% {
     opacity: 1;
-    transform: scale(1.08);
   }
 }
 

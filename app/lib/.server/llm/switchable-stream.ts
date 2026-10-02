@@ -7,6 +7,7 @@ export default class SwitchableStream {
   private _closed = false;
   private _idleTimeout: ReturnType<typeof setTimeout> | null = null;
   private _keepAliveInterval: ReturnType<typeof setInterval> | null = null;
+  private _lastDataTime = Date.now();
   private _textDecoder = new TextDecoder();
   private _textEncoder = new TextEncoder();
   private _lineBuffer = '';
@@ -28,10 +29,40 @@ export default class SwitchableStream {
     }
 
     this._controller = controllerRef;
+    this._startKeepAlive();
   }
 
   get readable(): ReadableStream {
     return this._readable;
+  }
+
+  private _startKeepAlive() {
+    if (this._keepAliveInterval || this._closed) {
+      return;
+    }
+
+    // Keep the HTTP/3 QUIC connection alive from the very moment the stream is returned
+    // to the client, preventing Cloudflare Pages net::ERR_QUIC_PROTOCOL_ERROR while
+    // the LLM is thinking or compiling the response.
+    this._keepAliveInterval = setInterval(() => {
+      if (this._closed || !this._controller) {
+        if (this._keepAliveInterval) {
+          clearInterval(this._keepAliveInterval);
+          this._keepAliveInterval = null;
+        }
+        return;
+      }
+
+      // If no data was sent in the last 2 seconds, emit an empty AI SDK text delta chunk
+      if (Date.now() - this._lastDataTime >= 2000) {
+        try {
+          this._controller.enqueue(this._textEncoder.encode('0:""\n'));
+          this._lastDataTime = Date.now();
+        } catch {
+          // ignore if closed
+        }
+      }
+    }, 2000);
   }
 
   markSwitchPending() {
@@ -41,25 +72,7 @@ export default class SwitchableStream {
       this._idleTimeout = null;
     }
 
-    // Keep the HTTP connection and QUIC channel active while waiting for the next segment to start
-    if (!this._keepAliveInterval && !this._closed) {
-      this._keepAliveInterval = setInterval(() => {
-        if (this._closed || !this._isSwitchPending) {
-          if (this._keepAliveInterval) {
-            clearInterval(this._keepAliveInterval);
-            this._keepAliveInterval = null;
-          }
-          return;
-        }
-
-        try {
-          // Send an empty AI SDK text delta to keep the HTTP/QUIC transport layer active without causing parse errors
-          this._controller?.enqueue(this._textEncoder.encode('0:""\n'));
-        } catch {
-          // ignore
-        }
-      }, 5000);
-    }
+    this._startKeepAlive();
   }
 
   async switchSource(newStream: ReadableStream) {
@@ -71,10 +84,6 @@ export default class SwitchableStream {
     if (this._idleTimeout) {
       clearTimeout(this._idleTimeout);
       this._idleTimeout = null;
-    }
-    if (this._keepAliveInterval) {
-      clearInterval(this._keepAliveInterval);
-      this._keepAliveInterval = null;
     }
 
     if (this._currentReader) {
@@ -121,6 +130,7 @@ export default class SwitchableStream {
 
         if (passThrough.length > 0) {
           this._controller.enqueue(this._textEncoder.encode(passThrough));
+          this._lastDataTime = Date.now();
         }
       }
 

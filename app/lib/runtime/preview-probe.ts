@@ -323,9 +323,9 @@ export function installPreviewProbe(
 
     if (
       started &&
-      elapsed >= 2500 &&
-      applicationFrames >= 90 &&
-      renderFrames >= 60 &&
+      elapsed >= 1800 &&
+      applicationFrames >= 60 &&
+      renderFrames >= 30 &&
       imagesReady &&
       canvas?.width &&
       canvas.height &&

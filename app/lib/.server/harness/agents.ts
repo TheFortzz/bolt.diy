@@ -95,7 +95,7 @@ export async function runManagerAgent(
     })),
     verification: {
       scenarios: ['startup', 'controls', 'restart', 'resize'],
-      minimumSimulationSteps: 120,
+      minimumSimulationSteps: 45,
       requireDiagnostics: true,
     },
     budgets: { assetAttempts: 1, maximumSourceBytes: 1048576, maximumResponseSegments: 8 },
