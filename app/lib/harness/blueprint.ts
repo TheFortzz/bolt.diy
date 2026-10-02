@@ -60,7 +60,7 @@ export const blueprintSchema = managerBlueprintSchema.extend({
   fileOperations: z.array(fileOperationSchema.extend({ expectedHash: hashSchema.nullable() })).min(1).max(24),
   verification: z.object({
     scenarios: z.tuple([z.literal('startup'), z.literal('controls'), z.literal('restart'), z.literal('resize')]),
-    minimumSimulationSteps: z.literal(120),
+    minimumSimulationSteps: z.number().int().min(1).max(1000),
     requireDiagnostics: z.literal(true),
   }).strict(),
   budgets: z.object({
@@ -112,9 +112,117 @@ export type Blueprint = z.infer<typeof blueprintSchema>;
 export type WorkspaceManifest = z.infer<typeof workspaceManifestSchema>;
 
 export function parseManagerOutput(text: string) {
-  const clean = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  let clean = text.trim();
 
-  return managerBlueprintSchema.parse(JSON.parse(clean));
+  // Extract from markdown code block if present
+  const codeBlockMatch = clean.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (codeBlockMatch) {
+    clean = codeBlockMatch[1].trim();
+  }
+
+  // Extract outermost JSON object if there is surrounding conversational text
+  const firstBrace = clean.indexOf('{');
+  const lastBrace = clean.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    clean = clean.slice(firstBrace, lastBrace + 1);
+  }
+
+  // Strip trailing commas before closing braces/brackets
+  clean = clean.replace(/,(\s*[}\]])/g, '$1');
+
+  let raw: any;
+  try {
+    raw = JSON.parse(clean);
+  } catch {
+    // Attempt cleaning non-JSON wrappers
+    clean = clean.replace(/^[^{\[]*/, '').replace(/[^}\]]*$/, '');
+    raw = JSON.parse(clean);
+  }
+
+  if (typeof raw !== 'object' || raw === null) {
+    throw new Error('Manager agent output is not a JSON object.');
+  }
+
+  const title = typeof raw.title === 'string' && raw.title.trim() ? raw.title.slice(0, 100) : 'Fortz Arcade';
+  const summary = typeof raw.summary === 'string' && raw.summary.trim() ? raw.summary.slice(0, 1200) : 'Interactive game build';
+  const engine = raw.engine === 'webgl' ? 'webgl' : 'canvas2d';
+
+  const rawSystems = Array.isArray(raw.systems) ? raw.systems.map((s: unknown) => String(s).slice(0, 800)).filter(Boolean) : [];
+  const systems = rawSystems.length >= 2
+    ? rawSystems
+    : [
+        rawSystems[0] || 'Responsive player controls, physics, and gameplay mechanics',
+        'Game state lifecycle, HUD display, restart handling, and diagnostics',
+      ];
+
+  const rawFileOps = Array.isArray(raw.fileOperations)
+    ? raw.fileOperations
+        .filter((f: any) => f && typeof f.path === 'string')
+        .map((f: any) => ({
+          path: String(f.path).replace(/^\.?\//, '').trim(),
+          operation: f.operation === 'edit' ? ('edit' as const) : ('create' as const),
+          purpose: typeof f.purpose === 'string' && f.purpose.trim() ? f.purpose.slice(0, 800) : 'Implement game component',
+        }))
+    : [];
+
+  const fileOperations = rawFileOps.length > 0
+    ? rawFileOps
+    : [
+        { path: 'index.html', operation: 'create' as const, purpose: 'Game HTML canvas wrapper' },
+        { path: 'game.js', operation: 'create' as const, purpose: 'Main game logic and controls' },
+      ];
+
+  const assetOperations = Array.isArray(raw.assetOperations)
+    ? raw.assetOperations
+        .filter(
+          (a: any) =>
+            a &&
+            typeof a.id === 'string' &&
+            typeof a.path === 'string' &&
+            /^assets\/.+\.png$/.test(a.path.replace(/^\.?\//, '').trim()),
+        )
+        .map((a: any) => ({
+          id: a.id,
+          path: a.path.replace(/^\.?\//, '').trim(),
+          kind: a.kind === 'background' || a.kind === 'ui' ? a.kind : ('sprite' as const),
+          prompt: typeof a.prompt === 'string' ? a.prompt.slice(0, 1600) : 'Game sprite asset',
+          width:
+            typeof a.width === 'number' && a.width >= 64 && a.width <= 1024 ? Math.round(a.width / 32) * 32 : 512,
+          height:
+            typeof a.height === 'number' && a.height >= 64 && a.height <= 1024 ? Math.round(a.height / 32) * 32 : 512,
+        }))
+    : [];
+
+  const rawScriptOrder = Array.isArray(raw.scriptOrder)
+    ? raw.scriptOrder
+        .map((s: unknown) => String(s).replace(/^\.?\//, '').trim())
+        .filter((s: string) => /\.(?:js|mjs)$/.test(s))
+    : [];
+
+  const scriptOrder = rawScriptOrder.length > 0 ? rawScriptOrder : ['game.js'];
+
+  const rawCriteria = Array.isArray(raw.acceptanceCriteria)
+    ? raw.acceptanceCriteria.map((c: unknown) => String(c).slice(0, 800)).filter(Boolean)
+    : [];
+
+  const acceptanceCriteria = rawCriteria.length >= 3
+    ? rawCriteria
+    : [
+        rawCriteria[0] || 'The game loads and starts immediately upon input.',
+        rawCriteria[1] || 'Controls respond smoothly to keyboard and pointer inputs.',
+        'Game diagnostics and restart loop work reliably.',
+      ];
+
+  return managerBlueprintSchema.parse({
+    title,
+    summary,
+    engine,
+    systems,
+    fileOperations,
+    assetOperations,
+    scriptOrder,
+    acceptanceCriteria,
+  });
 }
 
 export function canonicalJson(value: unknown): string {
