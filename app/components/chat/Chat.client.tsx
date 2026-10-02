@@ -231,7 +231,7 @@ export const ChatImpl = memo(
       onFinish: async (message) => {
         logger.debug('Finished streaming');
         const activeHarness = harnessState.get();
-        const managedBlueprint = activeHarness.phase === 'editing' ? activeHarness.blueprint : undefined;
+        const managedBlueprint = activeHarness.blueprint || executionPolicy.plan || undefined;
         const lastUserMessage = [...messages].reverse().find((entry) => entry.role === 'user');
         const hasChatOnlyAnnotation =
           message.annotations?.some(
@@ -331,6 +331,12 @@ export const ChatImpl = memo(
         if (!result.ok) {
           if (repairAttemptsRef.current < 2 && !result.error?.includes('runtime verification needs')) {
             repairAttemptsRef.current++;
+            executionPolicy.allowRepair();
+            if (managedBlueprint) {
+              transitionHarness('editing', {
+                detail: `Auto-repairing build (${repairAttemptsRef.current}/2)…`,
+              });
+            }
             validationState.set({
               status: 'checking',
               detail: `Auto-repairing build (${repairAttemptsRef.current}/2)…`,
@@ -357,6 +363,7 @@ export const ChatImpl = memo(
               const artifactId =
                 workbenchStore.firstArtifact?.id ||
                 (managedBlueprint ? `game-${managedBlueprint.workspaceId}` : 'default_project');
+              const token = activeHarness.executionToken || harnessState.get().executionToken;
               await append(
                 {
                   role: 'user',
@@ -365,15 +372,15 @@ export const ChatImpl = memo(
                     ? [{ type: 'harness-execution', planId: managedBlueprint.id }]
                     : undefined,
                 },
-                managedBlueprint && activeHarness.executionToken
+                managedBlueprint && token
                   ? {
                       body: {
                         approvedBlueprint: managedBlueprint,
-                        executionToken: activeHarness.executionToken,
+                        executionToken: token,
                         workspaceSources,
                       },
                     }
-                  : undefined,
+                  : { body: { chatOnly: true } },
               );
               return;
             } catch (error) {

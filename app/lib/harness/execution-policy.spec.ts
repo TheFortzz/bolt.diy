@@ -58,6 +58,12 @@ describe('ExecutionPolicy', () => {
     expect(() => policy.authorize('assistant-2', 'action-3', fileAction('/home/project/game.js'))).toThrow(
       'active approved build',
     );
+
+    // After calling allowRepair, a new assistant message can emit the fixed files
+    policy.allowRepair();
+    expect(() =>
+      policy.authorize('assistant-2', 'action-4', fileAction('/home/project/game.js')),
+    ).not.toThrow();
   });
 
   it('rejects unplanned paths and non-file actions', () => {

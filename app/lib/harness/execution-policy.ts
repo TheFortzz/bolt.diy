@@ -36,6 +36,12 @@ export class ExecutionPolicy {
     this.#reservedActions.clear();
   }
 
+  allowRepair(nextMessageId?: string) {
+    this.#activeMessageId = nextMessageId;
+    this.#reservedPaths.clear();
+    this.#reservedActions.clear();
+  }
+
   get plan() {
     return this.#plan;
   }

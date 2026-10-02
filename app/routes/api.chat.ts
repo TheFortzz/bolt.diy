@@ -57,7 +57,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
       'type' in annotation &&
       annotation.type === 'studio-chat-only',
   );
-  const conversationOnly = chatOnly === true || Boolean(hasChatOnlyAnnotation);
+  const conversationOnly = chatOnly === true || Boolean(hasChatOnlyAnnotation) || !rawBlueprint;
   let approvedBlueprint: Blueprint | undefined;
   let workspaceSources: Record<string, string> = {};
 
@@ -65,6 +65,10 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
     requireSameOrigin(request);
 
     if (!conversationOnly) {
+      if (!rawBlueprint) {
+        throw new Error('An approved blueprint is required for workspace builds.');
+      }
+
       approvedBlueprint = await verifyCapability(
         executionToken || '',
         blueprintSchema.parse(rawBlueprint),
