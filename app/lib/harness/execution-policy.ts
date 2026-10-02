@@ -10,6 +10,8 @@ export class ExecutionPolicy {
   #activeMessageId?: string;
   #reservedPaths = new Set<string>();
   #reservedActions = new Map<string, string>();
+  #isRepair = false;
+  #writtenPaths = new Set<string>();
 
   registerHistory(ids: string[]) {
     ids.forEach((id) => this.#historical.add(id));
@@ -26,6 +28,8 @@ export class ExecutionPolicy {
     this.#activeMessageId = undefined;
     this.#reservedPaths.clear();
     this.#reservedActions.clear();
+    this.#isRepair = false;
+    this.#writtenPaths.clear();
   }
 
   revoke() {
@@ -34,12 +38,29 @@ export class ExecutionPolicy {
     this.#activeMessageId = undefined;
     this.#reservedPaths.clear();
     this.#reservedActions.clear();
+    this.#isRepair = false;
+    this.#writtenPaths.clear();
   }
 
   allowRepair(nextMessageId?: string) {
     this.#activeMessageId = nextMessageId;
     this.#reservedPaths.clear();
     this.#reservedActions.clear();
+    this.#isRepair = true;
+  }
+
+  get isRepair() {
+    return this.#isRepair;
+  }
+
+  recordWritten(filePath: string) {
+    const path = filePath.startsWith(`${WORK_DIR}/`) ? filePath.slice(WORK_DIR.length + 1) : filePath;
+    this.#writtenPaths.add(path);
+  }
+
+  hasWritten(filePath: string) {
+    const path = filePath.startsWith(`${WORK_DIR}/`) ? filePath.slice(WORK_DIR.length + 1) : filePath;
+    return this.#writtenPaths.has(path);
   }
 
   get plan() {

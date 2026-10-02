@@ -61,20 +61,36 @@ async function postHarness<T>(payload: unknown, signal: AbortSignal): Promise<T>
         body: JSON.stringify(payload),
         signal,
       });
-      const result = (await response.json()) as T & { error?: string };
 
-      if (!response.ok) {
-        throw new Error(result.error || `Plan service returned HTTP ${response.status}.`);
+      let result: any;
+      const text = await response.text();
+
+      try {
+        result = JSON.parse(text);
+      } catch {
+        result = { error: text.slice(0, 300) || `Server returned HTTP ${response.status}.` };
       }
 
-      return result;
+      if (!response.ok) {
+        const errorMsg = result?.error || `Plan service returned HTTP ${response.status}.`;
+        const isTransient = [429, 502, 503, 504, 520, 521, 522, 524].includes(response.status);
+
+        if (attempt < 3 && !signal.aborted && isTransient) {
+          await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+          continue;
+        }
+
+        throw new Error(errorMsg);
+      }
+
+      return result as T;
     } catch (error: any) {
       const isNetworkError =
         error?.name === 'TypeError' ||
-        /network|failed to fetch|quic|load failed/i.test(error?.message || '');
+        /network|failed to fetch|quic|load failed|protocol/i.test(error?.message || '');
 
-      if (attempt < 2 && !signal.aborted && isNetworkError) {
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+      if (attempt < 3 && !signal.aborted && isNetworkError) {
+        await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
         continue;
       }
 

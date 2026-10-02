@@ -184,7 +184,7 @@ export async function streamText(props: {
       .filter(Boolean)
       .join('\n\n'),
     maxTokens: conversationOnly ? 1200 : dynamicMaxTokens,
-    temperature: 0.85,
+    temperature: approvedBlueprint ? 0.2 : 0.7,
     messages: convertToCoreMessages(trimmedMessages as any),
     ...options,
   });

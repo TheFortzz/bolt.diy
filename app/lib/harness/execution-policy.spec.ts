@@ -118,4 +118,23 @@ describe('ExecutionPolicy', () => {
       'current approved blueprint',
     );
   });
+
+  it('tracks isRepair state and written files correctly', () => {
+    const policy = new ExecutionPolicy();
+    policy.approve(createBlueprint());
+
+    expect(policy.isRepair).toBe(false);
+    expect(policy.hasWritten('game.js')).toBe(false);
+
+    policy.recordWritten('/home/project/game.js');
+    expect(policy.hasWritten('game.js')).toBe(true);
+    expect(policy.hasWritten('/home/project/game.js')).toBe(true);
+
+    policy.allowRepair();
+    expect(policy.isRepair).toBe(true);
+
+    policy.approve(createBlueprint());
+    expect(policy.isRepair).toBe(false);
+    expect(policy.hasWritten('game.js')).toBe(false);
+  });
 });

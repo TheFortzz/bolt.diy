@@ -501,7 +501,7 @@ export class ActionRunner {
 
     const approvedOperation = executionPolicy.getApprovedOperation(this.#messageId, actionId, cleanedFilePath);
 
-    if (approvedOperation) {
+    if (approvedOperation && !executionPolicy.isRepair && !executionPolicy.hasWritten(cleanedFilePath)) {
       let existingBytes: Uint8Array | undefined;
 
       try {
@@ -539,6 +539,7 @@ export class ActionRunner {
 
     try {
       await webcontainer.fs.writeFile(action.filePath, action.content);
+      executionPolicy.recordWritten(cleanedFilePath);
       logger.debug(`File written ${action.filePath}`);
     } catch (error) {
       logger.error('Failed to write file\n\n', error);
