@@ -516,88 +516,87 @@
   }
 }
 
-/* Light chat surface; the workbench and code editor keep their own theme. */
+/* Purple Studio Chat Surface */
 .Conversation {
-  color: #0f172a;
-  scrollbar-color: #94a3b8 transparent;
-  background: linear-gradient(
-    180deg,
-    rgba(239, 246, 255, 0.94),
-    rgba(245, 243, 255, 0.96) 56%,
-    rgba(250, 245, 255, 0.92)
-  );
+  color: #f8fafc;
+  scrollbar-color: rgba(168, 85, 247, 0.4) transparent;
+  background: radial-gradient(ellipse at 85% 0%, rgba(168, 85, 247, 0.18), transparent 45%),
+    radial-gradient(ellipse at 15% 100%, rgba(139, 92, 246, 0.14), transparent 50%),
+    linear-gradient(165deg, #130826 0%, #1a0c33 50%, #10061e 100%);
 }
 
 .Avatar {
-  border-color: #cbd5e1;
-  background: #f1f5f9;
-  color: #334155;
+  border-color: rgba(168, 85, 247, 0.35);
+  background: #220f44;
+  color: #e9d5ff;
 }
 
 .AgentAvatar {
-  border-color: #ddd6fe;
-  background: linear-gradient(145deg, #f5f3ff, #eef2ff);
-  color: #6d28d9;
+  border-color: rgba(192, 132, 252, 0.6);
+  background: linear-gradient(135deg, #6d28d9, #8b5cf6);
+  color: #ffffff;
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.45);
 }
 
 .MessageMeta {
-  color: #334155;
+  color: #d8b4fe;
 }
 
 .UserMeta {
-  color: #64748b;
+  color: #c4b5fd;
 }
 
 .Badge {
-  background: #f3e8ff;
-  color: #6d28d9;
+  background: rgba(168, 85, 247, 0.18);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  color: #c084fc;
 }
 
 .UserBubble {
-  border-color: #bfdbfe;
-  background: linear-gradient(140deg, #dbeafe, #ede9fe);
-  color: #1e293b;
-  box-shadow: 0 5px 16px rgba(59, 130, 246, 0.09);
+  border: 1px solid rgba(192, 132, 252, 0.45);
+  background: linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 18px rgba(109, 40, 217, 0.35);
 }
 
 .AssistantContent {
-  color: #1e293b;
+  color: #f5f3ff;
   font-size: 14px;
   line-height: 1.75;
-  padding: 15px 18px;
-  border: 1px solid #e9d5ff;
-  border-left: 3px solid #8b5cf6;
-  border-radius: 5px 17px 17px 17px;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.97), rgba(250, 245, 255, 0.97));
-  box-shadow: 0 7px 22px rgba(76, 29, 149, 0.06);
+  padding: 16px 20px;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  border-left: 3.5px solid #a855f7;
+  border-radius: 6px 18px 18px 18px;
+  background: linear-gradient(145deg, rgba(29, 14, 54, 0.95), rgba(21, 10, 40, 0.98));
+  box-shadow: 0 8px 26px rgba(8, 3, 18, 0.4);
 }
 
 .MessageActions button {
-  color: #64748b;
+  color: #a78bfa;
 
   &:hover {
-    color: #334155;
-    background: #f1f5f9;
+    color: #ffffff;
+    background: rgba(168, 85, 247, 0.22);
   }
 }
 
 .Activity {
-  border-color: #e2e8f0;
-  background: #ffffff;
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+  border-color: rgba(168, 85, 247, 0.28);
+  background: rgba(22, 10, 42, 0.9);
+  box-shadow: 0 4px 20px rgba(8, 3, 18, 0.35);
 }
 
 .ActivityHeader:hover {
-  background: #eff6ff;
+  background: rgba(168, 85, 247, 0.12);
 }
 
 .ActivityIcon {
-  background: #f3e8ff;
-  color: #7c3aed;
+  background: rgba(168, 85, 247, 0.22);
+  color: #c084fc;
 }
 
 .ActivityTitle {
-  color: #0f172a;
+  color: #ffffff;
 }
 
 .ActivitySubtitle,
@@ -608,98 +607,100 @@
 .CodeMeta,
 .CodeCaption,
 .PlanNote {
-  color: #64748b;
+  color: #c4b5fd;
 }
 
 .Step {
-  border-color: #e2e8f0;
-  background: #f8fafc;
-  color: #334155;
+  border-color: rgba(168, 85, 247, 0.2);
+  background: rgba(30, 14, 56, 0.65);
+  color: #f5f3ff;
 
   &:not(:disabled):hover {
-    border-color: #c4b5fd;
-    background: #f5f3ff;
+    border-color: rgba(192, 132, 252, 0.55);
+    background: rgba(46, 21, 86, 0.75);
   }
 
   &[data-status='running'] {
-    background: #f5f3ff;
-    color: #6d28d9;
+    background: rgba(147, 51, 234, 0.22);
+    color: #d8b4fe;
   }
 
   &[data-status='failed'] {
-    background: #fff1f2;
-    color: #be123c;
+    background: rgba(225, 29, 72, 0.2);
+    color: #fda4af;
   }
 
   &[data-status='pending'],
   &[data-status='aborted'] {
-    color: #64748b;
+    color: #a78bfa;
   }
 }
 
 .ActivityFootnote,
 .CodePreview,
 .ApprovalActions {
-  border-color: #e2e8f0;
+  border-color: rgba(168, 85, 247, 0.25);
 }
 
 .JumpToLatest {
-  border-color: #cbd5e1;
-  background: #ffffff;
-  color: #334155;
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+  border-color: rgba(168, 85, 247, 0.45);
+  background: #26114d;
+  color: #ffffff;
+  box-shadow: 0 6px 22px rgba(10, 4, 24, 0.5);
 }
 
 .CodePreview {
-  border-top-color: #e2e8f0;
+  border-top-color: rgba(168, 85, 247, 0.25);
 
   button {
-    color: #64748b;
+    color: #c4b5fd;
 
     &:hover {
-      color: #6d28d9;
+      color: #ffffff;
     }
   }
 
   pre {
-    background: #f1f5f9 !important;
-    color: #1e293b;
+    background: #0f061e !important;
+    color: #e9d5ff;
+    border: 1px solid rgba(168, 85, 247, 0.22);
   }
 }
 
 .Blueprint {
-  border-color: #ddd6fe;
-  background: linear-gradient(140deg, #ffffff, #faf8ff);
+  border-color: rgba(168, 85, 247, 0.35);
+  background: linear-gradient(145deg, rgba(30, 14, 56, 0.95), rgba(20, 9, 40, 0.98));
+  box-shadow: 0 8px 28px rgba(9, 3, 20, 0.4);
 }
 
 .BlueprintHeader {
-  color: #475569;
+  color: #e9d5ff;
 }
 
 .BlueprintBody {
-  color: #475569;
+  color: #d8b4fe;
 
   h4 {
-    color: #334155;
+    color: #f5f3ff;
   }
 }
 
 .BlueprintMetrics {
-  color: #64748b;
+  color: #c4b5fd;
 }
 
 .PlannedFiles {
   > div {
-    border-color: #e2e8f0;
-    background: #f8fafc;
+    border-color: rgba(168, 85, 247, 0.2);
+    background: rgba(20, 9, 40, 0.75);
   }
 
   code {
-    color: #1e293b;
+    color: #c084fc;
   }
 
   p {
-    color: #64748b;
+    color: #a78bfa;
   }
 }
 
@@ -714,11 +715,11 @@
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 15px 16px;
-  border: 1px solid #c7d2fe;
-  border-radius: 5px 17px 17px 17px;
-  background: linear-gradient(125deg, rgba(239, 246, 255, 0.96), rgba(250, 245, 255, 0.98));
-  box-shadow: 0 8px 24px rgba(79, 70, 229, 0.08);
+  padding: 16px 18px;
+  border: 1px solid rgba(168, 85, 247, 0.38);
+  border-radius: 6px 18px 18px 18px;
+  background: linear-gradient(135deg, rgba(36, 17, 68, 0.96), rgba(22, 10, 44, 0.98));
+  box-shadow: 0 8px 30px rgba(10, 4, 24, 0.5);
   contain: paint;
 }
 
@@ -728,14 +729,14 @@
   margin-top: 5px;
   flex: 0 0 auto;
   border-radius: 50%;
-  background: #7c3aed;
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.2);
+  background: #a855f7;
+  box-shadow: 0 0 16px rgba(168, 85, 247, 0.8);
   animation: thinking-pulse 1.8s ease-in-out infinite;
   will-change: transform, opacity;
 }
 
 .ThinkingTitle {
-  color: #312e81;
+  color: #ffffff;
   font-size: 13px;
   font-weight: 700;
   line-height: 1.45;
@@ -743,7 +744,7 @@
 
 .ThinkingSubtitle {
   margin-top: 3px;
-  color: #64748b;
+  color: #c4b5fd;
   font-size: 11px;
   line-height: 1.5;
 }
@@ -757,7 +758,7 @@
     display: block;
     height: 5px;
     border-radius: 999px;
-    background: #c4b5fd;
+    background: linear-gradient(90deg, #a855f7, #c084fc);
     animation: thinking-bar-pulse 1.6s ease-in-out infinite;
     will-change: opacity;
   }
@@ -810,10 +811,10 @@
 }
 
 .ApprovalActions {
-  border-top-color: #e2e8f0;
+  border-top-color: rgba(168, 85, 247, 0.25);
 
   button {
-    border-color: #cbd5e1;
-    color: #475569;
+    border-color: rgba(168, 85, 247, 0.3);
+    color: #e9d5ff;
   }
 }

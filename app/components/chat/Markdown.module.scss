@@ -32,13 +32,13 @@ $code-font-size: 13px;
 
   h1 {
     font-size: 1.45em;
-    border-bottom: 1px solid #dbeafe;
+    border-bottom: 1px solid rgba(168, 85, 247, 0.25);
     padding-bottom: 0.3em;
   }
 
   h2 {
     font-size: 1.25em;
-    border-bottom: 1px solid #e9d5ff;
+    border-bottom: 1px solid rgba(168, 85, 247, 0.2);
     padding-bottom: 0.25em;
   }
 
@@ -69,11 +69,12 @@ $code-font-size: 13px;
   }
 
   a {
-    color: #5b21b6;
+    color: #a78bfa;
     text-decoration: none;
     cursor: pointer;
 
     &:hover {
+      color: #c4b5fd;
       text-decoration: underline;
     }
   }
@@ -163,11 +164,11 @@ $code-font-size: 13px;
 
     :is(th, td) {
       padding: 6px 13px;
-      border: 1px solid #dfe2e5;
+      border: 1px solid rgba(168, 85, 247, 0.2);
     }
 
     tr:nth-child(2n) {
-      background-color: #f6f8fa;
+      background-color: rgba(168, 85, 247, 0.08);
     }
   }
 }

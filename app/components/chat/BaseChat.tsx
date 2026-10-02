@@ -481,10 +481,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
             {chatStarted && (
               <div className={styles.WorkspaceHeader}>
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <span className="i-ph:sparkle-fill text-violet-300 text-lg shrink-0" aria-hidden="true" />
+                  <span className="i-ph:sparkle-fill text-purple-400 text-lg shrink-0" aria-hidden="true" />
                   <div className="min-w-0">
-                    <div className="text-xs font-semibold">Game agent</div>
-                    <div className="text-[10px] text-slate-600 mt-0.5 truncate" role="status" aria-live="polite">
+                    <div className="text-xs font-bold text-purple-100 uppercase tracking-wide">Game Agent</div>
+                    <div className="text-[10px] text-purple-300/80 mt-0.5 truncate font-medium" role="status" aria-live="polite">
                       {harness.phase !== 'idle'
                         ? harness.detail
                         : isStreaming
@@ -500,7 +500,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   </div>
                 </div>
                 {(isStreaming || isVerifying || isAgentBusy) && (
-                  <span className="i-svg-spinners:90-ring-with-bg text-violet-300 shrink-0" aria-hidden="true" />
+                  <span className="i-svg-spinners:90-ring-with-bg text-purple-400 shrink-0" aria-hidden="true" />
                 )}
                 {!showWorkbench && !isStreaming && !isVerifying && (
                   <button type="button" onClick={() => workbenchStore.showWorkbench.set(true)}>
@@ -535,12 +535,12 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               </ClientOnly>
 
               {isWorkbenchActive && (!chatStarted || !messages?.length) && (
-                <div className="flex flex-1 flex-col items-center justify-center px-6 text-center text-slate-700">
-                  <div className="mb-3 grid h-12 w-12 place-items-center rounded-2xl border border-violet-200 bg-violet-50 text-violet-700">
-                    <span className="i-ph:chat-circle-dots text-2xl" aria-hidden="true" />
+                <div className="flex flex-1 flex-col items-center justify-center px-6 text-center text-purple-200">
+                  <div className="mb-3 grid h-12 w-12 place-items-center rounded-2xl border border-purple-500/30 bg-purple-900/40 text-purple-300">
+                    <span className="i-ph:chat-circle-dots text-2xl text-purple-300" aria-hidden="true" />
                   </div>
-                  <h2 className="text-base font-semibold text-slate-900">Chat with your game agent</h2>
-                  <p className="mt-1 max-w-xs text-xs leading-5 text-slate-600">
+                  <h2 className="text-base font-semibold text-purple-100">Chat with your game agent</h2>
+                  <p className="mt-1 max-w-xs text-xs leading-5 text-purple-300/70">
                     Describe a game or ask for a change. Your workspace stays open while you chat.
                   </p>
                 </div>
@@ -600,7 +600,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   <textarea
                     ref={textareaRef}
                     className={classNames(
-                      'w-full pl-4 pt-3.5 pb-2 pr-16 focus:outline-none resize-none text-slate-900 placeholder-slate-400 bg-transparent text-sm sm:text-[14px]',
+                      'w-full pl-4 pt-3.5 pb-2 pr-16 focus:outline-none resize-none text-purple-50 placeholder-purple-300/40 bg-transparent text-sm sm:text-[14px]',
                       'transition-all duration-200',
                     )}
                     onDragEnter={(e) => {
@@ -692,7 +692,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     <div className="flex gap-1 items-center flex-wrap min-w-0">
                       <IconButton
                         title="Upload file"
-                        className="transition-all text-slate-600 hover:text-violet-700 hover:bg-violet-50"
+                        className="transition-all text-purple-300 hover:text-white hover:bg-purple-800/40"
                         onClick={() => handleFileUpload()}
                       >
                         <div className="i-ph:paperclip text-xl"></div>
@@ -701,22 +701,22 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         title="Enhance prompt"
                         disabled={input.length === 0 || enhancingPrompt}
                         className={classNames(
-                          'transition-all text-slate-600 hover:text-violet-700 hover:bg-violet-50',
+                          'transition-all text-purple-300 hover:text-white hover:bg-purple-800/40',
                           enhancingPrompt ? 'opacity-100' : '',
-                          promptEnhanced ? 'text-violet-700 pr-1.5' : '',
-                          promptEnhanced ? 'enabled:hover:bg-violet-50' : '',
+                          promptEnhanced ? 'text-purple-200 pr-1.5' : '',
+                          promptEnhanced ? 'enabled:hover:bg-purple-800/40' : '',
                         )}
                         onClick={() => enhancePrompt?.()}
                       >
                         {enhancingPrompt ? (
                           <>
-                            <div className="i-svg-spinners:90-ring-with-bg text-violet-600 text-xl animate-spin"></div>
-                            <div className="ml-1.5 text-violet-700">Enhancing prompt...</div>
+                            <div className="i-svg-spinners:90-ring-with-bg text-purple-400 text-xl animate-spin"></div>
+                            <div className="ml-1.5 text-purple-200">Enhancing prompt...</div>
                           </>
                         ) : (
                           <>
-                            <div className="i-bolt:stars text-xl text-violet-600"></div>
-                            {promptEnhanced && <div className="ml-1.5 text-violet-700">Prompt enhanced</div>}
+                            <div className="i-bolt:stars text-xl text-purple-400"></div>
+                            {promptEnhanced && <div className="ml-1.5 text-purple-200">Prompt enhanced</div>}
                           </>
                         )}
                       </IconButton>
@@ -732,10 +732,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       {/* Configure AI icon button */}
                       <IconButton
                         title="Configure AI & Providers"
-                        className="transition-all text-slate-600 hover:text-violet-700 hover:bg-violet-50"
+                        className="transition-all text-purple-300 hover:text-white hover:bg-purple-800/40"
                         onClick={() => setIsSettingsOpen(true)}
                       >
-                        <div className="i-ph:gear-six text-xl text-violet-600" />
+                        <div className="i-ph:gear-six text-xl text-purple-300 group-hover:text-purple-100" />
                       </IconButton>
 
                       <div className={styles.ModelBadge} title={`Configured model: ${model || 'gpt-6-luna'}`}>
@@ -747,10 +747,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-slate-600 select-none">
+                    <div className="flex items-center gap-2 text-xs text-purple-300 select-none">
                       <span
                         style={{ borderRadius: 0 }}
-                        className="px-2 py-0.5 font-mono font-bold bg-amber-50 border border-amber-200 text-amber-700 flex items-center gap-1.5"
+                        className="px-2 py-0.5 font-mono font-bold bg-amber-500/10 border border-amber-500/30 text-amber-300 flex items-center gap-1.5"
                         title="10 FortzCoins per prompt"
                       >
                         <img src="/fortz-coin.png" alt="FortzCoin" className="w-4 h-4 object-contain" />
@@ -758,13 +758,13 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       </span>
                       {input.length > 3 && (
                         <>
-                          <span className="text-slate-300">•</span>
-                          <span className="text-[11px] text-slate-600">
-                            <kbd className="kdb px-1.5 py-0.5 rounded-none bg-slate-100 border border-slate-300 text-slate-700 font-mono">
+                          <span className="text-purple-400/40">•</span>
+                          <span className="text-[11px] text-purple-300/70">
+                            <kbd className="kdb px-1.5 py-0.5 rounded-none bg-purple-950/60 border border-purple-500/30 text-purple-200 font-mono">
                               Shift
                             </kbd>{' '}
                             +{' '}
-                            <kbd className="kdb px-1.5 py-0.5 rounded-none bg-slate-100 border border-slate-300 text-slate-700 font-mono">
+                            <kbd className="kdb px-1.5 py-0.5 rounded-none bg-purple-950/60 border border-purple-500/30 text-purple-200 font-mono">
                               Return
                             </kbd>{' '}
                             for new line
@@ -783,10 +783,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 <Suspense
                   fallback={
                     <div className={styles.WorkspaceLoading} role="status" aria-live="polite">
-                      <div className="grid h-12 w-12 place-items-center rounded-2xl border border-blue-200 bg-white/80 text-blue-600 shadow-sm">
+                      <div className="grid h-12 w-12 place-items-center rounded-2xl border border-purple-500/30 bg-purple-950/60 text-purple-300 shadow-sm">
                         <span className="i-svg-spinners:90-ring-with-bg text-2xl" aria-hidden="true" />
                       </div>
-                      <span>Opening your workspace…</span>
+                      <span className="text-purple-200">Opening your workspace…</span>
                     </div>
                   }
                 >

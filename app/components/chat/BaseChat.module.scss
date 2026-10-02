@@ -5,44 +5,45 @@
   opacity: 1;
   min-width: 0;
   min-height: 0;
-  color-scheme: light;
-  color: #0f172a;
-  background: radial-gradient(ellipse at 92% 0%, rgba(124, 58, 237, 0.1), transparent 34%),
-    linear-gradient(155deg, #eff6ff 0%, #f5f3ff 58%, #f8faff 100%);
-  --bolt-elements-borderColor: #e2e8f0;
-  --bolt-elements-borderColorActive: #3b82f6;
-  --bolt-elements-bg-depth-1: #f8fafc;
-  --bolt-elements-bg-depth-2: #ffffff;
-  --bolt-elements-bg-depth-3: #f1f5f9;
-  --bolt-elements-bg-depth-4: #e2e8f0;
-  --bolt-elements-textPrimary: #0f172a;
-  --bolt-elements-textSecondary: #334155;
-  --bolt-elements-textTertiary: #64748b;
-  --bolt-elements-code-background: #f1f5f9;
-  --bolt-elements-code-text: #334155;
-  --bolt-elements-button-secondary-background: #f1f5f9;
-  --bolt-elements-button-secondary-backgroundHover: #e2e8f0;
-  --bolt-elements-button-secondary-text: #334155;
-  --bolt-elements-item-contentDefault: #334155;
-  --bolt-elements-item-contentActive: #0f172a;
-  --bolt-elements-item-contentAccent: #6d28d9;
-  --bolt-elements-item-backgroundActive: #f3e8ff;
-  --bolt-elements-artifacts-background: #ffffff;
-  --bolt-elements-artifacts-backgroundHover: #f8fafc;
-  --bolt-elements-artifacts-borderColor: #e2e8f0;
-  --bolt-elements-artifacts-inlineCode-background: #f1f5f9;
-  --bolt-elements-artifacts-inlineCode-text: #334155;
-  --bolt-elements-actions-background: #ffffff;
-  --bolt-elements-actions-code-background: #f8fafc;
-  --bolt-elements-messages-background: #ffffff;
-  --bolt-elements-messages-linkColor: #6d28d9;
-  --bolt-elements-messages-code-background: #f1f5f9;
-  --bolt-elements-messages-inlineCode-background: #ede9fe;
-  --bolt-elements-messages-inlineCode-text: #6d28d9;
-  --bolt-elements-icon-primary: #334155;
-  --bolt-elements-icon-secondary: #64748b;
-  --bolt-elements-dividerColor: #e2e8f0;
-  --bolt-elements-prompt-background: #ffffff;
+  color-scheme: dark;
+  color: #f8fafc;
+  background: radial-gradient(ellipse at 85% 0%, rgba(168, 85, 247, 0.22), transparent 45%),
+    radial-gradient(ellipse at 15% 100%, rgba(139, 92, 246, 0.16), transparent 50%),
+    linear-gradient(165deg, #130826 0%, #1c0c37 45%, #10061f 100%);
+  --bolt-elements-borderColor: rgba(168, 85, 247, 0.28);
+  --bolt-elements-borderColorActive: #c084fc;
+  --bolt-elements-bg-depth-1: #130826;
+  --bolt-elements-bg-depth-2: #1b0d36;
+  --bolt-elements-bg-depth-3: #26114a;
+  --bolt-elements-bg-depth-4: #331563;
+  --bolt-elements-textPrimary: #ffffff;
+  --bolt-elements-textSecondary: #e9d5ff;
+  --bolt-elements-textTertiary: #a78bfa;
+  --bolt-elements-code-background: #0d051a;
+  --bolt-elements-code-text: #e9d5ff;
+  --bolt-elements-button-secondary-background: rgba(168, 85, 247, 0.18);
+  --bolt-elements-button-secondary-backgroundHover: rgba(168, 85, 247, 0.32);
+  --bolt-elements-button-secondary-text: #ffffff;
+  --bolt-elements-item-contentDefault: #e9d5ff;
+  --bolt-elements-item-contentActive: #ffffff;
+  --bolt-elements-item-contentAccent: #c084fc;
+  --bolt-elements-item-backgroundActive: rgba(168, 85, 247, 0.22);
+  --bolt-elements-artifacts-background: #1b0d36;
+  --bolt-elements-artifacts-backgroundHover: #241147;
+  --bolt-elements-artifacts-borderColor: rgba(168, 85, 247, 0.28);
+  --bolt-elements-artifacts-inlineCode-background: rgba(168, 85, 247, 0.22);
+  --bolt-elements-artifacts-inlineCode-text: #c084fc;
+  --bolt-elements-actions-background: #1b0d36;
+  --bolt-elements-actions-code-background: #0d051a;
+  --bolt-elements-messages-background: #1b0d36;
+  --bolt-elements-messages-linkColor: #c084fc;
+  --bolt-elements-messages-code-background: #0d051a;
+  --bolt-elements-messages-inlineCode-background: rgba(168, 85, 247, 0.22);
+  --bolt-elements-messages-inlineCode-text: #c084fc;
+  --bolt-elements-icon-primary: #e9d5ff;
+  --bolt-elements-icon-secondary: #a78bfa;
+  --bolt-elements-dividerColor: rgba(168, 85, 247, 0.22);
+  --bolt-elements-prompt-background: #1b0d36;
 }
 
 .WorkspaceHeader {
@@ -50,42 +51,51 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 16px;
-  border-bottom: 1px solid #e2e8f0;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(168, 85, 247, 0.25);
   flex-shrink: 0;
-  color: #0f172a;
-  background: linear-gradient(100deg, rgba(219, 234, 254, 0.88), rgba(237, 233, 254, 0.88));
+  color: #f8fafc;
+  background: linear-gradient(90deg, #180932 0%, #251049 100%);
+  backdrop-filter: blur(12px);
 
   button {
     display: flex;
     align-items: center;
-    gap: 5px;
-    padding: 6px 9px;
-    border: 1px solid #cbd5e1;
-    border-radius: 7px;
-    color: #475569;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    border-radius: 8px;
+    background: rgba(168, 85, 247, 0.14);
+    color: #e9d5ff;
     font-size: 11px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    cursor: pointer;
     &:hover {
-      background: #f1f5f9;
+      background: rgba(168, 85, 247, 0.28);
+      border-color: rgba(192, 132, 252, 0.6);
+      color: #ffffff;
+      box-shadow: 0 0 14px rgba(168, 85, 247, 0.35);
     }
   }
 }
 
 .Composer {
   overflow: hidden;
-  border: 1px solid #c7d2fe;
-  border-radius: 18px;
-  background: #ffffff;
-  box-shadow: 0 12px 34px rgba(49, 46, 129, 0.1);
+  border: 1px solid rgba(168, 85, 247, 0.38);
+  border-radius: 16px;
+  background: linear-gradient(155deg, #1c0e38 0%, #15092a 100%);
+  box-shadow: 0 12px 36px rgba(10, 4, 22, 0.55), 0 0 24px rgba(147, 51, 234, 0.12);
   transition:
-    border-color 150ms,
-    box-shadow 150ms;
+    border-color 200ms ease,
+    box-shadow 200ms ease;
 
   &:focus-within {
-    border-color: rgba(59, 130, 246, 0.72);
+    border-color: rgba(192, 132, 252, 0.78);
     box-shadow:
-      0 0 0 3px rgba(59, 130, 246, 0.12),
-      0 12px 34px rgba(49, 46, 129, 0.14);
+      0 0 0 3px rgba(168, 85, 247, 0.25),
+      0 14px 40px rgba(12, 5, 28, 0.65),
+      0 0 28px rgba(168, 85, 247, 0.28);
   }
 }
 
@@ -95,18 +105,23 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 8px 10px;
-  border-top: 1px solid #e2e8f0;
-  background: #f8fafc;
+  padding: 8px 12px;
+  border-top: 1px solid rgba(168, 85, 247, 0.2);
+  background: rgba(19, 8, 38, 0.88);
 }
 
 .ModelBadge {
   display: flex;
   align-items: center;
   gap: 5px;
-  max-width: 130px;
-  color: #64748b;
+  max-width: 140px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(168, 85, 247, 0.14);
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  color: #d8b4fe;
   font-size: 10px;
+  font-weight: 600;
   span:last-child {
     overflow: hidden;
     text-overflow: ellipsis;

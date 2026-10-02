@@ -1,20 +1,20 @@
 :root,
 :root[data-theme='light'] {
-  --bolt-elements-borderColor: rgba(56, 189, 248, 0.28);
-  --bolt-elements-borderColorActive: #38bdf8;
+  --bolt-elements-borderColor: rgba(168, 85, 247, 0.28);
+  --bolt-elements-borderColorActive: #c084fc;
 
-  /* Modern Digital Blue Palette — Clean Blue with Electric Light Blue & Vibrant Orange */
-  --bolt-elements-bg-depth-1: #14243b;
-  --bolt-elements-bg-depth-2: #1a3050;
-  --bolt-elements-bg-depth-3: #213d66;
-  --bolt-elements-bg-depth-4: #284b7c;
+  /* Modern Purple Studio Palette */
+  --bolt-elements-bg-depth-1: #120722;
+  --bolt-elements-bg-depth-2: #1b0d36;
+  --bolt-elements-bg-depth-3: #26114a;
+  --bolt-elements-bg-depth-4: #331563;
 
   --bolt-elements-textPrimary: #ffffff;
-  --bolt-elements-textSecondary: #e0f2fe;
-  --bolt-elements-textTertiary: #94a3b8;
+  --bolt-elements-textSecondary: #e9d5ff;
+  --bolt-elements-textTertiary: #a78bfa;
 
-  --bolt-elements-code-background: #0f1c30;
-  --bolt-elements-code-text: #38bdf8;
+  --bolt-elements-code-background: #0d051a;
+  --bolt-elements-code-text: #c084fc;
 
   --bolt-elements-button-primary-background: #f97316;
   --bolt-elements-button-primary-backgroundHover: #ea580c;
@@ -107,21 +107,21 @@
 /* Color Tokens Dark Theme */
 :root,
 :root[data-theme='dark'] {
-  --bolt-elements-borderColor: rgba(56, 189, 248, 0.28);
-  --bolt-elements-borderColorActive: #38bdf8;
+  --bolt-elements-borderColor: rgba(168, 85, 247, 0.28);
+  --bolt-elements-borderColorActive: #c084fc;
 
-  /* Modern Digital Blue Palette — Clean Blue with Electric Light Blue & Vibrant Orange */
-  --bolt-elements-bg-depth-1: #14243b;
-  --bolt-elements-bg-depth-2: #1a3050;
-  --bolt-elements-bg-depth-3: #213d66;
-  --bolt-elements-bg-depth-4: #284b7c;
+  /* Modern Purple Studio Palette */
+  --bolt-elements-bg-depth-1: #120722;
+  --bolt-elements-bg-depth-2: #1b0d36;
+  --bolt-elements-bg-depth-3: #26114a;
+  --bolt-elements-bg-depth-4: #331563;
 
   --bolt-elements-textPrimary: #ffffff;
-  --bolt-elements-textSecondary: #e0f2fe;
-  --bolt-elements-textTertiary: #94a3b8;
+  --bolt-elements-textSecondary: #e9d5ff;
+  --bolt-elements-textTertiary: #a78bfa;
 
-  --bolt-elements-code-background: #0f1c30;
-  --bolt-elements-code-text: #38bdf8;
+  --bolt-elements-code-background: #0d051a;
+  --bolt-elements-code-text: #c084fc;
 
   --bolt-elements-button-primary-background: #f97316;
   --bolt-elements-button-primary-backgroundHover: #ea580c;

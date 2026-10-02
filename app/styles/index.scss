@@ -13,8 +13,8 @@ html,
 body {
   height: 100%;
   width: 100%;
-  background-color: #14243b !important;
-  background-image: radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.12) 0%, transparent 60%) !important;
+  background-color: #120722 !important;
+  background-image: radial-gradient(circle at 50% 0%, rgba(168, 85, 247, 0.22) 0%, transparent 65%) !important;
   color: #ffffff;
   overflow: hidden;
 }
@@ -42,29 +42,29 @@ select,
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #14243b;
+  background: #120722;
 }
 ::-webkit-scrollbar-thumb {
-  background: #254168;
+  background: #2a124e;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #38bdf8;
+  background: #c084fc;
 }
 
 ::selection {
-  background-color: rgba(56, 189, 248, 0.35);
+  background-color: rgba(168, 85, 247, 0.35);
   color: #ffffff;
 }
 
 :root {
-  --thefortz-dark: #121929;
-  --thefortz-surface: #1a233a;
+  --thefortz-dark: #120722;
+  --thefortz-surface: #1b0d36;
   --thefortz-orange: #f97316;
-  --thefortz-blue: #38bdf8;
+  --thefortz-blue: #a855f7;
   --thefortz-purple: #8b5cf6;
-  --primary-color: #f97316;
-  --secondary-color: #38bdf8;
-  --accent-color: #f97316;
+  --primary-color: #8b5cf6;
+  --secondary-color: #c084fc;
+  --accent-color: #a855f7;
 }
 
 /* Overrides for explicit circular profile avatars */
