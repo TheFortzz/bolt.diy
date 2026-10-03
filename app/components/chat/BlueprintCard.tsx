@@ -28,7 +28,7 @@ export const BlueprintCard = memo(
           <span className="min-w-0 flex-1">
             <span className={styles.ActivityTitle}>{blueprint.title}</span>
             <span className={styles.ActivitySubtitle}>
-              Build plan · {canApprove ? 'Waiting for your approval' : 'Reviewed plan'}
+              Build plan · {isApproving ? 'Preparing build…' : canApprove ? 'Waiting for your approval' : 'Approved build'}
             </span>
           </span>
           <span className={expanded ? 'i-ph:caret-up' : 'i-ph:caret-down'} aria-hidden="true" />
@@ -101,8 +101,7 @@ export const BlueprintCard = memo(
               ))}
             </ul>
             <p className={styles.PlanNote}>
-              Code and images stay blocked until approval. Changes are limited to these paths. Failed candidates are not
-              marked verified.
+              Changes are limited to these paths. Candidate builds are verified before publication.
             </p>
           </div>
         </div>

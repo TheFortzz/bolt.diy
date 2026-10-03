@@ -81,8 +81,10 @@ export class StreamingMessageParser {
       // square-bracket close tags
       .replace(/\[\/boltArtifact\]/gi, '</boltArtifact>')
       .replace(/\[\/boltAction\]/gi, '</boltAction>')
-      // unquoted attribute values: type=file → type="file", filePath=foo.js → filePath="foo.js"
-      .replace(/\b(type|filePath|id|title)=([^\s"'>]+)/gi, (_, k, v) => `${k}="${v}"`);
+      // unquoted attribute values inside tags: type=file → type="file", filePath=foo.js → filePath="foo.js"
+      .replace(/(<(?:boltArtifact|boltAction)\b[^>]*>)/gi, (tag) =>
+        tag.replace(/\b(type|filePath|id|title)=([^\s"'>]+)/gi, (_, k, v) => `${k}="${v}"`),
+      );
 
     // If the model emitted <boltAction without any <boltArtifact in the message, wrap it automatically
     let normalized = cleaned;

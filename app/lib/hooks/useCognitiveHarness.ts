@@ -137,6 +137,122 @@ export function useCognitiveHarness(options: HarnessOptions) {
     [],
   );
 
+  const executeApprovedPlan = useCallback(
+    async (
+      blueprint: Blueprint,
+      reviewToken: string,
+      messageId: string,
+      userRequest: string,
+      controller: AbortController,
+      sequence: number,
+    ) => {
+      transitionHarness('preparing-assets', {
+        blueprint,
+        reviewToken,
+        blueprintMessageId: messageId,
+        request: userRequest,
+        detail: 'Validating build plan and workspace revision…',
+      });
+
+      try {
+        await workbenchStore.saveAllFiles();
+        await workbenchStore.waitForExecutionQueue();
+
+        const snapshot = await captureProject(await getWebContainer());
+        const currentRevision = await revisionHash(await createWorkspaceManifest(snapshot));
+
+        if (currentRevision !== blueprint.baseRevision) {
+          throw new Error('The workspace changed after planning. Send your request again for a fresh blueprint.');
+        }
+
+        const approval = await postHarness<{ executionToken: string }>(
+          { intent: 'approve', blueprint, reviewToken, currentRevision, confirmed: true },
+          controller.signal,
+        );
+
+        if (sequence !== requestSequence.current || controller.signal.aborted) {
+          return;
+        }
+
+        transitionHarness('preparing-assets', {
+          executionToken: approval.executionToken,
+          detail: blueprint.assetOperations.length
+            ? 'Preparing approved game visuals…'
+            : 'Using existing assets and procedural visuals…',
+        });
+        validationState.set({ status: 'checking', detail: 'Preparing approved game assets…' });
+        await runActivityStep(
+          messageId,
+          'assets:approved',
+          'Preparing approved game images',
+          async () => {
+            const result = await generateProjectAssets({
+              messageId,
+              approvedBlueprint: blueprint,
+              executionToken: approval.executionToken,
+            });
+
+            if (!result.ok) {
+              throw new Error(result.error || 'Image Builder failed');
+            }
+          },
+          blueprint.assetOperations.length ? 'Approved images ready' : 'No new images requested',
+        );
+
+        if (sequence !== requestSequence.current || controller.signal.aborted) {
+          return;
+        }
+
+        executionPolicy.approve(blueprint);
+        transitionHarness('editing', {
+          blueprint,
+          reviewToken,
+          blueprintMessageId: messageId,
+          request: userRequest,
+          executionToken: approval.executionToken,
+          detail: 'Writing the approved game modules and playable content…',
+        });
+        validationState.set({ status: 'idle', detail: '' });
+
+        const artifactId = workbenchStore.firstArtifact?.id || `game-${blueprint.workspaceId}`;
+        await options.append(
+          {
+            role: 'user',
+            content: `[Model: ${options.model}]\n\n[Provider: ${options.provider}]\n\n[Studio Mode: BUILD]\n\nImplement the approved blueprint for this request: ${userRequest}\nUse artifact id="${artifactId}". All approved image files are now available.`,
+            annotations: [{ type: 'harness-execution', planId: blueprint.id }],
+          },
+          {
+            body: {
+              approvedBlueprint: blueprint,
+              executionToken: approval.executionToken,
+              systemContext: compileSystemContext(
+                workbenchStore.files.get(),
+                generatedAssets.get(),
+                validationState.get(),
+              ),
+              workspaceSources: sourceContext(snapshot, 300000, 200000, [
+                ...blueprint.fileOperations.map((file) => file.path),
+                ...blueprint.scriptOrder,
+              ]),
+            },
+          },
+        );
+      } catch (error) {
+        if (sequence !== requestSequence.current || controller.signal.aborted) {
+          return;
+        }
+
+        const detail = (error as Error).message || 'Could not start the approved build';
+        executionPolicy.revoke();
+        transitionHarness('failed', { detail });
+        validationState.set({ status: 'failed', detail });
+        startActivity(messageId, 'approval:failed', detail, detail, 'failed');
+        toast.error(detail);
+      }
+    },
+    [options],
+  );
+
   const requestPlan = useCallback(
     async (request: string, images: string[] = []) => {
       if (harnessIsBusy(harnessState.get().phase)) {
@@ -242,16 +358,14 @@ export function useCognitiveHarness(options: HarnessOptions) {
           {
             id: messageId,
             role: 'assistant',
-            content: 'Your build plan is ready. Review the systems, files, and images below, then approve the build.',
+            content: 'Your build plan is ready. Building game…',
             annotations: [{ type: 'studio-blueprint', blueprint }],
           },
         ]);
         updateActivity(messageId, 'manager:plan', 'complete');
-        transitionHarness('awaiting-approval', {
-          blueprint,
-          reviewToken: result.reviewToken,
-          detail: 'Review the build plan · code and images are blocked',
-        });
+
+        // Automatically start the build without waiting for manual approval
+        await executeApprovedPlan(blueprint, result.reviewToken, messageId, request, controller, sequence);
       } catch (error) {
         if (sequence !== requestSequence.current || controller.signal.aborted) {
           return;
@@ -271,13 +385,13 @@ export function useCognitiveHarness(options: HarnessOptions) {
         toast.error(detail);
       }
     },
-    [options],
+    [options, executeApprovedPlan],
   );
 
   const approvePlan = useCallback(async () => {
     const state = harnessState.get();
 
-    if (state.phase !== 'awaiting-approval' || !state.blueprint || !state.reviewToken || !state.blueprintMessageId) {
+    if (!state.blueprint || !state.reviewToken || !state.blueprintMessageId) {
       return;
     }
 
@@ -286,97 +400,9 @@ export function useCognitiveHarness(options: HarnessOptions) {
     const sequence = requestSequence.current;
     const controller = controllerRef.current ?? new AbortController();
     controllerRef.current = controller;
-    transitionHarness('preparing-assets', { detail: 'Validating your approval and workspace revision…' });
 
-    try {
-      await workbenchStore.saveAllFiles();
-      await workbenchStore.waitForExecutionQueue();
-
-      const snapshot = await captureProject(await getWebContainer());
-      const currentRevision = await revisionHash(await createWorkspaceManifest(snapshot));
-
-      if (currentRevision !== blueprint.baseRevision) {
-        throw new Error('The workspace changed after planning. Send your request again for a fresh blueprint.');
-      }
-
-      const approval = await postHarness<{ executionToken: string }>(
-        { intent: 'approve', blueprint, reviewToken: state.reviewToken, currentRevision, confirmed: true },
-        controller.signal,
-      );
-
-      if (sequence !== requestSequence.current || controller.signal.aborted) {
-        return;
-      }
-
-      transitionHarness('preparing-assets', {
-        executionToken: approval.executionToken,
-        detail: blueprint.assetOperations.length
-          ? 'Preparing approved game visuals…'
-          : 'Using existing assets and procedural visuals…',
-      });
-      validationState.set({ status: 'checking', detail: 'Preparing approved game assets…' });
-      await runActivityStep(
-        messageId,
-        'assets:approved',
-        'Preparing approved game images',
-        async () => {
-          const result = await generateProjectAssets({
-            messageId,
-            approvedBlueprint: blueprint,
-            executionToken: approval.executionToken,
-          });
-
-          if (!result.ok) {
-            throw new Error(result.error || 'Image Builder failed');
-          }
-        },
-        blueprint.assetOperations.length ? 'Approved images ready' : 'No new images requested',
-      );
-
-      if (sequence !== requestSequence.current || controller.signal.aborted) {
-        return;
-      }
-
-      executionPolicy.approve(blueprint);
-      transitionHarness('editing', { detail: 'Writing the approved game modules and playable content…' });
-      validationState.set({ status: 'idle', detail: '' });
-
-      const artifactId = workbenchStore.firstArtifact?.id || `game-${blueprint.workspaceId}`;
-      await options.append(
-        {
-          role: 'user',
-          content: `[Model: ${options.model}]\n\n[Provider: ${options.provider}]\n\n[Studio Mode: BUILD]\n\nImplement the approved blueprint for this request: ${state.request}\nUse artifact id="${artifactId}". All approved image files are now available.`,
-          annotations: [{ type: 'harness-execution', planId: blueprint.id }],
-        },
-        {
-          body: {
-            approvedBlueprint: blueprint,
-            executionToken: approval.executionToken,
-            systemContext: compileSystemContext(
-              workbenchStore.files.get(),
-              generatedAssets.get(),
-              validationState.get(),
-            ),
-            workspaceSources: sourceContext(snapshot, 300000, 200000, [
-              ...blueprint.fileOperations.map((file) => file.path),
-              ...blueprint.scriptOrder,
-            ]),
-          },
-        },
-      );
-    } catch (error) {
-      if (sequence !== requestSequence.current || controller.signal.aborted) {
-        return;
-      }
-
-      const detail = (error as Error).message || 'Could not start the approved build';
-      executionPolicy.revoke();
-      transitionHarness('failed', { detail });
-      validationState.set({ status: 'failed', detail });
-      startActivity(messageId, 'approval:failed', detail, detail, 'failed');
-      toast.error(detail);
-    }
-  }, [options]);
+    await executeApprovedPlan(blueprint, state.reviewToken, messageId, state.request || '', controller, sequence);
+  }, [executeApprovedPlan]);
 
   const cancelPlan = useCallback(() => {
     controllerRef.current?.abort();

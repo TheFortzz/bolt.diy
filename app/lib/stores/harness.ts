@@ -20,7 +20,7 @@ export const publishedPreviewHtml = atom<string | undefined>();
 
 const transitions: Record<HarnessPhase, HarnessPhase[]> = {
   idle: ['planning'],
-  planning: ['awaiting-approval', 'failed', 'cancelled', 'idle'],
+  planning: ['awaiting-approval', 'preparing-assets', 'editing', 'failed', 'cancelled', 'idle'],
   'awaiting-approval': ['preparing-assets', 'editing', 'planning', 'failed', 'cancelled', 'idle'],
   'preparing-assets': ['editing', 'failed', 'cancelled', 'idle'],
   editing: ['verifying', 'failed', 'cancelled', 'idle'],

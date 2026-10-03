@@ -274,6 +274,32 @@ describe('StreamingMessageParser', () => {
       expect(onArtifactClose).toHaveBeenCalledTimes(1);
       expect(onActionClose).toHaveBeenCalledTimes(1);
     });
+
+    it('should normalize unquoted tag attributes without corrupting JavaScript equality checks', () => {
+      const onActionClose = vi.fn();
+
+      const parser = new StreamingMessageParser({
+        callbacks: {
+          onActionClose,
+        },
+      });
+
+      const message =
+        '<boltArtifact id=test title=Test><boltAction type=file filePath=game.js>if (p.type === "shield") { title = state === "menu"; o.type = 2; }</boltAction></boltArtifact>';
+      parser.parse('msg_1', message);
+
+      expect(onActionClose).toHaveBeenCalledTimes(1);
+      expect(onActionClose).toHaveBeenCalledWith({
+        actionId: '-1',
+        artifactId: 'test',
+        messageId: 'msg_1',
+        action: {
+          type: 'file',
+          filePath: 'game.js',
+          content: 'if (p.type === "shield") { title = state === "menu"; o.type = 2; }\n',
+        },
+      });
+    });
   });
 });
 
