@@ -183,8 +183,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
               approvedBlueprint.fileOperations.every((op) => completedFilePaths.has(op.path)),
           );
 
-          // Only continue if a file action was cut off mid-stream or if not all planned files
-          // have been emitted yet, and we haven't reached our continuation limit.
+          // Continue only for a truncated response with approved files still outstanding.
           const shouldContinue =
             (hasUnclosedAction || finishReason === 'length') &&
             !allPlannedFilesCompleted &&

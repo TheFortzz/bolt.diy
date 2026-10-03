@@ -441,13 +441,13 @@ export const ChatImpl = memo(
         workbenchStore.finishPendingActions();
 
         if (!result.ok) {
-          if (repairAttemptsRef.current < 2 && !result.error?.includes('runtime verification needs')) {
+          if (repairAttemptsRef.current < 5 && !result.error?.includes('runtime verification needs')) {
             repairAttemptsRef.current++;
             executionPolicy.allowRepair();
             if (managedBlueprint) {
               try {
                 transitionHarness('editing', {
-                  detail: `Auto-repairing build (${repairAttemptsRef.current}/2)…`,
+                  detail: `Auto-repairing build (${repairAttemptsRef.current}/5)…`,
                 });
               } catch (e) {
                 console.warn('transitionHarness to editing failed:', e);
@@ -455,10 +455,10 @@ export const ChatImpl = memo(
             }
             validationState.set({
               status: 'checking',
-              detail: `Auto-repairing build (${repairAttemptsRef.current}/2)…`,
+              detail: `Auto-repairing build (${repairAttemptsRef.current}/5)…`,
             });
             toast.info(
-              `⚠️ Build issue detected — automatically diagnosing and repairing (${repairAttemptsRef.current}/2)…`,
+              `⚠️ Build issue detected — diagnosing and repairing approved files (${repairAttemptsRef.current}/5)…`,
               {
                 autoClose: 5000,
               },
@@ -467,18 +467,36 @@ export const ChatImpl = memo(
             try {
               const rawFiles = workbenchStore.files.get();
               const workspaceSources: Record<string, string> = {};
+              const maxRepairContextChars = 300000;
+              const maxRepairFileChars = 200000;
+              let repairContextChars = 0;
               const authorizedPaths = new Set([
                 ...(managedBlueprint?.manifest.map((f) => f.path) || []),
                 ...(managedBlueprint?.fileOperations.map((f) => f.path) || []),
               ]);
+              const sourceEntries = Object.entries(rawFiles)
+                .map(([rawPath, file]) => [rawPath.replace(/^\/home\/project\//, '').replace(/^\.?\//, ''), file] as const)
+                .filter(
+                  ([path, file]) =>
+                    file?.type === 'file' &&
+                    typeof file.content === 'string' &&
+                    (!managedBlueprint || authorizedPaths.has(path)),
+                )
+                .sort(([left], [right]) => {
+                  const leftHasError = result.error?.includes(left) ? 1 : 0;
+                  const rightHasError = result.error?.includes(right) ? 1 : 0;
+                  return rightHasError - leftHasError;
+                });
 
-              for (const [path, dirent] of Object.entries(rawFiles)) {
-                if (dirent?.type === 'file' && typeof dirent.content === 'string') {
-                  const cleanPath = path.startsWith('/home/project/') ? path.slice('/home/project/'.length) : path;
-                  if (!managedBlueprint || authorizedPaths.has(cleanPath)) {
-                    workspaceSources[cleanPath] = dirent.content.slice(0, 100000);
-                  }
-                }
+              for (const [path, dirent] of sourceEntries) {
+                if (dirent?.type !== 'file' || typeof dirent.content !== 'string') continue;
+
+                const remaining = maxRepairContextChars - repairContextChars;
+                if (remaining <= 0) break;
+
+                const source = dirent.content.slice(0, Math.min(maxRepairFileChars, remaining));
+                workspaceSources[path] = source;
+                repairContextChars += source.length;
               }
 
               const artifactId =
@@ -488,7 +506,7 @@ export const ChatImpl = memo(
               await append(
                 {
                   role: 'user',
-                  content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n[Studio Mode: BUILD]\n\n[Internal Repair Prompt - Attempt ${repairAttemptsRef.current}/2]\n\nAutomatic build preview verification found issue:\n${result.error?.slice(-1500)}\n\nCRITICAL FIX INSTRUCTIONS:\n1. Fix the error directly in the code. Begin immediately with <boltArtifact id="${artifactId}">, emit ONLY the single file that needs the fix inside <boltAction type="file" filePath="..."> (typically game.js), and close with </boltArtifact>. DO NOT re-emit files that are already working.\n2. Ensure window.__GAME_DIAGNOSTICS__ is initialized at the top of game.js and simulationSteps increments in the requestAnimationFrame loop.\n3. Output corrected file action immediately with zero conversational fluff.`,
+                  content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n[Studio Mode: BUILD]\n\n[Internal Repair Prompt - Attempt ${repairAttemptsRef.current}/5]\n\nAutomatic build verification found this issue:\n${result.error?.slice(-1800)}\n\nCRITICAL REPAIR INSTRUCTIONS:\n1. Diagnose the reported file, line, and root cause using the supplied current workspace sources; do not guess or default to game.js.\n2. Repair every affected approved module, preserving working files and existing gameplay. If a file is truncated, output its complete repaired contents. Only use paths already approved by the blueprint.\n3. Keep the original artifact id="${artifactId}", begin with <boltArtifact>, emit complete approved file actions, and close with </boltArtifact>. Do not replace the multi-file architecture with a smaller demo.\n4. Preserve the diagnostics contract in its existing module and verify the actual game initialization/render loop. Output file actions directly without an explanatory preamble.`,
                   annotations: managedBlueprint
                     ? [{ type: 'harness-execution', planId: managedBlueprint.id }]
                     : undefined,

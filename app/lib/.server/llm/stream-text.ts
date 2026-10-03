@@ -164,10 +164,8 @@ export async function streamText(props: {
         .slice(-8)
     : trimMessagesForSmallModel(processedMessages, currentModel, modelDetails);
 
-  const dynamicMaxTokens = Math.max(
-    modelDetails && modelDetails.maxTokenAllowed ? modelDetails.maxTokenAllowed : MAX_TOKENS,
-    MAX_TOKENS,
-  );
+  const providerOutputLimit = modelDetails?.maxTokenAllowed || MAX_TOKENS;
+  const dynamicMaxTokens = Math.min(providerOutputLimit, MAX_TOKENS);
 
   return _streamText({
     model: getModel(currentProvider, currentModel, env, activeApiKeys, activeProviderSettings) as any,
