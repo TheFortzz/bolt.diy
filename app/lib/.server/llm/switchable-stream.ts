@@ -184,7 +184,7 @@ export default class SwitchableStream {
     this.close();
   }
 
-  close() {
+  close(suffix?: string) {
     if (this._closed) {
       return;
     }
@@ -216,6 +216,10 @@ export default class SwitchableStream {
 
         if (remaining && !remaining.startsWith('d:') && !remaining.startsWith('e:')) {
           this._controller.enqueue(this._textEncoder.encode(remaining.endsWith('\n') ? remaining : remaining + '\n'));
+        }
+
+        if (suffix) {
+          this._controller.enqueue(this._textEncoder.encode(`0:${JSON.stringify(suffix)}\n`));
         }
 
         this._controller.enqueue(

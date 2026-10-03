@@ -56,4 +56,25 @@ describe('SwitchableStream', () => {
     expect(frames.join('')).toContain('Bearer [redacted]');
     expect(frames.join('')).not.toContain('abcdefghijklmnop-secret');
   });
+
+  it('enqueues an optional suffix text delta upon closing', async () => {
+    const stream = new SwitchableStream();
+    const reader = stream.readable.getReader();
+    stream.close('</boltArtifact>');
+
+    const frames: string[] = [];
+
+    while (true) {
+      const chunk = await reader.read();
+
+      if (chunk.done) {
+        break;
+      }
+
+      frames.push(new TextDecoder().decode(chunk.value));
+    }
+
+    expect(frames.join('')).toContain('0:"</boltArtifact>"');
+    expect(frames.join('')).toContain('d:{"finishReason":"stop"}');
+  });
 });

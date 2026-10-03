@@ -176,22 +176,32 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
           responseTagTail = tagInput.slice(-1024);
 
           const partialTag = /(?:<|\[)\/?bolt(?:Artifact|Action)\b[^>\]]*$/i.test(tagInput.slice(-256));
-          const hasUnclosedArtifact = artifactOpen;
           const hasUnclosedAction = actionOpen || partialTag;
-          const shouldContinue = finishReason === 'length' || hasUnclosedArtifact || hasUnclosedAction;
+          const allPlannedFilesCompleted = Boolean(
+            approvedBlueprint &&
+              approvedBlueprint.fileOperations.length > 0 &&
+              approvedBlueprint.fileOperations.every((op) => completedFilePaths.has(op.path)),
+          );
+
+          // Only continue if a file action was cut off mid-stream or if not all planned files
+          // have been emitted yet, and we haven't reached our continuation limit.
+          const shouldContinue =
+            (hasUnclosedAction || finishReason === 'length') &&
+            !allPlannedFilesCompleted &&
+            stream.switches < responseSegmentBudget;
 
           if (!shouldContinue || !content || content.trim().length === 0) {
-            return stream.close();
+            return stream.close(artifactOpen ? '\n</boltArtifact>' : undefined);
           }
 
           if (stream.switches >= responseSegmentBudget) {
             console.log(`Maximum continuation segments reached (${responseSegmentBudget}), closing stream.`);
-            return stream.close();
+            return stream.close(artifactOpen ? '\n</boltArtifact>' : undefined);
           }
 
           const switchesLeft = responseSegmentBudget - stream.switches;
           console.log(
-            `Continuing response for big build (${switchesLeft} switches left): reason=${finishReason}, unclosedArtifact=${hasUnclosedArtifact}, unclosedAction=${hasUnclosedAction}`,
+            `Continuing response for big build (${switchesLeft} switches left): reason=${finishReason}, unclosedAction=${hasUnclosedAction}`,
           );
 
           stream.markSwitchPending();

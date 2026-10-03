@@ -467,11 +467,16 @@ export const ChatImpl = memo(
             try {
               const rawFiles = workbenchStore.files.get();
               const workspaceSources: Record<string, string> = {};
+              const authorizedPaths = new Set([
+                ...(managedBlueprint?.manifest.map((f) => f.path) || []),
+                ...(managedBlueprint?.fileOperations.map((f) => f.path) || []),
+              ]);
+
               for (const [path, dirent] of Object.entries(rawFiles)) {
                 if (dirent?.type === 'file' && typeof dirent.content === 'string') {
                   const cleanPath = path.startsWith('/home/project/') ? path.slice('/home/project/'.length) : path;
-                  if (!managedBlueprint || managedBlueprint.manifest.some((f) => f.path === cleanPath)) {
-                    workspaceSources[cleanPath] = dirent.content.slice(0, 200000);
+                  if (!managedBlueprint || authorizedPaths.has(cleanPath)) {
+                    workspaceSources[cleanPath] = dirent.content.slice(0, 100000);
                   }
                 }
               }
@@ -483,7 +488,7 @@ export const ChatImpl = memo(
               await append(
                 {
                   role: 'user',
-                  content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n[Studio Mode: BUILD]\n\n[Internal Repair Prompt - Attempt ${repairAttemptsRef.current}/2]\n\nAutomatic build preview verification found runtime issue:\n${result.error?.slice(-1800)}\n\nCRITICAL FIX INSTRUCTIONS:\n1. Fix the error directly in the affected file(s). Emit the COMPLETE, fully closed, syntactically valid file inside <boltAction type="file" filePath="...">.\n2. Ensure all scripts are loaded in index.html in correct order and classes attached to window.\n3. Keep existing artifact id="${artifactId}" and close with </boltArtifact>.\n4. Output corrected file actions immediately with zero conversational fluff.`,
+                  content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n[Studio Mode: BUILD]\n\n[Internal Repair Prompt - Attempt ${repairAttemptsRef.current}/2]\n\nAutomatic build preview verification found issue:\n${result.error?.slice(-1500)}\n\nCRITICAL FIX INSTRUCTIONS:\n1. Fix the error directly in the code. Emit ONLY the single file that needs the fix inside <boltAction type="file" filePath="..."> (typically game.js). DO NOT re-emit files that are already working.\n2. Ensure window.__GAME_DIAGNOSTICS__ is initialized at the top of game.js and simulationSteps increments in the requestAnimationFrame loop.\n3. Keep existing artifact id="${artifactId}" and close with </boltArtifact>.\n4. Output corrected file action immediately with zero conversational fluff.`,
                   annotations: managedBlueprint
                     ? [{ type: 'harness-execution', planId: managedBlueprint.id }]
                     : undefined,

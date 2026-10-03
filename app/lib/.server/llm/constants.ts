@@ -2,5 +2,5 @@
 // Keep individual provider requests below common completion limits; large builds continue in segments.
 export const MAX_TOKENS = 32768;
 
-// Continuations are compacted so large builds can span many response segments.
-export const MAX_RESPONSE_SEGMENTS = 32;
+// Continuations are compacted so large builds can span response segments.
+export const MAX_RESPONSE_SEGMENTS = 3;
