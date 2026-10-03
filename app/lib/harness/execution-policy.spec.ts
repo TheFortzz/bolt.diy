@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { ExecutionPolicy } from '~/lib/harness/execution-policy';
-import { blueprintSchema, type Blueprint } from '~/lib/harness/blueprint';
+import {
+  MAX_GAME_RESPONSE_SEGMENTS,
+  MAX_GAME_SOURCE_BYTES,
+  blueprintSchema,
+  type Blueprint,
+} from '~/lib/harness/blueprint';
 import type { BoltAction } from '~/types/actions';
 
 const fileHash = `sha256:${'a'.repeat(64)}`;
@@ -28,7 +33,11 @@ function createBlueprint(): Blueprint {
       minimumSimulationSteps: 120,
       requireDiagnostics: true,
     },
-    budgets: { assetAttempts: 1, maximumSourceBytes: 1048576, maximumResponseSegments: 8 },
+    budgets: {
+      assetAttempts: 1,
+      maximumSourceBytes: MAX_GAME_SOURCE_BYTES,
+      maximumResponseSegments: MAX_GAME_RESPONSE_SEGMENTS,
+    },
   });
 }
 
@@ -61,9 +70,7 @@ describe('ExecutionPolicy', () => {
 
     // After calling allowRepair, a new assistant message can emit the fixed files
     policy.allowRepair();
-    expect(() =>
-      policy.authorize('assistant-2', 'action-4', fileAction('/home/project/game.js')),
-    ).not.toThrow();
+    expect(() => policy.authorize('assistant-2', 'action-4', fileAction('/home/project/game.js'))).not.toThrow();
   });
 
   it('rejects unplanned paths and non-file actions', () => {
@@ -76,13 +83,28 @@ describe('ExecutionPolicy', () => {
     );
   });
 
-  it('checks the source budget when the complete file action arrives', () => {
+  it('allows substantial source files within the expanded budget', () => {
     const policy = new ExecutionPolicy();
     policy.approve(createBlueprint());
     policy.authorize('assistant-1', 'action-1', fileAction('game.js'));
 
     expect(() =>
       policy.authorize('assistant-1', 'action-1', fileAction('game.js', 'x'.repeat(1048577)), 'complete'),
+    ).not.toThrow();
+  });
+
+  it('still rejects a file that exceeds the expanded source budget', () => {
+    const policy = new ExecutionPolicy();
+    policy.approve(createBlueprint());
+    policy.authorize('assistant-1', 'action-1', fileAction('game.js'));
+
+    expect(() =>
+      policy.authorize(
+        'assistant-1',
+        'action-1',
+        fileAction('game.js', 'x'.repeat(MAX_GAME_SOURCE_BYTES + 1)),
+        'complete',
+      ),
     ).toThrow('size budget');
   });
 

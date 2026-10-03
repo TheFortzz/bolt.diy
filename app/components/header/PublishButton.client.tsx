@@ -144,9 +144,14 @@ export function PublishButton() {
     }
   };
 
-  const executePublish = async (forcedTitle?: string, forcedGenre?: string) => {
-    const finalTitle = (forcedTitle ?? title).trim() || 'My Game';
-    const finalGenre = (forcedGenre ?? genre) || 'ACTION';
+  const executePublish = async () => {
+    const finalTitle = title.trim() || 'My Game';
+    const finalGenre = genre || 'ACTION';
+
+    if (!hasFiles) {
+      toast.error('Build a game before publishing it.');
+      return;
+    }
 
     try {
       setIsExporting(true);
@@ -166,27 +171,63 @@ export function PublishButton() {
 
       // Collect project files from the workbench store
       const projectFiles = (workbenchStore as any).files?.get?.() ?? files ?? {};
+      let publicationStatus = 'live';
 
-      // Post to parent (BoltStudioIframePage) which will call publishGame
-      if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
-        window.parent.postMessage(
-          {
-            type: 'thefortz-publish-game',
-            payload: {
-              title: finalTitle,
-              genre: finalGenre,
-              description: description.trim(),
-              thumbDataUrl,
-              files: projectFiles,
+      if (window.parent !== window) {
+        let parentOrigin = '';
+
+        try {
+          parentOrigin = new URL(document.referrer).origin;
+        } catch {
+          throw new Error('Could not securely connect to thefortz.me. Open the Studio from the site and try again.');
+        }
+
+        if (!parentOrigin || parentOrigin === 'null') {
+          throw new Error('Could not securely connect to thefortz.me. Open the Studio from the site and try again.');
+        }
+
+        const requestId = crypto.randomUUID();
+        publicationStatus = await new Promise<string>((resolve, reject) => {
+          const timeout = window.setTimeout(() => {
+            window.removeEventListener('message', onResult);
+            reject(new Error('The site did not confirm the publish. Please try again.'));
+          }, 120_000);
+          const onResult = (event: MessageEvent) => {
+            if (
+              event.source !== window.parent ||
+              event.origin !== parentOrigin ||
+              event.data?.type !== 'thefortz-publish-result' ||
+              event.data?.requestId !== requestId
+            ) {
+              return;
+            }
+
+            window.clearTimeout(timeout);
+            window.removeEventListener('message', onResult);
+            if (event.data.success) {
+              resolve(typeof event.data.status === 'string' ? event.data.status : 'live');
+            } else {
+              reject(new Error(event.data.error || 'The site could not publish this game.'));
+            }
+          };
+
+          window.addEventListener('message', onResult);
+          window.parent.postMessage(
+            {
+              type: 'thefortz-publish-game',
+              requestId,
+              payload: {
+                title: finalTitle,
+                genre: finalGenre,
+                description: description.trim(),
+                thumbDataUrl,
+                files: projectFiles,
+              },
             },
-          },
-          '*',
-        );
-        toast.success(`🚀 Publishing "${finalTitle}" to thefortz.me…`);
-        setIsOpen(false);
+            parentOrigin,
+          );
+        });
       } else {
-        // Standalone — publish directly to Appwrite via /api/publish!
-        toast.info(`🚀 Publishing "${finalTitle}" to Appwrite…`);
         const res = await fetch('/api/publish', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -198,33 +239,26 @@ export function PublishButton() {
             files: projectFiles,
           }),
         });
-        const data = (await res.json()) as any;
-        if (!res.ok || data.error) {
-          throw new Error(data.error || 'Direct publish failed');
+        const data = (await res.json()) as { success?: boolean; status?: string; error?: string };
+
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || 'The publish service did not confirm the game was saved.');
         }
-        toast.success(`🎮 "${finalTitle}" published successfully to Appwrite!`);
-        setIsOpen(false);
+
+        publicationStatus = data.status || 'live';
       }
+
+      toast.success(
+        publicationStatus === 'pending'
+          ? `"${finalTitle}" was submitted for review.`
+          : `"${finalTitle}" published successfully!`,
+      );
+      setIsOpen(false);
     } catch (err: any) {
       toast.error('Publish failed: ' + (err?.message || 'Unknown error'));
     } finally {
       setIsExporting(false);
     }
-  };
-
-  // One-click quick auto publish
-  const handleQuickAutoPublish = async () => {
-    let detectedTitle = title.trim();
-    if (!detectedTitle) {
-      try {
-        const artifacts = workbenchStore.artifacts.get();
-        const latestId = workbenchStore.artifactIdList[workbenchStore.artifactIdList.length - 1];
-        detectedTitle = (latestId && artifacts[latestId]?.title) || 'Studio Game';
-      } catch (e) {
-        detectedTitle = 'Studio Game';
-      }
-    }
-    await executePublish(detectedTitle, genre || 'ACTION');
   };
 
   return (
@@ -237,18 +271,7 @@ export function PublishButton() {
           title="Publish your game to thefortz.me"
         >
           <div className="i-ph:rocket-launch text-[#03a9f4] text-xs" />
-          <span>PUBLISH GAME</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={handleQuickAutoPublish}
-          disabled={isExporting || !hasFiles}
-          className="hidden sm:flex items-center gap-1 py-1.5 px-2.5 text-[11px] font-extrabold uppercase tracking-wider text-black bg-[#10b981] hover:bg-[#34d399] transition-all cursor-pointer shadow-md disabled:opacity-50"
-          title="Instant 1-Click Auto-Publish to thefortz.me"
-        >
-          <span>⚡</span>
-          <span>AUTO-PUBLISH</span>
+          <span>Publish</span>
         </button>
       </div>
 
@@ -336,12 +359,12 @@ export function PublishButton() {
 
               <div className="flex flex-col gap-2 mt-2">
                 <button
-                  onClick={() => executePublish()}
-                  disabled={isExporting}
+                  onClick={executePublish}
+                  disabled={isExporting || !hasFiles}
                   className="w-full flex items-center justify-center gap-2 py-2.5 px-4 font-bold text-xs uppercase tracking-wider text-black bg-[#10b981] hover:bg-[#059669] rounded-none border border-emerald-300/60 cursor-pointer transition-all disabled:opacity-50 font-extrabold"
                 >
                   <span>{isExporting ? '⏳' : '🚀'}</span>
-                  <span>{isExporting ? 'Publishing to thefortz.me…' : 'Publish to thefortz.me'}</span>
+                  <span>{isExporting ? 'Publishing…' : 'Publish'}</span>
                 </button>
 
                 <button

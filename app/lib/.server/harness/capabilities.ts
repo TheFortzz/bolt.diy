@@ -81,7 +81,7 @@ export async function issueCapability(
     .setAudience(audience)
     .setSubject(parsed.workspaceId)
     .setIssuedAt()
-    .setExpirationTime(purpose === 'review' ? '20m' : '30m')
+    .setExpirationTime(purpose === 'review' ? '45m' : '2h')
     .sign(new TextEncoder().encode(resolvedSecret));
 }
 

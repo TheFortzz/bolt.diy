@@ -96,6 +96,10 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
 
   const workspaceContext =
     !conversationOnly && typeof systemContext === 'string' ? systemContext.slice(0, 12000) : undefined;
+  const generationMessages = approvedBlueprint
+    ? messages.filter((message) => message.role === 'user').slice(-1)
+    : messages;
+  const responseSegmentBudget = approvedBlueprint?.budgets.maximumResponseSegments ?? MAX_RESPONSE_SEGMENTS;
 
   const cookieHeader = request.headers.get('Cookie');
 
@@ -136,23 +140,33 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
             return stream.close();
           }
 
-          if (stream.switches >= MAX_RESPONSE_SEGMENTS) {
-            console.log(`Maximum continuation segments reached (${MAX_RESPONSE_SEGMENTS}), closing stream.`);
+          if (stream.switches >= responseSegmentBudget) {
+            console.log(`Maximum continuation segments reached (${responseSegmentBudget}), closing stream.`);
             return stream.close();
           }
 
-          const switchesLeft = MAX_RESPONSE_SEGMENTS - stream.switches;
+          const switchesLeft = responseSegmentBudget - stream.switches;
           console.log(
             `Continuing response for big build (${switchesLeft} switches left): reason=${finishReason}, unclosedArtifact=${hasUnclosedArtifact}, unclosedAction=${hasUnclosedAction}`,
           );
 
           stream.markSwitchPending();
 
-          messages.push({ role: 'assistant', content });
-          messages.push({ role: 'user', content: CONTINUE_PROMPT });
+          const completedFilePaths = Array.from(normalized.matchAll(/<boltAction\b([^>]*)>[\s\S]*?<\/boltAction>/gi))
+            .filter((match) => /\btype\s*=\s*["']file["']/i.test(match[1]))
+            .map((match) => match[1].match(/\bfilePath\s*=\s*["']([^"']+)["']/i)?.[1])
+            .filter((path): path is string => Boolean(path));
+          const alreadyWritten = completedFilePaths.length
+            ? `\n\nFiles already emitted and applied (do not repeat): ${Array.from(new Set(completedFilePaths)).join(', ')}`
+            : '';
+          const continuationMessages: Messages = [
+            ...generationMessages,
+            { role: 'assistant', content: content.slice(-48000) },
+            { role: 'user', content: `${CONTINUE_PROMPT}${alreadyWritten}` },
+          ];
 
           const result = await streamText({
-            messages,
+            messages: continuationMessages,
             env: context.cloudflare.env,
             options,
             apiKeys,
@@ -172,7 +186,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
     };
 
     const result = await streamText({
-      messages,
+      messages: generationMessages,
       env: context.cloudflare.env,
       options,
       apiKeys,
@@ -192,7 +206,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
         'X-Vercel-AI-Data-Stream': 'v1',
         'Cache-Control': 'no-cache, no-transform',
         'X-Accel-Buffering': 'no',
-        'Connection': 'keep-alive',
+        Connection: 'keep-alive',
       },
     });
   } catch (error: any) {

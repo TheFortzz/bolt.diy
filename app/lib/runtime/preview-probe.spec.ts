@@ -86,9 +86,61 @@ describe('iframe game runtime probe', () => {
     );
   });
 
+  it('requires real WebGL draw calls for a verified 3D build', () => {
+    class WebGLContext {
+      drawArrays() {}
+    }
+
+    const webgl = new WebGLContext();
+    vi.stubGlobal('WebGLRenderingContext', WebGLContext);
+    installPreviewProbe('three-d', 'https://ide.example', {
+      requireDiagnostics: false,
+      minimumSimulationSteps: 1,
+      scenarios: [],
+      requireWebGL: true,
+    });
+
+    const loop = () => {
+      webgl.drawArrays();
+      win.requestAnimationFrame(loop);
+    };
+    win.requestAnimationFrame(loop);
+    advance(120);
+
+    expect(win.parent.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'preview-loaded', token: 'three-d', webglDrawCalls: expect.any(Number) }),
+      'https://ide.example',
+    );
+  });
+
+  it('does not verify a 3D plan rendered only with Canvas 2D', () => {
+    installPreviewProbe('flat-game', 'https://ide.example', {
+      requireDiagnostics: false,
+      minimumSimulationSteps: 1,
+      scenarios: [],
+      requireWebGL: true,
+    });
+
+    const loop = () => {
+      context.fillRect();
+      win.requestAnimationFrame(loop);
+    };
+    win.requestAnimationFrame(loop);
+    advance(1800);
+
+    expect(win.parent.postMessage.mock.calls.some(([message]) => message.type === 'preview-loaded')).toBe(false);
+    expect(win.parent.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'preview-error',
+        error: 'A 3D build must render real WebGL geometry; no WebGL draw calls were observed.',
+      }),
+      'https://ide.example',
+    );
+  });
+
   it('does not verify a loaded document whose game loop never advances', () => {
     installPreviewProbe('token', 'https://ide.example');
-    advance(600);
+    advance(1800);
     expect(win.parent.postMessage).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'preview-error', error: expect.stringContaining('did not advance') }),
       'https://ide.example',
@@ -195,7 +247,7 @@ describe('iframe game runtime probe', () => {
       win.requestAnimationFrame(loop);
     };
     win.requestAnimationFrame(loop);
-    advance(600);
+    advance(1800);
 
     expect(win.parent.postMessage.mock.calls.some(([message]) => message.type === 'preview-loaded')).toBe(false);
     expect(win.parent.postMessage).toHaveBeenCalledWith(

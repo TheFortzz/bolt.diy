@@ -7,6 +7,8 @@ describe('FortzAI system prompt', () => {
 
     expect(prompt).toContain("The user's idea is the source of truth");
     expect(prompt).toContain('Choose the architecture that best fits the idea');
+    expect(prompt).toContain('five times more complete than a bare playable demo');
+    expect(prompt).toContain('8-16 purposeful files');
     expect(prompt).not.toContain('src/player.js');
     expect(prompt).not.toContain('src/enemies.js');
     expect(prompt).not.toContain('src/bullets.js');

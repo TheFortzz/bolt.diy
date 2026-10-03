@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+export const MAX_GAME_FILE_OPERATIONS = 24;
+export const MAX_GAME_SOURCE_BYTES = 4 * 1024 * 1024;
+export const MAX_GAME_RESPONSE_SEGMENTS = 32;
+
 export const isWorkspacePath = (path: string) =>
   /^[A-Za-z0-9_][A-Za-z0-9_./-]{0,179}$/.test(path) &&
   !path.split('/').some((part) => !part || part === '.' || part === '..' || ['node_modules', 'dist', 'build'].includes(part)) &&
@@ -45,9 +49,9 @@ export const managerBlueprintSchema = z.object({
   summary: z.string().min(1).max(1200),
   engine: z.enum(['canvas2d', 'webgl']),
   systems: z.array(textSchema).min(2).max(12),
-  fileOperations: z.array(fileOperationSchema).min(1).max(24),
+  fileOperations: z.array(fileOperationSchema).min(1).max(MAX_GAME_FILE_OPERATIONS),
   assetOperations: z.array(assetOperationSchema).max(4),
-  scriptOrder: z.array(pathSchema).min(1).max(24),
+  scriptOrder: z.array(pathSchema).min(1).max(MAX_GAME_FILE_OPERATIONS),
   acceptanceCriteria: z.array(textSchema).min(3).max(12),
 }).strict();
 
@@ -57,7 +61,10 @@ export const blueprintSchema = managerBlueprintSchema.extend({
   workspaceId: z.string().min(1).max(100),
   baseRevision: hashSchema,
   manifest: workspaceManifestSchema,
-  fileOperations: z.array(fileOperationSchema.extend({ expectedHash: hashSchema.nullable() })).min(1).max(24),
+  fileOperations: z
+    .array(fileOperationSchema.extend({ expectedHash: hashSchema.nullable() }))
+    .min(1)
+    .max(MAX_GAME_FILE_OPERATIONS),
   verification: z.object({
     scenarios: z.tuple([z.literal('startup'), z.literal('controls'), z.literal('restart'), z.literal('resize')]),
     minimumSimulationSteps: z.number().int().min(1).max(1000),
@@ -65,8 +72,8 @@ export const blueprintSchema = managerBlueprintSchema.extend({
   }).strict(),
   budgets: z.object({
     assetAttempts: z.literal(1),
-    maximumSourceBytes: z.literal(1048576),
-    maximumResponseSegments: z.literal(8),
+    maximumSourceBytes: z.literal(MAX_GAME_SOURCE_BYTES),
+    maximumResponseSegments: z.literal(MAX_GAME_RESPONSE_SEGMENTS),
   }).strict(),
 }).strict().superRefine((plan, context) => {
   const paths = new Set<string>();

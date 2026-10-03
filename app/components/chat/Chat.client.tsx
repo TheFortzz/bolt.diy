@@ -415,7 +415,7 @@ export const ChatImpl = memo(
 
           // Inform directly in this chat message when auto-repairs are exhausted
           const errorNotice = managedBlueprint
-            ? `\n\n> ⚠️ **Build not verified:**\n> ${result.error?.slice(-1800)}\n>\n> Describe the repair you want; FortzAI will propose a new blueprint for your approval.`
+              ? `\n\n> ⚠️ **Preview check needs attention:**\n> ${result.error?.slice(-1800)}\n>\n> Describe the repair you want; FortzAI will propose a new blueprint for your approval.`
             : result.error?.includes('runtime verification needs')
               ? `\n\n> ⚠️ **Runtime verification unavailable:**\n> ${result.error?.slice(-1800)}\n>\n> A browser verification worker or preview bridge must be configured before this build can be marked verified.`
               : `\n\n> ⚠️ **Build Issue Detected:**\n> ${result.error?.slice(-1800)}\n>\n> *Ask for a targeted repair to address these checks.*`;

@@ -416,8 +416,8 @@ export class ActionRunner {
         try {
           shell.terminal?.input('\x03');
         } catch (e) {}
-        reject(new Error('Shell command execution timed out after 90 seconds'));
-      }, 90000);
+        reject(new Error('Shell command execution timed out after 180 seconds'));
+      }, 180000);
     });
 
     try {

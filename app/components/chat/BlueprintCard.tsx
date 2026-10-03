@@ -42,6 +42,13 @@ export const BlueprintCard = memo(
                 {blueprint.fileOperations.length} file changes
               </span>
               <span>
+                <span
+                  className={blueprint.engine === 'webgl' ? 'i-ph:cube-focus' : 'i-ph:rectangle'}
+                  aria-hidden="true"
+                />
+                {blueprint.engine === 'webgl' ? '3D · WebGL' : '2D · Canvas'}
+              </span>
+              <span>
                 <span className="i-ph:image" aria-hidden="true" />
                 {blueprint.assetOperations.length} new images
               </span>

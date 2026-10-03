@@ -86,6 +86,7 @@ const MessageRow = React.memo((props: MessageRowProps) => {
   } = props;
   const { role, content, id: messageId } = message;
   const isUserMessage = role === 'user';
+  const hasArtifact = typeof content === 'string' && content.includes('__boltArtifact__');
   const isInternalRepair = isUserMessage && typeof content === 'string' && content.includes('[Internal Repair Prompt');
   const isInternalBuild = message.annotations?.some(
     (annotation) =>
@@ -149,11 +150,6 @@ const MessageRow = React.memo((props: MessageRowProps) => {
           )}
         </div>
       )}
-      {!isUserMessage && (
-        <div className={classNames(styles.Avatar, styles.AgentAvatar)} aria-hidden="true">
-          <span className="i-ph:sparkle-fill text-base" />
-        </div>
-      )}
       <div className={isUserMessage ? styles.UserBody : styles.MessageBody}>
         {isUserMessage ? (
           <>
@@ -165,7 +161,7 @@ const MessageRow = React.memo((props: MessageRowProps) => {
         ) : (
           <>
             <div className={styles.MessageMeta}>
-              FortzAI <span className={styles.Badge}>{isStreaming && isLast ? 'Working' : 'Assistant'}</span>
+              FortzAI {isStreaming && isLast && <span className={styles.Badge}>Working</span>}
             </div>
             <AssistantMessage content={content} isStreaming={isStreaming && isLast} />
             {planBlueprint !== undefined && (
@@ -177,7 +173,7 @@ const MessageRow = React.memo((props: MessageRowProps) => {
                 onReject={onCancelPlan}
               />
             )}
-            <ActivityTimeline messageId={messageId} isStreaming={isStreaming && isLast} />
+            {!hasArtifact && <ActivityTimeline messageId={messageId} isStreaming={isStreaming && isLast} />}
             <div className={styles.MessageActions}>
               <WithTooltip tooltip="Revert to this message">
                 {messageId && (

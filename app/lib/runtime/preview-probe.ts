@@ -3,6 +3,7 @@ export type PreviewVerificationRequirements = {
   scenarios: readonly ('startup' | 'controls' | 'restart' | 'resize')[];
   minimumSimulationSteps: number;
   requireDiagnostics: boolean;
+  requireWebGL?: boolean;
 };
 
 export function installPreviewProbe(
@@ -13,6 +14,7 @@ export function installPreviewProbe(
   let failed = false;
   let applicationFrames = 0;
   let renderFrames = 0;
+  let webglDrawCalls = 0;
   let observationFrame = 0;
   let lastRenderFrame = -1;
   let started = false;
@@ -54,7 +56,9 @@ export function installPreviewProbe(
   let diagnosticsBaseline: ReturnType<typeof readDiagnostics>;
   const diagnosticsFailure = () => {
     if (!verification?.requireDiagnostics) {
-      return undefined;
+      return verification?.requireWebGL && webglDrawCalls === 0
+        ? 'A 3D build must render real WebGL geometry; no WebGL draw calls were observed.'
+        : undefined;
     }
 
     const diagnostics = readDiagnostics();
@@ -124,11 +128,18 @@ export function installPreviewProbe(
       return 'Game diagnostics did not report a game state.';
     }
 
+    if (verification.requireWebGL && webglDrawCalls === 0) {
+      return 'A 3D build must render real WebGL geometry; no WebGL draw calls were observed.';
+    }
+
     return undefined;
   };
   const report = (type: string, error?: string) => {
     const diagnostics = readDiagnostics();
-    window.parent.postMessage({ token, type, error, applicationFrames, renderFrames, diagnostics }, parentOrigin);
+    window.parent.postMessage(
+      { token, type, error, applicationFrames, renderFrames, webglDrawCalls, diagnostics },
+      parentOrigin,
+    );
   };
   const fail = (error: string) => {
     if (!failed) {
@@ -176,7 +187,7 @@ export function installPreviewProbe(
       lastRenderFrame = observationFrame;
     }
   };
-  const instrumentRendering = (prototype: object, methods: string[]) => {
+  const instrumentRendering = (prototype: object, methods: string[], isWebGL = false) => {
     const record = prototype as Record<string, (...args: unknown[]) => unknown>;
 
     for (const method of methods) {
@@ -188,6 +199,11 @@ export function installPreviewProbe(
 
       record[method] = function (...args) {
         const result = original.apply(this, args);
+
+        if (isWebGL) {
+          webglDrawCalls++;
+        }
+
         trackRender();
 
         return result;
@@ -207,16 +223,15 @@ export function installPreviewProbe(
   }
 
   if (typeof WebGLRenderingContext !== 'undefined') {
-    instrumentRendering(WebGLRenderingContext.prototype, ['drawArrays', 'drawElements']);
+    instrumentRendering(WebGLRenderingContext.prototype, ['drawArrays', 'drawElements'], true);
   }
 
   if (typeof WebGL2RenderingContext !== 'undefined') {
-    instrumentRendering(WebGL2RenderingContext.prototype, [
-      'drawArrays',
-      'drawElements',
-      'drawArraysInstanced',
-      'drawElementsInstanced',
-    ]);
+    instrumentRendering(
+      WebGL2RenderingContext.prototype,
+      ['drawArrays', 'drawElements', 'drawArraysInstanced', 'drawElementsInstanced'],
+      true,
+    );
   }
 
   const nativeImageConstructor = window.Image;
@@ -335,7 +350,7 @@ export function installPreviewProbe(
       return;
     }
 
-    if (elapsed >= 10000) {
+    if (elapsed >= 28000) {
       fail(
         !imagesReady
           ? 'Images did not finish loading'
@@ -375,7 +390,7 @@ export type StaticPreviewProbeResult = { ok: true } | { ok: false; error: string
 export function runStaticPreviewProbe(
   html: string,
   verification?: PreviewVerificationRequirements,
-  timeoutMs = 12000,
+  timeoutMs = 30000,
 ): Promise<StaticPreviewProbeResult> {
   return new Promise<StaticPreviewProbeResult>((resolve) => {
     if (typeof document === 'undefined' || typeof window === 'undefined') {
@@ -411,7 +426,7 @@ export function runStaticPreviewProbe(
     };
 
     window.addEventListener('message', onMessage);
-    timer = setTimeout(() => finish({ ok: false, error: 'Preview did not load within 12 seconds.' }), timeoutMs);
+    timer = setTimeout(() => finish({ ok: false, error: 'Preview did not load within 30 seconds.' }), timeoutMs);
 
     frame.srcdoc = injectPreviewProbe(html, createPreviewProbe(token, window.location.origin, verification));
     document.body.appendChild(frame);

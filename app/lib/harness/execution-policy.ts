@@ -23,7 +23,7 @@ export class ExecutionPolicy {
 
   approve(plan: Blueprint) {
     this.#plan = plan;
-    this.#expiresAt = Date.now() + 30 * 60 * 1000;
+    this.#expiresAt = Date.now() + 2 * 60 * 60 * 1000;
     this.#messages.clear();
     this.#activeMessageId = undefined;
     this.#reservedPaths.clear();

@@ -63,7 +63,7 @@ export async function verifyGameBuild(messageId: string, options: GenerateProjec
   } catch (error) {
     const detail = (error as Error).message || 'Game pipeline failed';
     updateActivity(messageId, 'assets:generate', 'failed');
-    startActivity(messageId, 'validation:failed', 'Build not verified', 'Build not verified', 'failed');
+    startActivity(messageId, 'validation:failed', 'Preview check failed', 'Preview check failed', 'failed');
     validationState.set({ status: 'failed', detail });
 
     return { ok: false, error: detail };

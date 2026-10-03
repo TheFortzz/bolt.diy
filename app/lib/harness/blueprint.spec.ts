@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MAX_GAME_RESPONSE_SEGMENTS,
+  MAX_GAME_SOURCE_BYTES,
   blueprintSchema,
   parseManagerOutput,
   type Blueprint,
@@ -111,7 +113,11 @@ Let me know if you would like any changes!
           minimumSimulationSteps: 45,
           requireDiagnostics: true as const,
         },
-        budgets: { assetAttempts: 1 as const, maximumSourceBytes: 1048576 as const, maximumResponseSegments: 8 as const },
+        budgets: {
+          assetAttempts: 1 as const,
+          maximumSourceBytes: MAX_GAME_SOURCE_BYTES,
+          maximumResponseSegments: MAX_GAME_RESPONSE_SEGMENTS,
+        },
       };
 
       const parsed45 = blueprintSchema.parse(basePlan);

@@ -11,6 +11,7 @@ import styles from '~/components/chat/ChatExperience.module.scss';
 interface ActivityTimelineProps {
   messageId?: string;
   isStreaming?: boolean;
+  embedded?: boolean;
 }
 
 const VISIBLE_STEPS = 3;
@@ -30,7 +31,7 @@ function stepLabel(step: ActivityStep) {
   }
 }
 
-export const ActivityTimeline = memo(({ messageId, isStreaming = false }: ActivityTimelineProps) => {
+export const ActivityTimeline = memo(({ messageId, isStreaming = false, embedded = false }: ActivityTimelineProps) => {
   const messageKeys = useMemo(() => (messageId ? [messageId] : []), [messageId]);
   const stepsByMessage = useStore(activitySteps, { keys: messageKeys });
   const [showAll, setShowAll] = useState(false);
@@ -38,44 +39,57 @@ export const ActivityTimeline = memo(({ messageId, isStreaming = false }: Activi
   const steps = messageId ? (stepsByMessage[messageId] ?? []) : [];
   const summary = summarizeActivity(steps, isStreaming);
   const important = steps.filter((step) => step.status === 'running' || step.status === 'failed');
-  const displayed = showAll ? steps : important.length ? important : steps.slice(-VISIBLE_STEPS);
+  const displayed = embedded ? steps : showAll ? steps : important.length ? important : steps.slice(-VISIBLE_STEPS);
 
   if (steps.length === 0 && !isStreaming) {
     return null;
   }
 
   return (
-    <section className={styles.Activity} data-state={summary.state} aria-label="Build activity">
-      <button
-        type="button"
-        className={styles.ActivityHeader}
-        aria-expanded={showAll}
-        aria-controls={listId}
-        onClick={() => setShowAll((value) => !value)}
-      >
-        <span className={styles.ActivityIcon} aria-hidden="true">
-          <span
-            className={
-              summary.state === 'running'
-                ? 'i-svg-spinners:90-ring-with-bg'
-                : summary.state === 'failed'
-                  ? 'i-ph:warning-circle'
-                  : summary.state === 'verified'
-                    ? 'i-ph:shield-check'
-                    : 'i-ph:stack'
-            }
-          />
-        </span>
-        <span className="min-w-0 flex-1" role="status" aria-live="polite">
-          <span className={styles.ActivityTitle}>{summary.title}</span>
-          <span className={classNames(styles.ActivitySubtitle, 'truncate')}>{summary.subtitle}</span>
-        </span>
-        <span className={styles.Expand}>
-          <span>{showAll ? 'Collapse' : 'Expand'}</span>
-          <span className={showAll ? 'i-ph:caret-up' : 'i-ph:caret-down'} aria-hidden="true" />
-        </span>
-      </button>
-      {steps.length > 0 && (
+    <section
+      className={classNames(styles.Activity, embedded ? styles.ActivityEmbedded : undefined)}
+      data-state={summary.state}
+      aria-label={embedded ? 'Build checks' : 'Build activity'}
+    >
+      {embedded ? (
+        <div className={styles.ActivityEmbeddedHeading}>
+          <span>Build checks</span>
+          <span>
+            {summary.completedCount}/{steps.length} steps
+          </span>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className={styles.ActivityHeader}
+          aria-expanded={showAll}
+          aria-controls={listId}
+          onClick={() => setShowAll((value) => !value)}
+        >
+          <span className={styles.ActivityIcon} aria-hidden="true">
+            <span
+              className={
+                summary.state === 'running'
+                  ? 'i-svg-spinners:90-ring-with-bg'
+                  : summary.state === 'failed'
+                    ? 'i-ph:warning-circle'
+                    : summary.state === 'verified'
+                      ? 'i-ph:shield-check'
+                      : 'i-ph:stack'
+              }
+            />
+          </span>
+          <span className="min-w-0 flex-1" role="status" aria-live="polite">
+            <span className={styles.ActivityTitle}>{summary.title}</span>
+            <span className={classNames(styles.ActivitySubtitle, 'truncate')}>{summary.subtitle}</span>
+          </span>
+          <span className={styles.Expand}>
+            <span>{showAll ? 'Collapse' : 'Expand'}</span>
+            <span className={showAll ? 'i-ph:caret-up' : 'i-ph:caret-down'} aria-hidden="true" />
+          </span>
+        </button>
+      )}
+      {!embedded && steps.length > 0 && (
         <div className={styles.ActivityMetrics}>
           <span>
             <span className="i-ph:files" aria-hidden="true" />
@@ -139,7 +153,7 @@ export const ActivityTimeline = memo(({ messageId, isStreaming = false }: Activi
           );
         })}
       </ol>
-      {showAll && (
+      {!embedded && showAll && (
         <div className={styles.ActivityFootnote}>
           Observed tool activity and progress summaries. File steps open in the editor. Passing checks does not
           guarantee every gameplay scenario.

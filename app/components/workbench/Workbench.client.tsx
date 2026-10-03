@@ -349,23 +349,10 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
                 }}
                 className="flex items-center px-3 py-2 text-white shadow-sm"
               >
-                <PanelHeaderButton
-                  className="mr-2 text-xs font-semibold text-white/90 hover:text-white"
-                  title="Close Workspace & View Chat"
-                  onClick={() => workbenchStore.showWorkbench.set(false)}
-                >
-                  <div className="i-ph:chat-circle-dots" />
-                  Chat
-                </PanelHeaderButton>
                 <Slider selected={selectedView} options={sliderOptions} setSelected={setSelectedView} />
                 {validation.status === 'checking' && (
                   <span className="ml-2 text-xs" role="status">
                     {validation.detail || 'Checking build…'}
-                  </span>
-                )}
-                {validation.status === 'failed' && (
-                  <span className="ml-2 text-xs" role="status" title={validation.detail}>
-                    Build not verified
                   </span>
                 )}
                 <div className="ml-auto" />

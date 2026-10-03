@@ -1,4 +1,10 @@
 interface Env {
+  APPWRITE_API_KEY?: string;
+  APPWRITE_ENDPOINT?: string;
+  APPWRITE_PROJECT_ID?: string;
+  APPWRITE_DATABASE_ID?: string;
+  APPWRITE_GAMES_COLLECTION_ID?: string;
+  APPWRITE_BUCKET_ID?: string;
   ANTHROPIC_API_KEY: string;
   OPENAI_API_KEY: string;
   GROQ_API_KEY: string;

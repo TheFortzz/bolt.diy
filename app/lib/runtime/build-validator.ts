@@ -95,7 +95,7 @@ async function runCheck(
   wc: WebContainer,
   command: string,
   args: string[],
-  timeoutMs = 60000,
+  timeoutMs = 180000,
 ): Promise<string | undefined> {
   try {
     const process = await wc.spawn(command, args, { cwd: wc.workdir });
@@ -342,7 +342,7 @@ export async function validateBuild(
   } catch (error) {
     const detail = (error as Error).message || 'Build validation failed';
     validationState.set({ status: 'failed', detail });
-    startActivity(messageId, 'validation:failed', 'Build not verified', 'Build not verified', 'failed');
+    startActivity(messageId, 'validation:failed', 'Preview check failed', 'Preview check failed', 'failed');
 
     return { ok: false, error: detail };
   }

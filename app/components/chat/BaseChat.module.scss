@@ -7,19 +7,19 @@
   min-height: 0;
   color-scheme: dark;
   color: #f8fafc;
-  background: radial-gradient(ellipse at 85% 0%, rgba(168, 85, 247, 0.22), transparent 45%),
-    radial-gradient(ellipse at 15% 100%, rgba(139, 92, 246, 0.16), transparent 50%),
-    linear-gradient(165deg, #130826 0%, #1c0c37 45%, #10061f 100%);
+  background: radial-gradient(ellipse at 85% 0%, rgba(196, 181, 253, 0.2), transparent 45%),
+    radial-gradient(ellipse at 15% 100%, rgba(139, 92, 246, 0.2), transparent 50%),
+    linear-gradient(165deg, #241438 0%, #211333 45%, #191026 100%);
   --bolt-elements-borderColor: rgba(168, 85, 247, 0.28);
   --bolt-elements-borderColorActive: #c084fc;
-  --bolt-elements-bg-depth-1: #130826;
-  --bolt-elements-bg-depth-2: #1b0d36;
-  --bolt-elements-bg-depth-3: #26114a;
-  --bolt-elements-bg-depth-4: #331563;
+  --bolt-elements-bg-depth-1: #211333;
+  --bolt-elements-bg-depth-2: #291942;
+  --bolt-elements-bg-depth-3: #35214f;
+  --bolt-elements-bg-depth-4: #432d61;
   --bolt-elements-textPrimary: #ffffff;
   --bolt-elements-textSecondary: #e9d5ff;
   --bolt-elements-textTertiary: #a78bfa;
-  --bolt-elements-code-background: #0d051a;
+  --bolt-elements-code-background: #171020;
   --bolt-elements-code-text: #e9d5ff;
   --bolt-elements-button-secondary-background: rgba(168, 85, 247, 0.18);
   --bolt-elements-button-secondary-backgroundHover: rgba(168, 85, 247, 0.32);
@@ -28,63 +28,29 @@
   --bolt-elements-item-contentActive: #ffffff;
   --bolt-elements-item-contentAccent: #c084fc;
   --bolt-elements-item-backgroundActive: rgba(168, 85, 247, 0.22);
-  --bolt-elements-artifacts-background: #1b0d36;
-  --bolt-elements-artifacts-backgroundHover: #241147;
+  --bolt-elements-artifacts-background: #291942;
+  --bolt-elements-artifacts-backgroundHover: #35214f;
   --bolt-elements-artifacts-borderColor: rgba(168, 85, 247, 0.28);
   --bolt-elements-artifacts-inlineCode-background: rgba(168, 85, 247, 0.22);
   --bolt-elements-artifacts-inlineCode-text: #c084fc;
-  --bolt-elements-actions-background: #1b0d36;
-  --bolt-elements-actions-code-background: #0d051a;
-  --bolt-elements-messages-background: #1b0d36;
+  --bolt-elements-actions-background: #291942;
+  --bolt-elements-actions-code-background: #171020;
+  --bolt-elements-messages-background: #291942;
   --bolt-elements-messages-linkColor: #c084fc;
-  --bolt-elements-messages-code-background: #0d051a;
+  --bolt-elements-messages-code-background: #171020;
   --bolt-elements-messages-inlineCode-background: rgba(168, 85, 247, 0.22);
   --bolt-elements-messages-inlineCode-text: #c084fc;
   --bolt-elements-icon-primary: #e9d5ff;
   --bolt-elements-icon-secondary: #a78bfa;
   --bolt-elements-dividerColor: rgba(168, 85, 247, 0.22);
-  --bolt-elements-prompt-background: #1b0d36;
-}
-
-.WorkspaceHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(168, 85, 247, 0.25);
-  flex-shrink: 0;
-  color: #f8fafc;
-  background: linear-gradient(90deg, #180932 0%, #251049 100%);
-  backdrop-filter: blur(12px);
-
-  button {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    border: 1px solid rgba(168, 85, 247, 0.35);
-    border-radius: 8px;
-    background: rgba(168, 85, 247, 0.14);
-    color: #e9d5ff;
-    font-size: 11px;
-    font-weight: 600;
-    transition: all 0.2s ease;
-    cursor: pointer;
-    &:hover {
-      background: rgba(168, 85, 247, 0.28);
-      border-color: rgba(192, 132, 252, 0.6);
-      color: #ffffff;
-      box-shadow: 0 0 14px rgba(168, 85, 247, 0.35);
-    }
-  }
+  --bolt-elements-prompt-background: #291942;
 }
 
 .Composer {
   overflow: hidden;
   border: 1px solid rgba(168, 85, 247, 0.38);
   border-radius: 16px;
-  background: linear-gradient(155deg, #1c0e38 0%, #15092a 100%);
+  background: linear-gradient(155deg, #30204a 0%, #241735 100%);
   box-shadow: 0 12px 36px rgba(10, 4, 22, 0.55), 0 0 24px rgba(147, 51, 234, 0.12);
   transition:
     border-color 200ms ease,
@@ -107,7 +73,7 @@
   gap: 6px;
   padding: 8px 12px;
   border-top: 1px solid rgba(168, 85, 247, 0.2);
-  background: rgba(19, 8, 38, 0.88);
+  background: rgba(36, 20, 55, 0.92);
 }
 
 .ModelBadge {
@@ -170,7 +136,7 @@
   gap: 12px;
   border: 1px solid rgba(168, 85, 247, 0.35);
   border-radius: 18px;
-  background: linear-gradient(145deg, rgba(28, 12, 55, 0.96), rgba(18, 7, 38, 0.98));
+  background: linear-gradient(145deg, rgba(50, 31, 74, 0.97), rgba(34, 21, 52, 0.98));
   color: #f3e8ff;
   font-size: 13px;
   font-weight: 600;

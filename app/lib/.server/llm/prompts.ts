@@ -21,6 +21,11 @@ const CREATIVE_GAME_GUIDANCE = `
   is allowed only when its real dependency is declared or it is loaded from a
   trusted CDN and its documented API is used correctly. Never invent an engine
   or API.
+  When the user explicitly requests a complete 3D game, Three.js, or a 3D camera,
+  build a genuinely three-dimensional scene with Three.js or actual WebGL geometry,
+  depth testing, lighting, and a PerspectiveCamera. Never present flat Canvas 2D
+  art or pseudo-perspective drawing as a 3D rebuild. A pinned Three.js browser
+  module is allowed without npm installation in the Studio preview.
 
   <prompt_analysis_and_creative_freedom>
     THE USER'S PROMPT IS THE SOLE SOURCE OF TRUTH.
@@ -111,20 +116,26 @@ const CREATIVE_GAME_GUIDANCE = `
   </image_assets_rules>
 
   <agentic_architecture_scale>
-    Build production-grade games with substantial architectural depth and high polish:
+    Build production-grade games with substantial architectural depth and high polish. On an explicit full-game request, target a rich multi-system experience about five times more complete than a bare playable demo; spend the available response budget on real mechanics and content, not longer descriptions:
+    - Full-Game Scope: Create several connected gameplay systems and meaningful playable content (levels, rounds, quests, opponents, puzzles, or equivalent) appropriate to the genre. Include progression and escalating challenge when they fit. Implement the interactions between systems, not just a list of features or decorative screens.
+    - Complete Player Experience: Include the full play loop from first input through meaningful outcomes, restart, clear controls, HUD/menus, feedback, responsive layout, and accessibility. Add save/settings/shop/social features only when they fit the requested concept.
+    - Real Content: Populate the world with enough authored or varied procedural content to demonstrate the game's depth. Avoid one-screen-only prototypes, repeated placeholder waves, empty levels, fake buttons, TODOs, and systems that only appear in the plan.
+    - Proportional Architecture: For a full game, use as many focused modules as the approved budget needs (normally 8-16 files, up to the plan's 24-file ceiling). Keep narrow repairs small; never pad with empty modules.
     - Modular Subsystems: Architect large games into clean, specialized modules
       (e.g., core state machines, collision & physics resolvers, particle emitters,
       procedural sound synthesizers, enemy AI controllers, level managers, HUD/menus).
-    - Scope and Polished Craft: Never produce minimal or stubbed toys. Build a rich, complete, and engaging game with rewarding objectives, dynamic feedback, intelligent behaviors tailored to the genre, and tactile polish.
+    - Scope and Polished Craft: Build a rich, complete, and engaging game with rewarding objectives, dynamic feedback, intelligent behaviors tailored to the genre, and tactile polish.
     - Zero-Error Execution: Ensure 100% syntactically valid code, correct imports/exports
       matching the file structure, null-safe canvas rendering, and zero missing functions.
   </agentic_architecture_scale>
 
   Use as many focused files as the project benefits from, but do not enforce a
-  universal fixed file tree. Name modules after the actual design. Avoid a giant
-  unmaintainable mega-file when modular files fit, but also do not create empty
-  files just to reach a line or file count. For non-game requests, follow the request
-  without injecting unrequested game mechanics.
+  universal fixed file tree. For a full-game build, the approved budget can hold
+  8-16 purposeful files (up to 24); do not shrink a requested large game into a
+  three-file toy to finish sooner. Name modules after the actual design. Avoid a
+  giant unmaintainable mega-file when modular files fit, but also do not create
+  empty files just to reach a line or file count. For non-game requests and narrow
+  repairs, follow the requested scope without injecting unrequested game mechanics.
 </creative_game_guidance>
 `;
 
@@ -258,9 +269,9 @@ const PREVIEW_RULES = `
 
   - A Vite/npm project needs a valid package.json, complete imports/exports,
     and a start action such as npm run dev.
-  - Modular Files & Script Linking: Split code into modular files that fit the game concept (e.g. index.html, style.css, utils.js, game.js, and concept-specific modules) using plain <script src="filename.js"></script> tags in index.html — NOT ES module imports/exports. Do not use type="module" or import/export statements, since these fail to resolve in the sandboxed preview.
+  - Modular Files & Script Linking: Use plain script tags for dependency-free classic JavaScript. For genuine Three.js/WebGL projects, native browser ES modules and <script type="module"> are allowed; use the pinned CDN module https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js and do not add an npm install just for Three.js.
     * SCRIPT LOADING ORDER IN index.html:
-      Load modular scripts in logical dependency order: foundational helpers and engine systems (e.g. utils.js, audio.js, input.js) first, followed by entity/logic modules, and ALWAYS load the main game controller/entry point (game.js) LAST so all required classes and helpers exist before initialization.
+      For classic scripts, load helper systems before the game entry point. For an ES-module entry point, use imports in dependency order and initialize the renderer only after the DOM is ready.
     * WINDOW ATTACHMENT FOR SHARED CLASSES & HELPERS:
       In files defining classes, controllers, or helper systems, assign them to window (e.g. 'window.Player = class Player { ... };', 'window.clamp = ...;') so all scripts can access them reliably across non-bundled browser files.
     * DEFENSIVE FALLBACK GUARDS AGAINST REFERENCE ERRORS:
@@ -268,8 +279,9 @@ const PREVIEW_RULES = `
   - For static projects without a package.json: NEVER emit npm install or
     npm run dev actions. Static projects are automatically served by the studio.
   - 3D Camera Placement (Three.js): Never initialize camera.position at (0, 0, 0) inside
-    or intersecting the player model or focal point. Always initialize camera.position with a sensible
-    offset behind and above the focal point (e.g. camera.position.set(0, 5, 10)) before starting the game loop.
+      or intersecting the player model or focal point. Always initialize camera.position with a sensible
+      offset behind and above the focal point (e.g. camera.position.set(0, 5, 10)) before starting the game loop.
+  - Genuine 3D Scene (Three.js/WebGL): For a user-requested 3D game, do not substitute CanvasRenderingContext2D perspective tricks. Use actual 3D geometry and a perspective camera; render to a non-null canvas, add visible scene objects and lighting, call camera.lookAt() toward the game focal point, and update renderer size plus camera aspect on resize. A missing canvas or failed WebGL context must produce a readable error state, never an uncaught getContext-on-null exception.
   - Never use placeholders such as ..., "rest of code", TODO, or fake functions.
   - Never emit imports or exports that are not provided by a real dependency.
   - Check canvas/context or DOM references before use and make the start/restart

@@ -478,37 +478,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   : 'w-full flex-grow overflow-y-auto',
             )}
           >
-            {chatStarted && (
-              <div className={styles.WorkspaceHeader}>
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <span className="i-ph:sparkle-fill text-purple-400 text-lg shrink-0" aria-hidden="true" />
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold text-purple-100 uppercase tracking-wide">Game Agent</div>
-                    <div className="text-[10px] text-purple-300/80 mt-0.5 truncate font-medium" role="status" aria-live="polite">
-                      {harness.phase !== 'idle'
-                        ? harness.detail
-                        : isStreaming
-                          ? 'Creating your game…'
-                          : isVerifying
-                            ? validation.detail
-                            : validation.status === 'failed'
-                              ? 'Build needs attention'
-                              : validation.status === 'passed'
-                                ? 'Build checks passed'
-                                : 'Ready for your next idea'}
-                    </div>
-                  </div>
-                </div>
-                {(isStreaming || isVerifying || isAgentBusy) && (
-                  <span className="i-svg-spinners:90-ring-with-bg text-purple-400 shrink-0" aria-hidden="true" />
-                )}
-                {!showWorkbench && !isStreaming && !isVerifying && (
-                  <button type="button" onClick={() => workbenchStore.showWorkbench.set(true)}>
-                    <span className="i-ph:sidebar-simple" aria-hidden="true" /> Workspace
-                  </button>
-                )}
-              </div>
-            )}
             <div
               className={classNames('pt-2 px-2 sm:px-4 flex-1 flex flex-col min-h-0 overflow-hidden', {
                 'h-full': isWorkbenchActive || chatStarted,

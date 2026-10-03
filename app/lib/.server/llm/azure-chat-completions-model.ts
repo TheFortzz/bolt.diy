@@ -135,8 +135,8 @@ function createRequestBody(options: LanguageModelV1CallOptions, modelId: string,
   };
 
   if (/^gpt-6(?:-|$)/i.test(modelId)) {
-    // Avoid GPT-6's default medium reasoning effort for this latency-sensitive studio workflow.
-    body.reasoning_effort = 'low';
+    // Full build/planning budgets opt into deeper reasoning; short chat stays fast.
+    body.reasoning_effort = Number(options.maxTokens) >= 6000 ? 'high' : 'low';
   } else {
     body.temperature = typeof options.temperature === 'number' ? options.temperature : 0.85;
   }

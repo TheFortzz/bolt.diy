@@ -5,7 +5,13 @@ import {
   verifyCapability,
   requireSameOrigin,
 } from './capabilities';
-import { blueprintSchema, revisionHash, type Blueprint } from '~/lib/harness/blueprint';
+import {
+  MAX_GAME_RESPONSE_SEGMENTS,
+  MAX_GAME_SOURCE_BYTES,
+  blueprintSchema,
+  revisionHash,
+  type Blueprint,
+} from '~/lib/harness/blueprint';
 
 const fileHash = `sha256:${'a'.repeat(64)}`;
 
@@ -35,7 +41,11 @@ async function createTestBlueprint(): Promise<Blueprint> {
       minimumSimulationSteps: 120,
       requireDiagnostics: true,
     },
-    budgets: { assetAttempts: 1, maximumSourceBytes: 1048576, maximumResponseSegments: 8 },
+    budgets: {
+      assetAttempts: 1,
+      maximumSourceBytes: MAX_GAME_SOURCE_BYTES,
+      maximumResponseSegments: MAX_GAME_RESPONSE_SEGMENTS,
+    },
   });
 }
 

@@ -50,6 +50,26 @@ describe('Azure Chat Completions model adapter', () => {
     expect(result.usage).toEqual({ promptTokens: 3, completionTokens: 1 });
   });
 
+  it('uses high reasoning effort for long game-build budgets', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ message: { content: 'plan' } }] }), { status: 200 }));
+    const model = createAzureChatCompletionsModel(
+      'test-key',
+      'gpt-6-luna',
+      'https://example.test/openai/v1/chat/completions',
+    );
+
+    await model.doGenerate({
+      prompt: [{ role: 'user', content: 'Design a complete game.' }],
+      maxTokens: 6000,
+      abortSignal: new AbortController().signal,
+    } as any);
+
+    const request = JSON.parse(fetchMock.mock.calls[0][1]?.body as string);
+    expect(request.reasoning_effort).toBe('high');
+  });
+
   it('maps reference images to Chat Completions image_url parts', async () => {
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')

@@ -60,6 +60,22 @@ describe('Azure Responses model adapter', () => {
     expect(request.temperature).toBe(0.2);
   });
 
+  it('uses high reasoning effort for long game-build budgets', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ output_text: 'complete plan' }), { status: 200 }));
+    const model = createAzureResponsesModel('test-key', 'gpt-6-luna', 'https://example.test/responses');
+
+    await model.doGenerate({
+      prompt: [{ role: 'user', content: 'Design a substantial game.' }],
+      maxTokens: 6000,
+      abortSignal: new AbortController().signal,
+    } as any);
+
+    const request = JSON.parse(fetchMock.mock.calls[0][1]?.body as string);
+    expect(request.reasoning).toEqual({ effort: 'high' });
+  });
+
   it('preserves the Azure status and request ID for configuration diagnostics', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response(JSON.stringify({ error: { message: 'Invalid subscription key.' } }), {

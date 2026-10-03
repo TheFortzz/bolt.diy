@@ -519,10 +519,10 @@
 /* Purple Studio Chat Surface */
 .Conversation {
   color: #f8fafc;
-  scrollbar-color: rgba(168, 85, 247, 0.4) transparent;
-  background: radial-gradient(ellipse at 85% 0%, rgba(168, 85, 247, 0.18), transparent 45%),
-    radial-gradient(ellipse at 15% 100%, rgba(139, 92, 246, 0.14), transparent 50%),
-    linear-gradient(165deg, #130826 0%, #1a0c33 50%, #10061e 100%);
+  scrollbar-color: rgba(196, 181, 253, 0.5) transparent;
+  background: radial-gradient(ellipse at 85% 0%, rgba(196, 181, 253, 0.17), transparent 45%),
+    radial-gradient(ellipse at 15% 100%, rgba(139, 92, 246, 0.15), transparent 50%),
+    linear-gradient(165deg, #26173c 0%, #211432 50%, #1a1228 100%);
 }
 
 .Avatar {
@@ -539,11 +539,11 @@
 }
 
 .MessageMeta {
-  color: #d8b4fe;
+  color: #ddd6fe;
 }
 
 .UserMeta {
-  color: #c4b5fd;
+  color: #bfdbfe;
 }
 
 .Badge {
@@ -553,22 +553,21 @@
 }
 
 .UserBubble {
-  border: 1px solid rgba(192, 132, 252, 0.45);
-  background: linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%);
+  border: 1px solid rgba(147, 197, 253, 0.4);
+  background: linear-gradient(135deg, #51456f 0%, #3f4566 100%);
   color: #ffffff;
-  box-shadow: 0 4px 18px rgba(109, 40, 217, 0.35);
+  box-shadow: 0 4px 18px rgba(30, 41, 59, 0.3);
 }
 
 .AssistantContent {
   color: #f5f3ff;
   font-size: 14px;
   line-height: 1.75;
-  padding: 16px 20px;
-  border: 1px solid rgba(168, 85, 247, 0.3);
-  border-left: 3.5px solid #a855f7;
-  border-radius: 6px 18px 18px 18px;
-  background: linear-gradient(145deg, rgba(29, 14, 54, 0.95), rgba(21, 10, 40, 0.98));
-  box-shadow: 0 8px 26px rgba(8, 3, 18, 0.4);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .MessageActions button {
@@ -668,40 +667,77 @@
 }
 
 .Blueprint {
-  border-color: rgba(168, 85, 247, 0.35);
-  background: linear-gradient(145deg, rgba(30, 14, 56, 0.95), rgba(20, 9, 40, 0.98));
-  box-shadow: 0 8px 28px rgba(9, 3, 20, 0.4);
+  border-color: rgba(96, 165, 250, 0.34);
+  background: linear-gradient(145deg, rgba(30, 48, 76, 0.82), rgba(28, 31, 55, 0.94));
+  box-shadow: 0 8px 28px rgba(9, 16, 31, 0.32);
 }
 
 .BlueprintHeader {
-  color: #e9d5ff;
+  color: #dbeafe;
 }
 
 .BlueprintBody {
-  color: #d8b4fe;
+  color: #cbd5e1;
 
   h4 {
-    color: #f5f3ff;
+    color: #eff6ff;
   }
 }
 
 .BlueprintMetrics {
-  color: #c4b5fd;
+  color: #bfdbfe;
 }
 
 .PlannedFiles {
   > div {
-    border-color: rgba(168, 85, 247, 0.2);
-    background: rgba(20, 9, 40, 0.75);
+    border-color: rgba(96, 165, 250, 0.2);
+    background: rgba(15, 23, 42, 0.5);
   }
 
   code {
-    color: #c084fc;
+    color: #bfdbfe;
   }
 
   p {
-    color: #a78bfa;
+    color: #94a3b8;
   }
+}
+
+.ActivityEmbedded {
+  margin: 14px 0 0;
+  padding-top: 10px;
+  border: 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.ActivityEmbeddedHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 6px;
+  color: #c4b5fd;
+  font-size: 11px;
+  font-weight: 700;
+
+  span:last-child {
+    color: #94a3b8;
+    font-size: 10px;
+    font-weight: 500;
+  }
+}
+
+.ActivityEmbedded .StepList {
+  padding: 0;
+}
+
+.ActivityEmbedded .Step {
+  border-color: rgba(148, 163, 184, 0.12);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.025);
 }
 
 .WorkingTurn {
