@@ -37,7 +37,8 @@ function scheduleStreamAction(data: ActionCallbackData) {
   pendingStreamActions.set(streamActionKey(data.messageId, data.actionId), data);
 
   if (!streamFlushTimer) {
-    streamFlushTimer = setTimeout(flushPendingStreamActions, 250);
+    // Keep live files responsive without writing the entire growing source on every model token.
+    streamFlushTimer = setTimeout(flushPendingStreamActions, 500);
   }
 }
 

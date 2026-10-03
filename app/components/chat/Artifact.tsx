@@ -83,7 +83,7 @@ const ActionList = memo(({ actions, messageId }: ActionListProps) => {
           const { status, type, content } = action;
           const isFile = type === 'file';
           const isEdit = isFile ? checkIsEdit(action) : false;
-          const lineCount = isFile && content ? content.split('\n').length : 0;
+          const lineCount = isFile && content && status !== 'running' ? content.split('\n').length : 0;
 
           return (
             <motion.li
