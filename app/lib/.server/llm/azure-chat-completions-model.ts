@@ -135,8 +135,8 @@ function createRequestBody(options: LanguageModelV1CallOptions, modelId: string,
   };
 
   if (/^gpt-6(?:-|$)/i.test(modelId)) {
-    // Full build/planning budgets opt into deeper reasoning; short chat stays fast.
-    body.reasoning_effort = Number(options.maxTokens) >= 6000 ? 'high' : 'low';
+    // Avoid thinking latency and reserve max token budget for streaming code generation.
+    body.reasoning_effort = 'low';
   } else {
     body.temperature = typeof options.temperature === 'number' ? options.temperature : 0.85;
   }

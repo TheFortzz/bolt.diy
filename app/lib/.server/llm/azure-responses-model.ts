@@ -170,8 +170,8 @@ function applyGenerationSettings(body: Record<string, unknown>, options: Languag
       : 16384;
 
   if (/^gpt-6(?:-|$)/i.test(modelId)) {
-    // Full build/planning budgets opt into deeper reasoning; short chat stays fast.
-    body.reasoning = { effort: Number(options.maxTokens) >= 6000 ? 'high' : 'low' };
+    // Avoid thinking latency and reserve max token budget for streaming code generation.
+    body.reasoning = { effort: 'low' };
     return;
   }
 

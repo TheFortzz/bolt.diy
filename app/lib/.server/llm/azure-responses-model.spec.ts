@@ -60,7 +60,7 @@ describe('Azure Responses model adapter', () => {
     expect(request.temperature).toBe(0.2);
   });
 
-  it('uses high reasoning effort for long game-build budgets', async () => {
+  it('uses low reasoning effort for fast generation and maximum token headroom', async () => {
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(new Response(JSON.stringify({ output_text: 'complete plan' }), { status: 200 }));
@@ -73,7 +73,7 @@ describe('Azure Responses model adapter', () => {
     } as any);
 
     const request = JSON.parse(fetchMock.mock.calls[0][1]?.body as string);
-    expect(request.reasoning).toEqual({ effort: 'high' });
+    expect(request.reasoning).toEqual({ effort: 'low' });
   });
 
   it('preserves the Azure status and request ID for configuration diagnostics', async () => {
