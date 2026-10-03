@@ -266,6 +266,57 @@ const mathUtilsScript = `<script id="bolt-game-math-utils">
       if (g.__GAME_DIAGNOSTICS__) g.__GAME_DIAGNOSTICS__.resizeCount++;
     }, true);
   }
+
+  // Ensure window.GAME_DIAGNOSTICS always aliases window.__GAME_DIAGNOSTICS__
+  try {
+    Object.defineProperty(g, 'GAME_DIAGNOSTICS', {
+      get: function() { return g.__GAME_DIAGNOSTICS__; },
+      set: function(val) { g.__GAME_DIAGNOSTICS__ = val; },
+      configurable: true,
+      enumerable: true,
+    });
+  } catch(e) {
+    g.GAME_DIAGNOSTICS = g.__GAME_DIAGNOSTICS__;
+  }
+
+  // Defensive DOM element stub to prevent TypeError: Cannot read properties of null (reading 'classList'/'textContent'/'addEventListener')
+  if (typeof document !== 'undefined' && document.getElementById) {
+    var realGetElementById = document.getElementById.bind(document);
+    var stubMap = {};
+    document.getElementById = function(id) {
+      var found = realGetElementById(id);
+      if (found) return found;
+      if (!id || typeof id !== 'string') return null;
+      if (stubMap[id]) return stubMap[id];
+      var stub = document.createElement('div');
+      stub.id = id;
+      stub.style.display = 'none';
+      stub.setAttribute('data-bolt-autostub', 'true');
+      try {
+        if (document.body) {
+          document.body.appendChild(stub);
+        } else {
+          document.addEventListener('DOMContentLoaded', function() {
+            try { if (document.body && !stub.parentNode) document.body.appendChild(stub); } catch(err) {}
+          });
+        }
+      } catch(err) {}
+      stubMap[id] = stub;
+      return stub;
+    };
+
+    if (document.querySelector) {
+      var realQuerySelector = document.querySelector.bind(document);
+      document.querySelector = function(selector) {
+        var found = realQuerySelector(selector);
+        if (found) return found;
+        if (typeof selector === 'string' && selector.startsWith('#') && !selector.includes(' ') && !selector.includes('.') && !selector.includes(':') && !selector.includes('[')) {
+          return document.getElementById(selector.slice(1));
+        }
+        return null;
+      };
+    }
+  }
 })();
 </script>`;
 

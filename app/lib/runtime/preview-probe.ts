@@ -32,7 +32,16 @@ export function installPreviewProbe(
     gameState: 'playing',
   };
   win.__GAME_DIAGNOSTICS__ ??= initialDiag;
-  win.GAME_DIAGNOSTICS ??= win.__GAME_DIAGNOSTICS__;
+  try {
+    Object.defineProperty(win, 'GAME_DIAGNOSTICS', {
+      get: () => win.__GAME_DIAGNOSTICS__,
+      set: (val) => { win.__GAME_DIAGNOSTICS__ = val; },
+      configurable: true,
+      enumerable: true,
+    });
+  } catch {
+    win.GAME_DIAGNOSTICS ??= win.__GAME_DIAGNOSTICS__;
+  }
 
   const readDiagnostics = () => {
     const raw = win.__GAME_DIAGNOSTICS__ || win.GAME_DIAGNOSTICS || win.__DIAGNOSTICS__;
@@ -56,7 +65,7 @@ export function installPreviewProbe(
   let diagnosticsBaseline: ReturnType<typeof readDiagnostics>;
   const diagnosticsFailure = () => {
     if (!verification?.requireDiagnostics) {
-      return verification?.requireWebGL && webglDrawCalls === 0 && renderFrames < 15
+      return verification?.requireWebGL && webglDrawCalls === 0
         ? 'A 3D build must render real WebGL geometry; no WebGL draw calls were observed.'
         : undefined;
     }
@@ -128,7 +137,7 @@ export function installPreviewProbe(
       return 'Game diagnostics did not report a game state.';
     }
 
-    if (verification.requireWebGL && webglDrawCalls === 0 && renderFrames < 15) {
+    if (verification.requireWebGL && webglDrawCalls === 0) {
       return 'A 3D build must render real WebGL geometry; no WebGL draw calls were observed.';
     }
 

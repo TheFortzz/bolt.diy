@@ -169,7 +169,6 @@ function applyGenerationSettings(body: Record<string, unknown>, options: Languag
       ? Math.max(1, Math.floor(options.maxTokens))
       : 16384;
 
-  // Omit temperature for GPT-6 deployments because some reasoning variants reject overrides.
   if (/^gpt-6(?:-|$)/i.test(modelId)) {
     // Full build/planning budgets opt into deeper reasoning; short chat stays fast.
     body.reasoning = { effort: Number(options.maxTokens) >= 6000 ? 'high' : 'low' };
