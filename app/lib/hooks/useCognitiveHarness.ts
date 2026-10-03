@@ -338,7 +338,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
       }
 
       executionPolicy.approve(blueprint);
-      transitionHarness('editing', { detail: 'Building your game…' });
+      transitionHarness('editing', { detail: 'Writing the approved game modules and playable content…' });
       validationState.set({ status: 'idle', detail: '' });
 
       const artifactId = workbenchStore.firstArtifact?.id || `game-${blueprint.workspaceId}`;

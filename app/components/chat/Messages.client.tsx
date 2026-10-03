@@ -281,6 +281,9 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
 
   const lastMessage = messages[messages.length - 1];
   const lastMessageContent = lastMessage?.content;
+  const showPendingResponse =
+    (isStreaming || isHarnessBusy) &&
+    (!lastMessage || lastMessage.role === 'user' || (lastMessage.role === 'assistant' && !String(lastMessage.content || '').trim()));
 
   useEffect(() => {
     if (!isStreaming) {
@@ -363,26 +366,42 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
               );
             })
           : null}
-        {(isStreaming || isHarnessBusy) && messages[messages.length - 1]?.role === 'user' && (
+        {showPendingResponse && (
           <div className={classNames(styles.Turn, styles.WorkingTurn)}>
-            <div className={classNames(styles.Avatar, styles.AgentAvatar)} aria-hidden="true">
-              <span className="i-svg-spinners:90-ring-with-bg" />
-            </div>
             <div className={styles.MessageBody}>
               <div className={styles.MessageMeta}>
                 FortzAI <span className={styles.Badge}>Working</span>
               </div>
               <div className={styles.ThinkingCard} role="status" aria-live="polite">
-                <span className={styles.ThinkingGlow} aria-hidden="true" />
+                <span className={styles.ThinkingIcon} aria-hidden="true">
+                  <span
+                    className={
+                      harness.phase === 'planning'
+                        ? 'i-ph:blueprint'
+                        : harness.phase === 'preparing-assets'
+                          ? 'i-ph:image'
+                          : harness.phase === 'verifying'
+                            ? 'i-ph:shield-check'
+                            : harness.phase === 'editing'
+                              ? 'i-ph:code'
+                              : 'i-ph:sparkle'
+                    }
+                  />
+                </span>
                 <div className="min-w-0 flex-1">
                   <div className={styles.ThinkingTitle}>
-                    {isHarnessBusy ? harness.detail || 'Planning your game…' : 'Thinking through your message…'}
+                    {harness.detail || (isStreaming ? 'FortzAI is composing its reply…' : 'FortzAI is preparing your request…')}
                   </div>
-                  <div className={styles.ThinkingSubtitle}>Your workspace stays safe while I work.</div>
-                  <div className={styles.ThinkingBars} aria-hidden="true">
-                    <span />
-                    <span />
-                    <span />
+                  <div className={styles.ThinkingSubtitle}>
+                    {harness.phase === 'planning'
+                      ? 'Designing the game systems and playable content before changing files.'
+                      : harness.phase === 'preparing-assets'
+                        ? 'Preparing the approved visuals before the game modules are written.'
+                      : harness.phase === 'editing'
+                        ? 'The live response and completed files will appear here as the build continues.'
+                        : harness.phase === 'verifying'
+                          ? 'Running the preview and gameplay checks on the generated project.'
+                          : 'The streamed reply will appear in the conversation as it arrives.'}
                   </div>
                 </div>
               </div>

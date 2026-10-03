@@ -18,6 +18,7 @@ import {
 } from '~/lib/persistence/checkpoints';
 import { getWebContainer } from '~/lib/webcontainer';
 import { runActivityStep, startActivity } from '~/lib/stores/activity';
+import { generatedAssets } from '~/lib/stores/generated-assets';
 import { chatStore } from '~/lib/stores/chat';
 import { workbenchStore } from '~/lib/stores/workbench';
 import {
@@ -38,6 +39,7 @@ import { authStore, isAuthModalOpen } from '~/lib/auth/appwrite';
 import { finalizeAssistantMessage } from '~/lib/hooks/useMessageParser';
 import { validationState } from '~/lib/runtime/build-validator';
 import { verifyGameBuild } from '~/lib/runtime/game-build-pipeline';
+import { compileSystemContext } from '~/lib/runtime/system-context';
 import { useCognitiveHarness } from '~/lib/hooks/useCognitiveHarness';
 import { shouldUseBuildPlanner } from '~/lib/runtime/request-intent';
 import { executionPolicy } from '~/lib/harness/execution-policy';
@@ -49,6 +51,7 @@ const toastAnimation = cssTransition({
 });
 
 const logger = createScopedLogger('Chat');
+const MAX_AUTOMATIC_STREAM_RECOVERIES = 5;
 
 export function Chat() {
   renderLogger.trace('Chat');
@@ -117,6 +120,9 @@ export const ChatImpl = memo(
     const [agentMode, setAgentMode] = useState<StudioAgentMode>('auto');
     const lastAgentModeRef = useRef<StudioAgentMode>('auto');
     const repairAttemptsRef = useRef(0);
+    const streamRecoveryAttemptsRef = useRef(0);
+    const streamRecoveryTimerRef = useRef<ReturnType<typeof setTimeout>>();
+    const appendRef = useRef<((message: any, options?: any) => Promise<unknown>)>();
     const lastUserPromptRef = useRef('');
     const { activeProviders } = useSettings();
 
@@ -193,6 +199,11 @@ export const ChatImpl = memo(
 
     useEffect(
       () => () => {
+        if (streamRecoveryTimerRef.current) {
+          clearTimeout(streamRecoveryTimerRef.current);
+          streamRecoveryTimerRef.current = undefined;
+        }
+
         if (historySaveTimerRef.current) {
           clearTimeout(historySaveTimerRef.current);
           historySaveTimerRef.current = undefined;
@@ -214,18 +225,119 @@ export const ChatImpl = memo(
         void persistMessages(latestMessagesRef.current, true).catch((saveError) =>
           console.warn('Error chat save failed:', saveError),
         );
-        validationState.set({ status: 'failed', detail: `AI request failed: ${error.message}` });
         workbenchStore.finishPendingActions();
 
         const currentHarness = harnessState.get();
+        const errorMessage = error?.message || String(error);
+        const isRecoverableNetworkError =
+          /network|quic|protocol|connection|fetch|load failed|net::err|abort(?:ed|error)?|timed out|\b(?:429|500|502|503|504|520|521|522|524)\b/i.test(
+            errorMessage,
+          );
+        const approvedBlueprint = currentHarness.blueprint;
+        const executionToken = currentHarness.executionToken;
+
+        if (
+          ['editing', 'verifying'].includes(currentHarness.phase) &&
+          approvedBlueprint &&
+          executionToken &&
+          isRecoverableNetworkError &&
+          streamRecoveryAttemptsRef.current < MAX_AUTOMATIC_STREAM_RECOVERIES &&
+          !chatStore.get().aborted &&
+          !streamRecoveryTimerRef.current
+        ) {
+          const attempt = ++streamRecoveryAttemptsRef.current;
+          const detail = `Connection interrupted; resuming your game build (${attempt}/${MAX_AUTOMATIC_STREAM_RECOVERIES})…`;
+          executionPolicy.allowRepair();
+          transitionHarness('editing', { detail });
+          validationState.set({ status: 'checking', detail });
+          toast.info(`${detail} Completed files are being kept.`, { autoClose: 4500 });
+
+          streamRecoveryTimerRef.current = setTimeout(() => {
+            streamRecoveryTimerRef.current = undefined;
+
+            if (chatStore.get().aborted || harnessState.get().phase !== 'editing') {
+              return;
+            }
+
+            const filesByPath = new Map<string, any>();
+            const approvedPaths = new Set([
+              ...approvedBlueprint.manifest.map((file) => file.path),
+              ...approvedBlueprint.fileOperations.map((file) => file.path),
+            ]);
+
+            for (const [rawPath, file] of Object.entries(workbenchStore.files.get())) {
+              const cleanPath = rawPath.replace(/^\/home\/project\//, '').replace(/^\.?\//, '');
+              if (approvedPaths.has(cleanPath) && file?.type === 'file' && typeof file.content === 'string') {
+                filesByPath.set(cleanPath, file);
+              }
+            }
+
+            const workspaceSources: Record<string, string> = {};
+            let sourceCharacters = 0;
+            for (const operation of approvedBlueprint.fileOperations) {
+              const file = filesByPath.get(operation.path);
+              if (!file) continue;
+
+              const content = file.content as string;
+              const excerpt = content.length > 200000
+                ? `${content.slice(0, 160000)}\n/* middle omitted while recovering stream */\n${content.slice(-39800)}`
+                : content;
+              const remaining = 300000 - sourceCharacters;
+              if (remaining <= 0) break;
+
+              workspaceSources[operation.path] = excerpt.slice(0, Math.min(200000, remaining));
+              sourceCharacters += workspaceSources[operation.path].length;
+            }
+
+            const artifactId = workbenchStore.firstArtifact?.id || `game-${approvedBlueprint.workspaceId}`;
+            const recoveryPrompt = [
+              `[Model: ${model}]`,
+              `[Provider: ${provider.name}]`,
+              '[Studio Mode: BUILD]',
+              `[Automatic stream recovery ${attempt}/${MAX_AUTOMATIC_STREAM_RECOVERIES}]`,
+              'The previous streaming connection dropped before the approved build finished. Continue the same full-game build; do not restart from scratch.',
+              'Inspect the current workspace source snapshot: completed modules must be preserved, and any partial module must be completed or repaired. Implement every remaining approved system and planned file before finishing.',
+              `Reuse artifact id="${artifactId}". Output complete, syntactically valid approved file actions and close the artifact.`,
+            ].join('\n\n');
+
+            const appendRecovery = appendRef.current;
+            if (!appendRecovery) {
+              return;
+            }
+
+            void appendRecovery(
+              {
+                role: 'user',
+                content: recoveryPrompt,
+                annotations: [{ type: 'harness-execution', planId: approvedBlueprint.id }],
+              },
+              {
+                body: {
+                  approvedBlueprint,
+                  executionToken,
+                  systemContext: compileSystemContext(
+                    workbenchStore.files.get(),
+                    generatedAssets.get(),
+                    validationState.get(),
+                  ),
+                  workspaceSources,
+                },
+              },
+            ).catch((resumeError) => logger.error('Automatic build stream recovery failed:', resumeError));
+          }, Math.min(750 * attempt, 3000));
+
+          return;
+        }
+
+        validationState.set({ status: 'failed', detail: `AI request failed: ${errorMessage}` });
 
         if (currentHarness.phase === 'editing' || currentHarness.phase === 'verifying') {
           executionPolicy.revoke();
-          transitionHarness('failed', { detail: `AI request failed: ${error.message}` });
+          transitionHarness('failed', { detail: `AI request failed: ${errorMessage}` });
         }
 
         toast.error(
-          'There was an error processing your request: ' + (error.message ? error.message : 'No details were returned'),
+          'There was an error processing your request: ' + (errorMessage || 'No details were returned'),
         );
       },
       onFinish: async (message) => {
@@ -438,6 +550,7 @@ export const ChatImpl = memo(
         }
 
         repairAttemptsRef.current = 0;
+        streamRecoveryAttemptsRef.current = 0;
         validationState.set({ status: 'checking', detail: 'Saving working checkpoint…' });
 
         try {
@@ -512,6 +625,7 @@ export const ChatImpl = memo(
       initialMessages,
       initialInput: Cookies.get(PROMPT_COOKIE_KEY) || '',
     });
+    appendRef.current = append;
     latestMessagesRef.current = messages;
 
     const harnessWorkspaceIdRef = useRef<string>();
@@ -649,6 +763,7 @@ export const ChatImpl = memo(
 
       lastUserPromptRef.current = _input;
       repairAttemptsRef.current = 0;
+      streamRecoveryAttemptsRef.current = 0;
       const shouldPlan = shouldUseBuildPlanner(_input, agentMode);
       lastAgentModeRef.current = shouldPlan ? agentMode : 'chat';
 

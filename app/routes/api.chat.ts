@@ -78,10 +78,13 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
       );
       workspaceSources = z.record(z.string().max(200000)).parse(rawSources || {});
 
+      const authorizedSourcePaths = new Set([
+        ...approvedBlueprint.manifest.map((file) => file.path),
+        ...approvedBlueprint.fileOperations.map((file) => file.path),
+      ]);
+
       if (
-        Object.entries(workspaceSources).some(
-          ([path]) => !approvedBlueprint?.manifest.some((file) => file.path === path),
-        ) ||
+        Object.keys(workspaceSources).some((path) => !authorizedSourcePaths.has(path)) ||
         Object.values(workspaceSources).reduce((size, text) => size + text.length, 0) > 300000
       ) {
         throw new Error('Editor context is outside the approved workspace or exceeds its budget.');

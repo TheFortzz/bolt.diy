@@ -749,26 +749,25 @@
 
 .ThinkingCard {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 16px 18px;
-  border: 1px solid rgba(168, 85, 247, 0.38);
-  border-radius: 6px 18px 18px 18px;
-  background: linear-gradient(135deg, rgba(36, 17, 68, 0.96), rgba(22, 10, 44, 0.98));
-  box-shadow: 0 8px 30px rgba(10, 4, 24, 0.5);
-  contain: paint;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 14px;
+  border: 1px solid rgba(147, 197, 253, 0.32);
+  border-radius: 12px;
+  background: linear-gradient(130deg, rgba(37, 54, 78, 0.78), rgba(43, 35, 67, 0.8));
 }
 
-.ThinkingGlow {
-  width: 10px;
-  height: 10px;
-  margin-top: 5px;
+.ThinkingIcon {
+  display: grid;
   flex: 0 0 auto;
-  border-radius: 50%;
-  background: #a855f7;
-  box-shadow: 0 0 10px rgba(168, 85, 247, 0.6);
-  animation: thinking-pulse 1.8s ease-in-out infinite;
-  will-change: opacity;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid rgba(196, 181, 253, 0.35);
+  border-radius: 9px;
+  background: rgba(196, 181, 253, 0.12);
+  color: #ddd6fe;
+  font-size: 16px;
 }
 
 .ThinkingTitle {
@@ -776,6 +775,7 @@
   font-size: 13px;
   font-weight: 700;
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .ThinkingSubtitle {
@@ -783,55 +783,6 @@
   color: #c4b5fd;
   font-size: 11px;
   line-height: 1.5;
-}
-
-.ThinkingBars {
-  display: grid;
-  gap: 6px;
-  margin-top: 12px;
-  contain: layout paint;
-
-  span {
-    display: block;
-    height: 5px;
-    border-radius: 999px;
-    background: linear-gradient(90deg, #a855f7, #c084fc);
-    animation: thinking-bar-pulse 1.6s ease-in-out infinite;
-    will-change: opacity;
-  }
-
-  span:nth-child(1) {
-    width: 88%;
-    animation-delay: 0ms;
-  }
-  span:nth-child(2) {
-    width: 68%;
-    animation-delay: 200ms;
-  }
-  span:nth-child(3) {
-    width: 78%;
-    animation-delay: 400ms;
-  }
-}
-
-@keyframes thinking-bar-pulse {
-  0%,
-  100% {
-    opacity: 0.35;
-  }
-  50% {
-    opacity: 0.95;
-  }
-}
-
-@keyframes thinking-pulse {
-  0%,
-  100% {
-    opacity: 0.5;
-  }
-  50% {
-    opacity: 1;
-  }
 }
 
 @keyframes working-enter {
