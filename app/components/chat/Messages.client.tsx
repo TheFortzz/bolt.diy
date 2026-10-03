@@ -16,6 +16,7 @@ import styles from '~/components/chat/ChatExperience.module.scss';
 import { BlueprintCard } from '~/components/chat/BlueprintCard';
 import { blueprintSchema } from '~/lib/harness/blueprint';
 import { harnessIsBusy, harnessState } from '~/lib/stores/harness';
+import { workbenchStore } from '~/lib/stores/workbench';
 
 interface MessagesProps {
   id?: string;
@@ -86,7 +87,13 @@ const MessageRow = React.memo((props: MessageRowProps) => {
   } = props;
   const { role, content, id: messageId } = message;
   const isUserMessage = role === 'user';
-  const hasArtifact = typeof content === 'string' && content.includes('__boltArtifact__');
+  const hasArtifact =
+    (typeof content === 'string' &&
+      (content.includes('__boltArtifact__') ||
+        content.includes('<boltArtifact') ||
+        content.includes('boltAction') ||
+        content.includes('boltArtifact'))) ||
+    Boolean(messageId && workbenchStore.artifacts.get()[messageId]);
   const isInternalRepair = isUserMessage && typeof content === 'string' && content.includes('[Internal Repair Prompt');
   const isInternalBuild = message.annotations?.some(
     (annotation) =>

@@ -9,14 +9,14 @@
 .Turn {
   display: flex;
   width: 100%;
-  gap: 10px;
-  padding: 16px 0;
+  gap: 8px;
+  padding: 12px 0;
   min-width: 0;
 }
 
 .UserTurn {
   flex-direction: row-reverse;
-  padding-left: 28px;
+  padding-left: 8px;
 }
 
 .Avatar {
@@ -52,7 +52,7 @@
 }
 .UserBody {
   flex: 0 1 auto;
-  max-width: 88%;
+  max-width: 95%;
   min-width: 0;
 }
 
@@ -546,48 +546,48 @@
 /* Purple Studio Chat Surface */
 .Conversation {
   color: #f8fafc;
-  scrollbar-color: rgba(196, 181, 253, 0.5) transparent;
-  background: radial-gradient(ellipse at 85% 0%, rgba(196, 181, 253, 0.17), transparent 45%),
-    radial-gradient(ellipse at 15% 100%, rgba(139, 92, 246, 0.15), transparent 50%),
-    linear-gradient(165deg, #26173c 0%, #211432 50%, #1a1228 100%);
+  scrollbar-color: rgba(216, 180, 254, 0.5) transparent;
+  background: radial-gradient(ellipse at 85% 0%, rgba(216, 180, 254, 0.22), transparent 48%),
+    radial-gradient(ellipse at 15% 100%, rgba(168, 85, 247, 0.2), transparent 52%),
+    linear-gradient(165deg, #381a60 0%, #2e1250 50%, #260d43 100%);
 }
 
 .Avatar {
-  border-color: rgba(168, 85, 247, 0.35);
-  background: #220f44;
-  color: #e9d5ff;
+  border-color: rgba(192, 132, 252, 0.4);
+  background: #3b1968;
+  color: #f3e8ff;
 }
 
 .AgentAvatar {
-  border-color: rgba(192, 132, 252, 0.6);
-  background: linear-gradient(135deg, #6d28d9, #8b5cf6);
+  border-color: rgba(216, 180, 254, 0.7);
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
   color: #ffffff;
-  box-shadow: 0 0 16px rgba(139, 92, 246, 0.45);
+  box-shadow: 0 0 16px rgba(168, 85, 247, 0.45);
 }
 
 .MessageMeta {
-  color: #ddd6fe;
+  color: #e9d5ff;
 }
 
 .UserMeta {
-  color: #bfdbfe;
+  color: #d8b4fe;
 }
 
 .Badge {
-  background: rgba(168, 85, 247, 0.18);
-  border: 1px solid rgba(168, 85, 247, 0.35);
-  color: #c084fc;
+  background: rgba(192, 132, 252, 0.22);
+  border: 1px solid rgba(192, 132, 252, 0.4);
+  color: #d8b4fe;
 }
 
 .UserBubble {
-  border: 1px solid rgba(147, 197, 253, 0.4);
-  background: linear-gradient(135deg, #51456f 0%, #3f4566 100%);
+  border: 1px solid rgba(192, 132, 252, 0.45);
+  background: linear-gradient(135deg, #6d28d9 0%, #581c87 100%);
   color: #ffffff;
-  box-shadow: 0 4px 18px rgba(30, 41, 59, 0.3);
+  box-shadow: 0 4px 18px rgba(35, 10, 65, 0.35);
 }
 
 .AssistantContent {
-  color: #f5f3ff;
+  color: #f8fafc;
   font-size: 14px;
   line-height: 1.75;
   padding: 0;
@@ -598,27 +598,27 @@
 }
 
 .MessageActions button {
-  color: #a78bfa;
+  color: #c084fc;
 
   &:hover {
     color: #ffffff;
-    background: rgba(168, 85, 247, 0.22);
+    background: rgba(192, 132, 252, 0.25);
   }
 }
 
 .Activity {
-  border-color: rgba(168, 85, 247, 0.28);
-  background: rgba(22, 10, 42, 0.9);
-  box-shadow: 0 4px 20px rgba(8, 3, 18, 0.35);
+  border-color: rgba(192, 132, 252, 0.35);
+  background: rgba(45, 18, 80, 0.94);
+  box-shadow: 0 4px 20px rgba(18, 5, 34, 0.4);
 }
 
 .ActivityHeader:hover {
-  background: rgba(168, 85, 247, 0.12);
+  background: rgba(192, 132, 252, 0.15);
 }
 
 .ActivityIcon {
-  background: rgba(168, 85, 247, 0.22);
-  color: #c084fc;
+  background: rgba(192, 132, 252, 0.25);
+  color: #d8b4fe;
 }
 
 .ActivityTitle {
@@ -633,53 +633,53 @@
 .CodeMeta,
 .CodeCaption,
 .PlanNote {
-  color: #c4b5fd;
+  color: #d8b4fe;
 }
 
 .Step {
-  border-color: rgba(168, 85, 247, 0.2);
-  background: rgba(30, 14, 56, 0.65);
-  color: #f5f3ff;
+  border-color: rgba(192, 132, 252, 0.25);
+  background: rgba(58, 24, 102, 0.65);
+  color: #f8fafc;
 
   &:not(:disabled):hover {
-    border-color: rgba(192, 132, 252, 0.55);
-    background: rgba(46, 21, 86, 0.75);
+    border-color: rgba(216, 180, 254, 0.6);
+    background: rgba(76, 29, 136, 0.8);
   }
 
   &[data-status='running'] {
-    background: rgba(147, 51, 234, 0.22);
-    color: #d8b4fe;
+    background: rgba(168, 85, 247, 0.28);
+    color: #f3e8ff;
   }
 
   &[data-status='failed'] {
-    background: rgba(225, 29, 72, 0.2);
+    background: rgba(225, 29, 72, 0.25);
     color: #fda4af;
   }
 
   &[data-status='pending'],
   &[data-status='aborted'] {
-    color: #a78bfa;
+    color: #c084fc;
   }
 }
 
 .ActivityFootnote,
 .CodePreview,
 .ApprovalActions {
-  border-color: rgba(168, 85, 247, 0.25);
+  border-color: rgba(192, 132, 252, 0.3);
 }
 
 .JumpToLatest {
-  border-color: rgba(168, 85, 247, 0.45);
-  background: #26114d;
+  border-color: rgba(192, 132, 252, 0.5);
+  background: #3e1870;
   color: #ffffff;
-  box-shadow: 0 6px 22px rgba(10, 4, 24, 0.5);
+  box-shadow: 0 6px 22px rgba(18, 5, 34, 0.55);
 }
 
 .CodePreview {
-  border-top-color: rgba(168, 85, 247, 0.25);
+  border-top-color: rgba(192, 132, 252, 0.3);
 
   button {
-    color: #c4b5fd;
+    color: #d8b4fe;
 
     &:hover {
       color: #ffffff;
@@ -687,16 +687,16 @@
   }
 
   pre {
-    background: #0f061e !important;
-    color: #e9d5ff;
-    border: 1px solid rgba(168, 85, 247, 0.22);
+    background: #1f0b38 !important;
+    color: #f3e8ff;
+    border: 1px solid rgba(192, 132, 252, 0.25);
   }
 }
 
 .Blueprint {
-  border-color: rgba(96, 165, 250, 0.34);
-  background: linear-gradient(145deg, rgba(30, 48, 76, 0.82), rgba(28, 31, 55, 0.94));
-  box-shadow: 0 8px 28px rgba(9, 16, 31, 0.32);
+  border-color: rgba(192, 132, 252, 0.4);
+  background: linear-gradient(145deg, rgba(53, 21, 95, 0.92), rgba(42, 16, 76, 0.96));
+  box-shadow: 0 8px 28px rgba(18, 5, 34, 0.38);
 }
 
 .BlueprintHeader {
@@ -779,9 +779,9 @@
   align-items: center;
   gap: 11px;
   padding: 12px 14px;
-  border: 1px solid rgba(147, 197, 253, 0.32);
+  border: 1px solid rgba(192, 132, 252, 0.4);
   border-radius: 12px;
-  background: linear-gradient(130deg, rgba(37, 54, 78, 0.78), rgba(43, 35, 67, 0.8));
+  background: linear-gradient(130deg, rgba(67, 28, 119, 0.82), rgba(53, 21, 95, 0.85));
 }
 
 .ThinkingIcon {

@@ -271,7 +271,7 @@ export function PublishButton() {
           title="Publish your game to thefortz.me"
         >
           <div className="i-ph:rocket-launch text-[#03a9f4] text-xs" />
-          <span>Publish</span>
+          <span>PUBLISH</span>
         </button>
       </div>
 

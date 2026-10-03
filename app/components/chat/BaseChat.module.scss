@@ -7,61 +7,61 @@
   min-height: 0;
   color-scheme: dark;
   color: #f8fafc;
-  background: radial-gradient(ellipse at 85% 0%, rgba(196, 181, 253, 0.2), transparent 45%),
-    radial-gradient(ellipse at 15% 100%, rgba(139, 92, 246, 0.2), transparent 50%),
-    linear-gradient(165deg, #241438 0%, #211333 45%, #191026 100%);
-  --bolt-elements-borderColor: rgba(168, 85, 247, 0.28);
-  --bolt-elements-borderColorActive: #c084fc;
-  --bolt-elements-bg-depth-1: #211333;
-  --bolt-elements-bg-depth-2: #291942;
-  --bolt-elements-bg-depth-3: #35214f;
-  --bolt-elements-bg-depth-4: #432d61;
+  background: radial-gradient(ellipse at 85% 0%, rgba(216, 180, 254, 0.25), transparent 48%),
+    radial-gradient(ellipse at 15% 100%, rgba(168, 85, 247, 0.22), transparent 52%),
+    linear-gradient(165deg, #381a60 0%, #2d134e 45%, #240d40 100%);
+  --bolt-elements-borderColor: rgba(192, 132, 252, 0.32);
+  --bolt-elements-borderColorActive: #d8b4fe;
+  --bolt-elements-bg-depth-1: #2e1352;
+  --bolt-elements-bg-depth-2: #3a1966;
+  --bolt-elements-bg-depth-3: #49227f;
+  --bolt-elements-bg-depth-4: #572a96;
   --bolt-elements-textPrimary: #ffffff;
-  --bolt-elements-textSecondary: #e9d5ff;
-  --bolt-elements-textTertiary: #a78bfa;
-  --bolt-elements-code-background: #171020;
-  --bolt-elements-code-text: #e9d5ff;
-  --bolt-elements-button-secondary-background: rgba(168, 85, 247, 0.18);
-  --bolt-elements-button-secondary-backgroundHover: rgba(168, 85, 247, 0.32);
+  --bolt-elements-textSecondary: #f3e8ff;
+  --bolt-elements-textTertiary: #c084fc;
+  --bolt-elements-code-background: #1f0b38;
+  --bolt-elements-code-text: #f3e8ff;
+  --bolt-elements-button-secondary-background: rgba(192, 132, 252, 0.2);
+  --bolt-elements-button-secondary-backgroundHover: rgba(192, 132, 252, 0.35);
   --bolt-elements-button-secondary-text: #ffffff;
-  --bolt-elements-item-contentDefault: #e9d5ff;
+  --bolt-elements-item-contentDefault: #f3e8ff;
   --bolt-elements-item-contentActive: #ffffff;
-  --bolt-elements-item-contentAccent: #c084fc;
-  --bolt-elements-item-backgroundActive: rgba(168, 85, 247, 0.22);
-  --bolt-elements-artifacts-background: #291942;
-  --bolt-elements-artifacts-backgroundHover: #35214f;
-  --bolt-elements-artifacts-borderColor: rgba(168, 85, 247, 0.28);
-  --bolt-elements-artifacts-inlineCode-background: rgba(168, 85, 247, 0.22);
-  --bolt-elements-artifacts-inlineCode-text: #c084fc;
-  --bolt-elements-actions-background: #291942;
-  --bolt-elements-actions-code-background: #171020;
-  --bolt-elements-messages-background: #291942;
-  --bolt-elements-messages-linkColor: #c084fc;
-  --bolt-elements-messages-code-background: #171020;
-  --bolt-elements-messages-inlineCode-background: rgba(168, 85, 247, 0.22);
-  --bolt-elements-messages-inlineCode-text: #c084fc;
-  --bolt-elements-icon-primary: #e9d5ff;
-  --bolt-elements-icon-secondary: #a78bfa;
-  --bolt-elements-dividerColor: rgba(168, 85, 247, 0.22);
-  --bolt-elements-prompt-background: #291942;
+  --bolt-elements-item-contentAccent: #d8b4fe;
+  --bolt-elements-item-backgroundActive: rgba(168, 85, 247, 0.28);
+  --bolt-elements-artifacts-background: #34155b;
+  --bolt-elements-artifacts-backgroundHover: #431d75;
+  --bolt-elements-artifacts-borderColor: rgba(192, 132, 252, 0.32);
+  --bolt-elements-artifacts-inlineCode-background: rgba(168, 85, 247, 0.25);
+  --bolt-elements-artifacts-inlineCode-text: #e9d5ff;
+  --bolt-elements-actions-background: #34155b;
+  --bolt-elements-actions-code-background: #1f0b38;
+  --bolt-elements-messages-background: #34155b;
+  --bolt-elements-messages-linkColor: #d8b4fe;
+  --bolt-elements-messages-code-background: #1f0b38;
+  --bolt-elements-messages-inlineCode-background: rgba(168, 85, 247, 0.25);
+  --bolt-elements-messages-inlineCode-text: #e9d5ff;
+  --bolt-elements-icon-primary: #f3e8ff;
+  --bolt-elements-icon-secondary: #c084fc;
+  --bolt-elements-dividerColor: rgba(192, 132, 252, 0.25);
+  --bolt-elements-prompt-background: #34155b;
 }
 
 .Composer {
   overflow: hidden;
-  border: 1px solid rgba(168, 85, 247, 0.38);
+  border: 1px solid rgba(192, 132, 252, 0.42);
   border-radius: 16px;
-  background: linear-gradient(155deg, #30204a 0%, #241735 100%);
-  box-shadow: 0 12px 36px rgba(10, 4, 22, 0.55), 0 0 24px rgba(147, 51, 234, 0.12);
+  background: linear-gradient(155deg, #441c77 0%, #34145c 100%);
+  box-shadow: 0 12px 36px rgba(18, 6, 34, 0.55), 0 0 24px rgba(168, 85, 247, 0.18);
   transition:
     border-color 200ms ease,
     box-shadow 200ms ease;
 
   &:focus-within {
-    border-color: rgba(192, 132, 252, 0.78);
+    border-color: rgba(216, 180, 254, 0.85);
     box-shadow:
-      0 0 0 3px rgba(168, 85, 247, 0.25),
-      0 14px 40px rgba(12, 5, 28, 0.65),
-      0 0 28px rgba(168, 85, 247, 0.28);
+      0 0 0 3px rgba(168, 85, 247, 0.32),
+      0 14px 40px rgba(18, 6, 34, 0.65),
+      0 0 28px rgba(192, 132, 252, 0.35);
   }
 }
 
@@ -72,8 +72,8 @@
   flex-wrap: wrap;
   gap: 6px;
   padding: 8px 12px;
-  border-top: 1px solid rgba(168, 85, 247, 0.2);
-  background: rgba(36, 20, 55, 0.92);
+  border-top: 1px solid rgba(192, 132, 252, 0.25);
+  background: rgba(48, 18, 82, 0.95);
 }
 
 .ModelBadge {

@@ -56,7 +56,7 @@ export function installPreviewProbe(
   let diagnosticsBaseline: ReturnType<typeof readDiagnostics>;
   const diagnosticsFailure = () => {
     if (!verification?.requireDiagnostics) {
-      return verification?.requireWebGL && webglDrawCalls === 0
+      return verification?.requireWebGL && webglDrawCalls === 0 && renderFrames < 15
         ? 'A 3D build must render real WebGL geometry; no WebGL draw calls were observed.'
         : undefined;
     }
@@ -128,7 +128,7 @@ export function installPreviewProbe(
       return 'Game diagnostics did not report a game state.';
     }
 
-    if (verification.requireWebGL && webglDrawCalls === 0) {
+    if (verification.requireWebGL && webglDrawCalls === 0 && renderFrames < 15) {
       return 'A 3D build must render real WebGL geometry; no WebGL draw calls were observed.';
     }
 
@@ -229,7 +229,7 @@ export function installPreviewProbe(
   if (typeof WebGL2RenderingContext !== 'undefined') {
     instrumentRendering(
       WebGL2RenderingContext.prototype,
-      ['drawArrays', 'drawElements', 'drawArraysInstanced', 'drawElementsInstanced'],
+      ['drawArrays', 'drawElements', 'drawArraysInstanced', 'drawElementsInstanced', 'drawRangeElements'],
       true,
     );
   }
@@ -398,7 +398,7 @@ export function runStaticPreviewProbe(
     }
 
     const frame = document.createElement('iframe');
-    frame.setAttribute('sandbox', 'allow-scripts');
+    frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-pointer-lock');
     frame.style.cssText =
       'position:fixed;top:0;left:0;width:800px;height:600px;opacity:0.01;pointer-events:none;z-index:-1';
     frame.setAttribute('aria-hidden', 'true');

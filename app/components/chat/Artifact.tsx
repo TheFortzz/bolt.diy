@@ -10,7 +10,6 @@ import { cubicEasingFn } from '~/utils/easings';
 import { WORK_DIR } from '~/utils/constants';
 import { cleanWorkDirRelativePath } from '~/utils/diff';
 import { FileChangePreview } from '~/components/chat/FileChangePreview';
-import { ActivityTimeline } from '~/components/chat/ActivityTimeline';
 
 interface ArtifactProps {
   messageId: string;
@@ -363,7 +362,6 @@ export const Artifact = memo(({ messageId }: ArtifactProps) => {
           >
             <div className="p-4 sm:p-5 text-left bg-slate-950/80">
               <ActionList actions={actions} messageId={messageId} />
-              <ActivityTimeline messageId={messageId} isStreaming={isRunning} embedded />
             </div>
           </motion.div>
         )}
