@@ -241,6 +241,26 @@ const mathUtilsScript = `<script id="bolt-game-math-utils">
     };
   }
 
+  // Guard setPointerCapture and releasePointerCapture to prevent synthetic pointer crashes
+  if (typeof Element !== 'undefined') {
+    if (Element.prototype.setPointerCapture) {
+      var origSetPointerCapture = Element.prototype.setPointerCapture;
+      Element.prototype.setPointerCapture = function(id) {
+        try {
+          return origSetPointerCapture.call(this, id);
+        } catch(e) {}
+      };
+    }
+    if (Element.prototype.releasePointerCapture) {
+      var origReleasePointerCapture = Element.prototype.releasePointerCapture;
+      Element.prototype.releasePointerCapture = function(id) {
+        try {
+          return origReleasePointerCapture.call(this, id);
+        } catch(e) {}
+      };
+    }
+  }
+
   // Resilient WebAudio mock to prevent audio crashes / autoplay errors
   try {
     var MockAudioCtx = class {
@@ -690,6 +710,16 @@ export function buildFallbackHtml(
   }
 
   bundled = injectStaticScripts(bundled, dependencyScripts, entryScripts);
+
+  // Automatically rewrite broken / 404 Three.js URLs to rock-solid stable CDN
+  bundled = bundled.replace(
+    /https?:\/\/cdn\.jsdelivr\.net\/npm\/three@0\.18[0-9]\.[0-9]+\/build\/three(?:\.min)?\.js/g,
+    'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
+  );
+  bundled = bundled.replace(
+    /https?:\/\/cdn\.jsdelivr\.net\/npm\/three@0\.18[0-9]\.[0-9]+\/build\/three\.module\.js/g,
+    'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js',
+  );
 
   bundled = bundled.trim();
   const doctypeRegex = /<!DOCTYPE\s+html[^>]*>/i;

@@ -84,15 +84,26 @@ export class StreamingMessageParser {
       // unquoted attribute values: type=file → type="file", filePath=foo.js → filePath="foo.js"
       .replace(/\b(type|filePath|id|title)=([^\s"'>]+)/gi, (_, k, v) => `${k}="${v}"`);
 
+    // If the model emitted <boltAction without any <boltArtifact in the message, wrap it automatically
+    let normalized = cleaned;
+    const actionIndex = normalized.indexOf('<boltAction');
+    const artifactIndex = normalized.indexOf('<boltArtifact');
+    if (actionIndex !== -1 && artifactIndex === -1) {
+      normalized =
+        normalized.slice(0, actionIndex) +
+        '<boltArtifact id="game-project" title="Game Project">\n' +
+        normalized.slice(actionIndex);
+    }
+
     let state = this.#messages.get(messageId);
 
     // If cleaning shortened content behind our cursor, reparse this message cleanly.
-    if (state && cleaned.length < state.position) {
+    if (state && normalized.length < state.position) {
       this.#messages.delete(messageId);
       state = undefined;
     }
 
-    input = cleaned;
+    input = normalized;
 
     if (!state) {
       state = {

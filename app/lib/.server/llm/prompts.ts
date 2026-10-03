@@ -269,7 +269,7 @@ const PREVIEW_RULES = `
 
   - A Vite/npm project needs a valid package.json, complete imports/exports,
     and a start action such as npm run dev.
-  - Modular Files & Script Linking: Use plain script tags for dependency-free classic JavaScript. For genuine Three.js/WebGL projects, native browser ES modules and <script type="module"> are allowed; use the pinned CDN module https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js and do not add an npm install just for Three.js.
+  - Modular Files & Script Linking: Use plain script tags for dependency-free classic JavaScript. For genuine Three.js/WebGL projects, load Three.js via <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script> in index.html (or use the pinned browser module https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js in <script type="module">) and do not add an npm install just for Three.js.
     * SCRIPT LOADING ORDER IN index.html:
       For classic scripts, load helper systems before the game entry point. For an ES-module entry point, use imports in dependency order and initialize the renderer only after the DOM is ready.
     * WINDOW ATTACHMENT FOR SHARED CLASSES & HELPERS:
