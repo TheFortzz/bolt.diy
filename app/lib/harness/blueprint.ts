@@ -69,6 +69,7 @@ export const blueprintSchema = managerBlueprintSchema.extend({
     scenarios: z.tuple([z.literal('startup'), z.literal('controls'), z.literal('restart'), z.literal('resize')]),
     minimumSimulationSteps: z.number().int().min(1).max(1000),
     requireDiagnostics: z.literal(true),
+    requireWebGL: z.boolean().default(false),
   }).strict(),
   budgets: z.object({
     assetAttempts: z.literal(1),

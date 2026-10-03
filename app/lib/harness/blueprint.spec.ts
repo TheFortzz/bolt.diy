@@ -122,6 +122,14 @@ Let me know if you would like any changes!
 
       const parsed45 = blueprintSchema.parse(basePlan);
       expect(parsed45.verification.minimumSimulationSteps).toBe(45);
+      expect(parsed45.verification.requireWebGL).toBe(false);
+
+      const parsedWebGL = blueprintSchema.parse({
+        ...basePlan,
+        engine: 'webgl',
+        verification: { ...basePlan.verification, requireWebGL: true },
+      });
+      expect(parsedWebGL.verification.requireWebGL).toBe(true);
 
       const parsed120 = blueprintSchema.parse({
         ...basePlan,
