@@ -41,15 +41,18 @@ export default class SwitchableStream {
       return;
     }
 
-    // Keep the HTTP/3 QUIC connection alive from the very moment the stream is returned
-    // to the client, preventing Cloudflare Pages net::ERR_QUIC_PROTOCOL_ERROR while
-    // the LLM is thinking or compiling the response.
+    /*
+     * Keep the HTTP/3 QUIC connection alive from the very moment the stream is returned
+     * to the client, preventing Cloudflare Pages net::ERR_QUIC_PROTOCOL_ERROR while
+     * the LLM is thinking or compiling the response.
+     */
     this._keepAliveInterval = setInterval(() => {
       if (this._closed || !this._controller) {
         if (this._keepAliveInterval) {
           clearInterval(this._keepAliveInterval);
           this._keepAliveInterval = null;
         }
+
         return;
       }
 
@@ -67,6 +70,7 @@ export default class SwitchableStream {
 
   markSwitchPending() {
     this._isSwitchPending = true;
+
     if (this._idleTimeout) {
       clearTimeout(this._idleTimeout);
       this._idleTimeout = null;
@@ -81,6 +85,7 @@ export default class SwitchableStream {
     }
 
     this._isSwitchPending = false;
+
     if (this._idleTimeout) {
       clearTimeout(this._idleTimeout);
       this._idleTimeout = null;
@@ -119,12 +124,16 @@ export default class SwitchableStream {
         this._lineBuffer = lines.pop() ?? '';
 
         let passThrough = '';
+
         for (const line of lines) {
-          // Suppress finish_message ('d:') and finish_step ('e:') so the AI SDK client
-          // does not finalize the assistant message prematurely between continuation segments.
+          /*
+           * Suppress finish_message ('d:') and finish_step ('e:') so the AI SDK client
+           * does not finalize the assistant message prematurely between continuation segments.
+           */
           if (line.startsWith('d:') || line.startsWith('e:') || !line.trim()) {
             continue;
           }
+
           passThrough += line + '\n';
         }
 
@@ -134,12 +143,15 @@ export default class SwitchableStream {
         }
       }
 
-      // If no switch is pending, give onFinish enough time to inspect the text and decide
-      // whether to continue (markSwitchPending / switchSource) or close (close).
+      /*
+       * If no switch is pending, give onFinish enough time to inspect the text and decide
+       * whether to continue (markSwitchPending / switchSource) or close (close).
+       */
       if (!this._isSwitchPending && !this._closed) {
         if (this._idleTimeout) {
           clearTimeout(this._idleTimeout);
         }
+
         this._idleTimeout = setTimeout(() => {
           if (!this._isSwitchPending && !this._closed) {
             this.close();
@@ -149,19 +161,34 @@ export default class SwitchableStream {
     } catch (error) {
       if (!this._closed) {
         console.error('Error pumping switchable stream:', error);
-        try {
-          this._controller.error(error);
-        } catch {
-          // ignore
-        }
+        this.fail(error);
       }
     }
+  }
+
+  fail(error: unknown) {
+    if (this._closed) {
+      return;
+    }
+
+    const message = (error instanceof Error ? error.message : String(error))
+      .replace(/\b(?:Bearer\s+)[A-Za-z0-9._-]{12,}/gi, 'Bearer [redacted]')
+      .slice(0, 1200);
+
+    try {
+      this._controller?.enqueue(this._textEncoder.encode(`3:${JSON.stringify(message)}\n`));
+    } catch {
+      // The client may already have disconnected; there is no error frame to deliver.
+    }
+
+    this.close();
   }
 
   close() {
     if (this._closed) {
       return;
     }
+
     this._closed = true;
 
     if (this._idleTimeout) {
@@ -186,6 +213,7 @@ export default class SwitchableStream {
       if (this._controller) {
         const remaining = this._lineBuffer + this._textDecoder.decode();
         this._lineBuffer = '';
+
         if (remaining && !remaining.startsWith('d:') && !remaining.startsWith('e:')) {
           this._controller.enqueue(this._textEncoder.encode(remaining.endsWith('\n') ? remaining : remaining + '\n'));
         }

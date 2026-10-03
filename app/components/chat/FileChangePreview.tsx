@@ -30,9 +30,13 @@ export const FileChangePreview = memo(({ path, content, isStreaming }: FileChang
     }
 
     let count = 1;
+
     for (let i = 0; i < content.length; i++) {
-      if (content.charCodeAt(i) === 10) count++;
+      if (content.charCodeAt(i) === 10) {
+        count++;
+      }
     }
+
     return count;
   }, [content, isStreaming]);
 
@@ -40,12 +44,14 @@ export const FileChangePreview = memo(({ path, content, isStreaming }: FileChang
     if (!expanded) {
       return { preview: '', isTruncated: false };
     }
+
     if (isStreaming) {
       const liveTail = content.slice(-12000);
       return { preview: liveTail, isTruncated: content.length > liveTail.length };
     }
 
     const lines = content.split('\n');
+
     return {
       preview: lines.slice(0, 500).join('\n'),
       isTruncated: lines.length > 500,
@@ -82,7 +88,9 @@ export const FileChangePreview = memo(({ path, content, isStreaming }: FileChang
             </pre>
             {isTruncated && (
               <div className={styles.CodeCaption}>
-                {isStreaming ? 'Live tail shown while FortzAI writes; the complete file remains in Editor.' : 'First 500 lines shown. Open Editor for the complete file.'}
+                {isStreaming
+                  ? 'Live tail shown while FortzAI writes; the complete file remains in Editor.'
+                  : 'First 500 lines shown. Open Editor for the complete file.'}
               </div>
             )}
           </>

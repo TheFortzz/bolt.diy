@@ -230,7 +230,7 @@ export const ChatImpl = memo(
         const currentHarness = harnessState.get();
         const errorMessage = error?.message || String(error);
         const isRecoverableNetworkError =
-          /network|quic|protocol|connection|fetch|load failed|net::err|abort(?:ed|error)?|timed out|\b(?:429|500|502|503|504|520|521|522|524)\b/i.test(
+          /network|quic|protocol|connection|fetch|load failed|net::err|abort(?:ed|error)?|timed out|worker exceeded resource limits|\b(?:1102|429|500|502|503|504|520|521|522|524)\b/i.test(
             errorMessage,
           );
         const approvedBlueprint = currentHarness.blueprint;

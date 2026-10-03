@@ -113,7 +113,11 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
   );
 
   const stream = new SwitchableStream();
-  let fullContent = '';
+  let responseTagTail = '';
+  let artifactOpen = false;
+  let actionOpen = false;
+  let currentActionFilePath: string | undefined;
+  const completedFilePaths = new Set<string>();
 
   try {
     const options: StreamingOptions = {
@@ -121,22 +125,59 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
       abortSignal: request.signal,
       onFinish: async ({ text: content, finishReason }) => {
         try {
-          fullContent += content;
-
           if (conversationOnly) {
             return stream.close();
           }
 
-          const normalized = fullContent
+          const normalized = content
             .replace(/\[boltArtifact(\s[^\]]*?)?\]/gi, (_, attrs = '') => `<boltArtifact${attrs}>`)
             .replace(/\[boltAction(\s[^\]]*?)?\]/gi, (_, attrs = '') => `<boltAction${attrs}>`)
             .replace(/\[\/boltArtifact\]/gi, '</boltArtifact>')
             .replace(/\[\/boltAction\]/gi, '</boltAction>');
 
-          const hasUnclosedArtifact = normalized.includes('<boltArtifact') && !normalized.includes('</boltArtifact>');
-          const hasUnclosedAction =
-            normalized.includes('<boltAction') &&
-            normalized.lastIndexOf('<boltAction') > normalized.lastIndexOf('</boltAction>');
+          const tagInput = responseTagTail + normalized;
+          const previousTailLength = responseTagTail.length;
+          const tagPattern = /(<|\[)(\/?)bolt(Artifact|Action)\b([^>\]]*)(>|\])/gi;
+
+          for (const match of tagInput.matchAll(tagPattern)) {
+            if ((match.index ?? 0) + match[0].length <= previousTailLength) {
+              continue;
+            }
+
+            const closing = Boolean(match[2]);
+            const tagName = match[3].toLowerCase();
+            const attributes = match[4];
+
+            if (actionOpen) {
+              if (tagName === 'action' && closing) {
+                if (currentActionFilePath) {
+                  completedFilePaths.add(currentActionFilePath);
+                }
+
+                actionOpen = false;
+                currentActionFilePath = undefined;
+              }
+
+              continue;
+            }
+
+            if (tagName === 'artifact') {
+              artifactOpen = !closing;
+            } else if (tagName === 'action' && artifactOpen && !closing) {
+              actionOpen = true;
+
+              const isFileAction = /\btype\s*=\s*["']?file\b/i.test(attributes);
+              currentActionFilePath = isFileAction
+                ? attributes.match(/\bfilePath\s*=\s*["']?([^"'\s>\]]+)/i)?.[1]
+                : undefined;
+            }
+          }
+
+          responseTagTail = tagInput.slice(-1024);
+
+          const partialTag = /(?:<|\[)\/?bolt(?:Artifact|Action)\b[^>\]]*$/i.test(tagInput.slice(-256));
+          const hasUnclosedArtifact = artifactOpen;
+          const hasUnclosedAction = actionOpen || partialTag;
           const shouldContinue = finishReason === 'length' || hasUnclosedArtifact || hasUnclosedAction;
 
           if (!shouldContinue || !content || content.trim().length === 0) {
@@ -155,12 +196,8 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
 
           stream.markSwitchPending();
 
-          const completedFilePaths = Array.from(normalized.matchAll(/<boltAction\b([^>]*)>[\s\S]*?<\/boltAction>/gi))
-            .filter((match) => /\btype\s*=\s*["']file["']/i.test(match[1]))
-            .map((match) => match[1].match(/\bfilePath\s*=\s*["']([^"']+)["']/i)?.[1])
-            .filter((path): path is string => Boolean(path));
-          const alreadyWritten = completedFilePaths.length
-            ? `\n\nFiles already emitted and applied (do not repeat): ${Array.from(new Set(completedFilePaths)).join(', ')}`
+          const alreadyWritten = completedFilePaths.size
+            ? `\n\nFiles already emitted and applied (do not repeat): ${Array.from(completedFilePaths).join(', ')}`
             : '';
           const continuationMessages: Messages = [
             ...generationMessages,
@@ -183,7 +220,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
           return stream.switchSource(result.toAIStream());
         } catch (err) {
           console.error('Error during onFinish stream continuation:', err);
-          return stream.close();
+          return stream.fail(err);
         }
       },
     };
