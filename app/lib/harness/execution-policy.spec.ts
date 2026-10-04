@@ -83,6 +83,17 @@ describe('ExecutionPolicy', () => {
     );
   });
 
+  it('allows Cline to revise only an approved file during its bounded tool loop', () => {
+    const policy = new ExecutionPolicy();
+    policy.approve(createBlueprint());
+    policy.allowRepair('cline-run', true);
+
+    policy.authorize('cline-run', 'action-1', fileAction('game.js'));
+    policy.authorize('cline-run', 'action-1', fileAction('game.js'), 'complete');
+    expect(() => policy.authorize('cline-run', 'action-2', fileAction('game.js'))).not.toThrow();
+    expect(() => policy.authorize('cline-run', 'action-3', fileAction('outside.js'))).toThrow('approved blueprint');
+  });
+
   it('allows substantial source files within the expanded budget', () => {
     const policy = new ExecutionPolicy();
     policy.approve(createBlueprint());

@@ -44,6 +44,7 @@ import { useCognitiveHarness } from '~/lib/hooks/useCognitiveHarness';
 import { shouldUseBuildPlanner } from '~/lib/runtime/request-intent';
 import { executionPolicy } from '~/lib/harness/execution-policy';
 import { harnessIsBusy, harnessState, transitionHarness } from '~/lib/stores/harness';
+import { announceFortzReady, getFortzHostOrigin, runClineInFortzHost, type ClineHostEvent } from '~/lib/runtime/cline-bridge';
 
 const toastAnimation = cssTransition({
   enter: 'animated fadeInRight',
@@ -52,6 +53,31 @@ const toastAnimation = cssTransition({
 
 const logger = createScopedLogger('Chat');
 const MAX_AUTOMATIC_STREAM_RECOVERIES = 5;
+
+function snapshotTextWorkspace(maxCharacters = 7_500_000) {
+  const files: Record<string, string> = {};
+  let totalCharacters = 0;
+
+  for (const [absolutePath, entry] of Object.entries(workbenchStore.files.get())) {
+    if (entry?.type !== 'file' || entry.isBinary || typeof entry.content !== 'string') continue;
+    const path = absolutePath.replace(/^\/home\/project\//, '').replace(/^\.?\//, '');
+    if (
+      !path ||
+      path === '..' ||
+      path.includes('../') ||
+      path.startsWith('/') ||
+      /(?:^|\/)(?:\.env(?:\..*)?|\.git|node_modules|.*(?:secret|credential|private[-_]?key))/i.test(path) ||
+      Object.keys(files).length >= 500
+    ) continue;
+    const remaining = maxCharacters - totalCharacters;
+    if (remaining <= 0) break;
+    const content = entry.content.slice(0, Math.min(200_000, remaining));
+    files[path] = content;
+    totalCharacters += content.length;
+  }
+
+  return files;
+}
 
 export function Chat() {
   renderLogger.trace('Chat');
@@ -118,6 +144,17 @@ export const ChatImpl = memo(
     const [uploadedFiles, setUploadedFiles] = useState<File[]>([]); // Move here
     const [imageDataList, setImageDataList] = useState<string[]>([]); // Move here
     const [agentMode, setAgentMode] = useState<StudioAgentMode>('auto');
+    const [agentEngine, setAgentEngine] = useState<'cline' | 'bolt'>(() => {
+      if (typeof window === 'undefined') return 'cline';
+      try {
+        return window.localStorage.getItem('thefortz_ai_engine') === 'bolt' ? 'bolt' : 'cline';
+      } catch {
+        return 'cline';
+      }
+    });
+    const [clineHostAvailable, setClineHostAvailable] = useState(false);
+    const [clineRunning, setClineRunning] = useState(false);
+    const clineControllerRef = useRef<AbortController>();
     const lastAgentModeRef = useRef<StudioAgentMode>('auto');
     const repairAttemptsRef = useRef(0);
     const streamRecoveryAttemptsRef = useRef(0);
@@ -125,6 +162,35 @@ export const ChatImpl = memo(
     const appendRef = useRef<((message: any, options?: any) => Promise<unknown>)>();
     const lastUserPromptRef = useRef('');
     const { activeProviders } = useSettings();
+
+    useEffect(() => {
+      const hostOrigin = getFortzHostOrigin();
+      if (!hostOrigin) return;
+
+      const handleHostMessage = (event: MessageEvent) => {
+        if (
+          event.origin !== hostOrigin ||
+          event.source !== window.parent ||
+          event.data?.type !== 'thefortz-host-capabilities'
+        ) {
+          return;
+        }
+
+        setClineHostAvailable(Array.isArray(event.data.capabilities) && event.data.capabilities.includes('cline-agent-v1'));
+      };
+
+      window.addEventListener('message', handleHostMessage);
+      announceFortzReady();
+      return () => window.removeEventListener('message', handleHostMessage);
+    }, []);
+
+    useEffect(() => {
+      try {
+        window.localStorage.setItem('thefortz_ai_engine', agentEngine);
+      } catch {
+        // Engine selection remains usable if local storage is unavailable.
+      }
+    }, [agentEngine]);
 
     const [model, setModel] = useState(() => {
       const savedModel = Cookies.get('selectedModel');
@@ -667,6 +733,23 @@ export const ChatImpl = memo(
       provider: provider.name,
       apiKeys,
       workspaceId: harnessWorkspaceIdRef.current,
+      agentEngine,
+      clineHostAvailable,
+      providerBaseUrl: (() => {
+        try {
+          const settings = JSON.parse(Cookies.get('providers') || '{}');
+          return settings?.[provider.name]?.baseUrl || '';
+        } catch {
+          return '';
+        }
+      })(),
+      conversationHistory: messages
+        .filter((entry) => entry.role === 'user' || entry.role === 'assistant')
+        .map((entry) => ({
+          role: entry.role as 'user' | 'assistant',
+          content: typeof entry.content === 'string' ? entry.content.slice(0, 12000) : '',
+        }))
+        .slice(-12),
       setMessages,
       append,
     });
@@ -740,6 +823,9 @@ export const ChatImpl = memo(
     };
 
     const abort = () => {
+      clineControllerRef.current?.abort();
+      clineControllerRef.current = undefined;
+      setClineRunning(false);
       cancelPlan();
       stop();
       chatStore.setKey('aborted', true);
@@ -781,6 +867,7 @@ export const ChatImpl = memo(
       if (
         !_input.trim() ||
         isLoading ||
+        clineRunning ||
         validationState.get().status === 'checking' ||
         checkpointBusy.get() !== 'idle' ||
         harnessIsBusy(harnessState.get().phase)
@@ -812,6 +899,20 @@ export const ChatImpl = memo(
       void runAnimation();
 
       if (shouldPlan) {
+        if (agentEngine === 'cline' && !clineHostAvailable) {
+          setMessages((previous) => [
+            ...previous,
+            { id: crypto.randomUUID(), role: 'user', content: _input },
+            {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: 'Cline is not connected. Open this Bolt Studio inside TheFortz and wait for the Cline badge to become available, or switch to BOLT.',
+            },
+          ]);
+          setInput('');
+          return;
+        }
+
         const fileModifications = workbenchStore.getFileModifcations();
         void requestPlan(_input, imageDataList);
 
@@ -834,7 +935,109 @@ export const ChatImpl = memo(
             : {}),
         };
 
-        void append(conversationalMessage, { body: { chatOnly: true } });
+        if (agentEngine === 'cline') {
+          const assistantId = crypto.randomUUID();
+          const assistantMessage: Message = {
+            id: assistantId,
+            role: 'assistant',
+            content: 'Connecting to Cline…',
+            annotations: [{ type: 'studio-chat-only' }, { type: 'cline-agent' }],
+          };
+          setMessages((previous) => [...previous, conversationalMessage, assistantMessage]);
+
+          if (!clineHostAvailable) {
+            setMessages((previous) => previous.map((entry) =>
+              entry.id === assistantId
+                ? { ...entry, content: 'Cline is not connected. Open this Bolt Studio inside TheFortz, then try again or switch to BOLT.' }
+                : entry,
+            ));
+          } else {
+            const controller = new AbortController();
+            clineControllerRef.current = controller;
+            setClineRunning(true);
+            let answer = '';
+            let usageInfo = '';
+            let progress = 'Inspecting project…';
+
+            const updateClineReply = (content: string) => {
+              setMessages((previous) => previous.map((entry) =>
+                entry.id === assistantId ? { ...entry, content } : entry,
+              ));
+            };
+
+            void runClineInFortzHost(
+              {
+                prompt: _input,
+                files: snapshotTextWorkspace(),
+                readOnly: true,
+                history: messages
+                  .filter((entry) => (entry.role === 'user' || entry.role === 'assistant') && typeof entry.content === 'string')
+                  .slice(-12)
+                  .map((entry) => ({ role: entry.role as 'user' | 'assistant', content: String(entry.content).slice(0, 12000) })),
+                previewErrors: validationState.get().status === 'failed'
+                  ? [{ message: validationState.get().detail
+                    .replace(/\b(?:sk-[A-Za-z0-9_-]{12,}|Bearer\s+[A-Za-z0-9._-]{12,})\b/gi, '[redacted]')
+                    .replace(/([?&](?:api[_-]?key|token|secret)=)[^&\s]+/gi, '$1[redacted]')
+                    .slice(-2000) }]
+                  : [],
+                provider: provider.name,
+                model,
+                apiKey: apiKeys[provider.name],
+                baseUrl: (() => {
+                  try {
+                    return JSON.parse(Cookies.get('providers') || '{}')?.[provider.name]?.baseUrl || '';
+                  } catch {
+                    return '';
+                  }
+                })(),
+                systemContext: compileSystemContext(workbenchStore.files.get(), generatedAssets.get(), validationState.get()),
+              },
+              {
+                signal: controller.signal,
+                onEvent: (event) => {
+                  if (event.type === 'status') {
+                    progress = String(event.payload?.message || 'Cline is working…').slice(0, 200);
+                    if (!answer) updateClineReply(progress);
+                  } else if (event.type === 'reasoning') {
+                    progress = 'Planning the next step…';
+                    if (!answer) updateClineReply(progress);
+                  } else if (event.type === 'tool_start') {
+                    const call = event.payload || {};
+                    progress = `${call.tool || 'Cline tool'}${call.input?.path ? ` · ${call.input.path}` : ''}…`;
+                    if (!answer) updateClineReply(progress);
+                  } else if (event.type === 'text') {
+                    answer += String(event.payload?.chunk || '');
+                    updateClineReply(answer);
+                  } else if (event.type === 'error') {
+                    progress = `Cline reported an error: ${String(event.payload?.error || 'unknown error')}`;
+                    if (!answer) updateClineReply(progress);
+                  } else if (event.type === 'usage') {
+                    const usage = event.payload || {};
+                    usageInfo = `Tokens · ${Number(usage.inputTokens) || 0} in / ${Number(usage.outputTokens) || 0} out`;
+                  }
+                },
+              },
+            ).then((result) => {
+              const finalText = answer || String(result.payload?.summary || 'Cline completed the response.');
+              const finalAnswer = usageInfo ? `${finalText}\n\n_${usageInfo}_` : finalText;
+              updateClineReply(finalAnswer);
+              void persistMessages(
+                [...messages, conversationalMessage, { ...assistantMessage, content: finalAnswer }],
+                true,
+              ).catch((error) => console.warn('Cline chat save error:', error));
+            }).catch((error: unknown) => {
+              if ((error as Error)?.name !== 'AbortError') {
+                const detail = error instanceof Error ? error.message : 'Cline Agent request failed.';
+                updateClineReply(`Cline could not complete this request.\n\n${detail}`);
+              }
+            }).finally(() => {
+              if (clineControllerRef.current === controller) clineControllerRef.current = undefined;
+              setClineRunning(false);
+            });
+          }
+        } else {
+          void append(conversationalMessage, { body: { chatOnly: true } });
+        }
       }
 
       setInput('');
@@ -865,7 +1068,7 @@ export const ChatImpl = memo(
       [],
     );
 
-    const [messageRef, scrollRef, scrollToBottom] = useSnapScroll(isLoading);
+    const [messageRef, scrollRef, scrollToBottom] = useSnapScroll(isLoading || clineRunning);
     scrollToBottomRef.current = scrollToBottom;
 
     useEffect(() => {
@@ -930,7 +1133,7 @@ export const ChatImpl = memo(
         input={input}
         showChat={showChat}
         chatStarted={chatStarted}
-        isStreaming={isLoading}
+        isStreaming={isLoading || clineRunning}
         enhancingPrompt={enhancingPrompt}
         promptEnhanced={promptEnhanced}
         sendMessage={sendMessage}
@@ -968,6 +1171,9 @@ export const ChatImpl = memo(
         setImageDataList={setImageDataList}
         agentMode={agentMode}
         setAgentMode={setAgentMode}
+        agentEngine={agentEngine}
+        setAgentEngine={setAgentEngine}
+        clineHostAvailable={clineHostAvailable}
         onApprovePlan={approvePlan}
         onCancelPlan={cancelPlan}
       />

@@ -10,7 +10,7 @@ import {
   requireSameOrigin,
   verifyCapability,
 } from '~/lib/.server/harness/capabilities';
-import { blueprintSchema, workspaceManifestSchema } from '~/lib/harness/blueprint';
+import { blueprintSchema, managerBlueprintSchema, workspaceManifestSchema } from '~/lib/harness/blueprint';
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from '~/utils/constants';
 
 const sourceSchema = z
@@ -38,6 +38,7 @@ const planRequestSchema = z
     model: z.string().max(128).optional(),
     provider: z.string().max(60).optional(),
     apiKeys: z.record(z.string()).optional(),
+    proposedPlan: managerBlueprintSchema.optional(),
   })
   .strict();
 const approvalSchema = z
@@ -92,6 +93,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
         apiKeys: input.apiKeys,
         env,
         imagesAvailable: Boolean(getFluxApiKey(env)),
+        proposedPlan: input.proposedPlan,
         signal: request.signal,
       });
     } catch (error) {

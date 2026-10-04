@@ -6,6 +6,7 @@ import {
   MAX_GAME_RESPONSE_SEGMENTS,
   MAX_GAME_SOURCE_BYTES,
   blueprintSchema,
+  managerBlueprintSchema,
   parseManagerOutput,
   revisionHash,
   type WorkspaceManifest,
@@ -17,6 +18,7 @@ interface AgentOptions {
   provider?: string;
   apiKeys?: Record<string, string>;
   signal?: AbortSignal;
+  proposedPlan?: unknown;
 }
 
 /**
@@ -131,6 +133,7 @@ export async function runManagerAgent(
     sources: Record<string, string>;
     images: string[];
     imagesAvailable: boolean;
+    proposedPlan?: unknown;
   },
 ) {
   const imageParts = options.images.map((dataUrl) => {
@@ -145,47 +148,53 @@ export async function runManagerAgent(
 
   let proposed;
 
-  try {
-    const result = await generateText({
-      // Provider packages currently expose incompatible duplicate LanguageModelV1 types.
-      model: getModel(
-        options.provider || DEFAULT_PROVIDER.name,
-        options.model || DEFAULT_MODEL,
-        options.env,
-        options.apiKeys,
-      ) as any,
-      system: MANAGER_SYSTEM,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                request: options.request,
-                existingPaths: options.manifest.map((file) => file.path),
-                context: options.systemContext,
-                sourceExcerpts: options.sources,
-                imagesAvailable: options.imagesAvailable,
-                referenceImageCount: imageParts.length,
-              }),
-            },
-            ...imageParts,
-          ],
-        },
-      ],
-      maxTokens: 8000,
-      temperature: 0.4,
-      abortSignal: options.signal,
-    });
-    proposed = parseManagerOutput(result.text);
-  } catch (error) {
-    console.warn('Manager agent generation or output parsing failed, falling back to resilient blueprint:', error);
-    proposed = createFallbackProposed(
-      options.request,
-      options.manifest.map((f) => f.path),
-      Object.values(options.sources).join('\n'),
-    );
+  if (options.proposedPlan) {
+    // Cline produced the plan; keep this server-side pass as the authority that
+    // validates paths, file preconditions, limits, revision, and capabilities.
+    proposed = managerBlueprintSchema.parse(options.proposedPlan);
+  } else {
+    try {
+      const result = await generateText({
+        // Provider packages currently expose incompatible duplicate LanguageModelV1 types.
+        model: getModel(
+          options.provider || DEFAULT_PROVIDER.name,
+          options.model || DEFAULT_MODEL,
+          options.env,
+          options.apiKeys,
+        ) as any,
+        system: MANAGER_SYSTEM,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  request: options.request,
+                  existingPaths: options.manifest.map((file) => file.path),
+                  context: options.systemContext,
+                  sourceExcerpts: options.sources,
+                  imagesAvailable: options.imagesAvailable,
+                  referenceImageCount: imageParts.length,
+                }),
+              },
+              ...imageParts,
+            ],
+          },
+        ],
+        maxTokens: 8000,
+        temperature: 0.4,
+        abortSignal: options.signal,
+      });
+      proposed = parseManagerOutput(result.text);
+    } catch (error) {
+      console.warn('Manager agent generation or output parsing failed, falling back to resilient blueprint:', error);
+      proposed = createFallbackProposed(
+        options.request,
+        options.manifest.map((f) => f.path),
+        Object.values(options.sources).join('\n'),
+      );
+    }
   }
 
   const baseFiles = new Map(options.manifest.map((file) => [file.path, file.hash]));

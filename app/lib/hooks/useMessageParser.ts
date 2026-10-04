@@ -93,6 +93,12 @@ const messageParser = new StreamingMessageParser({
 });
 
 /** Flush the final chunk synchronously before the build-validation gate runs. */
+export function parseAssistantMessage(message: Message) {
+  if (typeof message.content === 'string') {
+    messageParser.parse(message.id, message.content);
+  }
+}
+
 export function finalizeAssistantMessage(message: Message) {
   if (typeof message.content === 'string') {
     messageParser.parse(message.id, message.content);

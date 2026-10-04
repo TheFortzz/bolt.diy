@@ -11,6 +11,7 @@ export class ExecutionPolicy {
   #reservedPaths = new Set<string>();
   #reservedActions = new Map<string, string>();
   #isRepair = false;
+  #allowRepeatedWrites = false;
   #writtenPaths = new Set<string>();
 
   registerHistory(ids: string[]) {
@@ -29,6 +30,7 @@ export class ExecutionPolicy {
     this.#reservedPaths.clear();
     this.#reservedActions.clear();
     this.#isRepair = false;
+    this.#allowRepeatedWrites = false;
     this.#writtenPaths.clear();
   }
 
@@ -39,14 +41,16 @@ export class ExecutionPolicy {
     this.#reservedPaths.clear();
     this.#reservedActions.clear();
     this.#isRepair = false;
+    this.#allowRepeatedWrites = false;
     this.#writtenPaths.clear();
   }
 
-  allowRepair(nextMessageId?: string) {
+  allowRepair(nextMessageId?: string, allowRepeatedWrites = false) {
     this.#activeMessageId = nextMessageId;
     this.#reservedPaths.clear();
     this.#reservedActions.clear();
     this.#isRepair = true;
+    this.#allowRepeatedWrites = allowRepeatedWrites;
   }
 
   get isRepair() {
@@ -105,12 +109,18 @@ export class ExecutionPolicy {
         return;
       }
 
-      if (existingReservation || this.#reservedPaths.has(path)) {
+      if (existingReservation) {
+        throw new Error(`Action ${actionId} is already reserved for ${path}.`);
+      }
+
+      if (!this.#allowRepeatedWrites && this.#reservedPaths.has(path)) {
         throw new Error(`The approved build already emitted an action for ${path}.`);
       }
 
       this.#activeMessageId ??= messageId;
       this.#reservedActions.set(actionKey, path);
+      // The Cline tool loop may need to revise an approved file after reading
+      // a tool/build result. This is enabled only for its scoped host run.
       this.#reservedPaths.add(path);
       this.#messages.add(messageId);
 
