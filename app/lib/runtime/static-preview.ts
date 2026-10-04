@@ -37,6 +37,32 @@ export function resolveStaticPreviewFile(files: StaticPreviewFile[], reference: 
   return suffixMatches.length === 1 ? suffixMatches[0] : undefined;
 }
 
+function repairMissingOperators(src: string): string {
+  const reservedWords = new Set([
+    'instanceof',
+    'in',
+    'as',
+    'typeof',
+    'void',
+    'delete',
+    'yield',
+    'await',
+    'return',
+    'else',
+    'do',
+    'case',
+    'default',
+  ]);
+
+  let patched = src.replace(/\)(\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)/g, (match, space, ident) => {
+    if (reservedWords.has(ident)) return match;
+    return `)*${space}${ident}`;
+  });
+
+  patched = patched.replace(/(\b\d+)(\s*\()/g, '$1*$2');
+  return patched;
+}
+
 /**
  * Gracefully balance and close unclosed brackets, braces, and parentheses if a JavaScript file
  * was cut off mid-expression or mid-function, preventing syntax errors in the sandboxed preview.
@@ -53,7 +79,15 @@ export function balanceAndCloseJs(code: string): string {
     // Attempt healing
   }
 
-  const lines = code.split('\n');
+  const repaired = repairMissingOperators(code);
+  try {
+    new Function(repaired);
+    return repaired;
+  } catch {
+    // Continue with structural healing
+  }
+
+  const lines = repaired.split('\n');
   while (lines.length > 0) {
     const candidate = lines.join('\n');
     let openBraces = 0;

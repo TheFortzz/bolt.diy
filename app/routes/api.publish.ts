@@ -1,6 +1,7 @@
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { Client, Databases, ID, Permission, Role, Storage } from 'appwrite';
 import { z } from 'zod';
+import { cleanWorkDirRelativePath } from '~/utils/diff';
 
 const DEFAULT_ENDPOINT = 'https://fra.cloud.appwrite.io/v1';
 const DEFAULT_PROJECT_ID = '6a83071d00217ab38269';
@@ -136,7 +137,8 @@ export async function action({ context, request }: ActionFunctionArgs) {
     const cleanFiles: Record<string, string> = {};
 
     for (const [path, value] of Object.entries(input.files)) {
-      const cleanPath = path.replace(/^\.?\//, '').trim();
+      const cleanPath = cleanWorkDirRelativePath(path);
+      if (!cleanPath) continue;
 
       if (typeof value === 'string') {
         cleanFiles[cleanPath] = value;

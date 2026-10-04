@@ -71,4 +71,13 @@ describe('balanceAndCloseJs syntax healing', () => {
 
     expect(() => new Function(healed)).not.toThrow();
   });
+
+  it('heals missing multiplication operator in math expressions like (b-a)t and 2(x+1)', () => {
+    const broken = 'const lerp = (a, b, t) => a + (b - a)t;\nconst calc = (x) => 2(x + 1);';
+    const healed = balanceAndCloseJs(broken);
+
+    expect(() => new Function(healed)).not.toThrow();
+    expect(healed).toContain('(b - a)*t');
+    expect(healed).toContain('2*(x + 1)');
+  });
 });

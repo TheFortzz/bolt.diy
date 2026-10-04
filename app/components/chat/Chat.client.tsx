@@ -388,7 +388,11 @@ export const ChatImpl = memo(
         }
 
         const content = typeof completedMessage.content === 'string' ? completedMessage.content : '';
-        const builtFiles = content.includes('boltArtifact') || content.includes('boltAction');
+        const builtFiles =
+          content.includes('boltArtifact') ||
+          content.includes('boltAction') ||
+          Boolean(workbenchStore.artifacts.get()[message.id]) ||
+          Boolean(workbenchStore.firstArtifact);
 
         if (managedBlueprint) {
           transitionHarness('verifying', { detail: 'Checking the approved build…' });
@@ -506,7 +510,7 @@ export const ChatImpl = memo(
               await append(
                 {
                   role: 'user',
-                  content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n[Studio Mode: BUILD]\n\n[Internal Repair Prompt - Attempt ${repairAttemptsRef.current}/5]\n\nAutomatic build verification found this issue:\n${result.error?.slice(-1800)}\n\nCRITICAL REPAIR INSTRUCTIONS:\n1. Diagnose the reported file, line, and root cause using the supplied current workspace sources; do not guess or default to game.js.\n2. Repair every affected approved module, preserving working files and existing gameplay. If a file is truncated, output its complete repaired contents. Only use paths already approved by the blueprint.\n3. Keep the original artifact id="${artifactId}", begin with <boltArtifact>, emit complete approved file actions, and close with </boltArtifact>. Do not replace the multi-file architecture with a smaller demo.\n4. Preserve the diagnostics contract in its existing module and verify the actual game initialization/render loop. Output file actions directly without an explanatory preamble.`,
+                  content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n[Studio Mode: BUILD]\n\n[Internal Repair Prompt - Attempt ${repairAttemptsRef.current}/5]\n\nAutomatic build verification found this issue:\n${result.error?.slice(-1800)}\n\nCRITICAL REPAIR INSTRUCTIONS:\n1. Diagnose the reported file, line, and root cause using the supplied current workspace sources; do not guess or default to game.js.\n2. Repair every affected approved module, preserving working files and existing gameplay. If a file is truncated, output its complete repaired contents. Only use paths already approved by the blueprint.\n3. YOUR RESPONSE MUST START IMMEDIATELY ON LINE 1 WITH:\n<boltArtifact id="${artifactId}" title="Repair">\n<boltAction type="file" filePath="exact-file-path">\n<complete repaired file code>\n</boltAction>\n</boltArtifact>\nNEVER output any text, markdown code blocks, thoughts, design plans, or code outside <boltAction>. Do not replace the multi-file architecture with a smaller demo.\n4. Preserve the diagnostics contract in its existing module and verify the actual game initialization/render loop. Output file actions directly without an explanatory preamble.`,
                   annotations: managedBlueprint
                     ? [{ type: 'harness-execution', planId: managedBlueprint.id }]
                     : undefined,

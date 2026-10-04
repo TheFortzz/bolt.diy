@@ -86,15 +86,30 @@ export class StreamingMessageParser {
         tag.replace(/\b(type|filePath|id|title)=([^\s"'>]+)/gi, (_, k, v) => `${k}="${v}"`),
       );
 
-    // If the model emitted <boltAction without any <boltArtifact in the message, wrap it automatically
+    // If the model omitted <boltAction or <boltArtifact, wrap orphan game code automatically
     let normalized = cleaned;
     const actionIndex = normalized.indexOf('<boltAction');
     const artifactIndex = normalized.indexOf('<boltArtifact');
-    if (actionIndex !== -1 && artifactIndex === -1) {
+
+    if (actionIndex === -1 && artifactIndex === -1) {
+      if (normalized.includes('window.__GAME_DIAGNOSTICS__') || /\/\*\s*(?:DESIGN PLAN|KEEP)/i.test(normalized)) {
+        normalized = `<boltArtifact id="game-project" title="Game Project">\n<boltAction type="file" filePath="game.js">\n${normalized}\n</boltAction>\n</boltArtifact>`;
+      }
+    } else if (actionIndex !== -1 && artifactIndex === -1) {
       normalized =
         normalized.slice(0, actionIndex) +
         '<boltArtifact id="game-project" title="Game Project">\n' +
         normalized.slice(actionIndex);
+    } else if (artifactIndex !== -1) {
+      normalized = normalized.replace(
+        /(<\/boltAction>|<boltArtifact\b[^>]*>)\s*(\/\*\s*(?:DESIGN PLAN|KEEP)[\s\S]*?|window\.__GAME_DIAGNOSTICS__\b[\s\S]*?)(?=(?:<boltAction|<\/boltArtifact>|$))/i,
+        (match, prefix, codeBlock) => {
+          if (codeBlock.trim().startsWith('<boltAction')) {
+            return match;
+          }
+          return `${prefix}\n<boltAction type="file" filePath="game.js">\n${codeBlock}\n</boltAction>\n`;
+        },
+      );
     }
 
     let state = this.#messages.get(messageId);
