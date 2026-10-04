@@ -786,8 +786,8 @@ export const ChatImpl = memo(
 
       lastUserPromptRef.current = _input;
       repairAttemptsRef.current = 0;
-      streamRecoveryAttemptsRef.current = 0;
-      const shouldPlan = shouldUseBuildPlanner(_input, agentMode);
+      const hasExistingProject = Object.keys(workbenchStore.files.get()).length > 0;
+      const shouldPlan = shouldUseBuildPlanner(_input, agentMode, hasExistingProject);
       lastAgentModeRef.current = shouldPlan ? agentMode : 'chat';
 
       const auth = authStore.get();

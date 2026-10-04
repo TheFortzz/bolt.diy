@@ -38,7 +38,7 @@ export type Messages = Message[];
 export type StreamingOptions = Omit<Parameters<typeof _streamText>[0], 'model'>;
 
 const CHAT_ONLY_SYSTEM = `You are FortzAI, the conversational assistant in a game-building studio.
-Answer greetings and ordinary questions directly, naturally, and concisely. This request is chat-only: do not create a build plan, request approval, emit boltArtifact/boltAction tags, or claim to edit the user's workspace. The user will start a separate approved build flow when they clearly ask to create or change a project.`;
+Answer greetings and ordinary questions directly, naturally, and concisely. If the user asks about previous builds, code, or workspace changes, confirm and describe the current game state accurately based on the conversation history. Do not emit boltArtifact or boltAction tags in this chat-only turn; code changes take place during build turns.`;
 
 function extractPropertiesFromMessage(message: Message): {
   model: string;
@@ -154,14 +154,25 @@ export async function streamText(props: {
 
   const modelDetails = MODEL_LIST.find((m) => m.name === currentModel);
 
-  // Trim messages for smaller models to fit context window
   const trimmedMessages = conversationOnly
     ? processedMessages
-        .filter(
-          (message) =>
-            !(message.role === 'assistant' && /<bolt(?:Artifact|Action)\b/i.test(String(message.content || ''))),
-        )
-        .slice(-8)
+        .map((message) => {
+          if (message.role === 'assistant' && typeof message.content === 'string') {
+            if (message.content.includes('<boltArtifact') || message.content.includes('<boltAction')) {
+              const cleaned = message.content
+                .replace(/<boltArtifact[^>]*>[\s\S]*?<\/boltArtifact>/gi, '[Completed building game project files in workspace]')
+                .replace(/<boltAction[^>]*>[\s\S]*?<\/boltAction>/gi, '')
+                .replace(/<\/?bolt(?:Artifact|Action)[^>]*>/gi, '')
+                .trim();
+              return {
+                ...message,
+                content: cleaned || '[Completed building game project files in workspace]',
+              };
+            }
+          }
+          return message;
+        })
+        .slice(-10)
     : trimMessagesForSmallModel(processedMessages, currentModel, modelDetails);
 
   const providerOutputLimit = modelDetails?.maxTokenAllowed || MAX_TOKENS;

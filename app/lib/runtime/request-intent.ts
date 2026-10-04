@@ -1,7 +1,7 @@
 import type { StudioAgentMode } from '~/utils/constants';
 
 const ACTION =
-  '(?:buil[ds]?|buid|biuld|bld|make?|create?|crate|generate|implement|develop|code|script|write|design|plan|add|change|update|fix{1,2}|fxx|repair|reapir|edit|modify|remove|delete|replace|rewrite|improve|redesign|fin(?:ish|sh|sih)|complete|cont(?:[iu]nue|inew)|cont|resume|retry|proceed|rebuil[ds]?|use|tweak|adjust|polish|style|customize|enhance|refine|tune|rework|give|set|put|turn|switch|convert|transform)';
+  '(?:buil[ds]?|buid|biuld|bld|make?|mak|crate|create?|generate|implement|develop|code|script|write|design|desing|plan|add|change|chaneg|update|upd|upgrade|upg|fix{1,2}|fxx|repair|reapir|edit|modify|remove|delete|replace|rewrite|impr[a-z]*|impove|imporve|improve|redesign|revamp|overhaul|fin(?:ish|sh|sih)|complete|cont(?:[iu]nue|inew)|cont|resume|retry|proceed|rebuil[ds]?|use|tweak|adjust|polish|style|customize|enhance|refine|tune|rework|give|set|put|turn|switch|convert|transform|better|more|less|faster|slower|bigger|smaller|harder|easier|realsitic|realistic)';
 
 const DIRECT_ACTION = new RegExp(
   `^(?:(?:please|pleas|pls|now|also|just|then|and)\\s+)*(?:(?:can|could|would|will)\\s+(?:you|u)\\s+(?:(?:please|pleas|pls|now|also|just|then)\\s+)*)?${ACTION}\\b`,
@@ -36,9 +36,12 @@ const REQUESTED_EDIT_OR_FEATURE =
   /^(?:i\s+want|i\s+would\s+like|i'd\s+like|i\s+need|can\s+we\s+have|let's\s+have|lets\s+have)\s+.{0,60}\b(?:colors?|background|theme|enemies|enemy|speed|boss|levels?|sound|music|audio|ui|hud|graphics?|visuals?|controls?|weapons?|player|ship|score|scoring|health|stars?|effects?)\b/i;
 
 const EMBEDDED_BUILD_REQUEST =
-  /\b(?:buil[ds]?|buid|biuld|bld|make?|create?|crate)\s+(?:a|an|new|another)?\s*.{0,40}\b(?:game|app|site|page|project)\b/i;
+  /\b(?:buil[ds]?|buid|biuld|bld|make?|mak|create?|crate)\s+(?:a|an|new|another)?\s*.{0,40}\b(?:game|app|site|page|project)\b/i;
 
 const IMPLICIT_GAME_CONCEPT = /^(?:(?:a|an|new)\s+)?[a-z0-9-]+(?:\s+[a-z0-9-]+){0,3}\s+game$/i;
+
+const GAME_FEATURES =
+  /\b(?:cars?|vehicles?|player|enemies|enemy|traffic|road|track|level|levels|stage|speed|handling|boost|nitro|physics|controls?|wasd|keys|touch|graphics?|visuals?|colors?|design|desing|ui|hud|score|scoring|health|hp|lives?|camera|sounds?|audio|music|effects?|particles?|3d|2d|threejs|webgl|canvas|gameplay|mechanics?|difficulty|obstacle|obstacles|pickups?|powerups?|coins?|credits?)\b/i;
 
 const EXPLANATION_OR_GREETING =
   /^(?:hi|hello|hey|yo|thanks|thank you|good morning|good evening|what|why|how|when|where|who|which|explain|tell me|(?:can|could) you tell me|do you|are you|is it)\b/i;
@@ -55,7 +58,11 @@ function stripInterjections(text: string): string {
 }
 
 /** Route only clear create/edit/repair requests through the approval planner. */
-export function shouldUseBuildPlanner(request: string, mode: StudioAgentMode = 'auto') {
+export function shouldUseBuildPlanner(
+  request: string,
+  mode: StudioAgentMode = 'auto',
+  hasExistingProject = false,
+) {
   if (mode === 'plan' || mode === 'build') {
     return true;
   }
@@ -89,6 +96,11 @@ export function shouldUseBuildPlanner(request: string, mode: StudioAgentMode = '
 
   if (EXPLANATION_OR_GREETING.test(text)) {
     return false;
+  }
+
+  // If there's an existing project in the workspace and the user mentions a game element/feature, treat as edit request
+  if (hasExistingProject && (GAME_FEATURES.test(text) || GAME_FEATURES.test(stripped))) {
+    return true;
   }
 
   return (

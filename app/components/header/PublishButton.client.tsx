@@ -248,11 +248,7 @@ export function PublishButton() {
         publicationStatus = data.status || 'live';
       }
 
-      toast.success(
-        publicationStatus === 'pending'
-          ? `"${finalTitle}" was submitted for review.`
-          : `"${finalTitle}" published successfully!`,
-      );
+      toast.success(`"${finalTitle}" published successfully!`);
       setIsOpen(false);
     } catch (err: any) {
       toast.error('Publish failed: ' + (err?.message || 'Unknown error'));

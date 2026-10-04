@@ -54,8 +54,20 @@ describe('Studio request intent routing', () => {
     'adjust the player speed',
     'polish the controls',
     'i want blue and white colors',
+    'imprve the cars design',
+    'imporve the car',
+    'make it realsitic',
+    'upgrade the cars',
+    'faster cars',
   ])('uses the approval planner for clear workspace changes: %s', (prompt) => {
     expect(shouldUseBuildPlanner(prompt)).toBe(true);
+  });
+
+  it('routes game feature prompts to the build planner when a project already exists', () => {
+    expect(shouldUseBuildPlanner('cars design', 'auto', true)).toBe(true);
+    expect(shouldUseBuildPlanner('traffic speed', 'auto', true)).toBe(true);
+    expect(shouldUseBuildPlanner('realistic road', 'auto', true)).toBe(true);
+    expect(shouldUseBuildPlanner('hi', 'auto', true)).toBe(false);
   });
 
   it('respects an explicitly selected chat mode', () => {

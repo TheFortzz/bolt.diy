@@ -214,7 +214,7 @@ export async function action({ context, request }: ActionFunctionArgs) {
           description: description || '',
           creator: creatorName || 'Studio Creator',
           ...(creatorId ? { creatorId } : {}),
-          status: 'pending',
+          status: 'live',
           plays: 0,
           likes: 0,
           publishedAt: Date.now(),
@@ -225,7 +225,7 @@ export async function action({ context, request }: ActionFunctionArgs) {
         [Permission.read(Role.any())],
       );
 
-      return json({ success: true, id: doc.$id, title, status: 'pending', htmlUrl, thumbUrl });
+      return json({ success: true, id: doc.$id, title, status: 'live', htmlUrl, thumbUrl });
     } catch (error) {
       await Promise.all(uploadedFileIds.map((fileId) => storage.deleteFile(bucketId, fileId).catch(() => undefined)));
       throw error;
