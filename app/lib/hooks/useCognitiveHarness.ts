@@ -358,7 +358,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
           {
             id: messageId,
             role: 'assistant',
-            content: 'Your build plan is ready. Building game…',
+            content: 'Plan ready — building now.',
             annotations: [{ type: 'studio-blueprint', blueprint }],
           },
         ]);

@@ -897,12 +897,20 @@ export const ChatImpl = memo(
         const parsed = parsedMessages[i];
 
         // While streaming, keep showing prior parsed content rather than flashing empty/raw dumps.
+        const raw = typeof message.content === 'string' ? message.content : '';
+        const hasArtifactTags =
+          raw.includes('<boltArtifact') ||
+          raw.includes('[boltArtifact') ||
+          raw.includes('<boltAction') ||
+          raw.includes('[boltAction') ||
+          raw.includes('__boltArtifact__');
+
         const content =
           typeof parsed === 'string' && parsed.length > 0
             ? parsed
-            : typeof message.content === 'string' && !message.content.includes('<boltArtifact')
-              ? message.content
-              : parsed || '';
+            : hasArtifactTags
+              ? (parsed || `<div class="__boltArtifact__" data-message-id="${message.id}"></div>`)
+              : raw;
 
         return {
           ...message,

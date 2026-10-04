@@ -1,7 +1,7 @@
 import { convertToCoreMessages, streamText as _streamText } from 'ai';
 import { getModel } from '~/lib/.server/llm/model';
 import { getAPIKey } from '~/lib/.server/llm/api-key';
-import { MAX_TOKENS } from './constants';
+import { EDITOR_MAX_TOKENS, MAX_TOKENS } from './constants';
 import { getSystemPrompt } from './prompts';
 import { trimMessagesForSmallModel } from './context-trimmer';
 import {
@@ -165,7 +165,7 @@ export async function streamText(props: {
     : trimMessagesForSmallModel(processedMessages, currentModel, modelDetails);
 
   const providerOutputLimit = modelDetails?.maxTokenAllowed || MAX_TOKENS;
-  const dynamicMaxTokens = Math.min(providerOutputLimit, MAX_TOKENS);
+  const dynamicMaxTokens = approvedBlueprint ? EDITOR_MAX_TOKENS : Math.min(providerOutputLimit, MAX_TOKENS);
 
   return _streamText({
     model: getModel(currentProvider, currentModel, env, activeApiKeys, activeProviderSettings) as any,

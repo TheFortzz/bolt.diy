@@ -44,7 +44,14 @@ export const Markdown = memo(
           const { children, node, ...rest } = props;
 
           if (isStreaming) {
-            return <pre {...rest}>{children}</pre>;
+            return (
+              <pre
+                {...rest}
+                className="max-h-60 overflow-y-auto rounded-lg bg-slate-950/90 border border-slate-800 p-3 text-xs font-mono text-slate-300 relative select-text"
+              >
+                {children}
+              </pre>
+            );
           }
 
           const [firstChild] = node?.children ?? [];

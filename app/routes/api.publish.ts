@@ -218,7 +218,6 @@ export async function action({ context, request }: ActionFunctionArgs) {
           plays: 0,
           likes: 0,
           publishedAt: Date.now(),
-          createdAt: Date.now(),
           htmlFileId: createdHtml.$id,
           thumbnailFileId: thumbFileId,
           codeFiles: serializedFiles,

@@ -558,10 +558,33 @@ export class ActionRunner {
           throw new Error(`Refused to overwrite ${action.filePath} with empty content; the original file was kept.`);
         }
 
-        if (previous.length > 3000 && contentToWrite.length < previous.length * 0.5) {
+        if (previous.length > 3000 && contentToWrite.length < previous.length * 0.85) {
           throw new Error(
-            `Refused to overwrite ${action.filePath}: the new version (${contentToWrite.length} chars) is less than half of the existing file (${previous.length} chars), which indicates a truncated response. The original file was kept; output the COMPLETE file including all existing features.`,
+            `Refused to overwrite ${action.filePath}: the new version (${contentToWrite.length} chars) is much smaller than the existing file (${previous.length} chars), so existing features would be lost. The original file was kept; output the COMPLETE file with ALL existing code kept and the new features added on top.`,
           );
+        }
+
+        if (/\.m?js$/i.test(action.filePath) && previous.length > 3000) {
+          const symbols = (source: string) => {
+            const found = new Set<string>();
+            const pattern = /(?:^|[\n;}])[ \t]*(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(|(?:^|\n)(?:const|let|var|class)\s+([A-Za-z_$][\w$]*)/g;
+            let match: RegExpExecArray | null;
+
+            while ((match = pattern.exec(source))) {
+              found.add(match[1] || match[2]);
+            }
+
+            return found;
+          };
+          const before = symbols(previous);
+          const after = symbols(contentToWrite);
+          const missing = [...before].filter((name) => !after.has(name));
+
+          if (missing.length >= 3 && missing.length / Math.max(1, before.size) >= 0.1) {
+            throw new Error(
+              `Refused to overwrite ${action.filePath}: the new version dropped existing code (${missing.slice(0, 8).join(', ')}). The original file was kept; output the COMPLETE file keeping every existing function and constant.`,
+            );
+          }
         }
       }
 

@@ -12,7 +12,7 @@ interface BlueprintCardProps {
 
 export const BlueprintCard = memo(
   ({ blueprint, canApprove, isApproving = false, onApprove, onReject }: BlueprintCardProps) => {
-    const [expanded, setExpanded] = useState(true);
+    const [expanded, setExpanded] = useState(false);
     const panelId = useId();
 
     return (

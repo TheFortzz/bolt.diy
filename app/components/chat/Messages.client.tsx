@@ -170,7 +170,7 @@ const MessageRow = React.memo((props: MessageRowProps) => {
             <div className={styles.MessageMeta}>
               FortzAI {isStreaming && isLast && <span className={styles.Badge}>Working</span>}
             </div>
-            <AssistantMessage content={content} isStreaming={isStreaming && isLast} />
+            <AssistantMessage content={content} isStreaming={isStreaming && isLast} messageId={messageId} />
             {planBlueprint !== undefined && (
               <ParsedBlueprintCard
                 blueprint={planBlueprint}
