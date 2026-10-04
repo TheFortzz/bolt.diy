@@ -160,7 +160,7 @@ export function injectStaticScripts(html: string, dependencies: string[], entrie
   return insertBeforeBody(result, entries.join('\n'));
 }
 
-const mathUtilsScript = `<script id="bolt-game-math-utils">
+export const mathUtilsScript = `<script id="bolt-game-math-utils">
 (function() {
   var g = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this);
 
@@ -482,6 +482,20 @@ const focusHelper = `<script id="bolt-game-focus-helper">
   window.addEventListener('mouseenter', focusGame);
   window.addEventListener('pointerdown', focusGame, { passive: true });
 })();
+var ParticleSystem = window.ParticleSystem;
+var ParticleEmitter = window.ParticleEmitter;
+var AudioController = window.AudioController;
+var SoundController = window.SoundController;
+var InputHandler = window.InputHandler;
+var Input = window.Input;
+var clamp = window.clamp;
+var lerp = window.lerp;
+var dist = window.dist;
+var distance = window.distance;
+var degToRad = window.degToRad;
+var radToDeg = window.radToDeg;
+var randomRange = window.randomRange;
+var rand = window.rand;
 </script>`;
 
 const errorOverlayScript = `<script id="bolt-game-error-overlay">
@@ -581,7 +595,7 @@ export function buildFallbackHtml(
 
   // 2. Inline local script tags in their exact declared order in the HTML
   bundled = bundled.replace(
-    /<script\b([^>]*)\bsrc\s*=\s*["'](?!https?:\/\/|\/\/|data:|blob:)([^"']+)["']([^>]*)>[\s\S]*?<\/script>/gi,
+    /<script\b([^>]*)\bsrc\s*=\s*["'](?!https?:\/\/|\/\/|data:|blob:)([^"']+)["']([^>]*)>(?:[\s\S]*?<\/script>)?/gi,
     (match, before, src, after) => {
       const js = getFileEntry(src);
       if (js !== undefined) {

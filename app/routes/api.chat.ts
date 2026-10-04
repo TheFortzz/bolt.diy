@@ -7,6 +7,7 @@ import type { IProviderSetting } from '~/types/model';
 import { z } from 'zod';
 import { blueprintSchema, type Blueprint } from '~/lib/harness/blueprint';
 import { getHarnessSecret, requireSameOrigin, verifyCapability } from '~/lib/.server/harness/capabilities';
+import { cleanWorkDirRelativePath } from '~/utils/diff';
 
 export async function action(args: ActionFunctionArgs) {
   return chatAction(args);
@@ -102,7 +103,10 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
   const generationMessages = approvedBlueprint
     ? messages.filter((message) => message.role === 'user').slice(-1)
     : messages;
-  const responseSegmentBudget = approvedBlueprint?.budgets.maximumResponseSegments ?? MAX_RESPONSE_SEGMENTS;
+  const rawBudget = approvedBlueprint?.budgets.maximumResponseSegments ?? MAX_RESPONSE_SEGMENTS;
+  // Edge/Cloudflare Pages Functions enforce a strict CPU time limit per execution.
+  // Never exceed 2 segments (at most 1 continuation) to prevent Cloudflare Error 1102.
+  const responseSegmentBudget = Math.min(rawBudget, context.cloudflare?.env ? 2 : 4);
 
   const cookieHeader = request.headers.get('Cookie');
 
@@ -151,7 +155,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
             if (actionOpen) {
               if (tagName === 'action' && closing) {
                 if (currentActionFilePath) {
-                  completedFilePaths.add(currentActionFilePath);
+                  completedFilePaths.add(cleanWorkDirRelativePath(currentActionFilePath));
                 }
 
                 actionOpen = false;
@@ -177,16 +181,20 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
 
           const partialTag = /(?:<|\[)\/?bolt(?:Artifact|Action)\b[^>\]]*$/i.test(tagInput.slice(-256));
           const hasUnclosedAction = actionOpen || partialTag;
+          const artifactClosed = /(?:<\/|\[\/)boltArtifact\b/i.test(tagInput);
           const allPlannedFilesCompleted = Boolean(
             approvedBlueprint &&
               approvedBlueprint.fileOperations.length > 0 &&
-              approvedBlueprint.fileOperations.every((op) => completedFilePaths.has(op.path)),
+              approvedBlueprint.fileOperations.every((op) =>
+                completedFilePaths.has(cleanWorkDirRelativePath(op.path)),
+              ),
           );
 
           // Continue only for a truncated response with approved files still outstanding.
           const shouldContinue =
             (hasUnclosedAction || finishReason === 'length') &&
             !allPlannedFilesCompleted &&
+            !artifactClosed &&
             stream.switches < responseSegmentBudget;
 
           if (!shouldContinue || !content || content.trim().length === 0) {

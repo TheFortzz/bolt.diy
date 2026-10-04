@@ -25,9 +25,9 @@ const transitions: Record<HarnessPhase, HarnessPhase[]> = {
   'preparing-assets': ['editing', 'failed', 'cancelled', 'idle'],
   editing: ['verifying', 'failed', 'cancelled', 'idle'],
   verifying: ['verified', 'editing', 'failed', 'cancelled', 'idle'],
-  verified: ['planning', 'idle', 'editing'],
-  failed: ['planning', 'idle', 'editing'],
-  cancelled: ['planning', 'idle', 'editing'],
+  verified: ['planning', 'idle', 'editing', 'verifying'],
+  failed: ['planning', 'idle', 'editing', 'verifying'],
+  cancelled: ['planning', 'idle', 'editing', 'verifying'],
 };
 
 export function transitionHarness(phase: HarnessPhase, update: Partial<Omit<HarnessState, 'phase'>> = {}) {

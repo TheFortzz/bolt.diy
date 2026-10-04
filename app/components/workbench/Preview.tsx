@@ -652,7 +652,11 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
                 className="border-none w-full h-full bg-white"
                 src={activePreview ? iframeUrl : fallbackBlobUrl}
                 srcDoc={!activePreview && !fallbackBlobUrl ? displayFallbackHtml : undefined}
-                sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-pointer-lock"
+                sandbox={
+                  !activePreview && !fallbackBlobUrl
+                    ? 'allow-scripts allow-forms allow-modals allow-popups allow-pointer-lock'
+                    : 'allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-pointer-lock'
+                }
                 allow="cross-origin-isolated; autoplay; camera; microphone; clipboard-write; clipboard-read; fullscreen; encrypted-media; display-capture; geolocation"
                 onLoad={() => {
                   try {

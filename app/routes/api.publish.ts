@@ -2,6 +2,7 @@ import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { Client, Databases, ID, Permission, Role, Storage } from 'appwrite';
 import { z } from 'zod';
 import { cleanWorkDirRelativePath } from '~/utils/diff';
+import { mathUtilsScript } from '~/lib/runtime/static-preview';
 
 const DEFAULT_ENDPOINT = 'https://fra.cloud.appwrite.io/v1';
 const DEFAULT_PROJECT_ID = '6a83071d00217ab38269';
@@ -55,13 +56,20 @@ function inlineProjectFiles(files: Record<string, string>, title: string): strin
     return `<style>\n${css}\n</style>`;
   });
 
-  html = html.replace(/<script\b([^>]*)>(?:[\s\S]*?)<\/script>/gi, (tag, attributes: string) => {
+  html = html.replace(/<script\b([^>]*)>(?:[\s\S]*?<\/script>)?/gi, (tag, attributes: string) => {
     const src = attributes.match(/\bsrc\s*=\s*["']([^"']+)["']/i)?.[1];
-    const path = src && cleanPath(src);
+    if (!src) return tag;
+
+    // Preserve external CDN scripts (e.g. Three.js CDN)
+    if (/^(?:https?:)?\/\//i.test(src) || /^(?:data:|blob:)/i.test(src)) {
+      return tag;
+    }
+
+    const path = cleanPath(src);
     const script = path && files[path];
 
-    if (!path || script === undefined || !/\.(?:m?js)(?:$|[?#])/i.test(src || '')) {
-      return tag;
+    if (!path || script === undefined) {
+      return `<!-- fortz-stripped-unresolved: ${src} -->`;
     }
 
     inlinedScripts.add(path);
@@ -93,6 +101,17 @@ function inlineProjectFiles(files: Record<string, string>, title: string): strin
     html = html.includes('</body>')
       ? html.replace('</body>', `${remainingScripts}</body>`)
       : `${html}${remainingScripts}`;
+  }
+
+  // Inject resilient engine preambles and fallbacks (ParticleSystem, InputHandler, AudioController)
+  if (html.includes('<head>')) {
+    html = html.replace('<head>', `<head>\n  <meta charset="utf-8">\n${mathUtilsScript}`);
+  } else if (html.includes('<head ')) {
+    html = html.replace(/(<head[^>]*>)/i, `$1\n  <meta charset="utf-8">\n${mathUtilsScript}`);
+  } else if (html.includes('<html')) {
+    html = html.replace(/(<html[^>]*>)/i, `$1\n<head>\n  <meta charset="utf-8">\n${mathUtilsScript}\n</head>`);
+  } else {
+    html = `${mathUtilsScript}\n${html}`;
   }
 
   return html;

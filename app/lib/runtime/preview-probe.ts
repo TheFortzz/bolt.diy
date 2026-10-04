@@ -407,7 +407,7 @@ export function runStaticPreviewProbe(
     }
 
     const frame = document.createElement('iframe');
-    frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-pointer-lock');
+    frame.setAttribute('sandbox', 'allow-scripts allow-pointer-lock');
     frame.style.cssText =
       'position:fixed;top:0;left:0;width:800px;height:600px;opacity:0.01;pointer-events:none;z-index:-1';
     frame.setAttribute('aria-hidden', 'true');
