@@ -509,14 +509,6 @@ http.createServer((req, res) => {
       return;
     }
 
-    const previousMessageId = this.artifactIdList[this.artifactIdList.length - 1];
-    const previousArtifact = previousMessageId ? this.#getArtifact(previousMessageId) : undefined;
-    const isNewProject = previousArtifact && previousArtifact.id !== id;
-
-    if (isNewProject) {
-      this.clearProjectFiles();
-    }
-
     if (!this.artifactIdList.includes(messageId)) {
       this.artifactIdList.push(messageId);
     }

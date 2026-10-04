@@ -543,6 +543,28 @@ export class ActionRunner {
         action.filePath.endsWith('.js') || action.filePath.endsWith('.mjs')
           ? balanceAndCloseJs(action.content)
           : action.content;
+
+      // Safety guard: never let an empty/truncated AI response destroy an existing source file.
+      if (/\.(?:js|mjs|html|css)$/i.test(action.filePath)) {
+        let previous = '';
+
+        try {
+          previous = await webcontainer.fs.readFile(action.filePath, 'utf-8');
+        } catch {
+          // New file: nothing to protect.
+        }
+
+        if (previous.trim().length > 0 && contentToWrite.trim().length === 0) {
+          throw new Error(`Refused to overwrite ${action.filePath} with empty content; the original file was kept.`);
+        }
+
+        if (previous.length > 3000 && contentToWrite.length < previous.length * 0.5) {
+          throw new Error(
+            `Refused to overwrite ${action.filePath}: the new version (${contentToWrite.length} chars) is less than half of the existing file (${previous.length} chars), which indicates a truncated response. The original file was kept; output the COMPLETE file including all existing features.`,
+          );
+        }
+      }
+
       await webcontainer.fs.writeFile(action.filePath, contentToWrite);
       executionPolicy.recordWritten(cleanedFilePath);
       logger.debug(`File written ${action.filePath}`);
