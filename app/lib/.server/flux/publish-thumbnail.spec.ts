@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { generatePublishThumbnail } from './publish-thumbnail';
+import { generatePublishThumbnail, safePublishThumbnailError } from './publish-thumbnail';
 
 describe('publish cover art', () => {
   afterEach(() => vi.restoreAllMocks());
@@ -34,5 +34,11 @@ describe('publish cover art', () => {
 
     expect(result).toBeUndefined();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('redacts provider credentials from any surfaced error', () => {
+    const error = safePublishThumbnailError(new Error('Bearer top-secret key=top-secret'), 'top-secret');
+    expect(error).not.toContain('top-secret');
+    expect(error).toContain('[redacted]');
   });
 });

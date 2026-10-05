@@ -49,12 +49,14 @@ describe('flux-client', () => {
 
   describe('getFluxEndpoint', () => {
     it('prefers the Cloudflare thumbnail-maker endpoint binding', () => {
-      expect(getFluxEndpoint({ 'tunbnailmaker-url': 'https://image.example/flux' })).toBe('https://image.example/flux');
+      expect(getFluxEndpoint({ 'tunbnailmaker-url': 'https://image.example/providers/blackforestlabs/v1/flux-2-pro' }))
+        .toBe('https://image.example/providers/blackforestlabs/v1/flux-2-pro?api-version=preview');
     });
 
     it('supports the standard spelling and falls back to the legacy endpoint', () => {
-      expect(getFluxEndpoint({ THUMBNAILMAKER_URL: 'https://image.example/standard' })).toBe('https://image.example/standard');
-      expect(getFluxEndpoint({})).toBe(FLUX_ENDPOINT);
+      expect(getFluxEndpoint({ THUMBNAILMAKER_URL: 'https://image.example/providers/blackforestlabs/v1/flux-2-pro?api-version=preview' }))
+        .toBe('https://image.example/providers/blackforestlabs/v1/flux-2-pro?api-version=preview');
+      expect(getFluxEndpoint({})).toBe(`${FLUX_ENDPOINT}?api-version=preview`);
     });
   });
 
@@ -130,7 +132,7 @@ describe('flux-client', () => {
       expect(result.ok).toBe(true);
       expect(result.base64).toBe(sampleBase64);
       expect(fetchSpy).toHaveBeenCalledWith(
-        FLUX_ENDPOINT,
+        `${FLUX_ENDPOINT}?api-version=preview`,
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({

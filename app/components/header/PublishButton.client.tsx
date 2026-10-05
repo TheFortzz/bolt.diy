@@ -186,9 +186,15 @@ export function PublishButton() {
 
           thumbDataUrl = generated.dataUrl;
           setPreviewThumb(thumbDataUrl);
-        } catch {
+        } catch (error) {
           thumbDataUrl = generateAutoThumbnail(finalTitle, finalGenre);
-          toast.info('AI cover unavailable; publishing with a local fallback cover.', { autoClose: 4500 });
+          const detail = error instanceof Error ? error.message : '';
+          toast.info(
+            detail
+              ? `AI cover unavailable: ${detail} Publishing with a local fallback cover.`
+              : 'AI cover unavailable; publishing with a local fallback cover.',
+            { autoClose: 6500 },
+          );
         } finally {
           setIsGeneratingThumbnail(false);
         }

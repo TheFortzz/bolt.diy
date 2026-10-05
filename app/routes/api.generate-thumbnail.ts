@@ -1,6 +1,6 @@
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { ZodError } from 'zod';
-import { publishThumbnailInputSchema, generatePublishThumbnail } from '~/lib/.server/flux/publish-thumbnail';
+import { publishThumbnailInputSchema, generatePublishThumbnail, safePublishThumbnailError } from '~/lib/.server/flux/publish-thumbnail';
 import { getFluxApiKey } from '~/lib/.server/flux/flux-client';
 
 const THUMBNAIL_LIMIT = 6;
@@ -54,6 +54,9 @@ export async function action({ context, request }: ActionFunctionArgs) {
       return json({ error: 'The game details are invalid for cover generation.' }, { status: 400 });
     }
 
-    return json({ error: 'The AI cover generator failed; a local cover will be used.' }, { status: 502 });
+    return json(
+      { error: `AI cover generation failed; a local cover will be used. ${safePublishThumbnailError(error, getFluxApiKey(env))}` },
+      { status: 502 },
+    );
   }
 }

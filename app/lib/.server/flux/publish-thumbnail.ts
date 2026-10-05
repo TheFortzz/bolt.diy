@@ -9,6 +9,15 @@ export const publishThumbnailInputSchema = z.object({
 
 export type PublishThumbnailInput = z.infer<typeof publishThumbnailInputSchema>;
 
+export function safePublishThumbnailError(error: unknown, apiKey?: string) {
+  const raw = error instanceof Error ? error.message : String(error || 'Image provider failed.');
+  const redacted = apiKey ? raw.split(apiKey).join('[redacted]') : raw;
+  return redacted
+    .replace(/\bBearer\s+[^\s,;]+/gi, 'Bearer [redacted]')
+    .replace(/([?&](?:api[_-]?key|token|secret)=)[^&\s]+/gi, '$1[redacted]')
+    .slice(0, 320);
+}
+
 /** Generate publish cover art server-side; provider credentials never reach the browser. */
 export async function generatePublishThumbnail(
   env: Record<string, unknown> | undefined,
@@ -30,6 +39,8 @@ export async function generatePublishThumbnail(
     getFluxEndpoint(env),
   );
 
-  if (!generated.ok || !generated.base64) return undefined;
+  if (!generated.ok || !generated.base64) {
+    throw new Error(safePublishThumbnailError(generated.error || 'No image was returned.', apiKey));
+  }
   return `data:${generated.contentType || 'image/png'};base64,${generated.base64}`;
 }

@@ -26,6 +26,18 @@ function firstEnvironmentValue(env: FluxEnvironment | undefined, keys: string[],
   return undefined;
 }
 
+function ensureFluxApiVersion(endpoint: string) {
+  try {
+    const url = new URL(endpoint);
+    if (/\/providers\/blackforestlabs\/v1\//i.test(url.pathname) && !url.searchParams.has('api-version')) {
+      url.searchParams.set('api-version', 'preview');
+    }
+    return url.toString();
+  } catch {
+    return endpoint;
+  }
+}
+
 export interface FluxGenerationOptions {
   prompt: string;
   isSprite?: boolean;
@@ -57,11 +69,11 @@ export function getFluxApiKey(env?: Record<string, any>): string | undefined {
 
 /** Read the image endpoint from Cloudflare bindings; never accept client-supplied URLs. */
 export function getFluxEndpoint(env?: Record<string, any>): string {
-  return firstEnvironmentValue(
+  return ensureFluxApiVersion(firstEnvironmentValue(
     env,
     ['tunbnailmaker-url', 'thumbnailmaker-url', 'THUMBNAILMAKER_URL', 'FLUX_ENDPOINT'],
     ['TUNBNAILMAKER_URL', 'THUMBNAILMAKER_URL', 'FLUX_ENDPOINT'],
-  ) || FLUX_ENDPOINT;
+  ) || FLUX_ENDPOINT);
 }
 
 /**
@@ -201,7 +213,7 @@ export async function generateFluxImage(
   const formattedPrompt = formatFluxPrompt(prompt, isSprite);
 
   try {
-    const res = await fetch(endpoint, {
+    const res = await fetch(ensureFluxApiVersion(endpoint), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
