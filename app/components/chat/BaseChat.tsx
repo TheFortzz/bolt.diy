@@ -128,7 +128,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       return {};
     });
     const [modelList, setModelList] = useState(MODEL_LIST);
-    const [isModelSettingsCollapsed, setIsModelSettingsCollapsed] = useState(false);
     const [isListening, setIsListening] = useState(false);
     const [recognition, setRecognition] = useState<any>(null);
     const [transcript, setTranscript] = useState('');
@@ -543,18 +542,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   maxWidth: isWorkbenchActive ? '100%' : '52rem',
                 }}
               >
-                <div className="block">
-                  <ModelSelector
-                    key={provider?.name + ':' + modelList.length}
-                    model={model}
-                    setModel={setModel}
-                    modelList={modelList}
-                    provider={provider}
-                    setProvider={setProvider}
-                    providerList={providerList || PROVIDER_LIST}
-                    apiKeys={apiKeys}
-                  />
-                </div>
                 <FilePreview
                   files={uploadedFiles}
                   imageDataList={imageDataList}
@@ -660,7 +647,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     <div className="flex gap-1 items-center flex-wrap min-w-0">
                       <IconButton
                         title="Upload file"
-                        className="transition-all text-[#634910] hover:text-[#2f220a] hover:bg-black/10"
+                        className="transition-all text-sky-100/85 hover:text-white hover:bg-white/10"
                         onClick={() => handleFileUpload()}
                       >
                         <div className="i-ph:paperclip text-xl"></div>
@@ -669,22 +656,22 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         title="Enhance prompt"
                         disabled={input.length === 0 || enhancingPrompt}
                         className={classNames(
-                          'transition-all text-[#634910] hover:text-[#2f220a] hover:bg-black/10',
+                          'transition-all text-sky-100/85 hover:text-white hover:bg-white/10',
                           enhancingPrompt ? 'opacity-100' : '',
-                          promptEnhanced ? 'text-[#392908] pr-1.5' : '',
-                          promptEnhanced ? 'enabled:hover:bg-black/10' : '',
+                          promptEnhanced ? 'text-sky-50 pr-1.5' : '',
+                          promptEnhanced ? 'enabled:hover:bg-white/10' : '',
                         )}
                         onClick={() => enhancePrompt?.()}
                       >
                         {enhancingPrompt ? (
                           <>
                             <div className="i-svg-spinners:90-ring-with-bg text-[#76530e] text-xl animate-spin"></div>
-                            <div className="ml-1.5 text-[#392908]">Enhancing prompt...</div>
+                            <div className="ml-1.5 text-sky-50">Enhancing prompt...</div>
                           </>
                         ) : (
                           <>
                             <div className="i-bolt:stars text-xl text-[#76530e]"></div>
-                            {promptEnhanced && <div className="ml-1.5 text-[#392908]">Prompt enhanced</div>}
+                            {promptEnhanced && <div className="ml-1.5 text-sky-50">Prompt enhanced</div>}
                           </>
                         )}
                       </IconButton>
@@ -700,10 +687,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       {/* Configure AI icon button */}
                       <IconButton
                         title="Configure AI & Providers"
-                        className="transition-all text-[#634910] hover:text-[#2f220a] hover:bg-black/10"
+                        className="transition-all text-sky-100/85 hover:text-white hover:bg-white/10"
                         onClick={() => setIsSettingsOpen(true)}
                       >
-                        <div className="i-ph:gear-six text-xl text-[#634910] group-hover:text-[#2f220a]" />
+                        <div className="i-ph:gear-six text-xl text-sky-100/85 group-hover:text-white" />
                       </IconButton>
 
                       <div className={styles.ModelBadge} title={`Configured model: ${model || 'gpt-6-luna'}`}>
@@ -715,10 +702,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-[#57400f] select-none">
+                    <div className="flex items-center gap-2 text-xs text-sky-100/85 select-none">
                       <span
                         style={{ borderRadius: 0 }}
-                        className="px-2 py-0.5 font-mono font-bold bg-amber-500/10 border border-amber-700/25 text-[#674709] flex items-center gap-1.5"
+                        className="px-2 py-0.5 font-mono font-bold bg-amber-300/10 border border-amber-200/30 text-amber-200 flex items-center gap-1.5"
                         title="10 FortzCoins per prompt"
                       >
                         <img src="/fortz-coin.png" alt="FortzCoin" className="w-4 h-4 object-contain" />
@@ -726,13 +713,13 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       </span>
                       {input.length > 3 && (
                         <>
-                          <span className="text-amber-900/40">•</span>
-                          <span className="text-[11px] text-[#57400f]">
-                            <kbd className="kdb px-1.5 py-0.5 rounded-none bg-black/5 border border-amber-900/20 text-[#49350d] font-mono">
+                          <span className="text-sky-200/50">•</span>
+                          <span className="text-[11px] text-sky-100/80">
+                            <kbd className="kdb px-1.5 py-0.5 rounded-none bg-black/20 border border-sky-200/25 text-sky-50 font-mono">
                               Shift
                             </kbd>{' '}
                             +{' '}
-                            <kbd className="kdb px-1.5 py-0.5 rounded-none bg-black/5 border border-amber-900/20 text-[#49350d] font-mono">
+                            <kbd className="kdb px-1.5 py-0.5 rounded-none bg-black/20 border border-sky-200/25 text-sky-50 font-mono">
                               Return
                             </kbd>{' '}
                             for new line
@@ -765,7 +752,23 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
           </ClientOnly>
         </div>
         <AppwriteAuthModal />
-        <SettingsWindow open={isSettingsOpen} initialTab="providers" onClose={() => setIsSettingsOpen(false)} />
+        <SettingsWindow
+          open={isSettingsOpen}
+          initialTab="providers"
+          onClose={() => setIsSettingsOpen(false)}
+          providerSelection={
+            <ModelSelector
+              key={provider?.name + ':' + modelList.length}
+              model={model}
+              setModel={setModel}
+              modelList={modelList}
+              provider={provider}
+              setProvider={setProvider}
+              providerList={providerList || PROVIDER_LIST}
+              apiKeys={apiKeys}
+            />
+          }
+        />
         <CommunityGalleryModal
           open={galleryOpen}
           onClose={() => isGalleryOpen.set(false)}

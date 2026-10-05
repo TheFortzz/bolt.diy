@@ -192,6 +192,8 @@ export const ChatImpl = memo(
     });
 
     const { showChat } = useStore(chatStore);
+    const harness = useStore(harnessState);
+    const harnessBusy = harnessIsBusy(harness.phase);
 
     const [animationScope, animate] = useAnimate();
 
@@ -719,6 +721,7 @@ export const ChatImpl = memo(
         .slice(-12),
       setMessages,
       append,
+      onAgentProgress: () => scrollToBottomRef.current?.(false),
     });
 
     const { enhancingPrompt, promptEnhanced, enhancePrompt, resetEnhancer } = usePromptEnhancer();
@@ -1027,7 +1030,7 @@ export const ChatImpl = memo(
       [],
     );
 
-    const [messageRef, scrollRef, scrollToBottom] = useSnapScroll(isLoading || clineRunning);
+    const [messageRef, scrollRef, scrollToBottom] = useSnapScroll(isLoading || clineRunning || harnessBusy);
     scrollToBottomRef.current = scrollToBottom;
 
     useEffect(() => {
@@ -1092,7 +1095,7 @@ export const ChatImpl = memo(
         input={input}
         showChat={showChat}
         chatStarted={chatStarted}
-        isStreaming={isLoading || clineRunning}
+        isStreaming={isLoading || clineRunning || harnessBusy}
         enhancingPrompt={enhancingPrompt}
         promptEnhanced={promptEnhanced}
         sendMessage={sendMessage}

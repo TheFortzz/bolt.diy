@@ -49,6 +49,7 @@
 .Composer {
   overflow: hidden;
   border: 1px solid rgba(255, 244, 203, 0.9);
+  border-bottom: 2px solid rgba(76, 155, 245, 0.95);
   border-radius: 18px;
   background:
     radial-gradient(ellipse at 18% 0%, rgba(255, 255, 238, 0.58), transparent 52%),
@@ -87,8 +88,8 @@
   flex-wrap: wrap;
   gap: 6px;
   padding: 8px 12px;
-  border-top: 1px solid rgba(103, 73, 9, 0.2);
-  background: rgba(255, 248, 221, 0.27);
+  border-top: 1px solid rgba(255, 224, 144, 0.24);
+  background: linear-gradient(135deg, #17417d 0%, #102f60 55%, #0c2852 100%);
 }
 
 .ModelBadge {

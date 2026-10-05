@@ -16,12 +16,13 @@ interface SettingsProps {
   open: boolean;
   onClose: () => void;
   initialTab?: TabType;
+  providerSelection?: ReactElement;
 }
 
 type TabType = 'chat-history' | 'providers' | 'features' | 'debug' | 'connection';
 
 // Providers that support base URL configuration
-export const SettingsWindow = ({ open, onClose, initialTab = 'chat-history' }: SettingsProps) => {
+export const SettingsWindow = ({ open, onClose, initialTab = 'chat-history', providerSelection }: SettingsProps) => {
   const { debug } = useSettings();
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
 
@@ -111,7 +112,18 @@ export const SettingsWindow = ({ open, onClose, initialTab = 'chat-history' }: S
               </div>
 
               <div className="flex-1 flex flex-col p-8 pt-10 bg-bolt-elements-background-depth-2">
-                <div className="flex-1 overflow-y-auto">{tabs.find((tab) => tab.id === activeTab)?.component}</div>
+                <div className="flex-1 overflow-y-auto">
+                  {activeTab === 'providers' && providerSelection && (
+                    <section className="mx-4 mt-4 rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-3 p-4">
+                      <h3 className="mb-1 text-sm font-semibold text-bolt-elements-textPrimary">Active chat model</h3>
+                      <p className="mb-3 text-xs text-bolt-elements-textSecondary">
+                        Choose the provider and model used for chat and game builds.
+                      </p>
+                      {providerSelection}
+                    </section>
+                  )}
+                  {tabs.find((tab) => tab.id === activeTab)?.component}
+                </div>
               </div>
             </div>
             <RadixDialog.Close asChild onClick={onClose}>

@@ -446,11 +446,12 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
                         editorDocument={currentDocument}
                         isStreaming={Boolean(
                           isStreaming ||
+                            streamingFile ||
                             validation.status === 'checking' ||
                             checkpointOperation !== 'idle' ||
                             isRestoring,
                         )}
-                        followStream={Boolean(isStreaming && streamingFile && selectedFile === streamingFile)}
+                        followStream={Boolean(streamingFile && selectedFile === streamingFile)}
                         selectedFile={selectedFile}
                         files={files}
                         unsavedFiles={unsavedFiles}

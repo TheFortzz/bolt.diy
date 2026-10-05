@@ -24,6 +24,7 @@ interface HarnessOptions {
   agentEngine: 'cline' | 'bolt';
   providerBaseUrl?: string;
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  onAgentProgress?: () => void;
   setMessages: (update: (messages: Message[]) => Message[]) => void;
   append: (message: Message | Omit<Message, 'id'>, options?: { body?: Record<string, unknown> }) => Promise<unknown>;
 }
@@ -358,7 +359,8 @@ export function useCognitiveHarness(options: HarnessOptions) {
                       }
 
                       const currentWrite = fileWriteSequence++;
-                      assistantContent += `${assistantContent ? '\n' : ''}Writing ${path}…`;
+                      let statusLine = `Writing ${path}…`;
+                      assistantContent += `${assistantContent ? '\n' : ''}${statusLine}`;
                       updateAgentMessage(assistantContent);
                       pendingFileWrites = pendingFileWrites.then(async () => {
                         if (writeViolation) return;
@@ -371,6 +373,13 @@ export function useCognitiveHarness(options: HarnessOptions) {
                             path,
                             content,
                             controller.signal,
+                            (progress) => {
+                              const nextStatus = `Writing ${path} · ${progress}%`;
+                              assistantContent = assistantContent.replace(statusLine, nextStatus);
+                              statusLine = nextStatus;
+                              updateAgentMessage(assistantContent);
+                              options.onAgentProgress?.();
+                            },
                           );
                           appliedWorkspacePaths.add(path);
                           assistantContent += `\n✓ Wrote ${path} (${writeResult.characters.toLocaleString()} formatted characters).`;

@@ -554,6 +554,7 @@ http.createServer((req, res) => {
     filePath: string,
     content: string,
     signal?: AbortSignal,
+    onProgress?: (progress: number) => void,
   ): Promise<{ characters: number }> {
     const operation = executionPolicy.plan?.fileOperations.find((file) => file.path === filePath);
 
@@ -603,6 +604,7 @@ http.createServer((req, res) => {
     const revealDuration = Math.min(2400, Math.max(500, lineCount * 14));
     const startTime = performance.now();
     let lastRevealedLine = 0;
+    let lastReportedProgress = -5;
 
     await new Promise<void>((resolve, reject) => {
       if (signal?.aborted) {
@@ -629,6 +631,12 @@ http.createServer((req, res) => {
           lastRevealedLine = revealedLine;
           const visibleCharacters = lineEnds[revealedLine - 1] ?? formattedContent.length;
           this.#editorStore.updateFile(editorPath, formattedContent.slice(0, visibleCharacters), true);
+        }
+
+        const progressPercent = Math.floor(progress * 100);
+        if (progressPercent >= lastReportedProgress + 5 || progress >= 1) {
+          lastReportedProgress = progressPercent;
+          onProgress?.(progressPercent);
         }
 
         if (progress >= 1) {
