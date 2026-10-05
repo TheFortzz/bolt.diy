@@ -209,6 +209,7 @@ export async function generateFluxImage(
         'api-key': apiKey,
       },
       body: JSON.stringify({
+        model: 'FLUX.2-pro',
         prompt: formattedPrompt,
         width,
         height,

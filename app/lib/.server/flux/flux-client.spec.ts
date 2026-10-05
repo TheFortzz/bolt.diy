@@ -140,6 +140,7 @@ describe('flux-client', () => {
           }),
         }),
       );
+      expect(JSON.parse(fetchSpy.mock.calls[0][1]?.body as string).model).toBe('FLUX.2-pro');
     });
 
     it('handles network failure gracefully without breaking', async () => {
