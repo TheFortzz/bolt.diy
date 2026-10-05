@@ -11,6 +11,7 @@ import { actionStepId, updateActivity } from '~/lib/stores/activity';
 import { contentHash } from '~/lib/harness/blueprint';
 import { executionPolicy } from '~/lib/harness/execution-policy';
 import { balanceAndCloseJs } from '~/lib/runtime/static-preview';
+import { isApprovedEngineMigration } from '~/lib/runtime/source-safety';
 
 const logger = createScopedLogger('ActionRunner');
 
@@ -554,17 +555,23 @@ export class ActionRunner {
           // New file: nothing to protect.
         }
 
+        const isIntentionalEngineMigration = isApprovedEngineMigration(
+          executionPolicy.plan?.engine,
+          previous,
+          contentToWrite,
+        );
+
         if (previous.trim().length > 0 && contentToWrite.trim().length === 0) {
           throw new Error(`Refused to overwrite ${action.filePath} with empty content; the original file was kept.`);
         }
 
-        if (previous.length > 3000 && contentToWrite.length < previous.length * 0.85) {
+        if (!isIntentionalEngineMigration && previous.length > 3000 && contentToWrite.length < previous.length * 0.85) {
           throw new Error(
             `Refused to overwrite ${action.filePath}: the new version (${contentToWrite.length} chars) is much smaller than the existing file (${previous.length} chars), so existing features would be lost. The original file was kept; output the COMPLETE file with ALL existing code kept and the new features added on top.`,
           );
         }
 
-        if (/\.m?js$/i.test(action.filePath) && previous.length > 3000) {
+        if (!isIntentionalEngineMigration && /\.m?js$/i.test(action.filePath) && previous.length > 3000) {
           const symbols = (source: string) => {
             const found = new Set<string>();
             const pattern = /(?:^|[\n;}])[ \t]*(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(|(?:^|\n)(?:const|let|var|class)\s+([A-Za-z_$][\w$]*)/g;

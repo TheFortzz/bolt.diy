@@ -19,6 +19,7 @@ import { description } from '~/lib/persistence';
 import Cookies from 'js-cookie';
 import { actionStepId, startActionActivity, updateActivity } from '~/lib/stores/activity';
 import { executionPolicy } from '~/lib/harness/execution-policy';
+import { formatWorkspaceSource } from '~/lib/runtime/source-format';
 
 export interface ArtifactState {
   id: string;
@@ -552,11 +553,17 @@ http.createServer((req, res) => {
     actionId: string,
     filePath: string,
     content: string,
-  ) {
+  ): Promise<{ characters: number }> {
     const operation = executionPolicy.plan?.fileOperations.find((file) => file.path === filePath);
 
-    if (!operation || content.length > 2_000_000) {
+    if (!operation) {
       throw new Error(`Cline file write was not approved or exceeded the file limit: ${filePath}`);
+    }
+
+    const formattedContent = await formatWorkspaceSource(filePath, content);
+
+    if (formattedContent.length > 2_000_000) {
+      throw new Error(`Formatted file exceeds the 2 MB limit: ${filePath}`);
     }
 
     this.showWorkbench.set(true);
@@ -570,7 +577,7 @@ http.createServer((req, res) => {
       artifactId,
       messageId,
       actionId,
-      action: { type: 'file', filePath, content },
+      action: { type: 'file', filePath, content: formattedContent },
     };
     this.addAction(data);
 
@@ -589,6 +596,8 @@ http.createServer((req, res) => {
     if (completedAction?.status !== 'complete' || !completedAction.executed) {
       throw new Error(completedAction?.status === 'failed' ? completedAction.error : `Bolt did not finish writing ${filePath}.`);
     }
+
+    return { characters: formattedContent.length };
   }
 
   addAction(data: ActionCallbackData) {

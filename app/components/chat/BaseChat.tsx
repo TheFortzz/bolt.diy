@@ -543,7 +543,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   maxWidth: isWorkbenchActive ? '100%' : '52rem',
                 }}
               >
-                {/* Bolt's Cline agent uses the same configured provider/model system. */}
                 <div className="block">
                   <ModelSelector
                     key={provider?.name + ':' + modelList.length}
@@ -569,7 +568,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   <textarea
                     ref={textareaRef}
                     className={classNames(
-                      'w-full pl-4 pt-3.5 pb-2 pr-16 focus:outline-none resize-none text-purple-50 placeholder-purple-300/40 bg-transparent text-sm sm:text-[14px]',
+                      'w-full pl-4 pt-3.5 pb-2 pr-16 focus:outline-none resize-none text-amber-50 placeholder-amber-100/55 bg-transparent text-sm sm:text-[14px]',
                       'transition-all duration-200',
                     )}
                     onDragEnter={(e) => {
@@ -661,7 +660,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     <div className="flex gap-1 items-center flex-wrap min-w-0">
                       <IconButton
                         title="Upload file"
-                        className="transition-all text-purple-300 hover:text-white hover:bg-purple-800/40"
+                        className="transition-all text-amber-100/70 hover:text-amber-50 hover:bg-amber-200/10"
                         onClick={() => handleFileUpload()}
                       >
                         <div className="i-ph:paperclip text-xl"></div>
@@ -670,22 +669,22 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         title="Enhance prompt"
                         disabled={input.length === 0 || enhancingPrompt}
                         className={classNames(
-                          'transition-all text-purple-300 hover:text-white hover:bg-purple-800/40',
+                          'transition-all text-amber-100/70 hover:text-amber-50 hover:bg-amber-200/10',
                           enhancingPrompt ? 'opacity-100' : '',
-                          promptEnhanced ? 'text-purple-200 pr-1.5' : '',
-                          promptEnhanced ? 'enabled:hover:bg-purple-800/40' : '',
+                          promptEnhanced ? 'text-amber-100 pr-1.5' : '',
+                          promptEnhanced ? 'enabled:hover:bg-amber-200/10' : '',
                         )}
                         onClick={() => enhancePrompt?.()}
                       >
                         {enhancingPrompt ? (
                           <>
-                            <div className="i-svg-spinners:90-ring-with-bg text-purple-400 text-xl animate-spin"></div>
-                            <div className="ml-1.5 text-purple-200">Enhancing prompt...</div>
+                            <div className="i-svg-spinners:90-ring-with-bg text-amber-300 text-xl animate-spin"></div>
+                            <div className="ml-1.5 text-amber-100">Enhancing prompt...</div>
                           </>
                         ) : (
                           <>
-                            <div className="i-bolt:stars text-xl text-purple-400"></div>
-                            {promptEnhanced && <div className="ml-1.5 text-purple-200">Prompt enhanced</div>}
+                            <div className="i-bolt:stars text-xl text-amber-300"></div>
+                            {promptEnhanced && <div className="ml-1.5 text-amber-100">Prompt enhanced</div>}
                           </>
                         )}
                       </IconButton>
@@ -701,18 +700,11 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       {/* Configure AI icon button */}
                       <IconButton
                         title="Configure AI & Providers"
-                        className="transition-all text-purple-300 hover:text-white hover:bg-purple-800/40"
+                        className="transition-all text-amber-100/70 hover:text-amber-50 hover:bg-amber-200/10"
                         onClick={() => setIsSettingsOpen(true)}
                       >
-                        <div className="i-ph:gear-six text-xl text-purple-300 group-hover:text-purple-100" />
+                        <div className="i-ph:gear-six text-xl text-amber-200/80 group-hover:text-amber-50" />
                       </IconButton>
-
-                      <span
-                        className="inline-flex items-center gap-1 rounded-lg border border-cyan-400/30 bg-cyan-950/50 px-2 py-1 text-[10px] font-bold text-cyan-200"
-                        title="Bolt chat powered by the Cline SDK agent loop"
-                      >
-                        ⚡ CLINE-POWERED BOLT
-                      </span>
 
                       <div className={styles.ModelBadge} title={`Configured model: ${model || 'gpt-6-luna'}`}>
                         <span className="i-ph:cpu" aria-hidden="true" />
@@ -723,7 +715,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-purple-300 select-none">
+                    <div className="flex items-center gap-2 text-xs text-amber-100/70 select-none">
                       <span
                         style={{ borderRadius: 0 }}
                         className="px-2 py-0.5 font-mono font-bold bg-amber-500/10 border border-amber-500/30 text-amber-300 flex items-center gap-1.5"
@@ -734,13 +726,13 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       </span>
                       {input.length > 3 && (
                         <>
-                          <span className="text-purple-400/40">•</span>
-                          <span className="text-[11px] text-purple-300/70">
-                            <kbd className="kdb px-1.5 py-0.5 rounded-none bg-purple-950/60 border border-purple-500/30 text-purple-200 font-mono">
+                          <span className="text-amber-200/40">•</span>
+                          <span className="text-[11px] text-amber-100/70">
+                            <kbd className="kdb px-1.5 py-0.5 rounded-none bg-black/20 border border-amber-200/20 text-amber-100 font-mono">
                               Shift
                             </kbd>{' '}
                             +{' '}
-                            <kbd className="kdb px-1.5 py-0.5 rounded-none bg-purple-950/60 border border-purple-500/30 text-purple-200 font-mono">
+                            <kbd className="kdb px-1.5 py-0.5 rounded-none bg-black/20 border border-amber-200/20 text-amber-100 font-mono">
                               Return
                             </kbd>{' '}
                             for new line

@@ -27,6 +27,15 @@ const CREATIVE_GAME_GUIDANCE = `
   art or pseudo-perspective drawing as a 3D rebuild. A pinned Three.js browser
   module is allowed without npm installation in the Studio preview.
 
+  <source_quality>
+    Always return clean, human-readable source: 2-space indentation, one logical
+    statement per line, spaces around operators, named functions, and a preferred
+    maximum line width of 100 characters. Never minify or compress code into long
+    lines. Split substantial systems into purposeful modules. Use
+    requestAnimationFrame with clamped delta time and eased/interpolated motion,
+    camera follow, HUD transitions, and feedback so animation feels smooth.
+  </source_quality>
+
   <prompt_analysis_and_creative_freedom>
     THE USER'S PROMPT IS THE SOLE SOURCE OF TRUTH.
     Analyze the user's request thoroughly:
@@ -74,8 +83,10 @@ const CREATIVE_GAME_GUIDANCE = `
       immediately on click. NEVER produce a start screen whose click does nothing.
     - Complete Code — No Truncation: Every JS/TS file emitted MUST be syntactically complete.
       Every function must have a closing brace. Every file must have a valid ending.
-      If a file is too long for one response, emit it across multiple file actions, never
+     If a file is too long for one response, emit it across multiple file actions, never
       truncate mid-function and silently stop. A truncated file breaks the entire game.
+     - Readable Source: Use 2-space indentation, one logical statement per line,
+       and keep lines near or below 100 characters. Never minify generated code.
   </game_design_principles>
 
   <sound_effects_rule>
@@ -202,7 +213,11 @@ const GAME_DESIGN_REASONING_PROTOCOL = `
   2. ARCHITECTURE & FILE STRUCTURE:
      - Put all files directly in the root directory as plain outside files (e.g. index.html, game.js, style.css).
      - NEVER create, use, or mention a "project", "projects", "home", or "/home/project" folder.
-     - Choose clean, modular filenames that naturally fit this game (e.g. index.html, style.css, utils.js, game.js, and concept-specific modules like maze.js, physics.js, board.js, cards.js, seeker.js, etc.).
+      - Choose clean, modular filenames that naturally fit this game (e.g. index.html, style.css, utils.js, game.js, and concept-specific modules like maze.js, physics.js, board.js, cards.js, seeker.js, etc.).
+      - For an explicitly requested engine migration (such as Canvas 2D to true 3D),
+        rewrite renderer-coupled files consistently. Preserve requested gameplay,
+        controls, HUD, and progression; do not copy obsolete renderer functions into
+        the new engine merely to preserve their old names.
 
   3. GAMEPLAY MECHANICS & SYSTEMS (AI FREELY DECIDES):
      - Let the prompt dictate the systems: controls, physics, rules, interactions, progression, and win/lose conditions.
@@ -210,7 +225,8 @@ const GAME_DESIGN_REASONING_PROTOCOL = `
 
   4. VISUAL THEME, PALETTE & JUICE:
      - Select a color palette and visual styling that complements the game's setting.
-     - Plan visual juice: particle bursts, screen shake on impacts, smooth movement, and feedback text where appropriate.
+      - Plan visual juice: particle bursts, screen shake on impacts, smooth movement,
+        eased/interpolated animation, and feedback text where appropriate.
      - Plan procedural Web Audio (AudioContext) sound effects tailored to the game's actions.
 
   5. TECHNICAL SAFEGUARDS & RUNTIME STABILITY:
@@ -269,7 +285,7 @@ const PREVIEW_RULES = `
 
   - A Vite/npm project needs a valid package.json, complete imports/exports,
     and a start action such as npm run dev.
-  - Modular Files & Script Linking: Use plain script tags for dependency-free classic JavaScript. For genuine Three.js/WebGL projects, load Three.js via <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script> in index.html (or use the pinned browser module https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js in <script type="module">) and do not add an npm install just for Three.js.
+  - Modular Files & Script Linking: Use plain script tags for dependency-free classic JavaScript. For genuine Three.js/WebGL projects, import only the pinned ES module https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js from a <script type="module"> entry. Never use the deprecated build/three.min.js UMD bundle or install npm packages just for Three.js.
     * SCRIPT LOADING ORDER IN index.html:
       For classic scripts, load helper systems before the game entry point. For an ES-module entry point, use imports in dependency order and initialize the renderer only after the DOM is ready.
     * WINDOW ATTACHMENT FOR SHARED CLASSES & HELPERS:
@@ -281,7 +297,7 @@ const PREVIEW_RULES = `
   - 3D Camera Placement (Three.js): Never initialize camera.position at (0, 0, 0) inside
       or intersecting the player model or focal point. Always initialize camera.position with a sensible
       offset behind and above the focal point (e.g. camera.position.set(0, 5, 10)) before starting the game loop.
-  - Genuine 3D Scene (Three.js/WebGL): For a user-requested 3D game, do not substitute CanvasRenderingContext2D perspective tricks. Use actual 3D geometry and a perspective camera; render to a non-null canvas, add visible scene objects and lighting, call camera.lookAt() toward the game focal point, and update renderer size plus camera aspect on resize. A missing canvas or failed WebGL context must produce a readable error state, never an uncaught getContext-on-null exception.
+  - Genuine 3D Scene (Three.js/WebGL): For a user-requested 3D game, do not substitute CanvasRenderingContext2D perspective tricks. Use actual 3D geometry and a perspective camera; render to a non-null canvas, add visible scene objects and lighting, call camera.lookAt() toward the game focal point, and update renderer size plus camera aspect on resize. Use the pinned Three.js ES module, never deprecated UMD builds. Query every canvas and HUD node defensively; create missing HUD nodes or show a readable error state, never dereference null.
   - Never use placeholders such as ..., "rest of code", TODO, or fake functions.
   - Never emit imports or exports that are not provided by a real dependency.
   - Check canvas/context or DOM references before use and make the start/restart
@@ -390,8 +406,9 @@ ${PREVIEW_RULES}
 ${ENVIRONMENT_RULES}
 
 <code_formatting_info>
-  Use clean, readable formatting and complete implementations. Prefer the
-  project's existing conventions when editing an existing project.
+  Use clean, readable formatting and complete implementations. Use 2-space
+  indentation, one logical statement per line, and a preferred 100-character
+  line width. Never minify. Prefer the project's conventions when editing.
 </code_formatting_info>
 
 <message_formatting_info>
@@ -420,7 +437,10 @@ ${ENVIRONMENT_RULES}
 
 <code_formatting_info>
   Use 2-space indentation unless the existing project uses another clear style.
-  Prefer readable names, small focused modules, and explicit error handling.
+  Prefer readable names, small focused modules, and explicit error handling. Keep
+  lines near or below 100 characters and never compress multiple statements onto
+  one line. Use clamped-delta requestAnimationFrame updates and interpolation or
+  easing for movement, camera tracking, and visual transitions.
 </code_formatting_info>
 
 <message_formatting_info>

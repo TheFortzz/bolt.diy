@@ -244,6 +244,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
           let previewErrors: Array<{ message: string }> = [];
           let lastError = '';
           const maxAttempts = 3;
+          const appliedWorkspacePaths = new Set<string>();
 
           for (let attempt = 0; attempt < maxAttempts; attempt++) {
             if (sequence !== requestSequence.current || controller.signal.aborted) return;
@@ -289,7 +290,8 @@ export function useCognitiveHarness(options: HarnessOptions) {
               `Implement this user request using Cline tools: ${userRequest}`,
               `Approved blueprint (authoritative file allowlist): ${JSON.stringify(blueprint)}`,
               `You may write only these approved paths: ${approvedPaths.join(', ')}.`,
-              'Inspect the current project before editing. Preserve working files and implement the approved game systems completely.',
+              'Inspect the current project before editing. Preserve unrelated working behavior and implement the approved game systems completely. For an approved engine migration, replace renderer-specific code and markup consistently while retaining the requested gameplay, controls, and HUD; do not preserve obsolete renderer function names.',
+              'Write readable source with 2-space indentation, one statement per line, and lines near 100 characters; never minify. Use smooth delta-time animation and easing/interpolation for motion and camera follow. Null-check canvas and HUD lookups.',
               'Run the available build and gameplay checks. If a check fails, diagnose from its actual output, repair approved files, and test again before finish_task.',
               lastError ? `A previous preview/build attempt failed with this actual diagnostic:\n${lastError}` : '',
             ].filter(Boolean).join('\n\n');
@@ -361,14 +363,15 @@ export function useCognitiveHarness(options: HarnessOptions) {
                         if (writeViolation) return;
 
                         try {
-                          await workbenchStore.applyClineFileWrite(
+                          const writeResult = await workbenchStore.applyClineFileWrite(
                             agentMessageId,
                             agentArtifactId,
                             `cline-${attempt + 1}-${currentWrite}`,
                             path,
                             content,
                           );
-                          assistantContent += `\n✓ Wrote ${path} (${content.length.toLocaleString()} characters).`;
+                          appliedWorkspacePaths.add(path);
+                          assistantContent += `\n✓ Wrote ${path} (${writeResult.characters.toLocaleString()} formatted characters).`;
                           updateAgentMessage(assistantContent);
                         } catch (error) {
                           writeViolation = `Bolt could not write ${path} into the workspace: ${(error as Error).message}`;
@@ -388,7 +391,30 @@ export function useCognitiveHarness(options: HarnessOptions) {
               );
 
               await pendingFileWrites;
-              if (writeViolation) throw new Error(writeViolation);
+              if (writeViolation) {
+                lastError = writeViolation;
+                runHistory.push({
+                  role: 'user',
+                  content: `Bolt rejected this workspace write: ${writeViolation}. Read the current approved sources, correct the affected file, and retry without removing working gameplay.`,
+                });
+                updateActivity(agentMessageId, 'cline:inspect', 'complete');
+
+                if (attempt === maxAttempts - 1) {
+                  const existingWrites = appliedWorkspacePaths.size
+                    ? ` Files already written: ${Array.from(appliedWorkspacePaths).join(', ')}.`
+                    : '';
+                  const detail = `Bolt could not safely complete this build after ${maxAttempts} attempts. ${lastError}${existingWrites}`;
+                  updateAgentMessage(`⚠️ The workspace rejected a generated file.\n\n${detail}`);
+                  startActivity(agentMessageId, 'cline:failed', 'Cline could not write a valid file', detail, 'failed');
+                  executionPolicy.revoke();
+                  validationState.set({ status: 'failed', detail });
+                  transitionHarness('failed', { detail });
+                  return;
+                }
+
+                updateAgentMessage(`Bolt rejected a file write. Cline is correcting it (${attempt + 1}/${maxAttempts})…`);
+                continue;
+              }
 
               const filesTouched = runResult.payload?.filesTouched;
               if (!Array.isArray(filesTouched) || filesTouched.length === 0) {

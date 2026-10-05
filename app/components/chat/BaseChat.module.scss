@@ -48,20 +48,35 @@
 
 .Composer {
   overflow: hidden;
-  border: 1px solid rgba(192, 132, 252, 0.42);
-  border-radius: 16px;
-  background: linear-gradient(155deg, #441c77 0%, #34145c 100%);
-  box-shadow: 0 12px 36px rgba(18, 6, 34, 0.55), 0 0 24px rgba(168, 85, 247, 0.18);
+  border: 1px solid rgba(244, 197, 94, 0.48);
+  border-radius: 18px;
+  background:
+    radial-gradient(ellipse at 16% 0%, rgba(255, 221, 142, 0.13), transparent 54%),
+    linear-gradient(145deg, #3c2a12 0%, #2b1d0c 55%, #38250e 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 238, 190, 0.12),
+    0 14px 38px rgba(12, 8, 3, 0.48),
+    0 0 26px rgba(214, 158, 48, 0.13);
   transition:
     border-color 200ms ease,
     box-shadow 200ms ease;
 
+  textarea {
+    caret-color: #ffd56a;
+    color: #fff8e8;
+
+    &::placeholder {
+      color: rgba(255, 231, 177, 0.58);
+      opacity: 1;
+    }
+  }
+
   &:focus-within {
-    border-color: rgba(216, 180, 254, 0.85);
+    border-color: rgba(255, 217, 119, 0.9);
     box-shadow:
-      0 0 0 3px rgba(168, 85, 247, 0.32),
-      0 14px 40px rgba(18, 6, 34, 0.65),
-      0 0 28px rgba(192, 132, 252, 0.35);
+      0 0 0 3px rgba(234, 179, 71, 0.17),
+      0 16px 42px rgba(12, 8, 3, 0.56),
+      0 0 30px rgba(244, 197, 94, 0.2);
   }
 }
 
@@ -72,8 +87,8 @@
   flex-wrap: wrap;
   gap: 6px;
   padding: 8px 12px;
-  border-top: 1px solid rgba(192, 132, 252, 0.25);
-  background: rgba(48, 18, 82, 0.95);
+  border-top: 1px solid rgba(244, 197, 94, 0.2);
+  background: rgba(30, 21, 10, 0.55);
 }
 
 .ModelBadge {
@@ -83,9 +98,9 @@
   max-width: 140px;
   padding: 3px 8px;
   border-radius: 6px;
-  background: rgba(168, 85, 247, 0.14);
-  border: 1px solid rgba(168, 85, 247, 0.25);
-  color: #d8b4fe;
+  background: rgba(226, 173, 65, 0.1);
+  border: 1px solid rgba(244, 197, 94, 0.24);
+  color: #f4d58a;
   font-size: 10px;
   font-weight: 600;
   span:last-child {
