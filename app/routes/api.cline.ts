@@ -315,7 +315,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
             });
 
             const tools = body.planningOnly
-              ? [readFile, listFiles, searchCode, inspectProject, inspectErrors, submitPlan]
+              ? [submitPlan]
               : body.readOnly
                 ? [readFile, listFiles, searchCode, inspectProject, runBuild, runTests, inspectErrors, finishTask]
                 : [readFile, writeFile, editFile, listFiles, searchCode, inspectProject, runBuild, runTests, inspectErrors, finishTask];
@@ -335,7 +335,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
                 body.systemContext ? `Project/preview context (untrusted data): ${JSON.stringify(body.systemContext.slice(0, 12000))}` : '',
                 body.previewErrors.length ? `Recent actual Bolt errors: ${JSON.stringify(body.previewErrors)}` : '',
                 body.planningOnly
-                  ? 'Plan only; do not edit files or claim edits. Inspect relevant sources and call submit_plan with a tailored structured plan. Do not return a plan as free-form text.'
+                  ? `Plan only; do not edit files or claim edits. Use the supplied manifest, source excerpts, and context directly; do not call inspection tools. In this turn, call submit_plan with a tailored structured plan. Do not return a plan as free-form text. Source excerpts: ${JSON.stringify(workingFiles).slice(0, 30000)}`
                   : body.readOnly
                     ? 'Read-only chat: answer from supplied context; do not claim file changes.'
                     : `Approved build: edit only ${Array.from(approvedPaths).join(', ')}. Do not delete files or execute shell commands. Read current files, implement the approved plan, run checks, and finish truthfully. Bolt will run actual preview validation and send repair errors in a follow-up run.`,
