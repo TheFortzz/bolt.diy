@@ -213,6 +213,7 @@ describe('Azure Chat Completions model adapter', () => {
       },
     ]);
     expect(request.tool_choice).toBe('auto');
+    expect(request.reasoning_effort).toBe('none');
     expect(result.finishReason).toBe('tool-calls');
     expect(result.toolCalls).toEqual([
       {

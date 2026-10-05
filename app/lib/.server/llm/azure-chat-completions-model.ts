@@ -168,8 +168,12 @@ function createRequestBody(options: LanguageModelV1CallOptions, modelId: string,
   };
 
   if (/^gpt-6(?:-|$)/i.test(modelId)) {
-    // Avoid thinking latency and reserve max token budget for streaming code generation.
-    body.reasoning_effort = 'low';
+    const hasFunctionTools = options.mode?.type === 'regular' &&
+      options.mode.tools?.some((tool) => tool.type === 'function');
+    // Azure's Chat Completions endpoint rejects tool calls with non-none
+    // reasoning_effort. Keep fast reasoning for plain chat, disable it when
+    // the Cline agent supplies structured function tools.
+    body.reasoning_effort = hasFunctionTools ? 'none' : 'low';
   } else {
     body.temperature = typeof options.temperature === 'number' ? options.temperature : 0.85;
   }
