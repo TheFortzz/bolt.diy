@@ -2,14 +2,15 @@ import { Agent, createTool } from '@cline/agents';
 import { describe, expect, it } from 'vitest';
 import { createBoltAgentModel } from './bolt-agent-model';
 
-function fakeLanguageModel() {
+function fakeLanguageModel(observed: { toolChoice?: unknown }) {
   let call = 0;
   return {
     specificationVersion: 'v1',
     provider: 'test',
     modelId: 'tool-loop-test',
     defaultObjectGenerationMode: undefined,
-    async doStream() {
+    async doStream(options: any) {
+      observed.toolChoice = options.mode?.toolChoice;
       call++;
       const parts =
         call === 1
@@ -51,6 +52,7 @@ function fakeLanguageModel() {
 describe('Bolt Cline model adapter', () => {
   it('routes structured Cline tool calls through Bolt model provider streaming', async () => {
     const writtenFiles: Record<string, string> = {};
+    const observed: { toolChoice?: unknown } = {};
     const writeFile = createTool({
       name: 'write_file',
       description: 'Write an approved project file.',
@@ -66,7 +68,7 @@ describe('Bolt Cline model adapter', () => {
     });
 
     const agent = new Agent({
-      model: createBoltAgentModel(fakeLanguageModel()),
+      model: createBoltAgentModel(fakeLanguageModel(observed)),
       systemPrompt: 'Use tools to edit files, then summarize.',
       tools: [writeFile],
       maxIterations: 3,
@@ -74,6 +76,7 @@ describe('Bolt Cline model adapter', () => {
     const result = await agent.run('Create game.js');
 
     expect(result.status).toBe('completed');
+    expect(observed.toolChoice).toMatchObject({ type: 'required' });
     expect(writtenFiles['game.js']).toBe('requestAnimationFrame(() => {});');
     expect(result.outputText).toContain('Game files updated.');
   });

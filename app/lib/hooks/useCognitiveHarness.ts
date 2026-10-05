@@ -231,6 +231,10 @@ export function useCognitiveHarness(options: HarnessOptions) {
           executionToken: approval.executionToken,
           detail: 'Writing the approved game modules and playable content…',
         });
+        // Reveal the actual Bolt workspace as soon as the approved build starts,
+        // rather than waiting for the first streamed artifact token.
+        workbenchStore.showWorkbench.set(true);
+        workbenchStore.currentView.set('code');
         validationState.set({ status: 'idle', detail: '' });
 
         if (options.agentEngine === 'cline') {
@@ -375,6 +379,29 @@ export function useCognitiveHarness(options: HarnessOptions) {
               );
 
               if (writeViolation) throw new Error(writeViolation);
+
+              const filesTouched = runResult.payload?.filesTouched;
+              if (!Array.isArray(filesTouched) || filesTouched.length === 0) {
+                lastError = 'Cline finished a tool turn without writing any approved workspace files. The build is not complete.';
+                updateActivity(agentMessageId, 'cline:inspect', 'complete');
+                runHistory.push({
+                  role: 'user',
+                  content: `${lastError} Call write_file for the approved game modules now; do not just describe the plan or call finish_task.`,
+                });
+
+                if (attempt === maxAttempts - 1) {
+                  const detail = `${lastError} No files were changed after ${maxAttempts} attempts.`;
+                  updateAgentMessage(`⚠️ The build stopped before editing the workspace.\n\n${detail}`);
+                  startActivity(agentMessageId, 'cline:failed', 'Cline did not edit workspace files', detail, 'failed');
+                  executionPolicy.revoke();
+                  validationState.set({ status: 'failed', detail });
+                  transitionHarness('failed', { detail });
+                  return;
+                }
+
+                updateAgentMessage(`Cline has not written any files yet. Retrying the approved build (${attempt + 1}/${maxAttempts})…`);
+                continue;
+              }
 
               completionSummary ||= String(runResult.payload?.summary || responseText || 'Cline completed the implementation.');
               assistantContent += artifactOpen

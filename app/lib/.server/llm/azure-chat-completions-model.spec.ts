@@ -197,7 +197,7 @@ describe('Azure Chat Completions model adapter', () => {
             parameters: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] },
           },
         ],
-        toolChoice: { type: 'auto' },
+        toolChoice: { type: 'required' },
       },
       abortSignal: new AbortController().signal,
     } as any);
@@ -212,7 +212,7 @@ describe('Azure Chat Completions model adapter', () => {
         },
       },
     ]);
-    expect(request.tool_choice).toBe('auto');
+    expect(request.tool_choice).toBe('required');
     expect(request.reasoning_effort).toBe('none');
     expect(result.finishReason).toBe('tool-calls');
     expect(result.toolCalls).toEqual([
@@ -233,7 +233,7 @@ describe('Azure Chat Completions model adapter', () => {
           [
             'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-read","type":"function","function":{"name":"read_file","arguments":"{\\\"path\\\":\\\""}}]},"finish_reason":null}]}',
             'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"index.html\\\"}"}}]},"finish_reason":null}]}',
-            'data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}',
+            'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
             'data: [DONE]',
             '',
           ].join('\n'),

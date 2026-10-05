@@ -237,23 +237,21 @@ export function createAzureChatCompletionsModel(
       }
 
       const choice = json?.choices?.[0];
+      const toolCalls = Array.isArray(choice?.message?.tool_calls)
+        ? choice.message.tool_calls.map((call: any) => ({
+            toolCallType: 'function' as const,
+            toolCallId: String(call.id || ''),
+            toolName: String(call.function?.name || ''),
+            args: typeof call.function?.arguments === 'string'
+              ? call.function.arguments
+              : JSON.stringify(call.function?.arguments || {}),
+          }))
+        : [];
 
       return {
         text: outputText(choice?.message?.content),
-        finishReason: resolveFinishReason(choice?.finish_reason),
-        ...(Array.isArray(choice?.message?.tool_calls) && choice.message.tool_calls.length
-          ? {
-              toolCalls: choice.message.tool_calls.map((call: any) => ({
-                toolCallType: 'function' as const,
-                toolCallId: String(call.id || ''),
-                toolName: String(call.function?.name || ''),
-                args:
-                  typeof call.function?.arguments === 'string'
-                    ? call.function.arguments
-                    : JSON.stringify(call.function?.arguments || {}),
-              })),
-            }
-          : {}),
+        finishReason: toolCalls.length ? 'tool-calls' : resolveFinishReason(choice?.finish_reason),
+        ...(toolCalls.length ? { toolCalls } : {}),
         usage: {
           promptTokens: json?.usage?.prompt_tokens ?? 0,
           completionTokens: json?.usage?.completion_tokens ?? 0,
@@ -290,6 +288,22 @@ export function createAzureChatCompletionsModel(
 
       const stream = new ReadableStream<LanguageModelV1StreamPart>({
         async start(controller) {
+          const emitToolCalls = () => {
+            for (const [index, call] of toolCalls) {
+              if (!call.id || !call.name) {
+                throw new Error(`Azure returned an incomplete function call at index ${index}.`);
+              }
+              controller.enqueue({
+                type: 'tool-call',
+                toolCallType: 'function',
+                toolCallId: call.id,
+                toolName: call.name,
+                args: call.arguments || '{}',
+              });
+            }
+            emittedToolCalls = true;
+          };
+
           const parseEvent = (line: string) => {
             const trimmed = line.trim();
 
@@ -344,20 +358,9 @@ export function createAzureChatCompletionsModel(
 
             if (choice?.finish_reason) {
               finishReason = resolveFinishReason(choice.finish_reason);
-              if (finishReason === 'tool-calls' && !emittedToolCalls) {
-                for (const [index, call] of toolCalls) {
-                  if (!call.id || !call.name) {
-                    throw new Error(`Azure returned an incomplete function call at index ${index}.`);
-                  }
-                  controller.enqueue({
-                    type: 'tool-call',
-                    toolCallType: 'function',
-                    toolCallId: call.id,
-                    toolName: call.name,
-                    args: call.arguments || '{}',
-                  });
-                }
-                emittedToolCalls = true;
+              if (toolCalls.size && !emittedToolCalls) {
+                emitToolCalls();
+                finishReason = 'tool-calls';
               }
             }
 
@@ -390,6 +393,14 @@ export function createAzureChatCompletionsModel(
 
             if (buffer.trim()) {
               parseEvent(buffer);
+            }
+
+            // Some compatible endpoints omit or mislabel finish_reason even
+            // though they streamed valid function calls. Never drop those
+            // calls: the agent loop must receive them to execute Bolt tools.
+            if (toolCalls.size && !emittedToolCalls) {
+              emitToolCalls();
+              finishReason = 'tool-calls';
             }
 
             controller.enqueue({ type: 'finish', finishReason, usage });

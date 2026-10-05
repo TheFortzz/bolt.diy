@@ -15,7 +15,10 @@ export function createBoltAgentModel(boltModel: unknown): AgentModel {
         system: request.systemPrompt,
         messages: toCoreMessages(request.messages),
         tools: tools as any,
-        toolChoice: 'auto',
+        // Cline runs are tool-driven. Without a required choice many models
+        // answer with prose ("plan ready") and stop without executing even one
+        // workspace tool, leaving Bolt's editor and file tree untouched.
+        toolChoice: 'required',
         maxSteps: 1,
         maxTokens: 8000,
         temperature: 0.3,
