@@ -536,6 +536,61 @@ http.createServer((req, res) => {
 
     this.artifacts.setKey(messageId, { ...artifact, ...state });
   }
+
+  closeArtifact(messageId: string) {
+    const artifact = this.#getArtifact(messageId);
+
+    if (artifact) {
+      this.artifacts.setKey(messageId, { ...artifact, closed: true });
+    }
+  }
+
+  /** Apply a Cline tool write directly to Bolt's real editor and WebContainer. */
+  async applyClineFileWrite(
+    messageId: string,
+    artifactId: string,
+    actionId: string,
+    filePath: string,
+    content: string,
+  ) {
+    const operation = executionPolicy.plan?.fileOperations.find((file) => file.path === filePath);
+
+    if (!operation || content.length > 2_000_000) {
+      throw new Error(`Cline file write was not approved or exceeded the file limit: ${filePath}`);
+    }
+
+    this.showWorkbench.set(true);
+    this.currentView.set('code');
+
+    if (!this.#getArtifact(messageId)) {
+      this.addArtifact({ messageId, id: artifactId, title: 'Cline Game Build', type: 'bundled' });
+    }
+
+    const data: ActionCallbackData = {
+      artifactId,
+      messageId,
+      actionId,
+      action: { type: 'file', filePath, content },
+    };
+    this.addAction(data);
+
+    const artifact = this.#getArtifact(messageId);
+    const registeredAction = artifact?.runner.actions.get()[actionId];
+
+    if (!artifact || registeredAction?.status === 'failed') {
+      throw new Error(registeredAction?.status === 'failed' ? registeredAction.error : 'Could not open the game workspace.');
+    }
+
+    this.runAction(data);
+    await this.waitForExecutionQueue();
+
+    const completedAction = artifact.runner.actions.get()[actionId];
+
+    if (completedAction?.status !== 'complete' || !completedAction.executed) {
+      throw new Error(completedAction?.status === 'failed' ? completedAction.error : `Bolt did not finish writing ${filePath}.`);
+    }
+  }
+
   addAction(data: ActionCallbackData) {
     const normalizedData = normalizeActionData(data);
     const isExisting =

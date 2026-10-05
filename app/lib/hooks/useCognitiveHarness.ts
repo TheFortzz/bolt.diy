@@ -14,7 +14,6 @@ import { verifyGameBuild } from '~/lib/runtime/game-build-pipeline';
 import { generatedAssets } from '~/lib/stores/generated-assets';
 import { generateProjectAssets } from '~/lib/runtime/asset-generator';
 import { runActivityStep, startActivity, updateActivity } from '~/lib/stores/activity';
-import { finalizeAssistantMessage, parseAssistantMessage } from '~/lib/hooks/useMessageParser';
 import { runClineAgent } from '~/lib/runtime/cline-bridge';
 
 interface HarnessOptions {
@@ -53,10 +52,6 @@ function sourceContext(snapshot: Record<string, Uint8Array>, budget: number, per
   }
 
   return result;
-}
-
-function escapeXmlAttribute(value: string) {
-  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function safeClineDiagnostic(value: string) {
@@ -267,12 +262,13 @@ export function useCognitiveHarness(options: HarnessOptions) {
 
             const agentArtifactId = `cline-${blueprint.workspaceId}-${attempt + 1}`;
             let assistantContent = '';
-            let artifactOpen = false;
             let responseText = '';
             let completionSummary = '';
             let writeViolation = '';
             const activeToolSteps = new Map<number, string>();
             let toolSequence = 0;
+            let fileWriteSequence = 0;
+            let pendingFileWrites = Promise.resolve();
 
             const updateAgentMessage = (content: string) => {
               const message: Message = {
@@ -358,13 +354,26 @@ export function useCognitiveHarness(options: HarnessOptions) {
                         return;
                       }
 
-                      if (!artifactOpen) {
-                        assistantContent = `<boltArtifact id="${escapeXmlAttribute(agentArtifactId)}" title="Cline Game Build">\n`;
-                        artifactOpen = true;
-                      }
-                      assistantContent += `<boltAction type="file" filePath="${escapeXmlAttribute(path)}">\n${content}\n</boltAction>\n`;
-                      const updatedMessage = updateAgentMessage(assistantContent);
-                      parseAssistantMessage(updatedMessage);
+                      const currentWrite = fileWriteSequence++;
+                      assistantContent += `${assistantContent ? '\n' : ''}Writing ${path}…`;
+                      updateAgentMessage(assistantContent);
+                      pendingFileWrites = pendingFileWrites.then(async () => {
+                        if (writeViolation) return;
+
+                        try {
+                          await workbenchStore.applyClineFileWrite(
+                            agentMessageId,
+                            agentArtifactId,
+                            `cline-${attempt + 1}-${currentWrite}`,
+                            path,
+                            content,
+                          );
+                          assistantContent += `\n✓ Wrote ${path} (${content.length.toLocaleString()} characters).`;
+                          updateAgentMessage(assistantContent);
+                        } catch (error) {
+                          writeViolation = `Bolt could not write ${path} into the workspace: ${(error as Error).message}`;
+                        }
+                      });
                     } else if (event.type === 'task_complete') {
                       completionSummary = String(event.payload?.summary || 'Cline finished the implementation.');
                     } else if (event.type === 'usage') {
@@ -378,6 +387,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                 },
               );
 
+              await pendingFileWrites;
               if (writeViolation) throw new Error(writeViolation);
 
               const filesTouched = runResult.payload?.filesTouched;
@@ -404,11 +414,9 @@ export function useCognitiveHarness(options: HarnessOptions) {
               }
 
               completionSummary ||= String(runResult.payload?.summary || responseText || 'Cline completed the implementation.');
-              assistantContent += artifactOpen
-                ? `</boltArtifact>\n\n${completionSummary}`
-                : completionSummary;
+              workbenchStore.closeArtifact(agentMessageId);
+              assistantContent += `${assistantContent ? '\n\n' : ''}${completionSummary}`;
               const completedMessage = updateAgentMessage(assistantContent);
-              if (artifactOpen) finalizeAssistantMessage(completedMessage);
               updateActivity(agentMessageId, 'cline:inspect', 'complete');
               runHistory.push({ role: 'assistant', content: `${completionSummary}\n${responseText}`.slice(0, 12000) });
 
@@ -458,11 +466,8 @@ export function useCognitiveHarness(options: HarnessOptions) {
               executionPolicy.allowRepair();
             } catch (error) {
               if (sequence !== requestSequence.current || controller.signal.aborted) return;
-              if (artifactOpen) {
-                assistantContent += `</boltArtifact>\n\nCline run stopped: ${(error as Error).message}`;
-                const failedMessage = updateAgentMessage(assistantContent);
-                finalizeAssistantMessage(failedMessage);
-              }
+              assistantContent += `${assistantContent ? '\n\n' : ''}Cline run stopped: ${(error as Error).message}`;
+              updateAgentMessage(assistantContent);
               throw error;
             }
           }
