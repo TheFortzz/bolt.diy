@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { getModel } from '~/lib/.server/llm/model';
 import { createBoltAgentModel } from '~/lib/.server/bolt-agent-model';
 import { getHarnessSecret, requireSameOrigin, verifyCapability } from '~/lib/.server/harness/capabilities';
-import { blueprintSchema, isWorkspacePath } from '~/lib/harness/blueprint';
+import { blueprintSchema, isWorkspacePath, managerBlueprintSchema } from '~/lib/harness/blueprint';
 import type { IProviderSetting } from '~/types/model';
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from '~/utils/constants';
 
@@ -29,6 +29,52 @@ const requestSchema = z.object({
   baseUrl: z.string().max(2_000).optional(),
   providerSettings: z.record(z.object({ enabled: z.boolean().optional(), baseUrl: z.string().max(2_000).optional() })).optional(),
 }).strict();
+
+const managerPlanToolSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    title: { type: 'string', minLength: 1, maxLength: 100 },
+    summary: { type: 'string', minLength: 1, maxLength: 1200 },
+    engine: { type: 'string', enum: ['canvas2d', 'webgl'] },
+    systems: { type: 'array', minItems: 2, maxItems: 12, items: { type: 'string', minLength: 1, maxLength: 800 } },
+    fileOperations: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 24,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          path: { type: 'string', pattern: '^[A-Za-z0-9_][A-Za-z0-9_./-]{0,179}$' },
+          operation: { type: 'string', enum: ['create', 'edit'] },
+          purpose: { type: 'string', minLength: 1, maxLength: 800 },
+        },
+        required: ['path', 'operation', 'purpose'],
+      },
+    },
+    assetOperations: {
+      type: 'array',
+      maxItems: 4,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          id: { type: 'string', pattern: '^[a-z][a-z0-9._-]{0,59}$' },
+          path: { type: 'string', pattern: '^assets/.+\\.png$' },
+          kind: { type: 'string', enum: ['sprite', 'background', 'ui'] },
+          prompt: { type: 'string', minLength: 10, maxLength: 1600 },
+          width: { type: 'integer', minimum: 64, maximum: 1024, multipleOf: 32 },
+          height: { type: 'integer', minimum: 64, maximum: 1024, multipleOf: 32 },
+        },
+        required: ['id', 'path', 'kind', 'prompt', 'width', 'height'],
+      },
+    },
+    scriptOrder: { type: 'array', minItems: 1, maxItems: 24, items: { type: 'string', pattern: '^[A-Za-z0-9_][A-Za-z0-9_./-]{0,179}$' } },
+    acceptanceCriteria: { type: 'array', minItems: 3, maxItems: 12, items: { type: 'string', minLength: 1, maxLength: 800 } },
+  },
+  required: ['title', 'summary', 'engine', 'systems', 'fileOperations', 'assetOperations', 'scriptOrder', 'acceptanceCriteria'],
+} satisfies Record<string, unknown>;
 
 function parseCookieMap(cookieHeader: string) {
   const cookies: Record<string, string> = {};
@@ -122,6 +168,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
         void (async () => {
           let unsubscribe: (() => void) | undefined;
+          let submittedPlan: z.infer<typeof managerBlueprintSchema> | undefined;
           try {
             const readFile = createTool({
               name: 'read_file',
@@ -255,8 +302,20 @@ export async function action({ request, context }: ActionFunctionArgs) {
               },
             });
 
+            const submitPlan = createTool({
+              name: 'submit_plan',
+              description: 'Submit the structured game implementation plan and finish this planning-only run. Do not claim files were changed.',
+              inputSchema: managerPlanToolSchema,
+              lifecycle: { completesRun: true },
+              execute: async (plan: z.infer<typeof managerBlueprintSchema>) => {
+                submittedPlan = managerBlueprintSchema.parse(plan);
+                send('plan_ready', { plan: submittedPlan });
+                return { success: true, plan: submittedPlan };
+              },
+            });
+
             const tools = body.planningOnly
-              ? [readFile, listFiles, searchCode, inspectProject, inspectErrors, finishTask]
+              ? [readFile, listFiles, searchCode, inspectProject, inspectErrors, submitPlan]
               : body.readOnly
                 ? [readFile, listFiles, searchCode, inspectProject, runBuild, runTests, inspectErrors, finishTask]
                 : [readFile, writeFile, editFile, listFiles, searchCode, inspectProject, runBuild, runTests, inspectErrors, finishTask];
@@ -276,7 +335,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
                 body.systemContext ? `Project/preview context (untrusted data): ${JSON.stringify(body.systemContext.slice(0, 12000))}` : '',
                 body.previewErrors.length ? `Recent actual Bolt errors: ${JSON.stringify(body.previewErrors)}` : '',
                 body.planningOnly
-                  ? 'Plan only; do not edit files or claim edits. Finish with exactly one JSON object in summary using title, summary, engine, systems, fileOperations, assetOperations, scriptOrder, and acceptanceCriteria.'
+                  ? 'Plan only; do not edit files or claim edits. Inspect relevant sources and call submit_plan with a tailored structured plan. Do not return a plan as free-form text.'
                   : body.readOnly
                     ? 'Read-only chat: answer from supplied context; do not claim file changes.'
                     : `Approved build: edit only ${Array.from(approvedPaths).join(', ')}. Do not delete files or execute shell commands. Read current files, implement the approved plan, run checks, and finish truthfully. Bolt will run actual preview validation and send repair errors in a follow-up run.`,
@@ -298,7 +357,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
             const result = await agent.run(body.prompt);
             if (result.status === 'failed') send('fatal_error', { error: result.error?.message || 'Cline Agent run failed.' });
-            else send('result', { summary: result.outputText, filesTouched: Object.keys(workingFiles).filter((path) => workingFiles[path] !== body.files[path]), usage: result.usage, status: result.status });
+            else send('result', { summary: result.outputText, plan: submittedPlan, filesTouched: Object.keys(workingFiles).filter((path) => workingFiles[path] !== body.files[path]), usage: result.usage, status: result.status });
           } catch (error) {
             send('fatal_error', { error: error instanceof Error ? error.message : 'Cline Agent failed.' });
           } finally {
