@@ -547,8 +547,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   maxWidth: isWorkbenchActive ? '100%' : '52rem',
                 }}
               >
-                {/* Provider and model selector box kept hidden per user request */}
-                <div className="hidden">
+                {/* Reuse Bolt's configured providers for Cline; keep legacy Bolt composer unchanged. */}
+                <div className={agentEngine === 'cline' ? 'block' : 'hidden'}>
                   <ModelSelector
                     key={provider?.name + ':' + modelList.length}
                     model={model}
