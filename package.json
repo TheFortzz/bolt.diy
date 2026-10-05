@@ -34,6 +34,8 @@
     "@ai-sdk/google": "^0.0.52",
     "@ai-sdk/mistral": "^0.0.43",
     "@ai-sdk/openai": "^0.0.66",
+    "@cline/agents": "0.0.90",
+    "@cline/shared": "0.0.90",
     "@codemirror/autocomplete": "^6.18.3",
     "@codemirror/commands": "^6.7.1",
     "@codemirror/lang-cpp": "^6.0.2",
@@ -127,7 +129,7 @@
     "vite-tsconfig-paths": "^4.3.2",
     "vitest": "^2.1.7",
     "wrangler": "^3.91.0",
-    "zod": "^3.23.8"
+    "zod": "^3.25.76"
   },
   "resolutions": {
     "@typescript-eslint/utils": "^8.0.0-alpha.30"

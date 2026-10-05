@@ -70,7 +70,6 @@ interface BaseChatProps {
   setAgentMode?: (mode: StudioAgentMode) => void;
   agentEngine?: 'cline' | 'bolt';
   setAgentEngine?: (engine: 'cline' | 'bolt') => void;
-  clineHostAvailable?: boolean;
   onApprovePlan?: () => void;
   onCancelPlan?: () => void;
 }
@@ -107,7 +106,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       setAgentMode,
       agentEngine = 'cline',
       setAgentEngine,
-      clineHostAvailable = false,
       onApprovePlan,
       onCancelPlan,
     },
@@ -717,7 +715,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         className="inline-flex items-center gap-0.5 rounded-lg border border-purple-500/30 bg-purple-950/70 p-0.5"
                         role="group"
                         aria-label="AI agent engine"
-                        title={clineHostAvailable ? 'Choose the agent engine for this chat' : 'Cline connects when Bolt is opened inside TheFortz'}
+                        title="Choose the AI engine used by Bolt Studio chat and builds"
                       >
                         <button
                           type="button"
@@ -730,7 +728,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                               : 'text-purple-200 hover:bg-purple-800/50 hover:text-white',
                           )}
                         >
-                          ⚡ CLINE{!clineHostAvailable ? ' · HOST REQUIRED' : ''}
+                          ⚡ CLINE
                         </button>
                         <button
                           type="button"

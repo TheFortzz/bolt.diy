@@ -1,9 +1,10 @@
-export interface ClineHostRequest {
+export interface ClineAgentRequest {
   prompt: string;
   files: Record<string, string>;
   readOnly?: boolean;
   planningOnly?: boolean;
-  approvedPaths?: string[];
+  approvedBlueprint?: unknown;
+  executionToken?: string;
   systemContext?: string;
   history?: Array<{ role: 'user' | 'assistant'; content: string }>;
   previewErrors?: Array<{ message: string; source?: string; line?: number }>;
@@ -13,116 +14,60 @@ export interface ClineHostRequest {
   baseUrl?: string;
 }
 
-export interface ClineHostEvent {
+export interface ClineAgentEvent {
   type: string;
   payload?: any;
 }
 
-function isTrustedFortzOrigin(origin: string) {
-  try {
-    const url = new URL(origin);
-    const hostname = url.hostname.toLowerCase();
-    return (
-      hostname === 'thefortz.me' ||
-      hostname.endsWith('.thefortz.me') ||
-      hostname === 'localhost' ||
-      hostname === '127.0.0.1' ||
-      hostname.endsWith('.app.github.dev')
-    );
-  } catch {
-    return false;
-  }
-}
-
-export function getFortzHostOrigin() {
-  if (typeof window === 'undefined' || window.parent === window) {
-    return undefined;
-  }
-
-  try {
-    if (document.referrer) {
-      const origin = new URL(document.referrer).origin;
-      return isTrustedFortzOrigin(origin) ? origin : undefined;
-    }
-
-    const ancestorOrigin = (window.location as any).ancestorOrigins?.[0] as string | undefined;
-    return ancestorOrigin && isTrustedFortzOrigin(ancestorOrigin) ? ancestorOrigin : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-export function announceFortzReady() {
-  const origin = getFortzHostOrigin();
-
-  if (origin) {
-    window.parent.postMessage({ type: 'thefortz-studio-ready' }, origin);
-  }
-}
-
-export function runClineInFortzHost(
-  request: ClineHostRequest,
+/** Run the Cline SDK agent in Bolt's own API route. */
+export async function runClineAgent(
+  request: ClineAgentRequest,
   options: {
     signal?: AbortSignal;
-    onEvent: (event: ClineHostEvent) => void;
+    onEvent: (event: ClineAgentEvent) => void;
   },
 ) {
-  const origin = getFortzHostOrigin();
+  const response = await fetch('/api/cline', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+    signal: options.signal,
+  });
 
-  if (!origin) {
-    return Promise.reject(new Error('Cline Agent is available when Bolt Studio is opened inside TheFortz.'));
+  if (!response.ok) {
+    const result = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(result?.error || `Bolt Cline API returned HTTP ${response.status}.`);
+  }
+  if (!response.body) throw new Error('Bolt Cline API returned an empty stream.');
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let resultEvent: ClineAgentEvent | undefined;
+
+  while (true) {
+    if (options.signal?.aborted) throw new DOMException('Cline run cancelled.', 'AbortError');
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data:')) continue;
+      const raw = trimmed.slice(5).trim();
+      if (!raw || raw === '[DONE]') continue;
+
+      const event = JSON.parse(raw) as ClineAgentEvent;
+      options.onEvent(event);
+      if (event.type === 'fatal_error') {
+        throw new Error(event.payload?.error || 'Cline Agent failed.');
+      }
+      if (event.type === 'result') resultEvent = event;
+    }
   }
 
-  const requestId = crypto.randomUUID();
-
-  return new Promise<ClineHostEvent>((resolve, reject) => {
-    let settled = false;
-    const cleanup = () => {
-      window.removeEventListener('message', handleMessage);
-      options.signal?.removeEventListener('abort', handleAbort);
-      clearTimeout(timeout);
-    };
-    const settle = (callback: () => void) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      callback();
-    };
-    const handleAbort = () => {
-      window.parent.postMessage({ type: 'thefortz-cline-cancel', requestId }, origin);
-      settle(() => reject(new DOMException('Cline run cancelled.', 'AbortError')));
-    };
-    const handleMessage = (event: MessageEvent) => {
-      if (
-        event.origin !== origin ||
-        event.source !== window.parent ||
-        event.data?.type !== 'thefortz-cline-event' ||
-        event.data?.requestId !== requestId
-      ) {
-        return;
-      }
-
-      const clineEvent = event.data.event as ClineHostEvent;
-      options.onEvent(clineEvent);
-
-      if (clineEvent?.type === 'result') {
-        settle(() => resolve(clineEvent));
-      } else if (clineEvent?.type === 'fatal_error') {
-        settle(() => reject(new Error(clineEvent.payload?.error || 'Cline Agent failed.')));
-      }
-    };
-    const timeout = setTimeout(() => {
-      window.parent.postMessage({ type: 'thefortz-cline-cancel', requestId }, origin);
-      settle(() => reject(new Error('Cline Agent timed out after 10 minutes.')));
-    }, 10 * 60 * 1000);
-
-    if (options.signal?.aborted) {
-      handleAbort();
-      return;
-    }
-
-    window.addEventListener('message', handleMessage);
-    options.signal?.addEventListener('abort', handleAbort, { once: true });
-    window.parent.postMessage({ type: 'thefortz-cline-run', requestId, payload: request }, origin);
-  });
+  if (!resultEvent) throw new Error('Cline Agent stream ended without a result.');
+  return resultEvent;
 }

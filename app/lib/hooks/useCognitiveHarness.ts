@@ -15,7 +15,7 @@ import { generatedAssets } from '~/lib/stores/generated-assets';
 import { generateProjectAssets } from '~/lib/runtime/asset-generator';
 import { runActivityStep, startActivity, updateActivity } from '~/lib/stores/activity';
 import { finalizeAssistantMessage, parseAssistantMessage } from '~/lib/hooks/useMessageParser';
-import { getFortzHostOrigin, runClineInFortzHost } from '~/lib/runtime/cline-bridge';
+import { runClineAgent } from '~/lib/runtime/cline-bridge';
 
 interface HarnessOptions {
   model: string;
@@ -23,7 +23,6 @@ interface HarnessOptions {
   apiKeys: Record<string, string>;
   workspaceId: string;
   agentEngine: 'cline' | 'bolt';
-  clineHostAvailable: boolean;
   providerBaseUrl?: string;
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
   setMessages: (update: (messages: Message[]) => Message[]) => void;
@@ -234,10 +233,6 @@ export function useCognitiveHarness(options: HarnessOptions) {
         validationState.set({ status: 'idle', detail: '' });
 
         if (options.agentEngine === 'cline') {
-          if (!options.clineHostAvailable) {
-            throw new Error('Cline Agent is not connected. Open Bolt Studio from TheFortz and wait for the Cline badge to become available.');
-          }
-
           const approvedPaths = blueprint.fileOperations.map((operation) => operation.path);
             const runHistory: Array<{ role: 'user' | 'assistant'; content: string }> = (options.conversationHistory || [])
               .filter((message) => message.content.trim().length > 0)
@@ -311,12 +306,13 @@ export function useCognitiveHarness(options: HarnessOptions) {
             updateAgentMessage('Inspecting project and preparing the approved build…');
 
             try {
-              const runResult = await runClineInFortzHost(
+              const runResult = await runClineAgent(
                 {
                   prompt: initialPrompt,
                   files: currentSources,
-                  approvedPaths,
                   readOnly: false,
+                  approvedBlueprint: blueprint,
+                  executionToken: approval.executionToken,
                   history: clineHistory,
                   previewErrors,
                   provider: options.provider,
@@ -405,10 +401,9 @@ export function useCognitiveHarness(options: HarnessOptions) {
                 }
 
                 if (typeof window !== 'undefined' && window.parent !== window) {
-                  const hostOrigin = getFortzHostOrigin();
                   window.parent.postMessage(
                     { type: 'thefortz-build-finished', mode: 'build', builtFiles: true, title: 'Your game' },
-                    hostOrigin || '*',
+                    '*',
                   );
                 }
 
@@ -554,10 +549,6 @@ export function useCognitiveHarness(options: HarnessOptions) {
         let clineProposedPlan: ReturnType<typeof parseManagerOutput> | undefined;
 
         if (options.agentEngine === 'cline') {
-          if (!options.clineHostAvailable) {
-            throw new Error('Cline Agent is not connected. Open Bolt Studio inside TheFortz before planning a build.');
-          }
-
           const planFiles = sourceContext(snapshot, 300_000, 200_000, [
             'index.html',
             'game.js',
@@ -565,7 +556,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
             'src/game.js',
             'src/main.js',
           ]);
-          const planResult = await runClineInFortzHost(
+          const planResult = await runClineAgent(
             {
               prompt: [
                 `Create an implementation plan for this game request: ${request}`,

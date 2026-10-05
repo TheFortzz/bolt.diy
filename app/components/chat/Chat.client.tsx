@@ -44,7 +44,7 @@ import { useCognitiveHarness } from '~/lib/hooks/useCognitiveHarness';
 import { shouldUseBuildPlanner } from '~/lib/runtime/request-intent';
 import { executionPolicy } from '~/lib/harness/execution-policy';
 import { harnessIsBusy, harnessState, transitionHarness } from '~/lib/stores/harness';
-import { announceFortzReady, getFortzHostOrigin, runClineInFortzHost, type ClineHostEvent } from '~/lib/runtime/cline-bridge';
+import { runClineAgent } from '~/lib/runtime/cline-bridge';
 
 const toastAnimation = cssTransition({
   enter: 'animated fadeInRight',
@@ -147,12 +147,11 @@ export const ChatImpl = memo(
     const [agentEngine, setAgentEngine] = useState<'cline' | 'bolt'>(() => {
       if (typeof window === 'undefined') return 'cline';
       try {
-        return window.localStorage.getItem('thefortz_ai_engine') === 'bolt' ? 'bolt' : 'cline';
+        return window.localStorage.getItem('bolt_agent_engine_v2') === 'bolt' ? 'bolt' : 'cline';
       } catch {
         return 'cline';
       }
     });
-    const [clineHostAvailable, setClineHostAvailable] = useState(false);
     const [clineRunning, setClineRunning] = useState(false);
     const clineControllerRef = useRef<AbortController>();
     const lastAgentModeRef = useRef<StudioAgentMode>('auto');
@@ -164,29 +163,8 @@ export const ChatImpl = memo(
     const { activeProviders } = useSettings();
 
     useEffect(() => {
-      const hostOrigin = getFortzHostOrigin();
-      if (!hostOrigin) return;
-
-      const handleHostMessage = (event: MessageEvent) => {
-        if (
-          event.origin !== hostOrigin ||
-          event.source !== window.parent ||
-          event.data?.type !== 'thefortz-host-capabilities'
-        ) {
-          return;
-        }
-
-        setClineHostAvailable(Array.isArray(event.data.capabilities) && event.data.capabilities.includes('cline-agent-v1'));
-      };
-
-      window.addEventListener('message', handleHostMessage);
-      announceFortzReady();
-      return () => window.removeEventListener('message', handleHostMessage);
-    }, []);
-
-    useEffect(() => {
       try {
-        window.localStorage.setItem('thefortz_ai_engine', agentEngine);
+        window.localStorage.setItem('bolt_agent_engine_v2', agentEngine);
       } catch {
         // Engine selection remains usable if local storage is unavailable.
       }
@@ -734,7 +712,6 @@ export const ChatImpl = memo(
       apiKeys,
       workspaceId: harnessWorkspaceIdRef.current,
       agentEngine,
-      clineHostAvailable,
       providerBaseUrl: (() => {
         try {
           const settings = JSON.parse(Cookies.get('providers') || '{}');
@@ -899,20 +876,6 @@ export const ChatImpl = memo(
       void runAnimation();
 
       if (shouldPlan) {
-        if (agentEngine === 'cline' && !clineHostAvailable) {
-          setMessages((previous) => [
-            ...previous,
-            { id: crypto.randomUUID(), role: 'user', content: _input },
-            {
-              id: crypto.randomUUID(),
-              role: 'assistant',
-              content: 'Cline is not connected. Open this Bolt Studio inside TheFortz and wait for the Cline badge to become available, or switch to BOLT.',
-            },
-          ]);
-          setInput('');
-          return;
-        }
-
         const fileModifications = workbenchStore.getFileModifcations();
         void requestPlan(_input, imageDataList);
 
@@ -945,13 +908,6 @@ export const ChatImpl = memo(
           };
           setMessages((previous) => [...previous, conversationalMessage, assistantMessage]);
 
-          if (!clineHostAvailable) {
-            setMessages((previous) => previous.map((entry) =>
-              entry.id === assistantId
-                ? { ...entry, content: 'Cline is not connected. Open this Bolt Studio inside TheFortz, then try again or switch to BOLT.' }
-                : entry,
-            ));
-          } else {
             const controller = new AbortController();
             clineControllerRef.current = controller;
             setClineRunning(true);
@@ -965,7 +921,7 @@ export const ChatImpl = memo(
               ));
             };
 
-            void runClineInFortzHost(
+            void runClineAgent(
               {
                 prompt: _input,
                 files: snapshotTextWorkspace(),
@@ -1034,7 +990,6 @@ export const ChatImpl = memo(
               if (clineControllerRef.current === controller) clineControllerRef.current = undefined;
               setClineRunning(false);
             });
-          }
         } else {
           void append(conversationalMessage, { body: { chatOnly: true } });
         }
@@ -1173,7 +1128,6 @@ export const ChatImpl = memo(
         setAgentMode={setAgentMode}
         agentEngine={agentEngine}
         setAgentEngine={setAgentEngine}
-        clineHostAvailable={clineHostAvailable}
         onApprovePlan={approvePlan}
         onCancelPlan={cancelPlan}
       />

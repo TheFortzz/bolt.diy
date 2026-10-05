@@ -1,6 +1,7 @@
 import { cloudflareDevProxyVitePlugin as remixCloudflareDevProxy, vitePlugin as remixVitePlugin } from '@remix-run/dev';
 import UnoCSS from 'unocss/vite';
 import { defineConfig, type ViteDevServer } from 'vite';
+import { fileURLToPath } from 'node:url';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import { optimizeCssModules } from 'vite-plugin-optimize-css-modules';
 import tsconfigPaths from 'vite-tsconfig-paths';
@@ -9,6 +10,18 @@ export default defineConfig((config) => {
   return {
     build: {
       target: 'esnext',
+    },
+    resolve: {
+      alias: {
+        // @cline/agents' Cloudflare bundle imports gateway functions even when
+        // an AgentModel is supplied. Its published browser export omits these;
+        // the local shim makes provider-ID construction impossible so Bolt's
+        // prebuilt provider adapter is always used.
+        '@cline/llms': fileURLToPath(new URL('./app/lib/.server/cline-llms-worker-shim.ts', import.meta.url)),
+      },
+    },
+    ssr: {
+      noExternal: ['@cline/agents'],
     },
     plugins: [
       nodePolyfills({
