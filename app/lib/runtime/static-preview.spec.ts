@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { balanceAndCloseJs, injectStaticScripts, resolveStaticPreviewFile } from '~/lib/runtime/static-preview';
+import { balanceAndCloseJs, buildFallbackHtml, injectStaticScripts, resolveStaticPreviewFile } from '~/lib/runtime/static-preview';
 
 describe('static preview file resolution', () => {
   const files = [
@@ -25,6 +25,24 @@ describe('static preview file resolution', () => {
 });
 
 describe('static preview script assembly', () => {
+  it('does not fake missing DOM nodes, input handlers, or gameplay diagnostics', () => {
+    const html = buildFallbackHtml({
+      'index.html': {
+        type: 'file',
+        content: '<!doctype html><html><head></head><body><canvas id="game"></canvas><script src="game.js"></script></body></html>',
+      },
+      'game.js': { type: 'file', content: 'requestAnimationFrame(() => {});' },
+    });
+
+    expect(html).toBeDefined();
+    expect(html).not.toContain('g.InputHandler = class');
+    expect(html).not.toContain('document.getElementById = function');
+    expect(html).not.toContain('data-bolt-autostub');
+    expect(html).not.toContain('diagStep');
+    expect(html).not.toContain('var InputHandler = window.InputHandler');
+    expect(html).not.toContain('var clamp = window.clamp');
+  });
+
   it('injects missing dependencies before declared game scripts', () => {
     const html = '<!DOCTYPE html><body><script data-inlined="game.js">startGame();</script></body>';
     const result = injectStaticScripts(html, ['<script data-inlined="physics.js">physics();</script>'], []);

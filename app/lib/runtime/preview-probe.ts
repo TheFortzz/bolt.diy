@@ -23,15 +23,6 @@ export function installPreviewProbe(
   const startedAt = performance.now();
 
   const win = window as any;
-  const initialDiag = {
-    ready: true,
-    simulationSteps: 0,
-    inputsHandled: 0,
-    restartCount: 0,
-    resizeCount: 0,
-    gameState: 'playing',
-  };
-  win.__GAME_DIAGNOSTICS__ ??= initialDiag;
   try {
     Object.defineProperty(win, 'GAME_DIAGNOSTICS', {
       get: () => win.__GAME_DIAGNOSTICS__,
@@ -90,12 +81,7 @@ export function installPreviewProbe(
     let simulationDelta = diagnostics.simulationSteps - baselineSimulationSteps;
 
     if (!Number.isFinite(simulationDelta) || simulationDelta < verification.minimumSimulationSteps) {
-      if (applicationFrames >= verification.minimumSimulationSteps) {
-        simulationDelta = applicationFrames;
-        diagnostics.simulationSteps = baselineSimulationSteps + applicationFrames;
-      } else {
-        return `Game simulation advanced only ${Number.isFinite(simulationDelta) ? simulationDelta : 0} of ${verification.minimumSimulationSteps} required steps during verification.`;
-      }
+      return `Game simulation advanced only ${Number.isFinite(simulationDelta) ? simulationDelta : 0} of ${verification.minimumSimulationSteps} required steps during verification.`;
     }
 
     const baselineInputs = Number.isFinite(baseline.inputsHandled) ? baseline.inputsHandled : 0;
@@ -266,22 +252,46 @@ export function installPreviewProbe(
     diagnosticsBaseline = readDiagnostics();
 
     // Exercise start controls: button clicks, canvas pointer events, and keyboard keys
-    const dispatchStartTriggers = () => {
-      const start = Array.from(document.querySelectorAll<HTMLElement>('button, [role="button"], a')).find((element) =>
-        /^(start|play|new game|begin)(\b|\s)/i.test(element.textContent?.trim() || ''),
+    const buttonWithLabel = (pattern: RegExp) =>
+      Array.from(document.querySelectorAll<HTMLElement>('button, [role="button"], a')).find((element) =>
+        pattern.test(
+          [element.textContent, element.getAttribute?.('aria-label'), element.getAttribute?.('title')]
+            .filter(Boolean)
+            .join(' '),
+        ),
       );
-      start?.click();
+    const startButton = buttonWithLabel(/^(start|begin|new game|start race|play(?!\s+again\b))(\b|\s)/i);
+    const stateBeforeStart = diagnosticsBaseline?.gameState || '';
+    const isStartState = (state: string) => /^(menu|ready|title|start)$/i.test(state);
 
-      const canvasElements = Array.from(document.querySelectorAll<HTMLCanvasElement>('canvas'));
-      for (const canvas of canvasElements) {
+    if (startButton) {
+      const inputsBeforeButton = diagnosticsBaseline?.inputsHandled ?? 0;
+      startButton.click();
+      const diagnosticsAfterButton = readDiagnostics();
+      const stateAfterButton = diagnosticsAfterButton?.gameState || '';
+      const startWasIgnored = isStartState(stateBeforeStart)
+        ? isStartState(stateAfterButton)
+        : diagnosticsAfterButton?.inputsHandled === inputsBeforeButton && stateAfterButton === stateBeforeStart;
+      if (startWasIgnored) {
+        fail('Start button did not trigger a game action or leave the menu/ready state.');
+        return;
+      }
+    } else if (!startButton && isStartState(stateBeforeStart)) {
+      for (const canvas of Array.from(document.querySelectorAll<HTMLCanvasElement>('canvas'))) {
         try {
           canvas.focus?.();
           canvas.dispatchEvent?.(new MouseEvent('click', { bubbles: true, cancelable: true }));
           canvas.dispatchEvent?.(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
         } catch {}
       }
-    };
-    dispatchStartTriggers();
+      const enter = new Event('keydown', { bubbles: true, cancelable: true }) as KeyboardEvent;
+      Object.defineProperty(enter, 'key', { value: 'Enter' });
+      window.dispatchEvent(enter);
+      if (isStartState(readDiagnostics()?.gameState || '')) {
+        fail('No working Start button or start-key handler left the game at its menu.');
+        return;
+      }
+    }
 
     if (verification?.requireDiagnostics) {
       const dispatchKey = (key: string, code?: string, keyCode?: number) => {
@@ -306,11 +316,47 @@ export function installPreviewProbe(
       dispatchKey('Enter', 'Enter', 13);
 
       if (verification.scenarios.includes('controls')) {
+        const beforeInput = readDiagnostics()?.inputsHandled ?? 0;
         dispatchKey('ArrowRight', 'ArrowRight', 39);
+        if ((readDiagnostics()?.inputsHandled ?? beforeInput) <= beforeInput) {
+          fail('ArrowRight did not reach a game control handler.');
+          return;
+        }
+      }
+
+      const pauseButton = buttonWithLabel(/^pause(\b|\s)/i);
+      if (pauseButton) {
+        pauseButton.click();
+        if (!/^paused$/i.test(readDiagnostics()?.gameState || '')) {
+          fail('Pause button did not pause the game.');
+          return;
+        }
+
+        const resumeButton = buttonWithLabel(/^(resume|continue|unpause)(\b|\s)/i) || pauseButton;
+        resumeButton.click();
+        if (/^paused$/i.test(readDiagnostics()?.gameState || '')) {
+          fail('Resume button did not resume the game.');
+          return;
+        }
       }
 
       if (verification.scenarios.includes('restart')) {
+        const restartButton = buttonWithLabel(/^(restart|play again|retry|new run)(\b|\s)/i);
+        if (restartButton) {
+          const beforeButtonRestart = readDiagnostics()?.restartCount ?? 0;
+          restartButton.click();
+          if ((readDiagnostics()?.restartCount ?? beforeButtonRestart) <= beforeButtonRestart) {
+            fail('Restart button did not trigger a game restart.');
+            return;
+          }
+        }
+
+        const beforeKeyRestart = readDiagnostics()?.restartCount ?? 0;
         dispatchKey('r', 'KeyR', 82);
+        if ((readDiagnostics()?.restartCount ?? beforeKeyRestart) <= beforeKeyRestart) {
+          fail('Pressing R did not trigger a game restart.');
+          return;
+        }
       }
 
       if (verification.scenarios.includes('resize')) {

@@ -568,7 +568,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   <textarea
                     ref={textareaRef}
                     className={classNames(
-                      'w-full pl-4 pt-3.5 pb-2 pr-16 focus:outline-none resize-none text-amber-50 placeholder-amber-100/55 bg-transparent text-sm sm:text-[14px]',
+                      'w-full pl-4 pt-3.5 pb-2 pr-16 focus:outline-none resize-none text-[#2f220a] placeholder-[#604913]/70 bg-transparent text-sm sm:text-[14px]',
                       'transition-all duration-200',
                     )}
                     onDragEnter={(e) => {
@@ -660,7 +660,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     <div className="flex gap-1 items-center flex-wrap min-w-0">
                       <IconButton
                         title="Upload file"
-                        className="transition-all text-amber-100/70 hover:text-amber-50 hover:bg-amber-200/10"
+                        className="transition-all text-[#634910] hover:text-[#2f220a] hover:bg-black/10"
                         onClick={() => handleFileUpload()}
                       >
                         <div className="i-ph:paperclip text-xl"></div>
@@ -669,22 +669,22 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         title="Enhance prompt"
                         disabled={input.length === 0 || enhancingPrompt}
                         className={classNames(
-                          'transition-all text-amber-100/70 hover:text-amber-50 hover:bg-amber-200/10',
+                          'transition-all text-[#634910] hover:text-[#2f220a] hover:bg-black/10',
                           enhancingPrompt ? 'opacity-100' : '',
-                          promptEnhanced ? 'text-amber-100 pr-1.5' : '',
-                          promptEnhanced ? 'enabled:hover:bg-amber-200/10' : '',
+                          promptEnhanced ? 'text-[#392908] pr-1.5' : '',
+                          promptEnhanced ? 'enabled:hover:bg-black/10' : '',
                         )}
                         onClick={() => enhancePrompt?.()}
                       >
                         {enhancingPrompt ? (
                           <>
-                            <div className="i-svg-spinners:90-ring-with-bg text-amber-300 text-xl animate-spin"></div>
-                            <div className="ml-1.5 text-amber-100">Enhancing prompt...</div>
+                            <div className="i-svg-spinners:90-ring-with-bg text-[#76530e] text-xl animate-spin"></div>
+                            <div className="ml-1.5 text-[#392908]">Enhancing prompt...</div>
                           </>
                         ) : (
                           <>
-                            <div className="i-bolt:stars text-xl text-amber-300"></div>
-                            {promptEnhanced && <div className="ml-1.5 text-amber-100">Prompt enhanced</div>}
+                            <div className="i-bolt:stars text-xl text-[#76530e]"></div>
+                            {promptEnhanced && <div className="ml-1.5 text-[#392908]">Prompt enhanced</div>}
                           </>
                         )}
                       </IconButton>
@@ -700,10 +700,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       {/* Configure AI icon button */}
                       <IconButton
                         title="Configure AI & Providers"
-                        className="transition-all text-amber-100/70 hover:text-amber-50 hover:bg-amber-200/10"
+                        className="transition-all text-[#634910] hover:text-[#2f220a] hover:bg-black/10"
                         onClick={() => setIsSettingsOpen(true)}
                       >
-                        <div className="i-ph:gear-six text-xl text-amber-200/80 group-hover:text-amber-50" />
+                        <div className="i-ph:gear-six text-xl text-[#634910] group-hover:text-[#2f220a]" />
                       </IconButton>
 
                       <div className={styles.ModelBadge} title={`Configured model: ${model || 'gpt-6-luna'}`}>
@@ -715,10 +715,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-amber-100/70 select-none">
+                    <div className="flex items-center gap-2 text-xs text-[#57400f] select-none">
                       <span
                         style={{ borderRadius: 0 }}
-                        className="px-2 py-0.5 font-mono font-bold bg-amber-500/10 border border-amber-500/30 text-amber-300 flex items-center gap-1.5"
+                        className="px-2 py-0.5 font-mono font-bold bg-amber-500/10 border border-amber-700/25 text-[#674709] flex items-center gap-1.5"
                         title="10 FortzCoins per prompt"
                       >
                         <img src="/fortz-coin.png" alt="FortzCoin" className="w-4 h-4 object-contain" />
@@ -726,13 +726,13 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       </span>
                       {input.length > 3 && (
                         <>
-                          <span className="text-amber-200/40">•</span>
-                          <span className="text-[11px] text-amber-100/70">
-                            <kbd className="kdb px-1.5 py-0.5 rounded-none bg-black/20 border border-amber-200/20 text-amber-100 font-mono">
+                          <span className="text-amber-900/40">•</span>
+                          <span className="text-[11px] text-[#57400f]">
+                            <kbd className="kdb px-1.5 py-0.5 rounded-none bg-black/5 border border-amber-900/20 text-[#49350d] font-mono">
                               Shift
                             </kbd>{' '}
                             +{' '}
-                            <kbd className="kdb px-1.5 py-0.5 rounded-none bg-black/20 border border-amber-200/20 text-amber-100 font-mono">
+                            <kbd className="kdb px-1.5 py-0.5 rounded-none bg-black/5 border border-amber-900/20 text-[#49350d] font-mono">
                               Return
                             </kbd>{' '}
                             for new line

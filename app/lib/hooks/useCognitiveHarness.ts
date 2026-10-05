@@ -291,7 +291,8 @@ export function useCognitiveHarness(options: HarnessOptions) {
               `Approved blueprint (authoritative file allowlist): ${JSON.stringify(blueprint)}`,
               `You may write only these approved paths: ${approvedPaths.join(', ')}.`,
               'Inspect the current project before editing. Preserve unrelated working behavior and implement the approved game systems completely. For an approved engine migration, replace renderer-specific code and markup consistently while retaining the requested gameplay, controls, and HUD; do not preserve obsolete renderer function names.',
-              'Write readable source with 2-space indentation, one statement per line, and lines near 100 characters; never minify. Use smooth delta-time animation and easing/interpolation for motion and camera follow. Null-check canvas and HUD lookups.',
+              'Wire every visible start, pause/resume, and restart button to a real state-changing handler; use diagnostic gameState "paused" while paused, keep HTML IDs/selectors in sync, and wire keyboard/touch input to gameplay. Write readable source with 2-space indentation, one statement per line, and lines near 100 characters; never minify. Use smooth delta-time animation and easing/interpolation for motion and camera follow. Null-check canvas and HUD lookups.',
+              'Expose window.__GAME_DIAGNOSTICS__ with ready, simulationSteps, inputsHandled, restartCount, resizeCount, and truthful gameState. Update these only in the real game loop and actual button/input/restart/resize handlers; preview validation does not fake these counters.',
               'Run the available build and gameplay checks. If a check fails, diagnose from its actual output, repair approved files, and test again before finish_task.',
               lastError ? `A previous preview/build attempt failed with this actual diagnostic:\n${lastError}` : '',
             ].filter(Boolean).join('\n\n');
@@ -369,6 +370,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                             `cline-${attempt + 1}-${currentWrite}`,
                             path,
                             content,
+                            controller.signal,
                           );
                           appliedWorkspacePaths.add(path);
                           assistantContent += `\n✓ Wrote ${path} (${writeResult.characters.toLocaleString()} formatted characters).`;

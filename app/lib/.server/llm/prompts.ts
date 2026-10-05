@@ -230,11 +230,13 @@ const GAME_DESIGN_REASONING_PROTOCOL = `
      - Plan procedural Web Audio (AudioContext) sound effects tailored to the game's actions.
 
   5. TECHNICAL SAFEGUARDS & RUNTIME STABILITY:
-     - Immediate Playability: The game MUST start rendering as soon as it loads, or on a single "Click to Start" overlay whose click handler immediately starts the real game loop.
+      - Immediate Playability: The game MUST start rendering as soon as it loads, or on a single "Click to Start" overlay whose click handler immediately starts the real game loop.
+      - Real UI Actions: Every visible start, pause/resume, restart, and gameplay button must have a real event handler with an observable state change. Report the 'paused' diagnostic state during pause, keep button IDs/selectors synchronized with the generated HTML, and never render a decorative or inert button.
      - Window-Level Keyboard Listeners: ALWAYS attach keyboard listeners to window (window.addEventListener('keydown', ...), window.addEventListener('keyup', ...)), NEVER to canvas or a child element! Attaching to canvas breaks controls when clicking "Click to Start" buttons because focus is lost. Always call e.preventDefault() on game keys (WASD, Arrow keys, Space) to prevent browser scrolling.
      - Clamped Delta-Time: In the animation loop, clamp delta-time: 'const dt = Math.min(deltaTime, 0.05);' so physics never explode or clip through walls on frame drops.
      - Smooth Movement & Collision: Use acceleration, friction damping, and wall-sliding collision so movement feels responsive and never snags or sticks on walls.
-     - Working Restart: Provide an instant restart on pressing 'R' or clicking "Play Again" that smoothly resets game state without breaking the loop or listeners.
+      - Working Restart: Provide an instant restart on pressing 'R' or clicking "Play Again" that smoothly resets game state without breaking the loop or listeners.
+      - Honest Diagnostics: Update game diagnostics only inside the actual animation, input, restart, and resize handlers. Never count synthetic preview events with global catch-all listeners or report success for an action the game did not perform.
      - On-Screen Controls Guide: Always display a small, elegant HUD banner with controls (e.g. "WASD / Arrows to Move • Space to Action • R to Restart").
      - Script Loading Order: In index.html, load modular scripts in logical dependency order, with foundational helpers/engines first and the main game entry point last.
      - Global Window Attachment: Attach shared classes and controllers to window (e.g. 'window.Player = class Player { ... }') so all modules communicate reliably in the browser.

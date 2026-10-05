@@ -254,17 +254,6 @@ export const mathUtilsScript = `<script id="bolt-game-math-utils">
   if (typeof g.SoundController === 'undefined') {
     g.SoundController = g.AudioController;
   }
-  if (typeof g.InputHandler === 'undefined') {
-    g.InputHandler = class InputHandler {
-      constructor() { this.keys = {}; }
-      isDown() { return false; }
-      isPressed() { return false; }
-    };
-  }
-  if (typeof g.Input === 'undefined') {
-    g.Input = new g.InputHandler();
-  }
-
   // Polyfill roundRect on CanvasRenderingContext2D to prevent crashes in drawing code
   if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
     CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h) {
@@ -353,110 +342,7 @@ export const mathUtilsScript = `<script id="bolt-game-math-utils">
     }
   } catch(e) {}
 
-  // Resilient runtime diagnostics auto-shim: ensures verification succeeds even if the AI model missed fields
-  if (typeof g.__GAME_DIAGNOSTICS__ === 'undefined' || !g.__GAME_DIAGNOSTICS__) {
-    g.__GAME_DIAGNOSTICS__ = {
-      ready: true,
-      simulationSteps: 0,
-      inputsHandled: 0,
-      restartCount: 0,
-      resizeCount: 0,
-      gameState: 'playing',
-    };
-  }
-
-  // Continuous background heartbeat ensures simulationSteps always increments across frames
-  var diagStep = function() {
-    if (g.__GAME_DIAGNOSTICS__) {
-      g.__GAME_DIAGNOSTICS__.simulationSteps = (Number(g.__GAME_DIAGNOSTICS__.simulationSteps) || 0) + 1;
-    }
-    requestAnimationFrame(diagStep);
-  };
-  requestAnimationFrame(diagStep);
-
-  window.addEventListener('keydown', function(e) {
-    if (g.__GAME_DIAGNOSTICS__) {
-      g.__GAME_DIAGNOSTICS__.inputsHandled = (Number(g.__GAME_DIAGNOSTICS__.inputsHandled) || 0) + 1;
-      if (e.key === 'r' || e.key === 'R') g.__GAME_DIAGNOSTICS__.restartCount = (Number(g.__GAME_DIAGNOSTICS__.restartCount) || 0) + 1;
-      if (g.__GAME_DIAGNOSTICS__.gameState === 'menu') g.__GAME_DIAGNOSTICS__.gameState = 'playing';
-    }
-  }, true);
-  window.addEventListener('pointerdown', function() {
-    if (g.__GAME_DIAGNOSTICS__) {
-      g.__GAME_DIAGNOSTICS__.inputsHandled = (Number(g.__GAME_DIAGNOSTICS__.inputsHandled) || 0) + 1;
-      if (g.__GAME_DIAGNOSTICS__.gameState === 'menu') g.__GAME_DIAGNOSTICS__.gameState = 'playing';
-    }
-  }, true);
-  window.addEventListener('resize', function() {
-    if (g.__GAME_DIAGNOSTICS__) g.__GAME_DIAGNOSTICS__.resizeCount = (Number(g.__GAME_DIAGNOSTICS__.resizeCount) || 0) + 1;
-  }, true);
-
-  // Ensure window.GAME_DIAGNOSTICS always aliases window.__GAME_DIAGNOSTICS__
-  try {
-    Object.defineProperty(g, 'GAME_DIAGNOSTICS', {
-      get: function() { return g.__GAME_DIAGNOSTICS__; },
-      set: function(val) { g.__GAME_DIAGNOSTICS__ = val; },
-      configurable: true,
-      enumerable: true,
-    });
-  } catch(e) {
-    g.GAME_DIAGNOSTICS = g.__GAME_DIAGNOSTICS__;
-  }
-
-  // Defensive DOM element stub to prevent TypeError: Cannot read properties of null (reading 'classList'/'textContent'/'addEventListener')
-  if (typeof document !== 'undefined' && document.getElementById) {
-    var realGetElementById = document.getElementById.bind(document);
-    var stubMap = {};
-    document.getElementById = function(id) {
-      var found = realGetElementById(id);
-      if (found) return found;
-      if (!id || typeof id !== 'string') return null;
-      if (stubMap[id]) return stubMap[id];
-      var isCanvas = id.toLowerCase().includes('canvas');
-      var stub = document.createElement(isCanvas ? 'canvas' : 'div');
-      if (isCanvas) {
-        stub.width = window.innerWidth || 800;
-        stub.height = window.innerHeight || 600;
-      }
-      stub.id = id;
-      stub.style.display = isCanvas ? 'block' : 'none';
-      stub.setAttribute('data-bolt-autostub', 'true');
-      if (!stub.getContext) {
-        stub.getContext = function(type) {
-          var fakeCanvas = document.createElement('canvas');
-          fakeCanvas.width = window.innerWidth || 800;
-          fakeCanvas.height = window.innerHeight || 600;
-          return fakeCanvas.getContext(type);
-        };
-      }
-      try {
-        if (document.body) {
-          document.body.appendChild(stub);
-        } else {
-          document.addEventListener('DOMContentLoaded', function() {
-            try { if (document.body && !stub.parentNode) document.body.appendChild(stub); } catch(err) {}
-          });
-        }
-      } catch(err) {}
-      stubMap[id] = stub;
-      return stub;
-    };
-
-    if (document.querySelector) {
-      var realQuerySelector = document.querySelector.bind(document);
-      document.querySelector = function(selector) {
-        var found = realQuerySelector(selector);
-        if (found) return found;
-        if (typeof selector === 'string' && selector.startsWith('#') && !selector.includes(' ') && !selector.includes('.') && !selector.includes(':') && !selector.includes('[')) {
-          return document.getElementById(selector.slice(1));
-        }
-        if (typeof selector === 'string' && selector.toLowerCase() === 'canvas') {
-          return document.getElementById('game-canvas');
-        }
-        return null;
-      };
-    }
-  }
+  // Do not fabricate diagnostics or missing DOM nodes; validation must exercise the actual game.
 })();
 </script>`;
 
@@ -482,20 +368,6 @@ const focusHelper = `<script id="bolt-game-focus-helper">
   window.addEventListener('mouseenter', focusGame);
   window.addEventListener('pointerdown', focusGame, { passive: true });
 })();
-var ParticleSystem = window.ParticleSystem;
-var ParticleEmitter = window.ParticleEmitter;
-var AudioController = window.AudioController;
-var SoundController = window.SoundController;
-var InputHandler = window.InputHandler;
-var Input = window.Input;
-var clamp = window.clamp;
-var lerp = window.lerp;
-var dist = window.dist;
-var distance = window.distance;
-var degToRad = window.degToRad;
-var radToDeg = window.radToDeg;
-var randomRange = window.randomRange;
-var rand = window.rand;
 </script>`;
 
 const errorOverlayScript = `<script id="bolt-game-error-overlay">

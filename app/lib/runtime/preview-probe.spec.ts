@@ -148,6 +148,21 @@ describe('iframe game runtime probe', () => {
     expect(win.parent.postMessage.mock.calls.some(([message]) => message.type === 'preview-loaded')).toBe(false);
   });
 
+  it('does not invent diagnostics for a game that never exposes them', () => {
+    installPreviewProbe('missing-diagnostics', 'https://ide.example', {
+      requireDiagnostics: true,
+      minimumSimulationSteps: 10,
+      scenarios: ['startup'],
+    });
+    win.requestAnimationFrame(() => context.fillRect());
+    advance(1800);
+
+    expect(win.parent.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'preview-error', error: 'Game did not expose window.__GAME_DIAGNOSTICS__.' }),
+      'https://ide.example',
+    );
+  });
+
   it('fails on broken images rather than ignoring them after readiness', () => {
     documentImages.push({ complete: true, naturalWidth: 0, getAttribute: () => 'assets/missing.png' });
     installPreviewProbe('token', 'https://ide.example');
@@ -188,6 +203,40 @@ describe('iframe game runtime probe', () => {
       gameState: 'menu',
     };
     win.__GAME_DIAGNOSTICS__ = diagnostics;
+    const buttons = [
+      {
+        textContent: 'Start Game',
+        click() {
+          diagnostics.inputsHandled++;
+          diagnostics.gameState = 'playing';
+        },
+      },
+      {
+        textContent: 'Restart',
+        click() {
+          diagnostics.restartCount++;
+          diagnostics.gameState = 'playing';
+        },
+      },
+      {
+        textContent: 'Pause',
+        click() {
+          diagnostics.gameState = 'paused';
+        },
+      },
+      {
+        textContent: 'Resume',
+        click() {
+          diagnostics.gameState = 'playing';
+        },
+      },
+    ];
+    vi.stubGlobal('document', {
+      readyState: 'interactive',
+      images: documentImages,
+      querySelector: () => ({ width: 800, height: 600 }),
+      querySelectorAll: (selector: string) => selector.includes('button') ? buttons : [],
+    });
     win.dispatchEvent.mockImplementation((event: Event) => {
       if (event.type === 'keydown') {
         diagnostics.inputsHandled++;
@@ -223,7 +272,102 @@ describe('iframe game runtime probe', () => {
       expect.objectContaining({ type: 'preview-loaded', token: 'managed' }),
       'https://ide.example',
     );
-    expect(diagnostics).toMatchObject({ inputsHandled: 3, restartCount: 1, resizeCount: 1, gameState: 'playing' });
+    expect(diagnostics).toMatchObject({ inputsHandled: 4, restartCount: 2, resizeCount: 1, gameState: 'playing' });
+  });
+
+  it('fails when a visible start button has no working action', () => {
+    win.__GAME_DIAGNOSTICS__ = {
+      ready: true,
+      simulationSteps: 0,
+      inputsHandled: 0,
+      restartCount: 0,
+      resizeCount: 0,
+      gameState: 'menu',
+    };
+    const buttons = [{ textContent: 'Start Game', click: vi.fn() }];
+    vi.stubGlobal('document', {
+      readyState: 'interactive',
+      images: documentImages,
+      querySelector: () => ({ width: 800, height: 600 }),
+      querySelectorAll: (selector: string) => selector.includes('button') ? buttons : [],
+    });
+
+    installPreviewProbe('dead-start-button', 'https://ide.example', {
+      requireDiagnostics: true,
+      minimumSimulationSteps: 10,
+      scenarios: ['startup'],
+    });
+
+    expect(win.parent.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'preview-error', error: 'Start button did not trigger a game action or leave the menu/ready state.' }),
+      'https://ide.example',
+    );
+  });
+
+  it('fails when a visible pause button does not pause the game', () => {
+    win.__GAME_DIAGNOSTICS__ = {
+      ready: true,
+      simulationSteps: 0,
+      inputsHandled: 0,
+      restartCount: 0,
+      resizeCount: 0,
+      gameState: 'playing',
+    };
+    const buttons = [{ textContent: 'Pause', click: vi.fn() }];
+    win.dispatchEvent.mockImplementation((event: Event) => {
+      if (event.type === 'keydown') win.__GAME_DIAGNOSTICS__!.inputsHandled++;
+      return true;
+    });
+    vi.stubGlobal('document', {
+      readyState: 'interactive',
+      images: documentImages,
+      querySelector: () => ({ width: 800, height: 600 }),
+      querySelectorAll: (selector: string) => selector.includes('button') ? buttons : [],
+    });
+
+    installPreviewProbe('dead-pause-button', 'https://ide.example', {
+      requireDiagnostics: true,
+      minimumSimulationSteps: 10,
+      scenarios: ['controls'],
+    });
+
+    expect(win.parent.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'preview-error', error: 'Pause button did not pause the game.' }),
+      'https://ide.example',
+    );
+  });
+
+  it('fails when a visible restart button has no restart handler', () => {
+    win.__GAME_DIAGNOSTICS__ = {
+      ready: true,
+      simulationSteps: 0,
+      inputsHandled: 0,
+      restartCount: 0,
+      resizeCount: 0,
+      gameState: 'playing',
+    };
+    win.dispatchEvent.mockImplementation((event: Event) => {
+      if (event.type === 'keydown') win.__GAME_DIAGNOSTICS__!.inputsHandled++;
+      return true;
+    });
+    const buttons = [{ textContent: 'Play Again', click: vi.fn() }];
+    vi.stubGlobal('document', {
+      readyState: 'interactive',
+      images: documentImages,
+      querySelector: () => ({ width: 800, height: 600 }),
+      querySelectorAll: (selector: string) => selector.includes('button') ? buttons : [],
+    });
+
+    installPreviewProbe('dead-restart-button', 'https://ide.example', {
+      requireDiagnostics: true,
+      minimumSimulationSteps: 10,
+      scenarios: ['restart'],
+    });
+
+    expect(win.parent.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'preview-error', error: 'Restart button did not trigger a game restart.' }),
+      'https://ide.example',
+    );
   });
 
   it('does not verify managed builds that ignore the exercised game controls', () => {
@@ -233,7 +377,7 @@ describe('iframe game runtime probe', () => {
       inputsHandled: 10,
       restartCount: 1,
       resizeCount: 1,
-      gameState: 'menu',
+      gameState: 'playing',
     };
     installPreviewProbe('managed', 'https://ide.example', {
       requireDiagnostics: true,
@@ -253,7 +397,7 @@ describe('iframe game runtime probe', () => {
     expect(win.parent.postMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'preview-error',
-        error: 'Game did not report handling the verification control input.',
+        error: 'ArrowRight did not reach a game control handler.',
       }),
       'https://ide.example',
     );

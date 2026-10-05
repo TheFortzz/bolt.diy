@@ -553,6 +553,7 @@ http.createServer((req, res) => {
     actionId: string,
     filePath: string,
     content: string,
+    signal?: AbortSignal,
   ): Promise<{ characters: number }> {
     const operation = executionPolicy.plan?.fileOperations.find((file) => file.path === filePath);
 
@@ -579,7 +580,12 @@ http.createServer((req, res) => {
       actionId,
       action: { type: 'file', filePath, content: formattedContent },
     };
-    this.addAction(data);
+    const editorPath = resolveWorkDirPath(filePath);
+    const revealData: ActionCallbackData = {
+      ...data,
+      action: { ...data.action, content: '' },
+    };
+    this.addAction(revealData);
 
     const artifact = this.#getArtifact(messageId);
     const registeredAction = artifact?.runner.actions.get()[actionId];
@@ -587,6 +593,53 @@ http.createServer((req, res) => {
     if (!artifact || registeredAction?.status === 'failed') {
       throw new Error(registeredAction?.status === 'failed' ? registeredAction.error : 'Could not open the game workspace.');
     }
+
+    const lineEnds: number[] = [];
+    for (let index = 0; index < formattedContent.length; index++) {
+      if (formattedContent[index] === '\n') lineEnds.push(index + 1);
+    }
+    if (lineEnds.at(-1) !== formattedContent.length) lineEnds.push(formattedContent.length);
+    const lineCount = Math.max(1, lineEnds.length);
+    const revealDuration = Math.min(2400, Math.max(500, lineCount * 14));
+    const startTime = performance.now();
+    let lastRevealedLine = 0;
+
+    await new Promise<void>((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(new DOMException('File reveal cancelled.', 'AbortError'));
+        return;
+      }
+
+      const onAbort = () => reject(new DOMException('File reveal cancelled.', 'AbortError'));
+      signal?.addEventListener('abort', onAbort, { once: true });
+      const revealFrame = (time: number) => {
+        if (signal?.aborted) {
+          signal.removeEventListener('abort', onAbort);
+          reject(new DOMException('File reveal cancelled.', 'AbortError'));
+          return;
+        }
+
+        const progress = Math.min(1, (time - startTime) / revealDuration);
+        const revealedLine = Math.min(
+          lineCount,
+          progress >= 1 ? lineCount : Math.max(1, Math.floor(progress * lineCount)),
+        );
+
+        if (revealedLine > lastRevealedLine) {
+          lastRevealedLine = revealedLine;
+          const visibleCharacters = lineEnds[revealedLine - 1] ?? formattedContent.length;
+          this.#editorStore.updateFile(editorPath, formattedContent.slice(0, visibleCharacters), true);
+        }
+
+        if (progress >= 1) {
+          signal?.removeEventListener('abort', onAbort);
+          resolve();
+        }
+        else requestAnimationFrame(revealFrame);
+      };
+
+      requestAnimationFrame(revealFrame);
+    });
 
     this.runAction(data);
     await this.waitForExecutionQueue();
