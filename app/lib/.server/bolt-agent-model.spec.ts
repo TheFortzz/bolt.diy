@@ -80,4 +80,61 @@ describe('Bolt Cline model adapter', () => {
     expect(writtenFiles['game.js']).toBe('requestAnimationFrame(() => {});');
     expect(result.outputText).toContain('Game files updated.');
   });
+
+  it('waits and retries an empty model turn before returning a real tool call', async () => {
+    let calls = 0;
+    const model = {
+      specificationVersion: 'v1',
+      provider: 'test',
+      modelId: 'empty-then-tool',
+      defaultObjectGenerationMode: undefined,
+      async doStream() {
+        calls++;
+        const parts = calls === 1
+          ? [{ type: 'finish' as const, finishReason: 'stop' as const, usage: { promptTokens: 8, completionTokens: 0 } }]
+          : [
+              {
+                type: 'tool-call' as const,
+                toolCallType: 'function' as const,
+                toolCallId: 'write-after-retry',
+                toolName: 'write_file',
+                args: JSON.stringify({ path: 'game.js', content: 'function start() {}' }),
+              },
+              { type: 'finish' as const, finishReason: 'tool-calls' as const, usage: { promptTokens: 9, completionTokens: 12 } },
+            ];
+        return {
+          stream: new ReadableStream({
+            start(controller) {
+              for (const part of parts) controller.enqueue(part);
+              controller.close();
+            },
+          }),
+          rawCall: { rawPrompt: [], rawSettings: {} },
+        };
+      },
+    } as any;
+
+    const events = [];
+    const agentModel = createBoltAgentModel(model);
+    for await (const event of await agentModel.stream({
+      systemPrompt: 'Use the write_file tool.',
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'Build the game.' }] }],
+      tools: [{
+        name: 'write_file',
+        description: 'Write an approved file.',
+        inputSchema: {
+          type: 'object',
+          properties: { path: { type: 'string' }, content: { type: 'string' } },
+          required: ['path', 'content'],
+        },
+      }],
+      signal: new AbortController().signal,
+    } as any)) {
+      events.push(event);
+    }
+
+    expect(calls).toBe(2);
+    expect(events.some((event: any) => event.type === 'tool-call-delta' && event.toolName === 'write_file')).toBe(true);
+    expect(events.some((event: any) => event.type === 'finish' && event.reason === 'error')).toBe(false);
+  });
 });

@@ -362,12 +362,22 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       }
     };
 
-    const handleSelectTemplate = (templatePrompt: string) => {
+    const handleSelectTemplate = (templatePrompt: string, reference?: { dataUrl: string; file: File }) => {
+      if (reference && imageDataList.length >= 4) {
+        toast.error('You can attach up to four reference images. Remove one to use this game image.');
+        return;
+      }
+
       if (handleInputChange) {
         const syntheticEvent = {
           target: { value: templatePrompt },
         } as React.ChangeEvent<HTMLTextAreaElement>;
         handleInputChange(syntheticEvent);
+      }
+
+      if (reference) {
+        setUploadedFiles?.([...uploadedFiles, reference.file]);
+        setImageDataList?.([...imageDataList, reference.dataUrl]);
       }
 
       if (textareaRef?.current) {

@@ -1,4 +1,10 @@
 interface Env {
+  'tunbnailmaker-url'?: string;
+  'tunbnailmaker-key'?: string;
+  THUMBNAILMAKER_URL?: string;
+  THUMBNAILMAKER_KEY?: string;
+  FLUX_ENDPOINT?: string;
+  FLUX_API_KEY?: string;
   APPWRITE_API_KEY?: string;
   APPWRITE_ENDPOINT?: string;
   APPWRITE_PROJECT_ID?: string;

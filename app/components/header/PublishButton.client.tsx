@@ -97,6 +97,7 @@ function generateAutoThumbnail(gameTitle: string, gameGenre: string): string {
 export function PublishButton() {
   const [isOpen, setIsOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(false);
   const [title, setTitle] = useState('');
   const [genre, setGenre] = useState('ACTION');
   const [description, setDescription] = useState('');
@@ -166,7 +167,31 @@ export function PublishButton() {
           reader.readAsDataURL(thumbnailFile);
         });
       } else {
-        thumbDataUrl = generateAutoThumbnail(finalTitle, finalGenre);
+        setIsGeneratingThumbnail(true);
+        try {
+          const response = await fetch('/api/generate-thumbnail', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: finalTitle,
+              genre: finalGenre,
+              description: description.trim(),
+            }),
+          });
+          const generated = (await response.json()) as { dataUrl?: string; error?: string };
+
+          if (!response.ok || !generated.dataUrl) {
+            throw new Error(generated.error || 'The AI cover could not be generated.');
+          }
+
+          thumbDataUrl = generated.dataUrl;
+          setPreviewThumb(thumbDataUrl);
+        } catch {
+          thumbDataUrl = generateAutoThumbnail(finalTitle, finalGenre);
+          toast.info('AI cover unavailable; publishing with a local fallback cover.', { autoClose: 4500 });
+        } finally {
+          setIsGeneratingThumbnail(false);
+        }
       }
 
       // Collect project files from the workbench store
@@ -292,7 +317,7 @@ export function PublishButton() {
             </div>
 
             <p className="text-xs text-slate-300 mb-4 leading-relaxed font-medium">
-              Publish directly to <strong className="text-emerald-300">thefortz.me</strong>. Thumbnail will be auto-generated if none is uploaded.
+              Publish directly to <strong className="text-emerald-300">thefortz.me</strong>. AI cover art is generated automatically unless you upload a custom thumbnail.
             </p>
 
             <div className="flex flex-col gap-3">
@@ -360,7 +385,7 @@ export function PublishButton() {
                   className="w-full flex items-center justify-center gap-2 py-2.5 px-4 font-bold text-xs uppercase tracking-wider text-black bg-[#10b981] hover:bg-[#059669] rounded-none border border-emerald-300/60 cursor-pointer transition-all disabled:opacity-50 font-extrabold"
                 >
                   <span>{isExporting ? '⏳' : '🚀'}</span>
-                  <span>{isExporting ? 'Publishing…' : 'Publish'}</span>
+                  <span>{isGeneratingThumbnail ? 'Creating cover…' : isExporting ? 'Publishing…' : 'Publish'}</span>
                 </button>
 
                 <button

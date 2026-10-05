@@ -1,6 +1,34 @@
 import { jsonSchema, streamText, type CoreMessage } from 'ai';
 import type { AgentModel, AgentModelEvent, AgentModelRequest } from '@cline/shared';
 
+const MAX_EMPTY_TURN_RETRIES = 2;
+
+function isEmptyModelResponse(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || '');
+  return /model returned empty response|no output generated|empty model response|empty response/i.test(message);
+}
+
+function waitForRetry(delayMs: number, signal?: AbortSignal) {
+  return new Promise<boolean>((resolve) => {
+    if (signal?.aborted) {
+      resolve(false);
+      return;
+    }
+
+    const cleanup = () => signal?.removeEventListener('abort', onAbort);
+    const timer = setTimeout(() => {
+      cleanup();
+      resolve(true);
+    }, delayMs);
+    const onAbort = () => {
+      clearTimeout(timer);
+      cleanup();
+      resolve(false);
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
 /** Adapt Bolt's configured AI-SDK model/provider to Cline's AgentModel contract. */
 export function createBoltAgentModel(boltModel: unknown): AgentModel {
   return {
@@ -10,68 +38,143 @@ export function createBoltAgentModel(boltModel: unknown): AgentModel {
         parameters: jsonSchema(definition.inputSchema as any),
       }]));
 
-      const result = await streamText({
-        model: boltModel as any,
-        system: request.systemPrompt,
-        messages: toCoreMessages(request.messages),
-        tools: tools as any,
-        // Cline runs are tool-driven. Without a required choice many models
-        // answer with prose ("plan ready") and stop without executing even one
-        // workspace tool, leaving Bolt's editor and file tree untouched.
-        toolChoice: 'required',
-        maxSteps: 1,
-        maxTokens: 8000,
-        temperature: 0.3,
-        abortSignal: request.signal,
-      });
+      for (let attempt = 0; attempt <= MAX_EMPTY_TURN_RETRIES; attempt++) {
+        let hasUsableOutput = false;
+        let finishEmitted = false;
+        let retryEmptyTurn = false;
 
-      let finishEmitted = false;
-      try {
-        for await (const part of result.fullStream as AsyncIterable<any>) {
-          if (part.type === 'text-delta') {
-            yield { type: 'text-delta', text: part.textDelta };
-          } else if (part.type === 'reasoning') {
-            yield { type: 'reasoning-delta', text: part.text };
-          } else if (part.type === 'tool-call') {
-            yield {
-              type: 'tool-call-delta',
-              toolCallId: part.toolCallId,
-              toolName: part.toolName,
-              inputText: JSON.stringify(part.args ?? {}),
-            };
-          } else if (part.type === 'finish') {
-            finishEmitted = true;
-            yield {
-              type: 'usage',
-              usage: {
-                inputTokens: part.usage?.promptTokens || 0,
-                outputTokens: part.usage?.completionTokens || 0,
-                cacheReadTokens: 0,
-                cacheWriteTokens: 0,
-              },
-            };
-            yield { type: 'finish', reason: normalizeFinishReason(part.finishReason) };
-          } else if (part.type === 'error') {
-            finishEmitted = true;
+        try {
+          const result = await streamText({
+            model: boltModel as any,
+            system: request.systemPrompt,
+            messages: toCoreMessages(request.messages),
+            tools: tools as any,
+            // Cline runs are tool-driven. Without a required choice many models
+            // answer with prose and stop without calling a workspace tool.
+            toolChoice: 'required',
+            maxSteps: 1,
+            maxTokens: 8000,
+            temperature: 0.3,
+            abortSignal: request.signal,
+          });
+
+          for await (const part of result.fullStream as AsyncIterable<any>) {
+            if (request.signal?.aborted) {
+              yield { type: 'finish', reason: 'aborted' };
+              return;
+            }
+
+            if (part.type === 'text-delta') {
+              const text = String(part.textDelta || '');
+              if (text.trim()) {
+                hasUsableOutput = true;
+                yield { type: 'text-delta', text };
+              }
+            } else if (part.type === 'reasoning') {
+              yield { type: 'reasoning-delta', text: part.text };
+            } else if (part.type === 'tool-call') {
+              hasUsableOutput = true;
+              yield {
+                type: 'tool-call-delta',
+                toolCallId: part.toolCallId,
+                toolName: part.toolName,
+                inputText: JSON.stringify(part.args ?? {}),
+              };
+            } else if (part.type === 'finish') {
+              const finishReason = normalizeFinishReason(part.finishReason);
+              const retryableEmptyFinish = !hasUsableOutput && finishReason === 'stop';
+
+              if (retryableEmptyFinish && attempt < MAX_EMPTY_TURN_RETRIES) {
+                retryEmptyTurn = true;
+                break;
+              }
+
+              if (retryableEmptyFinish) {
+                yield {
+                  type: 'finish',
+                  reason: 'error',
+                  error: `Model returned empty response after ${attempt + 1} attempts.`,
+                  errorRetryable: true,
+                };
+                return;
+              }
+
+              finishEmitted = true;
+              yield {
+                type: 'usage',
+                usage: {
+                  inputTokens: part.usage?.promptTokens || 0,
+                  outputTokens: part.usage?.completionTokens || 0,
+                  cacheReadTokens: 0,
+                  cacheWriteTokens: 0,
+                },
+              };
+              yield { type: 'finish', reason: finishReason };
+            } else if (part.type === 'error') {
+              const message = part.error instanceof Error ? part.error.message : String(part.error || 'Provider request failed.');
+              if (!hasUsableOutput && isEmptyModelResponse(message) && attempt < MAX_EMPTY_TURN_RETRIES) {
+                retryEmptyTurn = true;
+                break;
+              }
+
+              finishEmitted = true;
+              yield {
+                type: 'finish',
+                reason: 'error',
+                error: message,
+                errorRetryable: true,
+              };
+              return;
+            }
+          }
+
+          if (finishEmitted) return;
+
+          if (!retryEmptyTurn) {
+            if (!hasUsableOutput && attempt < MAX_EMPTY_TURN_RETRIES) {
+              retryEmptyTurn = true;
+            } else if (!hasUsableOutput) {
+              yield {
+                type: 'finish',
+                reason: 'error',
+                error: `Model returned empty response after ${attempt + 1} attempts.`,
+                errorRetryable: true,
+              };
+              return;
+            } else {
+              yield { type: 'finish', reason: 'stop' };
+              return;
+            }
+          }
+        } catch (error) {
+          if (request.signal?.aborted) {
+            yield { type: 'finish', reason: 'aborted' };
+            return;
+          }
+          if (!isEmptyModelResponse(error) || attempt >= MAX_EMPTY_TURN_RETRIES) {
             yield {
               type: 'finish',
               reason: 'error',
-              error: part.error instanceof Error ? part.error.message : String(part.error || 'Provider request failed.'),
+              error: error instanceof Error ? error.message : 'Provider request failed.',
               errorRetryable: true,
             };
+            return;
+          }
+          retryEmptyTurn = true;
+        }
+
+        if (retryEmptyTurn) {
+          const delayMs = 450 * (attempt + 1);
+          yield {
+            type: 'text-delta',
+            text: `The model returned an empty turn. Retrying in ${(delayMs / 1000).toFixed(1)}s (${attempt + 1}/${MAX_EMPTY_TURN_RETRIES})…\n`,
+          };
+          if (!(await waitForRetry(delayMs, request.signal))) {
+            yield { type: 'finish', reason: 'aborted' };
+            return;
           }
         }
-      } catch (error) {
-        finishEmitted = true;
-        yield {
-          type: 'finish',
-          reason: 'error',
-          error: error instanceof Error ? error.message : 'Provider request failed.',
-          errorRetryable: true,
-        };
       }
-
-      if (!finishEmitted) yield { type: 'finish', reason: 'stop' };
     },
   };
 }

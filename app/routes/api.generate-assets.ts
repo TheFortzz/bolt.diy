@@ -1,6 +1,6 @@
 import { type ActionFunctionArgs, type LoaderFunctionArgs, json } from '@remix-run/cloudflare';
 import { z } from 'zod';
-import { getFluxApiKey, generateFluxImage } from '~/lib/.server/flux/flux-client';
+import { getFluxApiKey, getFluxEndpoint, generateFluxImage } from '~/lib/.server/flux/flux-client';
 import { blueprintSchema } from '~/lib/harness/blueprint';
 import { getHarnessSecret, requireSameOrigin, verifyCapability } from '~/lib/.server/harness/capabilities';
 
@@ -26,6 +26,7 @@ export async function action({ context, request }: ActionFunctionArgs) {
     const env = context.cloudflare.env;
     const blueprint = await verifyCapability(input.executionToken, input.approvedBlueprint, 'execute', await getHarnessSecret(env), new URL(request.url).origin);
     const apiKey = getFluxApiKey(env);
+    const endpoint = getFluxEndpoint(env);
 
     if (!apiKey && blueprint.assetOperations.length) {
       return json({ ok: false, error: 'The approved Image Builder is unavailable. Request a new procedural-visual plan.' }, { status: 503 });
@@ -50,7 +51,7 @@ export async function action({ context, request }: ActionFunctionArgs) {
             width: operation.width,
             height: operation.height,
             timeoutMs: 35000,
-          }, apiKey!);
+          }, apiKey!, endpoint);
 
           if (!image.ok || !image.base64) {
             return { ok: false, assets: [], updatedFiles: {}, error: `Could not generate ${operation.path}: ${image.error || 'No image returned'}` };

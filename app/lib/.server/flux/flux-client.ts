@@ -1,12 +1,30 @@
 /**
  * FLUX.2-pro Image Asset Client
  *
- * Security: Read the API key only from FLUX_API_KEY in the environment.
+ * Security: Read API keys only from Cloudflare secrets/environment variables.
  * Never hardcode, log, or commit it. If missing, retain existing rendering behavior.
  */
 
 export const FLUX_ENDPOINT =
   'https://thefortz-ai.services.ai.azure.com/providers/blackforestlabs/v1/flux-2-pro';
+
+type FluxEnvironment = Record<string, unknown>;
+
+function firstEnvironmentValue(env: FluxEnvironment | undefined, keys: string[], processKeys: string[] = []) {
+  for (const key of keys) {
+    const value = env?.[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+
+  if (typeof process !== 'undefined') {
+    for (const key of processKeys) {
+      const value = process.env?.[key];
+      if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+  }
+
+  return undefined;
+}
 
 export interface FluxGenerationOptions {
   prompt: string;
@@ -26,19 +44,24 @@ export interface FluxGenerationResult {
 }
 
 /**
- * Reads the FLUX API key strictly from the environment.
+ * Reads the FLUX API key strictly from Cloudflare bindings or environment.
  * NEVER hardcodes, logs, or commits the key.
  */
 export function getFluxApiKey(env?: Record<string, any>): string | undefined {
-  const envKey =
-    (typeof process !== 'undefined' && process.env?.FLUX_API_KEY) ||
-    (env && typeof env === 'object' && env.FLUX_API_KEY);
+  return firstEnvironmentValue(
+    env,
+    ['tunbnailmaker-key', 'thumbnailmaker-key', 'THUMBNAILMAKER_KEY', 'FLUX_API_KEY'],
+    ['TUNBNAILMAKER_KEY', 'THUMBNAILMAKER_KEY', 'FLUX_API_KEY'],
+  );
+}
 
-  if (typeof envKey === 'string' && envKey.trim().length > 0) {
-    return envKey.trim();
-  }
-
-  return undefined;
+/** Read the image endpoint from Cloudflare bindings; never accept client-supplied URLs. */
+export function getFluxEndpoint(env?: Record<string, any>): string {
+  return firstEnvironmentValue(
+    env,
+    ['tunbnailmaker-url', 'thumbnailmaker-url', 'THUMBNAILMAKER_URL', 'FLUX_ENDPOINT'],
+    ['TUNBNAILMAKER_URL', 'THUMBNAILMAKER_URL', 'FLUX_ENDPOINT'],
+  ) || FLUX_ENDPOINT;
 }
 
 /**
@@ -154,12 +177,13 @@ export async function parseFluxResponse(res: Response): Promise<FluxGenerationRe
 export async function generateFluxImage(
   options: FluxGenerationOptions,
   apiKey?: string,
+  endpoint = FLUX_ENDPOINT,
 ): Promise<FluxGenerationResult> {
   if (!apiKey) {
     return {
       ok: false,
       skipped: true,
-      error: 'FLUX_API_KEY is not configured in the environment',
+      error: 'The image-generation secret is not configured in the server environment.',
     };
   }
 
@@ -177,7 +201,7 @@ export async function generateFluxImage(
   const formattedPrompt = formatFluxPrompt(prompt, isSprite);
 
   try {
-    const res = await fetch(FLUX_ENDPOINT, {
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

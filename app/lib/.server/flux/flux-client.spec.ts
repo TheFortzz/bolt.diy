@@ -4,6 +4,7 @@ import {
   formatFluxPrompt,
   parseFluxResponse,
   generateFluxImage,
+  getFluxEndpoint,
   FLUX_ENDPOINT,
 } from './flux-client';
 
@@ -35,9 +36,25 @@ describe('flux-client', () => {
       expect(getFluxApiKey({ FLUX_API_KEY: 'cloudflare-secret-key' })).toBe('cloudflare-secret-key');
     });
 
+    it('reads the Cloudflare thumbnail-maker secret binding without exposing it', () => {
+      delete process.env.FLUX_API_KEY;
+      expect(getFluxApiKey({ 'tunbnailmaker-key': 'dashboard-secret' })).toBe('dashboard-secret');
+    });
+
     it('ignores empty whitespace keys', () => {
       process.env.FLUX_API_KEY = '   ';
       expect(getFluxApiKey()).toBeUndefined();
+    });
+  });
+
+  describe('getFluxEndpoint', () => {
+    it('prefers the Cloudflare thumbnail-maker endpoint binding', () => {
+      expect(getFluxEndpoint({ 'tunbnailmaker-url': 'https://image.example/flux' })).toBe('https://image.example/flux');
+    });
+
+    it('supports the standard spelling and falls back to the legacy endpoint', () => {
+      expect(getFluxEndpoint({ THUMBNAILMAKER_URL: 'https://image.example/standard' })).toBe('https://image.example/standard');
+      expect(getFluxEndpoint({})).toBe(FLUX_ENDPOINT);
     });
   });
 
@@ -90,7 +107,7 @@ describe('flux-client', () => {
       const result = await generateFluxImage({ prompt: 'test' }, undefined);
       expect(result.ok).toBe(false);
       expect(result.skipped).toBe(true);
-      expect(result.error).toContain('FLUX_API_KEY is not configured');
+      expect(result.error).toContain('secret is not configured');
     });
 
     it('sends correct headers and body to FLUX endpoint', async () => {
