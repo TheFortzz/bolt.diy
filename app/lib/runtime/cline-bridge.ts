@@ -19,6 +19,13 @@ export interface ClineAgentEvent {
   payload?: any;
 }
 
+function actionableClineError(message: string) {
+  if (/\b429\b|rate.?limit|quota exceeded/i.test(message)) {
+    return `${message}\n\nThe selected provider is rate-limited. Choose another configured provider/model above or retry after its quota resets.`;
+  }
+  return message;
+}
+
 /** Run the Cline SDK agent in Bolt's own API route. */
 export async function runClineAgent(
   request: ClineAgentRequest,
@@ -36,7 +43,7 @@ export async function runClineAgent(
 
   if (!response.ok) {
     const result = (await response.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(result?.error || `Bolt Cline API returned HTTP ${response.status}.`);
+    throw new Error(actionableClineError(result?.error || `Bolt Cline API returned HTTP ${response.status}.`));
   }
   if (!response.body) throw new Error('Bolt Cline API returned an empty stream.');
 
@@ -62,7 +69,7 @@ export async function runClineAgent(
       const event = JSON.parse(raw) as ClineAgentEvent;
       options.onEvent(event);
       if (event.type === 'fatal_error') {
-        throw new Error(event.payload?.error || 'Cline Agent failed.');
+        throw new Error(actionableClineError(event.payload?.error || 'Cline Agent failed.'));
       }
       if (event.type === 'result') resultEvent = event;
     }

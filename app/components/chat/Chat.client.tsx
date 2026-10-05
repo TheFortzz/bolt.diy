@@ -68,7 +68,8 @@ function snapshotTextWorkspace(maxCharacters = 7_500_000) {
       path.startsWith('/') ||
       /(?:^|\/)(?:\.env(?:\..*)?|\.git|node_modules|.*(?:secret|credential|private[-_]?key))/i.test(path) ||
       Object.keys(files).length >= 500
-    ) continue;
+    )
+      continue;
     const remaining = maxCharacters - totalCharacters;
     if (remaining <= 0) break;
     const content = entry.content.slice(0, Math.min(200_000, remaining));
@@ -144,31 +145,16 @@ export const ChatImpl = memo(
     const [uploadedFiles, setUploadedFiles] = useState<File[]>([]); // Move here
     const [imageDataList, setImageDataList] = useState<string[]>([]); // Move here
     const [agentMode, setAgentMode] = useState<StudioAgentMode>('auto');
-    const [agentEngine, setAgentEngine] = useState<'cline' | 'bolt'>(() => {
-      if (typeof window === 'undefined') return 'cline';
-      try {
-        return window.localStorage.getItem('bolt_agent_engine_v2') === 'bolt' ? 'bolt' : 'cline';
-      } catch {
-        return 'cline';
-      }
-    });
+    const agentEngine = 'cline' as const;
     const [clineRunning, setClineRunning] = useState(false);
     const clineControllerRef = useRef<AbortController>();
     const lastAgentModeRef = useRef<StudioAgentMode>('auto');
     const repairAttemptsRef = useRef(0);
     const streamRecoveryAttemptsRef = useRef(0);
     const streamRecoveryTimerRef = useRef<ReturnType<typeof setTimeout>>();
-    const appendRef = useRef<((message: any, options?: any) => Promise<unknown>)>();
+    const appendRef = useRef<(message: any, options?: any) => Promise<unknown>>();
     const lastUserPromptRef = useRef('');
     const { activeProviders } = useSettings();
-
-    useEffect(() => {
-      try {
-        window.localStorage.setItem('bolt_agent_engine_v2', agentEngine);
-      } catch {
-        // Engine selection remains usable if local storage is unavailable.
-      }
-    }, [agentEngine]);
 
     const [model, setModel] = useState(() => {
       const savedModel = Cookies.get('selectedModel');
@@ -296,79 +282,83 @@ export const ChatImpl = memo(
           validationState.set({ status: 'checking', detail });
           toast.info(`${detail} Completed files are being kept.`, { autoClose: 4500 });
 
-          streamRecoveryTimerRef.current = setTimeout(() => {
-            streamRecoveryTimerRef.current = undefined;
+          streamRecoveryTimerRef.current = setTimeout(
+            () => {
+              streamRecoveryTimerRef.current = undefined;
 
-            if (chatStore.get().aborted || harnessState.get().phase !== 'editing') {
-              return;
-            }
-
-            const filesByPath = new Map<string, any>();
-            const approvedPaths = new Set([
-              ...approvedBlueprint.manifest.map((file) => file.path),
-              ...approvedBlueprint.fileOperations.map((file) => file.path),
-            ]);
-
-            for (const [rawPath, file] of Object.entries(workbenchStore.files.get())) {
-              const cleanPath = rawPath.replace(/^\/home\/project\//, '').replace(/^\.?\//, '');
-              if (approvedPaths.has(cleanPath) && file?.type === 'file' && typeof file.content === 'string') {
-                filesByPath.set(cleanPath, file);
+              if (chatStore.get().aborted || harnessState.get().phase !== 'editing') {
+                return;
               }
-            }
 
-            const workspaceSources: Record<string, string> = {};
-            let sourceCharacters = 0;
-            for (const operation of approvedBlueprint.fileOperations) {
-              const file = filesByPath.get(operation.path);
-              if (!file) continue;
+              const filesByPath = new Map<string, any>();
+              const approvedPaths = new Set([
+                ...approvedBlueprint.manifest.map((file) => file.path),
+                ...approvedBlueprint.fileOperations.map((file) => file.path),
+              ]);
 
-              const content = file.content as string;
-              const excerpt = content.length > 200000
-                ? `${content.slice(0, 160000)}\n/* middle omitted while recovering stream */\n${content.slice(-39800)}`
-                : content;
-              const remaining = 300000 - sourceCharacters;
-              if (remaining <= 0) break;
+              for (const [rawPath, file] of Object.entries(workbenchStore.files.get())) {
+                const cleanPath = rawPath.replace(/^\/home\/project\//, '').replace(/^\.?\//, '');
+                if (approvedPaths.has(cleanPath) && file?.type === 'file' && typeof file.content === 'string') {
+                  filesByPath.set(cleanPath, file);
+                }
+              }
 
-              workspaceSources[operation.path] = excerpt.slice(0, Math.min(200000, remaining));
-              sourceCharacters += workspaceSources[operation.path].length;
-            }
+              const workspaceSources: Record<string, string> = {};
+              let sourceCharacters = 0;
+              for (const operation of approvedBlueprint.fileOperations) {
+                const file = filesByPath.get(operation.path);
+                if (!file) continue;
 
-            const artifactId = workbenchStore.firstArtifact?.id || `game-${approvedBlueprint.workspaceId}`;
-            const recoveryPrompt = [
-              `[Model: ${model}]`,
-              `[Provider: ${provider.name}]`,
-              '[Studio Mode: BUILD]',
-              `[Automatic stream recovery ${attempt}/${MAX_AUTOMATIC_STREAM_RECOVERIES}]`,
-              'The previous streaming connection dropped before the approved build finished. Continue the same full-game build; do not restart from scratch.',
-              'Inspect the current workspace source snapshot: completed modules must be preserved, and any partial module must be completed or repaired. Implement every remaining approved system and planned file before finishing.',
-              `Reuse artifact id="${artifactId}". Output complete, syntactically valid approved file actions and close the artifact.`,
-            ].join('\n\n');
+                const content = file.content as string;
+                const excerpt =
+                  content.length > 200000
+                    ? `${content.slice(0, 160000)}\n/* middle omitted while recovering stream */\n${content.slice(-39800)}`
+                    : content;
+                const remaining = 300000 - sourceCharacters;
+                if (remaining <= 0) break;
 
-            const appendRecovery = appendRef.current;
-            if (!appendRecovery) {
-              return;
-            }
+                workspaceSources[operation.path] = excerpt.slice(0, Math.min(200000, remaining));
+                sourceCharacters += workspaceSources[operation.path].length;
+              }
 
-            void appendRecovery(
-              {
-                role: 'user',
-                content: recoveryPrompt,
-                annotations: [{ type: 'harness-execution', planId: approvedBlueprint.id }],
-              },
-              {
-                body: {
-                  approvedBlueprint,
-                  executionToken,
-                  systemContext: compileSystemContext(
-                    workbenchStore.files.get(),
-                    generatedAssets.get(),
-                    validationState.get(),
-                  ),
-                  workspaceSources,
+              const artifactId = workbenchStore.firstArtifact?.id || `game-${approvedBlueprint.workspaceId}`;
+              const recoveryPrompt = [
+                `[Model: ${model}]`,
+                `[Provider: ${provider.name}]`,
+                '[Studio Mode: BUILD]',
+                `[Automatic stream recovery ${attempt}/${MAX_AUTOMATIC_STREAM_RECOVERIES}]`,
+                'The previous streaming connection dropped before the approved build finished. Continue the same full-game build; do not restart from scratch.',
+                'Inspect the current workspace source snapshot: completed modules must be preserved, and any partial module must be completed or repaired. Implement every remaining approved system and planned file before finishing.',
+                `Reuse artifact id="${artifactId}". Output complete, syntactically valid approved file actions and close the artifact.`,
+              ].join('\n\n');
+
+              const appendRecovery = appendRef.current;
+              if (!appendRecovery) {
+                return;
+              }
+
+              void appendRecovery(
+                {
+                  role: 'user',
+                  content: recoveryPrompt,
+                  annotations: [{ type: 'harness-execution', planId: approvedBlueprint.id }],
                 },
-              },
-            ).catch((resumeError) => logger.error('Automatic build stream recovery failed:', resumeError));
-          }, Math.min(750 * attempt, 3000));
+                {
+                  body: {
+                    approvedBlueprint,
+                    executionToken,
+                    systemContext: compileSystemContext(
+                      workbenchStore.files.get(),
+                      generatedAssets.get(),
+                      validationState.get(),
+                    ),
+                    workspaceSources,
+                  },
+                },
+              ).catch((resumeError) => logger.error('Automatic build stream recovery failed:', resumeError));
+            },
+            Math.min(750 * attempt, 3000),
+          );
 
           return;
         }
@@ -380,9 +370,7 @@ export const ChatImpl = memo(
           transitionHarness('failed', { detail: `AI request failed: ${errorMessage}` });
         }
 
-        toast.error(
-          'There was an error processing your request: ' + (errorMessage || 'No details were returned'),
-        );
+        toast.error('There was an error processing your request: ' + (errorMessage || 'No details were returned'));
       },
       onFinish: async (message) => {
         logger.debug('Finished streaming');
@@ -523,7 +511,9 @@ export const ChatImpl = memo(
                 ...(managedBlueprint?.fileOperations.map((f) => f.path) || []),
               ]);
               const sourceEntries = Object.entries(rawFiles)
-                .map(([rawPath, file]) => [rawPath.replace(/^\/home\/project\//, '').replace(/^\.?\//, ''), file] as const)
+                .map(
+                  ([rawPath, file]) => [rawPath.replace(/^\/home\/project\//, '').replace(/^\.?\//, ''), file] as const,
+                )
                 .filter(
                   ([path, file]) =>
                     file?.type === 'file' &&
@@ -598,7 +588,7 @@ export const ChatImpl = memo(
 
           // Inform directly in this chat message when auto-repairs are exhausted
           const errorNotice = managedBlueprint
-              ? `\n\n> ⚠️ **Preview check needs attention:**\n> ${result.error?.slice(-1800)}\n>\n> Describe the repair you want; FortzAI will propose a new blueprint for your approval.`
+            ? `\n\n> ⚠️ **Preview check needs attention:**\n> ${result.error?.slice(-1800)}\n>\n> Describe the repair you want; FortzAI will propose a new blueprint for your approval.`
             : result.error?.includes('runtime verification needs')
               ? `\n\n> ⚠️ **Runtime verification unavailable:**\n> ${result.error?.slice(-1800)}\n>\n> A browser verification worker or preview bridge must be configured before this build can be marked verified.`
               : `\n\n> ⚠️ **Build Issue Detected:**\n> ${result.error?.slice(-1800)}\n>\n> *Ask for a targeted repair to address these checks.*`;
@@ -898,101 +888,115 @@ export const ChatImpl = memo(
             : {}),
         };
 
-        if (agentEngine === 'cline') {
-          const assistantId = crypto.randomUUID();
-          const assistantMessage: Message = {
-            id: assistantId,
-            role: 'assistant',
-            content: 'Connecting to Cline…',
-            annotations: [{ type: 'studio-chat-only' }, { type: 'cline-agent' }],
-          };
-          setMessages((previous) => [...previous, conversationalMessage, assistantMessage]);
+        const assistantId = crypto.randomUUID();
+        const assistantMessage: Message = {
+          id: assistantId,
+          role: 'assistant',
+          content: 'Connecting to Cline…',
+          annotations: [{ type: 'studio-chat-only' }, { type: 'cline-agent' }],
+        };
+        setMessages((previous) => [...previous, conversationalMessage, assistantMessage]);
 
-            const controller = new AbortController();
-            clineControllerRef.current = controller;
-            setClineRunning(true);
-            let answer = '';
-            let usageInfo = '';
-            let progress = 'Inspecting project…';
+        const controller = new AbortController();
+        clineControllerRef.current = controller;
+        setClineRunning(true);
+        let answer = '';
+        let usageInfo = '';
+        let progress = 'Inspecting project…';
 
-            const updateClineReply = (content: string) => {
-              setMessages((previous) => previous.map((entry) =>
-                entry.id === assistantId ? { ...entry, content } : entry,
-              ));
-            };
+        const updateClineReply = (content: string) => {
+          setMessages((previous) =>
+            previous.map((entry) => (entry.id === assistantId ? { ...entry, content } : entry)),
+          );
+        };
 
-            void runClineAgent(
-              {
-                prompt: _input,
-                files: snapshotTextWorkspace(),
-                readOnly: true,
-                history: messages
-                  .filter((entry) => (entry.role === 'user' || entry.role === 'assistant') && typeof entry.content === 'string')
-                  .slice(-12)
-                  .map((entry) => ({ role: entry.role as 'user' | 'assistant', content: String(entry.content).slice(0, 12000) })),
-                previewErrors: validationState.get().status === 'failed'
-                  ? [{ message: validationState.get().detail
-                    .replace(/\b(?:sk-[A-Za-z0-9_-]{12,}|Bearer\s+[A-Za-z0-9._-]{12,})\b/gi, '[redacted]')
-                    .replace(/([?&](?:api[_-]?key|token|secret)=)[^&\s]+/gi, '$1[redacted]')
-                    .slice(-2000) }]
-                  : [],
-                provider: provider.name,
-                model,
-                apiKey: apiKeys[provider.name],
-                baseUrl: (() => {
-                  try {
-                    return JSON.parse(Cookies.get('providers') || '{}')?.[provider.name]?.baseUrl || '';
-                  } catch {
-                    return '';
-                  }
-                })(),
-                systemContext: compileSystemContext(workbenchStore.files.get(), generatedAssets.get(), validationState.get()),
-              },
-              {
-                signal: controller.signal,
-                onEvent: (event) => {
-                  if (event.type === 'status') {
-                    progress = String(event.payload?.message || 'Cline is working…').slice(0, 200);
-                    if (!answer) updateClineReply(progress);
-                  } else if (event.type === 'reasoning') {
-                    progress = 'Planning the next step…';
-                    if (!answer) updateClineReply(progress);
-                  } else if (event.type === 'tool_start') {
-                    const call = event.payload || {};
-                    progress = `${call.tool || 'Cline tool'}${call.input?.path ? ` · ${call.input.path}` : ''}…`;
-                    if (!answer) updateClineReply(progress);
-                  } else if (event.type === 'text') {
-                    answer += String(event.payload?.chunk || '');
-                    updateClineReply(answer);
-                  } else if (event.type === 'error') {
-                    progress = `Cline reported an error: ${String(event.payload?.error || 'unknown error')}`;
-                    if (!answer) updateClineReply(progress);
-                  } else if (event.type === 'usage') {
-                    const usage = event.payload || {};
-                    usageInfo = `Tokens · ${Number(usage.inputTokens) || 0} in / ${Number(usage.outputTokens) || 0} out`;
-                  }
-                },
-              },
-            ).then((result) => {
-              const finalText = answer || String(result.payload?.summary || 'Cline completed the response.');
-              const finalAnswer = usageInfo ? `${finalText}\n\n_${usageInfo}_` : finalText;
-              updateClineReply(finalAnswer);
-              void persistMessages(
-                [...messages, conversationalMessage, { ...assistantMessage, content: finalAnswer }],
-                true,
-              ).catch((error) => console.warn('Cline chat save error:', error));
-            }).catch((error: unknown) => {
-              if ((error as Error)?.name !== 'AbortError') {
-                const detail = error instanceof Error ? error.message : 'Cline Agent request failed.';
-                updateClineReply(`Cline could not complete this request.\n\n${detail}`);
+        void runClineAgent(
+          {
+            prompt: _input,
+            files: snapshotTextWorkspace(),
+            readOnly: true,
+            history: messages
+              .filter(
+                (entry) => (entry.role === 'user' || entry.role === 'assistant') && typeof entry.content === 'string',
+              )
+              .slice(-12)
+              .map((entry) => ({
+                role: entry.role as 'user' | 'assistant',
+                content: String(entry.content).slice(0, 12000),
+              })),
+            previewErrors:
+              validationState.get().status === 'failed'
+                ? [
+                    {
+                      message: validationState
+                        .get()
+                        .detail.replace(/\b(?:sk-[A-Za-z0-9_-]{12,}|Bearer\s+[A-Za-z0-9._-]{12,})\b/gi, '[redacted]')
+                        .replace(/([?&](?:api[_-]?key|token|secret)=)[^&\s]+/gi, '$1[redacted]')
+                        .slice(-2000),
+                    },
+                  ]
+                : [],
+            provider: provider.name,
+            model,
+            apiKey: apiKeys[provider.name],
+            baseUrl: (() => {
+              try {
+                return JSON.parse(Cookies.get('providers') || '{}')?.[provider.name]?.baseUrl || '';
+              } catch {
+                return '';
               }
-            }).finally(() => {
-              if (clineControllerRef.current === controller) clineControllerRef.current = undefined;
-              setClineRunning(false);
-            });
-        } else {
-          void append(conversationalMessage, { body: { chatOnly: true } });
-        }
+            })(),
+            systemContext: compileSystemContext(
+              workbenchStore.files.get(),
+              generatedAssets.get(),
+              validationState.get(),
+            ),
+          },
+          {
+            signal: controller.signal,
+            onEvent: (event) => {
+              if (event.type === 'status') {
+                progress = String(event.payload?.message || 'Cline is working…').slice(0, 200);
+                if (!answer) updateClineReply(progress);
+              } else if (event.type === 'reasoning') {
+                progress = 'Planning the next step…';
+                if (!answer) updateClineReply(progress);
+              } else if (event.type === 'tool_start') {
+                const call = event.payload || {};
+                progress = `${call.tool || 'Cline tool'}${call.input?.path ? ` · ${call.input.path}` : ''}…`;
+                if (!answer) updateClineReply(progress);
+              } else if (event.type === 'text') {
+                answer += String(event.payload?.chunk || '');
+                updateClineReply(answer);
+              } else if (event.type === 'error') {
+                progress = `Cline reported an error: ${String(event.payload?.error || 'unknown error')}`;
+                if (!answer) updateClineReply(progress);
+              } else if (event.type === 'usage') {
+                const usage = event.payload || {};
+                usageInfo = `Tokens · ${Number(usage.inputTokens) || 0} in / ${Number(usage.outputTokens) || 0} out`;
+              }
+            },
+          },
+        )
+          .then((result) => {
+            const finalText = answer || String(result.payload?.summary || 'Cline completed the response.');
+            const finalAnswer = usageInfo ? `${finalText}\n\n_${usageInfo}_` : finalText;
+            updateClineReply(finalAnswer);
+            void persistMessages(
+              [...messages, conversationalMessage, { ...assistantMessage, content: finalAnswer }],
+              true,
+            ).catch((error) => console.warn('Cline chat save error:', error));
+          })
+          .catch((error: unknown) => {
+            if ((error as Error)?.name !== 'AbortError') {
+              const detail = error instanceof Error ? error.message : 'Cline Agent request failed.';
+              updateClineReply(`Cline could not complete this request.\n\n${detail}`);
+            }
+          })
+          .finally(() => {
+            if (clineControllerRef.current === controller) clineControllerRef.current = undefined;
+            setClineRunning(false);
+          });
       }
 
       setInput('');
@@ -1071,7 +1075,7 @@ export const ChatImpl = memo(
           typeof parsed === 'string' && parsed.length > 0
             ? parsed
             : hasArtifactTags
-              ? (parsed || `<div class="__boltArtifact__" data-message-id="${message.id}"></div>`)
+              ? parsed || `<div class="__boltArtifact__" data-message-id="${message.id}"></div>`
               : raw;
 
         return {
@@ -1126,8 +1130,6 @@ export const ChatImpl = memo(
         setImageDataList={setImageDataList}
         agentMode={agentMode}
         setAgentMode={setAgentMode}
-        agentEngine={agentEngine}
-        setAgentEngine={setAgentEngine}
         onApprovePlan={approvePlan}
         onCancelPlan={cancelPlan}
       />

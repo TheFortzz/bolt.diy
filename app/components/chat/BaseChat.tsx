@@ -68,8 +68,6 @@ interface BaseChatProps {
   setImageDataList?: (dataList: string[]) => void;
   agentMode?: StudioAgentMode;
   setAgentMode?: (mode: StudioAgentMode) => void;
-  agentEngine?: 'cline' | 'bolt';
-  setAgentEngine?: (engine: 'cline' | 'bolt') => void;
   onApprovePlan?: () => void;
   onCancelPlan?: () => void;
 }
@@ -104,8 +102,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       messages,
       agentMode = 'auto',
       setAgentMode,
-      agentEngine = 'cline',
-      setAgentEngine,
       onApprovePlan,
       onCancelPlan,
     },
@@ -547,8 +543,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   maxWidth: isWorkbenchActive ? '100%' : '52rem',
                 }}
               >
-                {/* Reuse Bolt's configured providers for Cline; keep legacy Bolt composer unchanged. */}
-                <div className={agentEngine === 'cline' ? 'block' : 'hidden'}>
+                {/* Bolt's Cline agent uses the same configured provider/model system. */}
+                <div className="block">
                   <ModelSelector
                     key={provider?.name + ':' + modelList.length}
                     model={model}
@@ -711,39 +707,12 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         <div className="i-ph:gear-six text-xl text-purple-300 group-hover:text-purple-100" />
                       </IconButton>
 
-                      <div
-                        className="inline-flex items-center gap-0.5 rounded-lg border border-purple-500/30 bg-purple-950/70 p-0.5"
-                        role="group"
-                        aria-label="AI agent engine"
-                        title="Choose the AI engine used by Bolt Studio chat and builds"
+                      <span
+                        className="inline-flex items-center gap-1 rounded-lg border border-cyan-400/30 bg-cyan-950/50 px-2 py-1 text-[10px] font-bold text-cyan-200"
+                        title="Bolt chat powered by the Cline SDK agent loop"
                       >
-                        <button
-                          type="button"
-                          aria-pressed={agentEngine === 'cline'}
-                          onClick={() => setAgentEngine?.('cline')}
-                          className={classNames(
-                            'rounded-md px-2 py-1 text-[10px] font-bold transition-colors',
-                            agentEngine === 'cline'
-                              ? 'bg-cyan-300 text-slate-950 shadow-sm'
-                              : 'text-purple-200 hover:bg-purple-800/50 hover:text-white',
-                          )}
-                        >
-                          ⚡ CLINE
-                        </button>
-                        <button
-                          type="button"
-                          aria-pressed={agentEngine === 'bolt'}
-                          onClick={() => setAgentEngine?.('bolt')}
-                          className={classNames(
-                            'rounded-md px-2 py-1 text-[10px] font-bold transition-colors',
-                            agentEngine === 'bolt'
-                              ? 'bg-emerald-300 text-slate-950 shadow-sm'
-                              : 'text-purple-200 hover:bg-purple-800/50 hover:text-white',
-                          )}
-                        >
-                          BOLT
-                        </button>
-                      </div>
+                        ⚡ CLINE-POWERED BOLT
+                      </span>
 
                       <div className={styles.ModelBadge} title={`Configured model: ${model || 'gpt-6-luna'}`}>
                         <span className="i-ph:cpu" aria-hidden="true" />

@@ -3,7 +3,14 @@ import { imageDataUrl } from '~/lib/.server/llm/azure-responses-model';
 
 type FinishReason = 'stop' | 'length' | 'content-filter' | 'tool-calls' | 'error' | 'other' | 'unknown';
 type ChatContentPart = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
-type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string | ChatContentPart[] };
+type ChatMessage =
+  | { role: 'system' | 'user'; content: string | ChatContentPart[] }
+  | {
+      role: 'assistant';
+      content: string | ChatContentPart[] | null;
+      tool_calls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>;
+    }
+  | { role: 'tool'; content: string; tool_call_id: string };
 
 function convertMessageContent(content: LanguageModelV1Prompt[number]['content']): string | ChatContentPart[] {
   if (typeof content === 'string') {
@@ -45,6 +52,32 @@ function convertPrompt(prompt: LanguageModelV1Prompt): ChatMessage[] {
   const messages: ChatMessage[] = [];
 
   for (const message of prompt) {
+    if (message.role === 'tool') {
+      for (const result of message.content) {
+        messages.push({
+          role: 'tool',
+          tool_call_id: result.toolCallId,
+          content: typeof result.result === 'string' ? result.result : JSON.stringify(result.result),
+        });
+      }
+      continue;
+    }
+
+    if (message.role === 'assistant') {
+      const textParts = message.content.filter((part) => part.type === 'text');
+      const toolCalls = message.content
+        .filter((part) => part.type === 'tool-call')
+        .map((part) => ({
+          id: part.toolCallId,
+          type: 'function' as const,
+          function: { name: part.toolName, arguments: JSON.stringify(part.args ?? {}) },
+        }));
+      const textContent = textParts.map((part) => part.text).join('\n');
+      const content: string | null = textContent || (toolCalls.length ? null : '');
+      messages.push({ role: 'assistant', content, ...(toolCalls.length ? { tool_calls: toolCalls } : {}) });
+      continue;
+    }
+
     const content = convertMessageContent(message.content);
     const hasContent = typeof content === 'string' ? Boolean(content.trim()) : content.length > 0;
 
@@ -68,7 +101,7 @@ function convertPrompt(prompt: LanguageModelV1Prompt): ChatMessage[] {
       continue;
     }
 
-    if (message.role === 'user' || message.role === 'assistant') {
+    if (message.role === 'user') {
       messages.push({ role: message.role, content });
     }
   }
@@ -141,6 +174,25 @@ function createRequestBody(options: LanguageModelV1CallOptions, modelId: string,
     body.temperature = typeof options.temperature === 'number' ? options.temperature : 0.85;
   }
 
+  if (options.mode?.type === 'regular') {
+    const tools = options.mode.tools?.filter((tool) => tool.type === 'function');
+    if (tools?.length) {
+      body.tools = tools.map((tool) => ({
+        type: 'function',
+        function: {
+          name: tool.name,
+          ...(tool.description ? { description: tool.description } : {}),
+          parameters: tool.parameters,
+        },
+      }));
+    }
+    if (options.mode.toolChoice) {
+      const choice = options.mode.toolChoice;
+      body.tool_choice =
+        choice.type === 'tool' ? { type: 'function', function: { name: choice.toolName } } : choice.type;
+    }
+  }
+
   return body;
 }
 
@@ -185,6 +237,19 @@ export function createAzureChatCompletionsModel(
       return {
         text: outputText(choice?.message?.content),
         finishReason: resolveFinishReason(choice?.finish_reason),
+        ...(Array.isArray(choice?.message?.tool_calls) && choice.message.tool_calls.length
+          ? {
+              toolCalls: choice.message.tool_calls.map((call: any) => ({
+                toolCallType: 'function' as const,
+                toolCallId: String(call.id || ''),
+                toolName: String(call.function?.name || ''),
+                args:
+                  typeof call.function?.arguments === 'string'
+                    ? call.function.arguments
+                    : JSON.stringify(call.function?.arguments || {}),
+              })),
+            }
+          : {}),
         usage: {
           promptTokens: json?.usage?.prompt_tokens ?? 0,
           completionTokens: json?.usage?.completion_tokens ?? 0,
@@ -216,6 +281,8 @@ export function createAzureChatCompletionsModel(
       let buffer = '';
       let finishReason: FinishReason = 'stop';
       let usage = { promptTokens: 0, completionTokens: 0 };
+      const toolCalls = new Map<number, { id?: string; name?: string; arguments: string }>();
+      let emittedToolCalls = false;
 
       const stream = new ReadableStream<LanguageModelV1StreamPart>({
         async start(controller) {
@@ -262,8 +329,32 @@ export function createAzureChatCompletionsModel(
               }
             }
 
+            for (const toolDelta of choice?.delta?.tool_calls || []) {
+              const index = Number.isInteger(toolDelta.index) ? toolDelta.index : toolCalls.size;
+              const current = toolCalls.get(index) || { arguments: '' };
+              if (typeof toolDelta.id === 'string') current.id = toolDelta.id;
+              if (typeof toolDelta.function?.name === 'string') current.name = toolDelta.function.name;
+              if (typeof toolDelta.function?.arguments === 'string') current.arguments += toolDelta.function.arguments;
+              toolCalls.set(index, current);
+            }
+
             if (choice?.finish_reason) {
               finishReason = resolveFinishReason(choice.finish_reason);
+              if (finishReason === 'tool-calls' && !emittedToolCalls) {
+                for (const [index, call] of toolCalls) {
+                  if (!call.id || !call.name) {
+                    throw new Error(`Azure returned an incomplete function call at index ${index}.`);
+                  }
+                  controller.enqueue({
+                    type: 'tool-call',
+                    toolCallType: 'function',
+                    toolCallId: call.id,
+                    toolName: call.name,
+                    args: call.arguments || '{}',
+                  });
+                }
+                emittedToolCalls = true;
+              }
             }
 
             if (event?.usage) {
