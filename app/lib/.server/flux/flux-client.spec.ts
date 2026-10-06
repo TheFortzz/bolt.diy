@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   getFluxApiKey,
+  getConfiguredFluxEndpoint,
   formatFluxPrompt,
   parseFluxResponse,
   generateFluxImage,
@@ -57,6 +58,12 @@ describe('flux-client', () => {
       expect(getFluxEndpoint({ THUMBNAILMAKER_URL: 'https://image.example/providers/blackforestlabs/v1/flux-2-pro?api-version=preview' }))
         .toBe('https://image.example/providers/blackforestlabs/v1/flux-2-pro?api-version=preview');
       expect(getFluxEndpoint({})).toBe(`${FLUX_ENDPOINT}?api-version=preview`);
+    });
+  });
+
+  describe('getConfiguredFluxEndpoint', () => {
+    it('does not silently substitute a different endpoint when the Cloudflare URL binding is absent', () => {
+      expect(getConfiguredFluxEndpoint({})).toBeUndefined();
     });
   });
 

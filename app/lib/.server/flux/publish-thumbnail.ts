@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { generateFluxImage, getFluxApiKey, getFluxEndpoint } from './flux-client';
+import { generateFluxImage, getConfiguredFluxEndpoint, getFluxApiKey } from './flux-client';
 
 export const publishThumbnailInputSchema = z.object({
   title: z.string().trim().min(1).max(100),
@@ -25,6 +25,10 @@ export async function generatePublishThumbnail(
 ) {
   const apiKey = getFluxApiKey(env);
   if (!apiKey) return undefined;
+  const endpoint = getConfiguredFluxEndpoint(env);
+  if (!endpoint) {
+    throw new Error('The thumbnail-maker endpoint secret is not available in this Cloudflare environment.');
+  }
 
   const prompt = [
     'Create polished, cinematic 16:9 key art for a browser video game cover.',
@@ -36,7 +40,7 @@ export async function generatePublishThumbnail(
   const generated = await generateFluxImage(
     { prompt, isSprite: false, width: 1024, height: 576, timeoutMs: 50000 },
     apiKey,
-    getFluxEndpoint(env),
+    endpoint,
   );
 
   if (!generated.ok || !generated.base64) {

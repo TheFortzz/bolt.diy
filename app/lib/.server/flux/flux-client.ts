@@ -68,12 +68,18 @@ export function getFluxApiKey(env?: Record<string, any>): string | undefined {
 }
 
 /** Read the image endpoint from Cloudflare bindings; never accept client-supplied URLs. */
-export function getFluxEndpoint(env?: Record<string, any>): string {
-  return ensureFluxApiVersion(firstEnvironmentValue(
+export function getConfiguredFluxEndpoint(env?: Record<string, any>): string | undefined {
+  const endpoint = firstEnvironmentValue(
     env,
     ['tunbnailmaker-url', 'thumbnailmaker-url', 'THUMBNAILMAKER_URL', 'FLUX_ENDPOINT'],
     ['TUNBNAILMAKER_URL', 'THUMBNAILMAKER_URL', 'FLUX_ENDPOINT'],
-  ) || FLUX_ENDPOINT);
+  );
+  return endpoint ? ensureFluxApiVersion(endpoint) : undefined;
+}
+
+/** Backward-compatible endpoint for existing FLUX asset generation. */
+export function getFluxEndpoint(env?: Record<string, any>): string {
+  return getConfiguredFluxEndpoint(env) || ensureFluxApiVersion(FLUX_ENDPOINT);
 }
 
 /**

@@ -1,7 +1,7 @@
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { ZodError } from 'zod';
 import { publishThumbnailInputSchema, generatePublishThumbnail, safePublishThumbnailError } from '~/lib/.server/flux/publish-thumbnail';
-import { getFluxApiKey } from '~/lib/.server/flux/flux-client';
+import { getConfiguredFluxEndpoint, getFluxApiKey } from '~/lib/.server/flux/flux-client';
 
 const THUMBNAIL_LIMIT = 6;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
@@ -32,8 +32,8 @@ export async function action({ context, request }: ActionFunctionArgs) {
   }
 
   const env = context.cloudflare?.env as unknown as Record<string, unknown> | undefined;
-  if (!getFluxApiKey(env)) {
-    return json({ error: 'AI cover generation is not configured; a local cover will be used.' }, { status: 503 });
+  if (!getFluxApiKey(env) || !getConfiguredFluxEndpoint(env)) {
+    return json({ error: 'AI cover secrets are missing from this Cloudflare environment; a local cover will be used.' }, { status: 503 });
   }
 
   const ip = request.headers.get('CF-Connecting-IP') || 'local';
