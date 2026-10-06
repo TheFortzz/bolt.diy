@@ -48,11 +48,7 @@ export function validateAssetPath(path: string): string {
 const MAX_GENERATED_ASSET_BYTES = 5 * 1024 * 1024;
 const PNG_SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
 
-export function decodeGeneratedPng(
-  base64: string,
-  path: string,
-  expectedSize?: { width: number; height: number },
-): Uint8Array {
+export function decodeGeneratedPng(base64: string, path: string): Uint8Array {
   const cleanBase64 = base64.replace(/^data:image\/png;base64,/i, '').replace(/\s/g, '');
   const maxEncodedLength = Math.ceil(MAX_GENERATED_ASSET_BYTES / 3) * 4;
 
@@ -97,11 +93,8 @@ export function decodeGeneratedPng(
     throw new Error(`Generated PNG dimensions are invalid: ${path}`);
   }
 
-  if (expectedSize && (width !== expectedSize.width || height !== expectedSize.height)) {
-    throw new Error(
-      `Generated PNG dimensions for ${path} were ${width}×${height}; expected ${expectedSize.width}×${expectedSize.height}.`,
-    );
-  }
+  // Image providers may return a different supported resolution than requested.
+  // Keep the valid image; game renderers scale assets to their planned display size.
 
   return bytes;
 }
@@ -260,9 +253,8 @@ export async function generateProjectAssets(
       seenIds.add(asset.id);
       seenPaths.add(path);
 
-      const approvedOperation = expectedOperations?.find((operation) => operation.id === asset.id);
       const base64 = asset.base64.replace(/^data:image\/png;base64,/i, '').replace(/\s/g, '');
-      const bytes = decodeGeneratedPng(base64, path, approvedOperation);
+      const bytes = decodeGeneratedPng(base64, path);
 
       return { ...asset, path, base64, bytes };
     });

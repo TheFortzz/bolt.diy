@@ -83,11 +83,21 @@ describe('Asset Generator & Real Test Game Verification', () => {
     }
   });
 
-  it('validates generated PNG structure and the approved dimensions before writing', () => {
+  it('validates PNG structure and accepts supported provider resolutions', () => {
     const pixel = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=';
+    const pngHeader = new Uint8Array(45);
+    pngHeader.set([137, 80, 78, 71, 13, 10, 26, 10], 0);
+    pngHeader.set([0, 0, 0, 13], 8);
+    pngHeader.set([73, 72, 68, 82], 12);
+    new DataView(pngHeader.buffer).setUint32(16, 512, false);
+    new DataView(pngHeader.buffer).setUint32(20, 256, false);
+    pngHeader.set([0, 0, 0, 0], 33);
+    pngHeader.set([73, 69, 78, 68], 37);
+    const providerResolution = Buffer.from(pngHeader).toString('base64');
 
-    expect(decodeGeneratedPng(pixel, 'assets/pixel.png', { width: 1, height: 1 })).toBeInstanceOf(Uint8Array);
-    expect(() => decodeGeneratedPng(pixel, 'assets/car.png', { width: 512, height: 512 })).toThrow('expected 512×512');
+    expect(decodeGeneratedPng(pixel, 'assets/pixel.png')).toBeInstanceOf(Uint8Array);
+    // FLUX may return 512×256 for a requested 256×128 asset; keep the valid PNG.
+    expect(decodeGeneratedPng(providerResolution, 'assets/boost-pad.png')).toBeInstanceOf(Uint8Array);
     expect(() => decodeGeneratedPng('not-an-image', 'assets/bad.png')).toThrow('valid bounded base64');
   });
 
