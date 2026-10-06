@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '@nanostores/react';
 import { workbenchStore } from '~/lib/stores/workbench';
+import { chatId } from '~/lib/persistence';
 import { toast } from 'react-toastify';
 
 function generateAutoThumbnail(gameTitle: string, gameGenre: string): string {
@@ -104,8 +105,30 @@ export function PublishButton() {
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [previewThumb, setPreviewThumb] = useState<string>('');
   const files = useStore(workbenchStore.files);
+  const currentChatId = useStore(chatId);
+  const projectIdentity = currentChatId || workbenchStore.firstArtifact?.id || 'default-project';
+  const publishStorageKey = `thefortz:published:${projectIdentity}`;
+  const [publishedStorageKey, setPublishedStorageKey] = useState<string | null>(null);
+  const isPublished = publishedStorageKey === publishStorageKey;
 
   const hasFiles = Object.keys(files || {}).length > 0;
+
+  useEffect(() => {
+    const refreshPublishedState = () => {
+      try {
+        setPublishedStorageKey(localStorage.getItem(publishStorageKey) ? publishStorageKey : null);
+      } catch {
+        setPublishedStorageKey(null);
+      }
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === publishStorageKey) refreshPublishedState();
+    };
+
+    refreshPublishedState();
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [publishStorageKey]);
 
   // Auto-detect project title when modal opens or files change
   useEffect(() => {
@@ -152,6 +175,18 @@ export function PublishButton() {
     if (!hasFiles) {
       toast.error('Build a game before publishing it.');
       return;
+    }
+    try {
+      if (isPublished || localStorage.getItem(publishStorageKey)) {
+        setPublishedStorageKey(publishStorageKey);
+        toast.info('This game has already been published.');
+        return;
+      }
+    } catch {
+      if (isPublished) {
+        toast.info('This game has already been published.');
+        return;
+      }
     }
 
     try {
@@ -279,6 +314,12 @@ export function PublishButton() {
         publicationStatus = data.status || 'live';
       }
 
+      try {
+        localStorage.setItem(publishStorageKey, JSON.stringify({ title: finalTitle, publishedAt: Date.now() }));
+      } catch {
+        // Keep the current button locked even if browser storage is unavailable.
+      }
+      setPublishedStorageKey(publishStorageKey);
       toast.success(`"${finalTitle}" published successfully!`);
       setIsOpen(false);
     } catch (err: any) {
@@ -293,28 +334,29 @@ export function PublishButton() {
       <div className="flex items-center gap-1.5 publish-glow-container">
         <button
           type="button"
-          onClick={() => setIsOpen(true)}
+          onClick={() => !isPublished && setIsOpen(true)}
           className="publish-glow-button"
-          title="Publish your game to thefortz.me"
+          disabled={isPublished}
+          title={isPublished ? 'This game is already published' : 'Publish your game to thefortz.me'}
         >
-          <div className="i-ph:rocket-launch text-[#03a9f4] text-xs" />
-          <span>PUBLISH</span>
+          <div className={isPublished ? 'i-ph:check-circle-fill text-emerald-300 text-xs' : 'i-ph:rocket-launch text-orange-300 text-xs'} />
+          <span>{isPublished ? 'PUBLISHED' : 'PUBLISH'}</span>
         </button>
       </div>
 
       {isOpen && (
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
           onClick={() => setIsOpen(false)}
         >
           <div
-            className="w-full max-w-md bg-[#0e1422] border border-[#10b981]/40 rounded-none p-6 text-white relative shadow-2xl"
+            className="w-full max-w-md rounded-2xl border border-orange-400/60 bg-gradient-to-br from-[#123b72] via-[#102746] to-[#17213a] p-6 text-white relative shadow-[0_24px_90px_rgba(4,13,32,0.72)]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-white/15 pb-3 mb-4">
+            <div className="flex items-center justify-between border-b border-orange-300/25 pb-3 mb-4">
               <div className="flex items-center gap-2">
                 <span className="text-xl">🎮</span>
-                <h3 className="font-extrabold text-lg tracking-wider uppercase text-emerald-400 font-['Anton',sans-serif]">Publish Game</h3>
+                <h3 className="font-extrabold text-lg tracking-wider uppercase text-orange-300 font-['Anton',sans-serif]">Publish Game</h3>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
@@ -322,28 +364,28 @@ export function PublishButton() {
               >✕</button>
             </div>
 
-            <p className="text-xs text-slate-300 mb-4 leading-relaxed font-medium">
-              Publish directly to <strong className="text-emerald-300">thefortz.me</strong>. AI cover art is generated automatically unless you upload a custom thumbnail.
+            <p className="text-xs text-slate-200 mb-4 leading-relaxed font-medium">
+              Publish directly to <strong className="text-orange-300">thefortz.me</strong>. AI cover art is generated automatically unless you upload a custom thumbnail.
             </p>
 
             <div className="flex flex-col gap-3">
               <div>
-                <label className="text-[11px] font-bold text-gray-300 uppercase tracking-wide mb-1 block">Game Name</label>
+                <label className="text-[11px] font-bold text-sky-100/80 uppercase tracking-wide mb-1 block">Game Name</label>
                 <input
                   type="text"
                   placeholder="e.g. Cyber Runner"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full p-2 bg-[#121929] border border-[#10b981]/30 rounded-none text-white text-sm"
+                  className="w-full p-2 bg-[#0b1c35] border border-orange-300/35 focus:border-orange-300 focus:outline-none rounded-lg text-white text-sm"
                 />
               </div>
 
               <div>
-                <label className="text-[11px] font-bold text-gray-300 uppercase tracking-wide mb-1 block">Genre</label>
+                <label className="text-[11px] font-bold text-sky-100/80 uppercase tracking-wide mb-1 block">Genre</label>
                 <select
                   value={genre}
                   onChange={(e) => setGenre(e.target.value)}
-                  className="w-full p-2 bg-[#121929] border border-[#10b981]/30 rounded-none text-white text-sm"
+                  className="w-full p-2 bg-[#0b1c35] border border-orange-300/35 focus:border-orange-300 focus:outline-none rounded-lg text-white text-sm"
                 >
                   <option value="ACTION">Action</option>
                   <option value="ADVENTURE">Adventure</option>
@@ -354,24 +396,24 @@ export function PublishButton() {
               </div>
 
               <div>
-                <label className="text-[11px] font-bold text-gray-300 uppercase tracking-wide mb-1 block">Description (optional)</label>
+                <label className="text-[11px] font-bold text-sky-100/80 uppercase tracking-wide mb-1 block">Description (optional)</label>
                 <textarea
                   placeholder="Tell players about your game..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full p-2 bg-[#121929] border border-[#10b981]/30 rounded-none text-white text-sm"
+                  className="w-full p-2 bg-[#0b1c35] border border-orange-300/35 focus:border-orange-300 focus:outline-none rounded-lg text-white text-sm"
                   rows={2}
                 />
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-[11px] font-bold text-gray-300 uppercase tracking-wide">Thumbnail</label>
-                  <span className="text-[10px] text-emerald-400">Auto-generated or custom</span>
+                  <label className="text-[11px] font-bold text-sky-100/80 uppercase tracking-wide">Thumbnail</label>
+                  <span className="text-[10px] text-sky-200">AI-generated or custom</span>
                 </div>
 
                 {previewThumb && (
-                  <div className="mb-2 w-full h-24 overflow-hidden border border-white/20 bg-black/40 flex items-center justify-center">
+                  <div className="mb-2 w-full h-24 overflow-hidden rounded-lg border border-sky-200/30 bg-[#071a35] flex items-center justify-center">
                     <img src={previewThumb} alt="Game Thumbnail Preview" className="w-full h-full object-cover" />
                   </div>
                 )}
@@ -380,15 +422,15 @@ export function PublishButton() {
                   type="file"
                   accept="image/*"
                   onChange={(e) => setThumbnailFile(e.target.files?.[0] || null)}
-                  className="w-full text-xs text-white file:mr-2 file:py-1 file:px-2 file:rounded-none file:border-0 file:text-xs file:font-semibold file:bg-emerald-600 file:text-white hover:file:bg-emerald-700 cursor-pointer"
+                  className="w-full text-xs text-sky-100 file:mr-2 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-orange-500 file:text-white hover:file:bg-orange-400 cursor-pointer"
                 />
               </div>
 
               <div className="flex flex-col gap-2 mt-2">
                 <button
                   onClick={executePublish}
-                  disabled={isExporting || !hasFiles}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 font-bold text-xs uppercase tracking-wider text-black bg-[#10b981] hover:bg-[#059669] rounded-none border border-emerald-300/60 cursor-pointer transition-all disabled:opacity-50 font-extrabold"
+                  disabled={isExporting || !hasFiles || isPublished}
+                  className="w-full flex items-center justify-center gap-2 rounded-lg border border-orange-200/60 bg-gradient-to-r from-orange-500 to-amber-400 px-4 py-2.5 text-xs font-extrabold uppercase tracking-wider text-[#1c2230] transition-colors hover:from-orange-400 hover:to-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span>{isExporting ? '⏳' : '🚀'}</span>
                   <span>{isGeneratingThumbnail ? 'Creating cover…' : isExporting ? 'Publishing…' : 'Publish'}</span>
@@ -397,7 +439,7 @@ export function PublishButton() {
                 <button
                   onClick={handleExportZip}
                   disabled={isExporting || !hasFiles}
-                  className="w-full flex items-center justify-center gap-2 py-2 px-4 font-bold text-xs uppercase tracking-wider text-white bg-[#1e293b] hover:bg-[#334155] rounded-none border border-white/20 cursor-pointer transition-all disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-2 rounded-lg border border-sky-300/30 bg-[#12315b] px-4 py-2 text-xs font-bold uppercase tracking-wider text-sky-50 transition-colors hover:bg-[#19447a] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span>📥</span>
                   <span>Export ZIP Backup</span>
@@ -405,7 +447,7 @@ export function PublishButton() {
               </div>
             </div>
 
-            <div className="mt-4 pt-3 border-t border-white/10 text-[11px] text-emerald-300/70 leading-normal flex items-start gap-1.5">
+            <div className="mt-4 flex items-start gap-1.5 border-t border-sky-200/15 pt-3 text-[11px] leading-normal text-sky-100/75">
               <span>💡</span>
               <span>Hosting is 100% free! Published games appear live on thefortz.me instantly.</span>
             </div>

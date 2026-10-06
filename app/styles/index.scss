@@ -77,7 +77,7 @@ select,
 .publish-glow-container {
   position: relative;
   padding: 2.5px !important;
-  background: linear-gradient(90deg, #03a9f4, #f441a5) !important;
+  background: linear-gradient(100deg, #1688f8 0%, #48b8ff 48%, #ff8a35 100%) !important;
   border-radius: 0.7em !important;
   transition: all 0.4s ease;
   display: inline-flex;
@@ -97,7 +97,7 @@ select,
 }
 
 .publish-glow-container:hover::before {
-  background: linear-gradient(90deg, #03a9f4, #f441a5) !important;
+  background: linear-gradient(100deg, #1688f8 0%, #48b8ff 48%, #ff8a35 100%) !important;
   filter: blur(0.9em) !important;
 }
 
@@ -110,7 +110,7 @@ select,
   padding: 0.35em 0.8em !important;
   border-radius: 0.45em !important;
   border: none !important;
-  background-color: #000000 !important;
+  background-color: #10213c !important;
   color: #ffffff !important;
   cursor: pointer !important;
   box-shadow: 2px 2px 3px #000000b4 !important;
@@ -126,6 +126,12 @@ select,
 
 .publish-glow-button:active {
   transform: scale(0.97);
+}
+
+.publish-glow-button:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.78 !important;
+  transform: none !important;
 }
 
 /* Button 53 from user specification */
@@ -193,4 +199,3 @@ select,
   background-color: #e26e03 !important;
   color: #ffffff !important;
 }
-
