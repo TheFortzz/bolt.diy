@@ -18,6 +18,7 @@ import { WORK_DIR } from '~/utils/constants';
 import { description } from '~/lib/persistence';
 import Cookies from 'js-cookie';
 import { actionStepId, startActionActivity, updateActivity } from '~/lib/stores/activity';
+import { normalizeServerPreviewHtml } from '~/lib/runtime/static-preview';
 import { executionPolicy } from '~/lib/harness/execution-policy';
 import { formatWorkspaceSource } from '~/lib/runtime/source-format';
 
@@ -411,7 +412,7 @@ const mimes = {
 };
 
 const baseDir = path.resolve(fs.existsSync('/home/project') ? '/home/project' : process.cwd());
-
+const normalizeServerPreviewHtml = (${normalizeServerPreviewHtml.toString()});
 http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
@@ -448,7 +449,15 @@ http.createServer((req, res) => {
   if (file) {
     const ext = path.extname(file).toLowerCase();
     res.writeHead(200, { 'Content-Type': mimes[ext] || 'application/octet-stream' });
-    fs.createReadStream(file).pipe(res);
+    if (ext === '.html') {
+      try {
+        res.end(normalizeServerPreviewHtml(fs.readFileSync(file, 'utf8')));
+      } catch (e) {
+        fs.createReadStream(file).pipe(res);
+      }
+    } else {
+      fs.createReadStream(file).pipe(res);
+    }
   } else {
     res.writeHead(404);
     res.end('Not Found');

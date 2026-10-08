@@ -1,8 +1,8 @@
 import { Agent, createTool } from '@cline/agents';
 import { describe, expect, it } from 'vitest';
-import { createBoltAgentModel } from './bolt-agent-model';
+import { CLINE_TURN_MAX_TOKENS, createBoltAgentModel } from './bolt-agent-model';
 
-function fakeLanguageModel(observed: { toolChoice?: unknown }) {
+function fakeLanguageModel(observed: { toolChoice?: unknown; maxTokens?: unknown }) {
   let call = 0;
   return {
     specificationVersion: 'v1',
@@ -11,6 +11,7 @@ function fakeLanguageModel(observed: { toolChoice?: unknown }) {
     defaultObjectGenerationMode: undefined,
     async doStream(options: any) {
       observed.toolChoice = options.mode?.toolChoice;
+      observed.maxTokens = options.maxTokens;
       call++;
       const parts =
         call === 1
@@ -79,6 +80,31 @@ describe('Bolt Cline model adapter', () => {
     expect(observed.toolChoice).toMatchObject({ type: 'required' });
     expect(writtenFiles['game.js']).toBe('requestAnimationFrame(() => {});');
     expect(result.outputText).toContain('Game files updated.');
+  });
+
+  it('sizes each turn to the big-build budget by default and honors an explicit cap', async () => {
+    const observedDefault: { toolChoice?: unknown; maxTokens?: unknown } = {};
+    const agentDefault = new Agent({
+      model: createBoltAgentModel(fakeLanguageModel(observedDefault)),
+      systemPrompt: 'Use tools to edit files, then summarize.',
+      tools: [],
+      maxIterations: 1,
+    });
+    await agentDefault.run('Say hi');
+
+    expect(observedDefault.maxTokens).toBe(CLINE_TURN_MAX_TOKENS);
+    expect(CLINE_TURN_MAX_TOKENS).toBeGreaterThanOrEqual(32000);
+
+    const observedCustom: { toolChoice?: unknown; maxTokens?: unknown } = {};
+    const agentCustom = new Agent({
+      model: createBoltAgentModel(fakeLanguageModel(observedCustom), 8000),
+      systemPrompt: 'Use tools to edit files, then summarize.',
+      tools: [],
+      maxIterations: 1,
+    });
+    await agentCustom.run('Say hi');
+
+    expect(observedCustom.maxTokens).toBe(8000);
   });
 
   it('waits and retries an empty model turn before returning a real tool call', async () => {

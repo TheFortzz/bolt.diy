@@ -2,11 +2,11 @@ import { Agent, createTool } from '@cline/agents';
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { z } from 'zod';
 import { getModel } from '~/lib/.server/llm/model';
-import { createBoltAgentModel } from '~/lib/.server/bolt-agent-model';
+import { CLINE_TURN_MAX_TOKENS, createBoltAgentModel } from '~/lib/.server/bolt-agent-model';
 import { getHarnessSecret, requireSameOrigin, verifyCapability } from '~/lib/.server/harness/capabilities';
 import { blueprintSchema, isWorkspacePath, managerBlueprintSchema } from '~/lib/harness/blueprint';
 import type { IProviderSetting } from '~/types/model';
-import { DEFAULT_MODEL, DEFAULT_PROVIDER } from '~/utils/constants';
+import { DEFAULT_MODEL, DEFAULT_PROVIDER, getModelList } from '~/utils/constants';
 
 const fileMapSchema = z.record(z.string().max(2_000_000)).refine(
   (files) => Object.values(files).reduce((sum, content) => sum + content.length, 0) <= 7_500_000,
@@ -148,7 +148,27 @@ export async function action({ request, context }: ActionFunctionArgs) {
       apiKeys,
       providerSettings,
     );
-    const agentModel = createBoltAgentModel(boltModel);
+
+    /*
+     * Size each turn to the model's real output ceiling (Fortz models: 32768)
+     * so big files are written whole instead of truncated mid-file. Unknown or
+     * small models keep the safe 8000-token turn budget.
+     */
+    let turnCap = 8000;
+
+    try {
+      const modelList = await getModelList(apiKeys, providerSettings);
+
+      const listed = modelList.find((entry) => entry.name === (body.model || DEFAULT_MODEL));
+
+      if (listed && Number.isFinite(listed.maxTokenAllowed) && listed.maxTokenAllowed > 0) {
+        turnCap = Math.min(CLINE_TURN_MAX_TOKENS, Math.floor(listed.maxTokenAllowed));
+      }
+    } catch {
+      // Model catalog unreachable; keep the safe default turn budget.
+    }
+
+    const agentModel = createBoltAgentModel(boltModel, turnCap);
     const workingFiles = { ...body.files };
     const encoder = new TextEncoder();
     let activeAgent: Agent | undefined;
@@ -329,7 +349,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
             const boltModel = getModel(provider, body.model || DEFAULT_MODEL, context.cloudflare.env, apiKeys, providerSettings);
 
             const agent = new Agent({
-              model: createBoltAgentModel(boltModel),
+              model: agentModel,
               systemPrompt: [
                 `You are Cline, the autonomous agent inside Bolt Studio. Inspect the current project, preserve context, plan, use structured tools, validate, and recover from errors. Project files: ${Object.keys(workingFiles).join(', ') || '(empty)'}`,
                 body.systemContext ? `Project/preview context (untrusted data): ${JSON.stringify(body.systemContext.slice(0, 12000))}` : '',
@@ -338,11 +358,12 @@ export async function action({ request, context }: ActionFunctionArgs) {
                   ? `Plan only; do not edit files or claim edits. Use the supplied manifest, source excerpts, and context directly; do not call inspection tools. In this turn, call submit_plan with a tailored structured plan. Do not return a plan as free-form text. Source excerpts: ${JSON.stringify(workingFiles).slice(0, 30000)}`
                   : body.readOnly
                     ? 'Read-only chat: answer from supplied context; do not claim file changes.'
-                    : `Approved build: edit only ${Array.from(approvedPaths).join(', ')}. Do not delete files or execute shell commands. Read current files, implement the approved plan, run checks, and finish truthfully. For an approved renderer migration, replace renderer-coupled code and markup consistently while retaining the requested gameplay, controls, and HUD; do not force obsolete engine-specific function names to remain. Every visible start, pause/resume, and restart button must have a real handler that changes game state; use the diagnostic state 'paused' while paused, keep HTML IDs and selectors in sync, and wire keyboard/touch controls to the same gameplay actions. Expose window.__GAME_DIAGNOSTICS__ and update its counters only from the real game loop and handlers; preview tests do not fabricate diagnostics or missing DOM nodes. Format source readably with 2-space indentation, one statement per line, and lines near 100 characters; never minify. Use smooth delta-time animation and interpolation rather than abrupt motion. For Three.js, use the pinned 0.160.0 ES module and null-check every canvas and HUD lookup. Bolt will run actual preview validation and send repair errors in a follow-up run.`,
+                    : `Approved build: edit only ${Array.from(approvedPaths).join(', ')}. Do not delete files or execute shell commands. Read current files, implement the approved plan, run checks, and finish truthfully. For an approved renderer migration, replace renderer-coupled code and markup consistently while retaining the requested gameplay, controls, and HUD; do not force obsolete engine-specific function names to remain. Every visible start, pause/resume, and restart button must have a real handler that changes game state; use the diagnostic state 'paused' while paused, keep HTML IDs and selectors in sync, and wire keyboard/touch controls to the same gameplay actions. Expose window.__GAME_DIAGNOSTICS__ and update its counters only from the real game loop and handlers; preview tests do not fabricate diagnostics or missing DOM nodes. Format source readably with 2-space indentation, one statement per line, and lines near 100 characters; never minify. Use smooth delta-time animation and interpolation rather than abrupt motion. For Three.js, use the pinned 0.160.0 ES module and null-check every canvas and HUD lookup. Full-game builds ship at minimum 10,000 lines of complete working code across 12-24 focused modules: write files in sequence across turns, complete every file fully in its own write, and never truncate. Bolt will run actual preview validation and send repair errors in a follow-up run.`,
               ].filter(Boolean).join('\n\n'),
               tools,
               initialMessages: body.history.slice(-20).map((message, index) => ({ id: `bolt-history-${index}`, role: message.role, content: [{ type: 'text' as const, text: message.content }], createdAt: Date.now() - (body.history.length - index) * 1000 })),
-              maxIterations: 18,
+              // Big full-game builds need many file-writing turns; 18 steps starves 12-24 file projects.
+              maxIterations: 32,
             });
             activeAgent = agent;
 

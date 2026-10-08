@@ -560,6 +560,83 @@ export function normalizeStudioGameHtml(html: string): string {
   return out;
 }
 
+/**
+ * Publish-parity normalization for HTML served by the Studio static preview
+ * server (WebContainer). This MUST stay a single self-contained plain-JS
+ * function expression: no type annotations, no outer references, no imports.
+ * workbench.ts embeds this exact source into the container's static server,
+ * and static-preview.spec.ts executes the embedded source to prove it parses
+ * as plain JavaScript and behaves identically. Keep in sync with
+ * normalizeStudioGameHtml above.
+ */
+export const normalizeServerPreviewHtml: (html: string) => string = function (html) {
+  let out = typeof html === 'string' ? html : '';
+
+  // 1. Strip Puter.js: sandbox-blocked sockets/headers break game init.
+  out = out.replace(/<script\b[^>]*src=["']https?:\/\/js\.puter\.com[^"']*["'][^>]*>[\s\S]*?<\/script>/gi, '');
+  out = out.replace(/<script\b[^>]*src=["']https?:\/\/js\.puter\.com[^"']*["'][^>]*\/?>/gi, '');
+  out = out.replace(/<script\b[^>]*>[\s\S]*?puter\.quiet[\s\S]*?<\/script>/gi, '');
+  out = out.replace(/<script\b[^>]*>[\s\S]*?window\.puter[\s\S]*?<\/script>/gi, '');
+
+  // 2. Rewrite unpkg three.js refs to pinned jsDelivr.
+  out = out.replace(/(https?:)?\/\/unpkg\.com\/three/g, 'https://cdn.jsdelivr.net/npm/three');
+
+  // 3. Pinned three.js import map for bare imports without one.
+  if (out.indexOf('data-studio-three-importmap') === -1 && !/<script\b[^>]*type\s*=\s*["']importmap["']/i.test(out)) {
+    if (/(?:from\s+|import\s*\(\s*|import\s+)["']three(?:\/[^"']*)?["']/i.test(out)) {
+      const importMap =
+        '<script type="importmap" data-studio-three-importmap>\n{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}\n</script>';
+
+      if (/<head[\s>]/i.test(out)) {
+        out = out.replace(/<head[\s>]/i, (m) => {
+          return m + '\n' + importMap;
+        });
+      } else {
+        out = importMap + '\n' + out;
+      }
+    }
+  }
+
+  // 4. In-memory storage fallback for opaque origins.
+  if (out.indexOf('data-studio-storage-shim') === -1) {
+    const storageShim =
+      '<script data-studio-storage-shim>(function(){function m(){var s={};return{getItem:function(k){return Object.prototype.hasOwnProperty.call(s,k)?s[k]:null;},setItem:function(k,v){s[k]=String(v);},removeItem:function(k){delete s[k];},clear:function(){s={};},key:function(i){return Object.keys(s)[i]||null;},get length(){return Object.keys(s).length;}};}var ls=m();var ss=m();function patch(prop,store){try{var cur=window[prop];if(cur&&typeof cur.getItem==="function"){cur.getItem("__probe__");return;}}catch(_){}var targets=[(typeof Window!=="undefined"?Window.prototype:null)];try{if(window&&Object.getPrototypeOf(window))targets.push(Object.getPrototypeOf(window));}catch(_){}if(window)targets.push(window);for(var i=0;i<targets.length;i++){var t=targets[i];if(!t)continue;try{Object.defineProperty(t,prop,{get:function(){return store;},set:function(){},configurable:true,enumerable:true});}catch(e1){try{t[prop]=store;}catch(e2){}}}}patch("localStorage",ls);patch("sessionStorage",ss);})();</script>';
+
+    if (/<head[\s>]/i.test(out)) {
+      out = out.replace(/<head[\s>]/i, (m) => {
+        return m + storageShim;
+      });
+    } else if (/<html[\s>]/i.test(out)) {
+      out = out.replace(/<html[\s>]/i, (m) => {
+        return m + '<head>' + storageShim + '</head>';
+      });
+    } else {
+      out = storageShim + out;
+    }
+  }
+
+  // 5. Audio unlock on real gestures + player start/mute messages.
+  if (out.indexOf('data-studio-autostart') === -1) {
+    const audioUnlock =
+      '<script data-studio-autostart>(function(){if(window.__studioAutostartInjected)return;window.__studioAutostartInjected=true;function resumeAudio(){try{var ctxs=[window.audio,window.audioCtx,window.actx,window.AC,window.__audioCtx];ctxs.forEach(function(ac){if(ac&&typeof ac.resume==="function"&&ac.state==="suspended"){ac.resume();}});}catch(e){}}["pointerdown","touchstart","mousedown","keydown","click"].forEach(function(ev){window.addEventListener(ev,resumeAudio,{passive:true,once:true});});window.addEventListener("message",function(e){if(!e.data)return;if(e.data.type==="FORTZ_AUDIO_MUTE"){try{var shouldMute=!!e.data.muted;var ctxs=[window.audio,window.audioCtx,window.actx,window.AC,window.__audioCtx];ctxs.forEach(function(ac){if(ac&&typeof ac.suspend==="function"&&shouldMute&&ac.state==="running"){ac.suspend();}else if(ac&&typeof ac.resume==="function"&&!shouldMute&&ac.state==="suspended"){ac.resume();}});var audioEls=document.querySelectorAll("audio, video");audioEls.forEach(function(el){el.muted=shouldMute;});}catch(_){}}else if(e.data.type==="FORTZ_MINI_START"||e.data.type==="FORTZ_START_GAME"){resumeAudio();try{if(typeof window.startGame==="function")window.startGame();}catch(_){}}});})();</script>';
+
+    if (/<head[\s>]/i.test(out)) {
+      out = out.replace(/<head[\s>]/i, (m) => {
+        return m + '\n' + audioUnlock;
+      });
+    } else if (/<body[\s>]/i.test(out)) {
+      out = out.replace(/<body[\s>]/i, (m) => {
+        return m + '\n' + audioUnlock;
+      });
+    } else {
+      out = audioUnlock + '\n' + out;
+    }
+  }
+
+  return out;
+};
+
+
 export function buildFallbackHtml(
   files: Record<string, { type: string; content?: string } | undefined>,
   imageAssets: Record<string, GeneratedAsset> = {},

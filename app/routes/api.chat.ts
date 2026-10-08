@@ -104,9 +104,13 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
     ? messages.filter((message) => message.role === 'user').slice(-1)
     : messages;
   const rawBudget = approvedBlueprint?.budgets.maximumResponseSegments ?? MAX_RESPONSE_SEGMENTS;
-  // Edge/Cloudflare Pages Functions enforce a strict CPU time limit per execution.
-  // Never exceed 2 segments (at most 1 continuation) to prevent Cloudflare Error 1102.
-  const responseSegmentBudget = Math.min(rawBudget, context.cloudflare?.env ? 2 : 4);
+
+  /*
+   * Edge/Cloudflare Pages Functions enforce a strict CPU time limit per execution.
+   * Allow up to 4 segments (3 continuations) so truncated big builds can finish;
+   * continuations only trigger when a response is actually cut off mid-artifact.
+   */
+  const responseSegmentBudget = Math.min(rawBudget, context.cloudflare?.env ? 4 : 6);
 
   const cookieHeader = request.headers.get('Cookie');
 

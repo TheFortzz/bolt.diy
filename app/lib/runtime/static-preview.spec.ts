@@ -6,6 +6,7 @@ import {
   ensurePreviewStorageShim,
   ensureThreeImportMap,
   injectStaticScripts,
+  normalizeServerPreviewHtml,
   normalizeStudioGameHtml,
   resolveStaticPreviewFile,
   rewriteUnpkgThreeToJsdelivr,
@@ -169,5 +170,29 @@ describe('studio preview publish parity', () => {
     expect(html).not.toContain('js.puter.com');
     expect(html).toContain('data-studio-storage-shim');
     expect(html).toContain('data-studio-autostart');
+  });
+
+  it('server-embedded normalizer parses as plain JS and matches publish parity', () => {
+    // workbench.ts embeds this exact source into the WebContainer static
+    // server, so it must contain no TypeScript syntax. Rebuild it here the
+    // same way and prove it parses and behaves.
+    const embedded = new Function(`return (${normalizeServerPreviewHtml.toString()});`)() as (
+      html: string,
+    ) => string;
+
+    expect(normalizeServerPreviewHtml.toString()).not.toContain(': string');
+    expect(normalizeServerPreviewHtml.toString()).not.toContain('`');
+    expect(normalizeServerPreviewHtml.toString()).not.toContain('${');
+
+    const html =
+      '<html><head><script src="https://js.puter.com/v2/"></script><script src="https://unpkg.com/three@0.160.0/build/three.module.js"></script></head><body><script type="module">import * as THREE from "three";</script></body></html>';
+    const out = embedded(html);
+
+    expect(out).not.toContain('js.puter.com');
+    expect(out).toContain('cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js');
+    expect(out).toContain('data-studio-three-importmap');
+    expect(out).toContain('data-studio-storage-shim');
+    expect(out).toContain('data-studio-autostart');
+    expect(embedded(out)).toBe(out);
   });
 });

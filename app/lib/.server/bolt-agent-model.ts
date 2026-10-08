@@ -3,6 +3,14 @@ import type { AgentModel, AgentModelEvent, AgentModelRequest } from '@cline/shar
 
 const MAX_EMPTY_TURN_RETRIES = 2;
 
+/**
+ * Output budget per Cline agent turn. The old 8000-token ceiling capped every
+ * write_file call at ~600 lines, so full games were physically impossible and
+ * large files were truncated mid-write (broken games). 32000 fits the Fortz
+ * model ceiling (32768); per-model caps are applied by the caller.
+ */
+export const CLINE_TURN_MAX_TOKENS = 32000;
+
 function isEmptyModelResponse(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || '');
   return /model returned empty response|no output generated|empty model response|empty response/i.test(message);
@@ -30,7 +38,7 @@ function waitForRetry(delayMs: number, signal?: AbortSignal) {
 }
 
 /** Adapt Bolt's configured AI-SDK model/provider to Cline's AgentModel contract. */
-export function createBoltAgentModel(boltModel: unknown): AgentModel {
+export function createBoltAgentModel(boltModel: unknown, maxTurnTokens: number = CLINE_TURN_MAX_TOKENS): AgentModel {
   return {
     async *stream(request: AgentModelRequest): AsyncIterable<AgentModelEvent> {
       const tools = Object.fromEntries(request.tools.map((definition) => [definition.name, {
@@ -53,7 +61,7 @@ export function createBoltAgentModel(boltModel: unknown): AgentModel {
             // answer with prose and stop without calling a workspace tool.
             toolChoice: 'required',
             maxSteps: 1,
-            maxTokens: 8000,
+            maxTokens: maxTurnTokens,
             temperature: 0.3,
             abortSignal: request.signal,
           });
