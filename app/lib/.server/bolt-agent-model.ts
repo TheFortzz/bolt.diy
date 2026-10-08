@@ -62,7 +62,8 @@ export function createBoltAgentModel(boltModel: unknown, maxTurnTokens: number =
             toolChoice: 'required',
             maxSteps: 1,
             maxTokens: maxTurnTokens,
-            temperature: 0.3,
+            // Creative temperature: game builds must vary in architecture and feel, never repeat a template.
+            temperature: 0.8,
             abortSignal: request.signal,
           });
 

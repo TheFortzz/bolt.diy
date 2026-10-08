@@ -308,7 +308,9 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
           cancelable: true,
         };
         const evt = new KeyboardEvent(type, eventInit);
-        iframe.contentWindow.dispatchEvent(evt);
+        // Dispatch on the document only: it bubbles to window, so every game
+        // listener fires exactly once. Dispatching on both window and document
+        // double-fires window handlers (e.g. pause toggles twice = no-op).
         if (iframe.contentWindow.document) {
           iframe.contentWindow.document.dispatchEvent(evt);
         }
