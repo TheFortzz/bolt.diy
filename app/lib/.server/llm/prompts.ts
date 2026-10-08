@@ -131,18 +131,36 @@ const CREATIVE_GAME_GUIDANCE = `
     - Full-Game Scope: Create several connected gameplay systems and meaningful playable content (levels, rounds, quests, opponents, puzzles, or equivalent) appropriate to the genre. Include progression and escalating challenge when they fit. Implement the interactions between systems, not just a list of features or decorative screens.
     - Complete Player Experience: Include the full play loop from first input through meaningful outcomes, restart, clear controls, HUD/menus, feedback, responsive layout, and accessibility. Add save/settings/shop/social features only when they fit the requested concept.
     - Real Content: Populate the world with enough authored or varied procedural content to demonstrate the game's depth. Avoid one-screen-only prototypes, repeated placeholder waves, empty levels, fake buttons, TODOs, and systems that only appear in the plan.
-    - Proportional Architecture: For a full game, use as many focused modules as the approved budget needs (normally 8-16 files, up to the plan's 24-file ceiling). Keep narrow repairs small; never pad with empty modules.
+    - BIG-BUILD FLOOR: A full-game build MUST ship at minimum 10,000 lines of real, complete, working code across its module set - never a 1-2k line sketch. Plan 12-24 focused modules (up to the plan's ceiling) so systems stay separated and every file earns its place. Keep narrow repairs small; never pad with empty modules, and never shrink a requested large game into a three-file toy to finish sooner.
     - Modular Subsystems: Architect large games into clean, specialized modules
       (e.g., core state machines, collision & physics resolvers, particle emitters,
       procedural sound synthesizers, enemy AI controllers, level managers, HUD/menus).
     - Scope and Polished Craft: Build a rich, complete, and engaging game with rewarding objectives, dynamic feedback, intelligent behaviors tailored to the genre, and tactile polish.
-    - Zero-Error Execution: Ensure 100% syntactically valid code, correct imports/exports
-      matching the file structure, null-safe canvas rendering, and zero missing functions.
   </agentic_architecture_scale>
+
+  <big_build_protocol>
+    DELIVERING A 10,000+ LINE GAME ACROSS RESPONSES:
+    1. PHASED BLUEPRINT: In the <plan>, split the game into build phases (e.g. Phase 1: core loop + rendering + input; Phase 2: enemies/AI + physics; Phase 3: levels/content + progression; Phase 4: audio + juice + HUD/menus + polish). Each phase ends with a RUNNABLE game - every file complete, entry point wired, start button live.
+    2. EMIT PHASE BY PHASE: Ship one phase per response when the full game cannot fit. Reuse the same artifact id and keep every previously emitted file intact; only add or surgically edit files. Never re-emit unchanged files just to fill space.
+    3. CONTINUE DISCIPLINE: If output stops mid-file, the next response continues from the exact cutoff character with zero preamble - complete the file, close it, then emit the remaining blueprint files. Never restart the project.
+    4. NO PADDING, NO FILLER: Every line must be real logic, content, or styling. Never inflate with duplicated waves, copy-pasted levels, empty modules, verbose comments, or decorative screens that do nothing.
+    5. PHASE GATE: Before starting the next phase, confirm the current one runs: entry point loads, first input works, no console errors, restart works.
+  </big_build_protocol>
+
+  <zero_defect_self_review>
+    THINK BEFORE YOU EMIT - SLOW DOWN AND SELF-REVIEW EVERY FILE:
+    Before finishing, mentally execute this checklist against the exact code you emitted:
+    1. Entry wiring: index.html loads scripts in dependency order; the entry script runs init and starts the loop (or a start overlay whose handler DIRECTLY calls the real init - never a stub).
+    2. Names agree: every function/class/variable referenced exists with the exact same spelling; imports match exports; no phantom helpers.
+    3. No null paths: every getElementById/canvas/query result is checked before use; key listeners attach to window.
+    4. Braces balance: every file ends cleanly; no truncation, no ellipses, no TODO.
+    5. Buttons are real: every visible button has a handler that changes observable state.
+    If any check fails, fix that file immediately - do not ship a known defect hoping a later pass catches it. A small correct game always beats a large broken one; scale up only on a verified working core.
+  </zero_defect_self_review>
 
   Use as many focused files as the project benefits from, but do not enforce a
   universal fixed file tree. For a full-game build, the approved budget can hold
-  8-16 purposeful files (up to 24); do not shrink a requested large game into a
+  12-24 purposeful files; do not shrink a requested large game into a
   three-file toy to finish sooner. Name modules after the actual design. Avoid a
   giant unmaintainable mega-file when modular files fit, but also do not create
   empty files just to reach a line or file count. For non-game requests and narrow

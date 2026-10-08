@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { balanceAndCloseJs, buildFallbackHtml, injectStaticScripts, resolveStaticPreviewFile } from '~/lib/runtime/static-preview';
+import {
+  balanceAndCloseJs,
+  buildFallbackHtml,
+  ensurePreviewAudioUnlock,
+  ensurePreviewStorageShim,
+  ensureThreeImportMap,
+  injectStaticScripts,
+  normalizeStudioGameHtml,
+  resolveStaticPreviewFile,
+  rewriteUnpkgThreeToJsdelivr,
+  stripBlockedSdkScripts,
+} from '~/lib/runtime/static-preview';
 
 describe('static preview file resolution', () => {
   const files = [
@@ -97,5 +108,66 @@ describe('balanceAndCloseJs syntax healing', () => {
     expect(() => new Function(healed)).not.toThrow();
     expect(healed).toContain('(b - a)*t');
     expect(healed).toContain('2*(x + 1)');
+  });
+});
+
+describe('studio preview publish parity', () => {
+  it('strips Puter.js SDK tags that break sandboxed game init', () => {
+    const html =
+      '<html><head><script src="https://js.puter.com/v2/"></script></head><body><script>window.puter = {};</script></body></html>';
+    const out = stripBlockedSdkScripts(html);
+
+    expect(out).not.toContain('js.puter.com');
+    expect(out).not.toContain('window.puter');
+    expect(out).toContain('<body>');
+  });
+
+  it('rewrites unpkg three.js refs to jsDelivr', () => {
+    expect(
+      rewriteUnpkgThreeToJsdelivr('<script src="https://unpkg.com/three@0.160.0/build/three.module.js">'),
+    ).toContain('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js');
+  });
+
+  it('injects a pinned three.js import map for bare imports, once, and respects existing import maps', () => {
+    const html =
+      '<html><head></head><body><script type="module">import * as THREE from "three";</script></body></html>';
+    const out = ensureThreeImportMap(html);
+
+    expect(out).toContain('data-studio-three-importmap');
+    expect(out).toContain('three@0.160.0/build/three.module.js');
+    expect(ensureThreeImportMap(out)).toBe(out);
+
+    const withMap = '<html><head><script type="importmap">{"imports":{}}</script></head><body></body></html>';
+    expect(ensureThreeImportMap(withMap)).toBe(withMap);
+
+    expect(ensureThreeImportMap('<html><head></head><body>plain</body></html>')).not.toContain('importmap');
+  });
+
+  it('adds storage shim and audio unlock helpers exactly once', () => {
+    const html = '<html><head></head><body><button id="start">Start</button></body></html>';
+    const once = normalizeStudioGameHtml(html);
+
+    expect(once).toContain('data-studio-storage-shim');
+    expect(once).toContain('data-studio-autostart');
+    expect(once).toContain('id="start"');
+    expect(normalizeStudioGameHtml(once)).toBe(once);
+    expect(ensurePreviewStorageShim(once)).toBe(once);
+    expect(ensurePreviewAudioUnlock(once)).toBe(once);
+  });
+
+  it('buildFallbackHtml output carries the publish-parity normalization', () => {
+    const html = buildFallbackHtml({
+      'index.html': {
+        type: 'file',
+        content:
+          '<!doctype html><html><head><script src="https://js.puter.com/v2/"></script></head><body><canvas id="game"></canvas><script src="game.js"></script></body></html>',
+      },
+      'game.js': { type: 'file', content: 'requestAnimationFrame(() => {});' },
+    });
+
+    expect(html).toBeDefined();
+    expect(html).not.toContain('js.puter.com');
+    expect(html).toContain('data-studio-storage-shim');
+    expect(html).toContain('data-studio-autostart');
   });
 });

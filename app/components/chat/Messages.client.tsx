@@ -12,6 +12,7 @@ import { useStore } from '@nanostores/react';
 import { authStore } from '~/lib/auth/appwrite';
 import { normalizeAvatarUrl } from '~/utils/avatar';
 import { ActivityTimeline } from './ActivityTimeline';
+import { CookingStatus } from './CookingStatus';
 import styles from '~/components/chat/ChatExperience.module.scss';
 import { BlueprintCard } from '~/components/chat/BlueprintCard';
 import { blueprintSchema } from '~/lib/harness/blueprint';
@@ -168,7 +169,7 @@ const MessageRow = React.memo((props: MessageRowProps) => {
         ) : (
           <>
             <div className={styles.MessageMeta}>
-              FortzAI {isStreaming && isLast && <span className={styles.Badge}>Working</span>}
+              FortzAI {isStreaming && isLast && <span className={styles.Badge}>Cooking</span>}
             </div>
             <AssistantMessage content={content} isStreaming={isStreaming && isLast} messageId={messageId} />
             {planBlueprint !== undefined && (
@@ -377,7 +378,7 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
           <div className={classNames(styles.Turn, styles.WorkingTurn)}>
             <div className={styles.MessageBody}>
               <div className={styles.MessageMeta}>
-                FortzAI <span className={styles.Badge}>Working</span>
+                FortzAI <span className={styles.Badge}>Cooking</span>
               </div>
               <div className={styles.ThinkingCard} role="status" aria-live="polite">
                 <span className={styles.ThinkingIcon} aria-hidden="true">
@@ -396,19 +397,22 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
                   />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className={styles.ThinkingTitle}>
-                    {harness.detail || (isStreaming ? 'FortzAI is composing its reply…' : 'FortzAI is preparing your request…')}
-                  </div>
+                  <div className={styles.ThinkingTitle}>{harness.detail || <CookingStatus variant="headline" />}</div>
                   <div className={styles.ThinkingSubtitle}>
-                    {harness.phase === 'planning'
-                      ? 'Designing the game systems and playable content before changing files.'
-                      : harness.phase === 'preparing-assets'
-                        ? 'Preparing the approved visuals before the game modules are written.'
-                      : harness.phase === 'editing'
-                        ? 'The live response and completed files will appear here as the build continues.'
-                        : harness.phase === 'verifying'
-                          ? 'Running the preview and gameplay checks on the generated project.'
-                          : 'The streamed reply will appear in the conversation as it arrives.'}
+                    <div>
+                      {harness.phase === 'planning'
+                        ? 'Designing the game systems and playable content before changing files.'
+                        : harness.phase === 'preparing-assets'
+                          ? 'Preparing the approved visuals before the game modules are written.'
+                          : harness.phase === 'editing'
+                            ? 'The live response and completed files will appear here as the build continues.'
+                            : harness.phase === 'verifying'
+                              ? 'Running the preview and gameplay checks on the generated project.'
+                              : 'The streamed reply will appear in the conversation as it arrives.'}
+                    </div>
+                    <div>
+                      <CookingStatus phase={harness.phase} />
+                    </div>
                   </div>
                 </div>
               </div>

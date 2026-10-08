@@ -393,6 +393,173 @@ const errorOverlayScript = `<script id="bolt-game-error-overlay">
 })();
 </script>`;
 
+/**
+ * Studio preview parity with the published build.
+ *
+ * The published game goes through a normalization pipeline (Puter.js strip,
+ * unpkg three.js rewrite, import map, storage shim, audio unlock). The Studio
+ * fallback preview used to skip all of that, so games looked broken in the
+ * Studio (dead buttons, no start, silent errors) while the published copy on
+ * thefortz.me worked fine. These helpers apply the same normalization to the
+ * fallback HTML so both run identically.
+ */
+
+/** Strip Puter.js: its SDK opens sockets/headers the sandbox blocks, which can break game init. */
+export function stripBlockedSdkScripts(html: string): string {
+  let out = html || '';
+
+  out = out.replace(/<script\b[^>]*src=["']https?:\/\/js\.puter\.com[^"']*["'][^>]*>[\s\S]*?<\/script>/gi, '');
+  out = out.replace(/<script\b[^>]*src=["']https?:\/\/js\.puter\.com[^"']*["'][^>]*\/?>/gi, '');
+  out = out.replace(/<script\b[^>]*>[\s\S]*?puter\.quiet[\s\S]*?<\/script>/gi, '');
+  out = out.replace(/<script\b[^>]*>[\s\S]*?window\.puter[\s\S]*?<\/script>/gi, '');
+
+  return out;
+}
+
+/** Rewrite unpkg three.js refs to jsDelivr so sandboxed/credentialless iframes never block them. */
+export function rewriteUnpkgThreeToJsdelivr(html: string): string {
+  return (html || '').replace(/(https?:)?\/\/unpkg\.com\/three/g, 'https://cdn.jsdelivr.net/npm/three');
+}
+
+const PINNED_THREE_MODULE = 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+const PINNED_THREE_ADDONS = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/';
+
+/**
+ * Inject a pinned three.js import map when a module script uses bare `three`
+ * imports but the document declares no import map. Without it the module
+ * graph fails and no click handler ever gets wired.
+ */
+export function ensureThreeImportMap(html: string): string {
+  if (!html || html.includes('data-studio-three-importmap')) {
+    return html;
+  }
+
+  if (/<script\b[^>]*type\s*=\s*["']importmap["']/i.test(html)) {
+    return html;
+  }
+
+  const needsThree = /(?:from\s+|import\s*\(\s*|import\s+)["']three(?:\/[^"']*)?["']/i.test(html);
+
+  if (!needsThree) {
+    return html;
+  }
+
+  const importMap = `<script type="importmap" data-studio-three-importmap>\n{"imports":{"three":"${PINNED_THREE_MODULE}","three/addons/":"${PINNED_THREE_ADDONS}"}}\n</script>`;
+
+  if (/<head[\s>]/i.test(html)) {
+    return html.replace(/<head[\s>]/i, (m) => `${m}\n${importMap}`);
+  }
+
+  return `${importMap}\n${html}`;
+}
+
+const storageShimScript = `<script data-studio-storage-shim>(function(){function m(){var s={};return{getItem:function(k){return Object.prototype.hasOwnProperty.call(s,k)?s[k]:null;},setItem:function(k,v){s[k]=String(v);},removeItem:function(k){delete s[k];},clear:function(){s={};},key:function(i){return Object.keys(s)[i]||null;},get length(){return Object.keys(s).length;}};}var ls=m();var ss=m();function patch(prop,store){try{var cur=window[prop];if(cur&&typeof cur.getItem==="function"){cur.getItem("__probe__");return;}}catch(_){}var targets=[(typeof Window!=="undefined"?Window.prototype:null)];try{if(window&&Object.getPrototypeOf(window))targets.push(Object.getPrototypeOf(window));}catch(_){}if(window)targets.push(window);for(var i=0;i<targets.length;i++){var t=targets[i];if(!t)continue;try{Object.defineProperty(t,prop,{get:function(){return store;},set:function(){},configurable:true,enumerable:true});}catch(e1){try{t[prop]=store;}catch(e2){}}}}patch("localStorage",ls);patch("sessionStorage",ss);})();</script>`;
+
+/**
+ * Safe in-memory storage fallback so games calling localStorage keep working
+ * when the fallback document runs on an opaque origin (srcdoc without
+ * allow-same-origin) instead of throwing SecurityError mid-init.
+ */
+export function ensurePreviewStorageShim(html: string): string {
+  if (!html || html.includes('data-studio-storage-shim')) {
+    return html;
+  }
+
+  if (/<head[\s>]/i.test(html)) {
+    return html.replace(/<head[\s>]/i, (m) => `${m}${storageShimScript}`);
+  }
+
+  if (/<html[\s>]/i.test(html)) {
+    return html.replace(/<html[\s>]/i, (m) => `${m}<head>${storageShimScript}</head>`);
+  }
+
+  return storageShimScript + html;
+}
+
+const audioUnlockScript = `<script data-studio-autostart>
+(function() {
+  if (window.__studioAutostartInjected) return;
+  window.__studioAutostartInjected = true;
+
+  // Audio unlock helper for browser autoplay policies
+  function resumeAudio() {
+    try {
+      var ctxs = [window.audio, window.audioCtx, window.actx, window.AC, window.__audioCtx];
+      ctxs.forEach(function(ac) {
+        if (ac && typeof ac.resume === 'function' && ac.state === 'suspended') {
+          ac.resume();
+        }
+      });
+    } catch(e) {}
+  }
+
+  ['pointerdown', 'touchstart', 'mousedown', 'keydown', 'click'].forEach(function(ev) {
+    window.addEventListener(ev, resumeAudio, { passive: true, once: true });
+  });
+
+  // Handle player mute / start messages cleanly without simulating synthetic keys or clicks
+  window.addEventListener('message', function(e) {
+    if (!e.data) return;
+    if (e.data.type === 'FORTZ_AUDIO_MUTE') {
+      try {
+        var shouldMute = !!e.data.muted;
+        var ctxs = [window.audio, window.audioCtx, window.actx, window.AC, window.__audioCtx];
+        ctxs.forEach(function(ac) {
+          if (ac && typeof ac.suspend === 'function' && shouldMute && ac.state === 'running') {
+            ac.suspend();
+          } else if (ac && typeof ac.resume === 'function' && !shouldMute && ac.state === 'suspended') {
+            ac.resume();
+          }
+        });
+        var audioEls = document.querySelectorAll('audio, video');
+        audioEls.forEach(function(el) {
+          el.muted = shouldMute;
+        });
+      } catch(_) {}
+    } else if (e.data.type === 'FORTZ_MINI_START' || e.data.type === 'FORTZ_START_GAME') {
+      resumeAudio();
+      try {
+        if (typeof window.startGame === 'function') window.startGame();
+      } catch(_) {}
+    }
+  });
+})();
+</script>`;
+
+/**
+ * Unlock WebAudio on the first real user gesture and honor the player start /
+ * mute messages — the same helper the published build receives, so audio and
+ * start overlays behave identically in the Studio preview.
+ */
+export function ensurePreviewAudioUnlock(html: string): string {
+  if (!html || html.includes('data-studio-autostart')) {
+    return html;
+  }
+
+  if (/<head[\s>]/i.test(html)) {
+    return html.replace(/<head[\s>]/i, (m) => `${m}\n${audioUnlockScript}`);
+  }
+
+  if (/<body[\s>]/i.test(html)) {
+    return html.replace(/<body[\s>]/i, (m) => `${m}\n${audioUnlockScript}`);
+  }
+
+  return `${audioUnlockScript}\n${html}`;
+}
+
+/** Run the full publish-parity normalization over Studio fallback HTML. */
+export function normalizeStudioGameHtml(html: string): string {
+  let out = html || '';
+
+  out = stripBlockedSdkScripts(out);
+  out = rewriteUnpkgThreeToJsdelivr(out);
+  out = ensureThreeImportMap(out);
+  out = ensurePreviewStorageShim(out);
+  out = ensurePreviewAudioUnlock(out);
+
+  return out;
+}
+
 export function buildFallbackHtml(
   files: Record<string, { type: string; content?: string } | undefined>,
   imageAssets: Record<string, GeneratedAsset> = {},
@@ -672,5 +839,8 @@ export function buildFallbackHtml(
   );
   const liveAssets = Object.fromEntries(Object.entries(imageAssets).filter(([path]) => livePaths.has(path)));
 
-  return inlineGeneratedAssetUrls(bundled, liveAssets);
+  // Publish parity: run the same normalization the published build receives
+  // (Puter strip, unpkg->jsDelivr, three import map, storage shim, audio
+  // unlock) so the Studio preview runs exactly like thefortz.me copy.
+  return inlineGeneratedAssetUrls(normalizeStudioGameHtml(bundled), liveAssets);
 }

@@ -1,5 +1,6 @@
 import { memo, useState } from 'react';
 import { classNames } from '~/utils/classNames';
+import { CookingStatus } from './CookingStatus';
 
 interface ThoughtProcessProps {
   thought: string;
@@ -38,7 +39,7 @@ export const ThoughtProcess = memo(({ thought, isStreaming = false }: ThoughtPro
           )}
         </span>
         <span className="font-semibold text-slate-200">
-          {isStreaming ? 'Thinking…' : 'Thought process'}
+          {isStreaming ? <CookingStatus variant="compact" intervalMs={2200} /> : 'Thought process'}
         </span>
         {!isStreaming && (
           <span className="text-[11px] text-slate-400 font-mono">

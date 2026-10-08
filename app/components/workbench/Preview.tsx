@@ -6,6 +6,7 @@ import { registerPreviewValidator, type PreviewValidationResult } from '~/lib/ru
 import { cleanWorkDirRelativePath } from '~/utils/diff';
 import { PortDropdown } from './PortDropdown';
 import { generatedAssets } from '~/lib/stores/generated-assets';
+import { CookingStatus } from '~/components/chat/CookingStatus';
 import { runStaticPreviewProbe } from '~/lib/runtime/preview-probe';
 import { buildFallbackHtml } from '~/lib/runtime/static-preview';
 import { getWebContainer } from '~/lib/webcontainer';
@@ -668,14 +669,16 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
               {isStreaming && (
                 <div className="absolute top-3 right-3 z-10 flex items-center gap-2 px-3 py-1.5 bg-[#0c1f36]/95 border border-[#38bdf8]/40 text-sky-200 text-xs font-semibold shadow-lg select-none">
                   <span className="w-3.5 h-3.5 border-2 border-sky-300 border-t-transparent rounded-full animate-spin" />
-                  AI updating…
+                  <CookingStatus variant="compact" intervalMs={2400} />
                 </div>
               )}
             </>
           ) : isStreaming ? (
             <div className="flex flex-col w-full h-full justify-center items-center bg-[#0d1527] text-slate-300 gap-3 p-6 text-center select-none">
               <div className="w-10 h-10 border-2 border-[#38bdf8] border-t-transparent animate-spin rounded-full" />
-              <div className="text-sm font-semibold text-white">AI is building your game…</div>
+              <div className="text-sm font-semibold text-white">
+                <CookingStatus variant="headline" />
+              </div>
               <div className="text-xs text-slate-400 max-w-sm">
                 Preview will appear here as soon as the first playable files are ready.
               </div>

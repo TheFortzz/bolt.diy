@@ -25,15 +25,12 @@ describe('AssistantMessage', () => {
     expect(markup).not.toContain('</think>');
   });
 
-  it('shows thinking spinner indicator while streaming thoughts', () => {
+  it('shows cooking status indicator while streaming thoughts', () => {
     const markup = renderToStaticMarkup(
-      <AssistantMessage
-        content="<think>Analyzing road curvature and vehicle physics"
-        isStreaming={true}
-      />,
+      <AssistantMessage content="<think>Analyzing road curvature and vehicle physics" isStreaming={true} />,
     );
 
-    expect(markup).toContain('Thinking…');
+    expect(markup).toContain('Preheating the arcade');
     expect(markup).not.toContain('<think>');
   });
 
