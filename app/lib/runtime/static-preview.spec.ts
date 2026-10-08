@@ -5,6 +5,7 @@ import {
   ensurePreviewAudioUnlock,
   ensurePreviewStorageShim,
   ensureThreeImportMap,
+  inlineLocalModuleBlobImports,
   injectStaticScripts,
   normalizeServerPreviewHtml,
   normalizeStudioGameHtml,
@@ -194,5 +195,104 @@ describe('studio preview publish parity', () => {
     expect(out).toContain('data-studio-storage-shim');
     expect(out).toContain('data-studio-autostart');
     expect(embedded(out)).toBe(out);
+  });
+});
+
+describe('studio preview local module loading', () => {
+  const captureBlobs = () => {
+    const blobs: Blob[] = [];
+    const original = URL.createObjectURL;
+    URL.createObjectURL = ((obj: any) => {
+      blobs.push(obj as Blob);
+      return `blob:test-${blobs.length}`;
+    }) as any;
+    return {
+      blobs,
+      restore: () => {
+        URL.createObjectURL = original;
+      },
+    };
+  };
+
+  it('rewrites relative ESM imports to blob URLs across nested modules', async () => {
+    const { blobs, restore } = captureBlobs();
+    try {
+      const html =
+        '<html><head></head><body><canvas></canvas>' +
+        '<script type="module" data-inlined="src/main.js">import { readInput } from "./input.js";\nreadInput();</script>' +
+        '</body></html>';
+      const out = inlineLocalModuleBlobImports(html, [
+        { path: 'src/main.js', content: 'import { readInput } from "./input.js";\nreadInput();' },
+        { path: 'src/input.js', content: 'import { clamp } from "./utils.js";\nexport function readInput() { return clamp(1); }' },
+        { path: 'src/utils.js', content: 'export function clamp(v) { return v; }' },
+      ]);
+
+      expect(out).toContain('from "blob:test-');
+      expect(out).not.toContain('"./input.js"');
+      // Transitive dependency was bundled too.
+      expect(blobs.length).toBeGreaterThanOrEqual(2);
+      const texts = await Promise.all(blobs.map((b) => b.text()));
+      expect(texts.some((t) => t.includes('readInput'))).toBe(true);
+      expect(texts.some((t) => t.includes('blob:test-') && t.includes('clamp'))).toBe(true);
+      expect(texts.some((t) => t.includes('export function clamp'))).toBe(true);
+    } finally {
+      restore();
+    }
+  });
+
+  it('leaves bare, absolute, and unresolvable specifiers alone', () => {
+    const html =
+      '<html><head></head><body>' +
+      '<script type="module" data-inlined="game.js">import * as THREE from "three";\nimport { x } from "./missing.js";\nconsole.log(THREE, x);</script>' +
+      '</body></html>';
+    const out = inlineLocalModuleBlobImports(html, [
+      { path: 'game.js', content: 'import * as THREE from "three";' },
+    ]);
+
+    expect(out).toContain('from "three"');
+    expect(out).toContain('"./missing.js"');
+    expect(out).not.toContain('blob:');
+  });
+
+  it('survives circular imports without hanging', () => {
+    const html =
+      '<html><head></head><body>' +
+      '<script type="module" data-inlined="a.js">import { b } from "./b.js";\nexport const a = b;</script>' +
+      '</body></html>';
+    const out = inlineLocalModuleBlobImports(html, [
+      { path: 'a.js', content: 'import { b } from "./b.js";\nexport const a = b;' },
+      { path: 'b.js', content: 'import { a } from "./a.js";\nexport const b = a || 1;' },
+    ]);
+
+    expect(out).toContain('blob:');
+  });
+
+  it('leaves classic scripts untouched', () => {
+    const html =
+      '<html><head></head><body>' +
+      '<script data-inlined="game.js">var x = "./input.js";</script>' +
+      '</body></html>';
+    const out = inlineLocalModuleBlobImports(html, [{ path: 'game.js', content: '' }]);
+
+    expect(out).toBe(html);
+  });
+
+  it('buildFallbackHtml loads every module file of a multi-file ESM game', () => {
+    const html = buildFallbackHtml({
+      'index.html': {
+        type: 'file',
+        content:
+          '<!doctype html><html><head></head><body><canvas id="game"></canvas><script type="module" src="src/main.js"></script></body></html>',
+      },
+      'src/main.js': {
+        type: 'file',
+        content: 'import { readInput } from "./input.js";\nwindow.started = readInput();',
+      },
+      'src/input.js': { type: 'file', content: 'export function readInput() { return 1; }' },
+    });
+
+    expect(html).toBeDefined();
+    expect(html).not.toContain('"./input.js"');
+    expect(html).toContain('from "blob:');
   });
 });

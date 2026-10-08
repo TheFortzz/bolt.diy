@@ -560,6 +560,169 @@ export function normalizeStudioGameHtml(html: string): string {
   return out;
 }
 
+/*
+ * Blob URLs minted for inlined local ES modules, oldest generations first.
+ * Revoked lazily so the on-screen preview and the last-good standby preview
+ * never lose their modules mid-stream.
+ */
+const moduleBlobGenerations: string[][] = [];
+
+function trackModuleBlobGeneration(urls: string[]) {
+  if (urls.length) {
+    moduleBlobGenerations.push(urls);
+  }
+
+  while (moduleBlobGenerations.length > 2) {
+    const stale = moduleBlobGenerations.shift();
+
+    if (stale) {
+      for (const url of stale) {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          /* already revoked */
+        }
+      }
+    }
+  }
+}
+
+function unescapeAttr(value: string): string {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+/**
+ * Rewrite relative ES-module imports inside inlined module scripts to blob:
+ * URLs minted from the actual project files. Separate inline
+ * `<script type="module">` blocks cannot resolve `./x.js` against each other
+ * inside a blob:/srcdoc iframe ("base scheme isn't hierarchical"), which kills
+ * every multi-file module game. Blob URLs preserve real module semantics
+ * (named/default/namespace imports, cycles via live bindings) with no
+ * bundler. Bare specifiers ('three', CDN URLs) are left for the import map.
+ */
+export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPreviewFile[]): string {
+  if (!html || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+    return html;
+  }
+
+  const generation: string[] = [];
+  const blobCache = new Map<string, string>();
+  const inProgress = new Set<string>();
+
+  const resolveRef = (importerPath: string, spec: string): string | undefined => {
+    const cleanSpec = spec.split(/[?#]/, 1)[0];
+
+    if (!cleanSpec.startsWith('.')) {
+      const hit = resolveStaticPreviewFile(sourceFiles, cleanSpec);
+      return hit?.path;
+    }
+
+    const base = importerPath.includes('/') ? importerPath.slice(0, importerPath.lastIndexOf('/') + 1) : '';
+
+    const parts: string[] = [];
+
+    for (const seg of `${base}${cleanSpec}`.split('/')) {
+      if (seg === '' || seg === '.') {
+        continue;
+      }
+
+      if (seg === '..') {
+        parts.pop();
+      } else {
+        parts.push(seg);
+      }
+    }
+
+    const hit = resolveStaticPreviewFile(sourceFiles, parts.join('/'));
+
+    return hit?.path;
+  };
+
+  const getBlobUrl = (normPath: string): string | undefined => {
+    const cached = blobCache.get(normPath);
+
+    if (cached) {
+      return cached;
+    }
+
+    if (inProgress.has(normPath)) {
+      return undefined;
+    }
+
+    const entry = sourceFiles.find((file) => file.path === normPath);
+
+    if (!entry) {
+      return undefined;
+    }
+
+    inProgress.add(normPath);
+
+    let code =
+      entry.path.endsWith('.js') || entry.path.endsWith('.mjs') ? balanceAndCloseJs(entry.content) : entry.content;
+
+    code = rewriteRelativeImports(normPath, code);
+    inProgress.delete(normPath);
+
+    try {
+      const url = URL.createObjectURL(new Blob([code], { type: 'text/javascript;charset=utf-8' }));
+      generation.push(url);
+      blobCache.set(normPath, url);
+
+      return url;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const rewriteRelativeImports = (importerPath: string, code: string): string => {
+    const rewriteStatic = code.replace(/\bfrom\s*(["'])(\.[^"']+)\1/g, (match, quote: string, spec: string) => {
+      const dep = resolveRef(importerPath, spec);
+      const url = dep ? getBlobUrl(dep) : undefined;
+
+      return url ? `from ${quote}${url}${quote}` : match;
+    });
+    return rewriteStatic.replace(/\bimport\s*\(\s*(["'])(\.[^"']+)\1\s*\)/g, (match, quote: string, spec: string) => {
+      const dep = resolveRef(importerPath, spec);
+      const url = dep ? getBlobUrl(dep) : undefined;
+
+      return url ? `import(${quote}${url}${quote})` : match;
+    });
+  };
+
+  const out = html.replace(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi, (tag, attrs: string, content: string) => {
+    const attrText = String(attrs || '');
+
+    const isModule = /type\s*=\s*["']module["']/i.test(attrText);
+
+    const inlined = attrText.match(/data-inlined\s*=\s*["']([^"']+)["']/i);
+
+    if (!isModule || !inlined) {
+      return tag;
+    }
+
+    if (!/\b(?:from\s*["']\.|import\s*\(\s*["']\.)/.test(content)) {
+      return tag;
+    }
+
+    const importerPath = cleanWorkDirRelativePath(unescapeAttr(inlined[1]));
+
+    const rewritten = rewriteRelativeImports(importerPath, content);
+
+    if (rewritten === content) {
+      return tag;
+    }
+
+    return `<script${attrText}>${rewritten}</script>`;
+  });
+
+  trackModuleBlobGeneration(generation);
+
+  return out;
+}
+
 /**
  * Publish-parity normalization for HTML served by the Studio static preview
  * server (WebContainer). This MUST stay a single self-contained plain-JS
@@ -635,7 +798,6 @@ export const normalizeServerPreviewHtml: (html: string) => string = function (ht
 
   return out;
 };
-
 
 export function buildFallbackHtml(
   files: Record<string, { type: string; content?: string } | undefined>,
@@ -874,6 +1036,10 @@ export function buildFallbackHtml(
   }
 
   bundled = injectStaticScripts(bundled, dependencyScripts, entryScripts);
+
+  // Rewrite relative ESM imports to blob URLs so multi-file module games
+  // actually load every file inside the blob/srcdoc preview iframe.
+  bundled = inlineLocalModuleBlobImports(bundled, sourceFiles);
 
   // Automatically rewrite broken / 404 Three.js URLs to rock-solid stable CDN
   bundled = bundled.replace(
