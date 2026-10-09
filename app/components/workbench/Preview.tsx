@@ -2,7 +2,7 @@ import { useStore } from '@nanostores/react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { IconButton } from '~/components/ui/IconButton';
 import { workbenchStore } from '~/lib/stores/workbench';
-import { registerPreviewValidator, type PreviewValidationResult } from '~/lib/runtime/preview-validation';
+import { registerPreviewValidator, reportPreviewGameError, type PreviewValidationResult } from '~/lib/runtime/preview-validation';
 import { cleanWorkDirRelativePath } from '~/utils/diff';
 import { PortDropdown } from './PortDropdown';
 import { generatedAssets } from '~/lib/stores/generated-assets';
@@ -440,6 +440,36 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       window.removeEventListener('thefortz-build-finished', handleReload);
     };
   }, [reloadPreview]);
+
+  // Collect live runtime errors from the game iframe so the repair loop can
+  // fix games that boot but throw during play.
+  useEffect(() => {
+    const handleGameError = (event: MessageEvent) => {
+      if (!event.data || typeof event.data !== 'object') {
+        return;
+      }
+
+      if (event.data.type !== 'thefortz-game-error') {
+        return;
+      }
+
+      try {
+        if (event.source !== iframeRef.current?.contentWindow) {
+          return;
+        }
+      } catch {
+        return;
+      }
+
+      reportPreviewGameError(String(event.data.message || 'Unknown game runtime error'));
+    };
+
+    window.addEventListener('message', handleGameError);
+
+    return () => {
+      window.removeEventListener('message', handleGameError);
+    };
+  }, []);
 
   const toggleFullscreen = async () => {
     if (!isFullscreen && containerRef.current) {

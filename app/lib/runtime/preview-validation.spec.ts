@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { PreviewVerificationRequirements } from './preview-probe';
-import { registerPreviewValidator, validatePreview } from './preview-validation';
+import {
+  registerPreviewValidator,
+  reportPreviewGameError,
+  takePreviewGameErrors,
+  validatePreview,
+} from './preview-validation';
 
 let unregister: (() => void) | undefined;
 afterEach(() => {
@@ -37,5 +42,27 @@ describe('preview validation registration', () => {
 
     expect(await validatePreview(requirements)).toEqual({ ok: true });
     expect(received).toEqual(requirements);
+  });
+});
+
+describe('preview game error inbox', () => {
+  it('collects iframe runtime errors and drains them once', () => {
+    takePreviewGameErrors();
+    reportPreviewGameError('Profile is not a constructor');
+    reportPreviewGameError('Profile is not a constructor');
+    reportPreviewGameError('   ');
+
+    expect(takePreviewGameErrors()).toEqual(['Profile is not a constructor']);
+    expect(takePreviewGameErrors()).toEqual([]);
+  });
+
+  it('caps the inbox so one noisy game cannot flood repairs', () => {
+    takePreviewGameErrors();
+
+    for (let i = 0; i < 40; i++) {
+      reportPreviewGameError(`error-${i}`);
+    }
+
+    expect(takePreviewGameErrors().length).toBeLessThanOrEqual(20);
   });
 });

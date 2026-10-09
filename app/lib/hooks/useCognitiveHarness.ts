@@ -10,6 +10,7 @@ import { workbenchStore } from '~/lib/stores/workbench';
 import { getWebContainer } from '~/lib/webcontainer';
 import { compileSystemContext } from '~/lib/runtime/system-context';
 import { validationState } from '~/lib/runtime/build-validator';
+import { takePreviewGameErrors } from '~/lib/runtime/preview-validation';
 import { verifyGameBuild } from '~/lib/runtime/game-build-pipeline';
 import { generatedAssets } from '~/lib/stores/generated-assets';
 import { generateProjectAssets } from '~/lib/runtime/asset-generator';
@@ -297,7 +298,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
               `Approved blueprint (authoritative file allowlist): ${JSON.stringify(blueprint)}`,
               `You may write only these approved paths: ${approvedPaths.join(', ')}.`,
               'Inspect the current project before editing. Preserve unrelated working behavior and implement the approved game systems completely. Full-game builds ship at minimum 10,000 lines of complete working code: write every approved file fully, complete every function, and never truncate. Derive architecture, systems, and mechanics from THIS request only — never repeat a previous build’s structure or gameplay loop. For an approved engine migration, replace renderer-specific code and markup consistently while retaining the requested gameplay, controls, and HUD; do not preserve obsolete renderer function names.',
-              'Wire every visible start, pause/resume, and restart button to a real state-changing handler; use diagnostic gameState "paused" while paused, keep HTML IDs/selectors in sync, and wire keyboard/touch input to gameplay. Write readable source with 2-space indentation, one statement per line, and lines near 100 characters; never minify. Use smooth delta-time animation and easing/interpolation for motion and camera follow. Null-check canvas and HUD lookups.',
+              'Wire every visible start, pause/resume, and restart button to a real state-changing handler; use diagnostic gameState "paused" while paused, keep HTML IDs/selectors in sync, and wire keyboard/touch input to gameplay. Only use `new` on values defined with the `class` keyword — never `new` a factory, arrow function, or plain object. Write readable source with 2-space indentation, one statement per line, and lines near 100 characters; never minify. Use smooth delta-time animation and easing/interpolation for motion and camera follow. Null-check canvas and HUD lookups.',
               'Expose window.__GAME_DIAGNOSTICS__ with ready, simulationSteps, inputsHandled, restartCount, resizeCount, and truthful gameState. Update these only in the real game loop and actual button/input/restart/resize handlers; preview validation does not fake these counters.',
               'Run the available build and gameplay checks. If a check fails, diagnose from its actual output, repair approved files, and test again before finish_task. The game must fill the entire viewport (full-window canvas, resize handler) with gameplay only — no text-heavy screens — and every approved file must load and run in the preview.',
               lastError ? `A previous preview/build attempt failed with this actual diagnostic:\n${lastError}` : '',
@@ -315,6 +316,24 @@ export function useCognitiveHarness(options: HarnessOptions) {
 
             startActivity(agentMessageId, 'cline:inspect', 'Cline inspecting approved project files', 'Project inspection finished');
             updateAgentMessage('Inspecting project and preparing the approved build…');
+
+            // Drain live iframe runtime errors (games that boot but throw in
+            // play) into this attempt so they get repaired, not ignored.
+            try {
+              const liveErrors = takePreviewGameErrors();
+              if (liveErrors.length) {
+                const seen = new Set(previewErrors.map((entry) => entry.message));
+                for (const message of liveErrors.slice(0, 10)) {
+                  if (!seen.has(message)) {
+                    seen.add(message);
+                    previewErrors.push({ message });
+                  }
+                }
+                previewErrors = previewErrors.slice(-10);
+              }
+            } catch {
+              /* error inbox unavailable; continue with known errors */
+            }
 
             try {
               const runResult = await runClineAgent(
