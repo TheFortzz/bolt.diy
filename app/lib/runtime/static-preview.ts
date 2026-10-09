@@ -716,6 +716,15 @@ export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPr
 
     code = rewriteRelativeImports(normPath, code);
     code = softenBlobImports(code, urlToPath());
+
+    // Append planned export repairs so the plain import survives: the target
+    // declared the binding but forgot `export`.
+    const repairs = exportRepairs.get(normPath);
+
+    if (repairs && repairs.size > 0) {
+      code += `\nexport { ${Array.from(repairs).join(', ')} };`;
+    }
+
     inProgress.delete(normPath);
 
     try {
@@ -779,6 +788,84 @@ export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPr
     return { names, hasDefault: /export\s+default\b/.test(content), wildcard: /export\s*\*/.test(content) };
   };
 
+  /*
+   * Auto-repair: when a module DECLARES a binding at top level but forgets the
+   * `export` keyword, every importer of that name would die at parse time (or
+   * hit our throwing stub). Plan those repairs up front — before any blob is
+   * created — so the target module gets `export { name };` appended and the
+   * game runs instead of showing a diagnostic.
+   *
+   * Only column-0 declarations are trusted (`^` with the m flag matches the
+   * raw line start): exporting an inner-scope binding is a module syntax
+   * error that would break the whole graph, and top-level code sits at
+   * column 0 in normal formatting.
+   */
+  const exportRepairs = new Map<string, Set<string>>();
+  let exportRepairsPlanned = false;
+
+  const planExportRepairs = () => {
+    if (exportRepairsPlanned) {
+      return;
+    }
+
+    exportRepairsPlanned = true;
+
+    for (const file of sourceFiles) {
+      if (!/\.(?:m?js|jsx)$/.test(file.path)) {
+        continue;
+      }
+
+      const importRe = /\bimport\s+(?:[A-Za-z_$][\w$]*\s*,\s*)?\{([^}]*)\}\s*from\s*(["'])([^"']+)\2/g;
+      let m: RegExpExecArray | null;
+
+      while ((m = importRe.exec(file.content)) !== null) {
+        const list = m[1];
+        const spec = m[3];
+        const dep = resolveRef(file.path, spec);
+
+        if (!dep || dep === file.path) {
+          continue;
+        }
+
+        const target = sourceFiles.find((entry) => entry.path === dep);
+
+        if (!target) {
+          continue;
+        }
+
+        const exported = collectExportedNames(target.content);
+
+        if (exported.wildcard) {
+          continue;
+        }
+
+        for (const item of list.split(',')) {
+          const parts = item.trim().split(/\s+as\s+/);
+          const prop = (parts[0] || '').trim();
+
+          if (!/^[A-Za-z_$][\w$]*$/.test(prop) || prop === 'default' || exported.names.has(prop)) {
+            continue;
+          }
+
+          const escaped = prop.replace(/[$]/g, '\\$&');
+          const declaredAtTop = new RegExp(
+            `^(?:export\\s+)?(?:async\\s+)?(?:function|class|const|let|var)\\s+${escaped}\\b`,
+            'm',
+          );
+
+          if (!declaredAtTop.test(target.content)) {
+            continue;
+          }
+
+          const set = exportRepairs.get(dep) || new Set<string>();
+
+          set.add(prop);
+          exportRepairs.set(dep, set);
+        }
+      }
+    }
+  };
+
   const parseNamedList = (list: string): Array<{ prop: string; local: string }> => {
     const parsed: Array<{ prop: string; local: string }> = [];
 
@@ -818,8 +905,11 @@ export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPr
 
     const exported = collectExportedNames(entry.content);
     const named = parseNamedList(list);
+    const repairs = exportRepairs.get(normPath);
     const missingDefault = Boolean(defName) && !exported.hasDefault;
-    const missingNamed = exported.wildcard ? [] : named.filter((n) => !exported.names.has(n.prop));
+    const missingNamed = exported.wildcard
+      ? []
+      : named.filter((n) => !exported.names.has(n.prop) && !repairs?.has(n.prop));
 
     if (!missingDefault && missingNamed.length === 0) {
       return null;
@@ -877,13 +967,15 @@ export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPr
 
     if (nsCounter > softenedBefore && !result.includes('function __fortz_missing')) {
       return (
-        'function __fortz_missing(file, name) { return function() { throw new Error("[Fortz preview] \\"" + name + "\\" is missing from " + file + " (truncated or partly written file)"); }; }\n' +
+        'function __fortz_missing(file, name) { return function() { throw new Error("[Fortz preview] \\"" + name + "\\" is missing from " + file + " — file is truncated or does not export it; add an export for \\"" + name + "\\" in " + file); }; }\n' +
         result
       );
     }
 
     return result;
   };
+
+  planExportRepairs();
 
   const out = html.replace(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi, (tag, attrs: string, content: string) => {
     const attrText = String(attrs || '');

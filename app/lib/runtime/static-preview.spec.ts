@@ -313,6 +313,49 @@ describe('studio preview local module loading', () => {
     expect(out).toContain('blob:');
   });
 
+  it('auto-exports a binding the target declares but forgot to export', async () => {
+    const { blobs, restore } = captureBlobs();
+
+    try {
+      const content = 'import { createRecords } from "./persistence/records.js";\ncreateRecords();';
+      const html =
+        '<html><head></head><body><script type="module" data-inlined="src/app.js">' +
+        content +
+        '</script></body></html>';
+      const out = inlineLocalModuleBlobImports(html, [
+        { path: 'src/app.js', content },
+        { path: 'src/persistence/records.js', content: 'function createRecords() { return 1; }\n' },
+      ]);
+
+      // The importer keeps its plain import — no throwing stub in the way.
+      expect(out).not.toContain('__fortz_missing');
+
+      const texts = await Promise.all(blobs.map((b) => b.text()));
+      expect(texts.some((t) => t.includes('export { createRecords }'))).toBe(true);
+    } finally {
+      restore();
+    }
+  });
+
+  it('still stubs names that are nowhere declared', () => {
+    const { restore } = captureBlobs();
+
+    try {
+      const content = 'import { nope } from "./lib.js";\nnope();';
+      const html =
+        '<html><head></head><body><script type="module" data-inlined="app.js">' + content + '</script></body></html>';
+      const out = inlineLocalModuleBlobImports(html, [
+        { path: 'app.js', content },
+        { path: 'lib.js', content: 'export const other = 1;' },
+      ]);
+
+      expect(out).toContain('__fortz_missing');
+      expect(out).toContain('does not export it');
+    } finally {
+      restore();
+    }
+  });
+
   it('leaves classic scripts untouched', () => {
     const html =
       '<html><head></head><body>' + '<script data-inlined="game.js">var x = "./input.js";</script>' + '</body></html>';

@@ -1,6 +1,6 @@
 import { Agent, createTool } from '@cline/agents';
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
-import { z } from 'zod';
+import { z, ZodError } from 'zod';
 import { getModel } from '~/lib/.server/llm/model';
 import { CLINE_TURN_MAX_TOKENS, createBoltAgentModel } from '~/lib/.server/bolt-agent-model';
 import { getHarnessSecret, requireSameOrigin, verifyCapability } from '~/lib/.server/harness/capabilities';
@@ -9,8 +9,8 @@ import type { IProviderSetting } from '~/types/model';
 import { DEFAULT_MODEL, DEFAULT_PROVIDER, getModelList } from '~/utils/constants';
 
 const fileMapSchema = z.record(z.string().max(2_000_000)).refine(
-  (files) => Object.values(files).reduce((sum, content) => sum + content.length, 0) <= 7_500_000,
-  'Workspace snapshot exceeds the 7.5 MB Cline context limit.',
+  (files) => Object.values(files).reduce((sum, content) => sum + content.length, 0) <= 9_000_000,
+  'Workspace snapshot exceeds the 9 MB Cline context limit.',
 );
 
 const requestSchema = z.object({
@@ -30,7 +30,72 @@ const requestSchema = z.object({
   apiKey: z.string().max(2_000).optional(),
   baseUrl: z.string().max(2_000).optional(),
   providerSettings: z.record(z.object({ enabled: z.boolean().optional(), baseUrl: z.string().max(2_000).optional() })).optional(),
-}).strict();
+});
+
+/**
+ * A 400 here kills the whole build/repair run before the agent can act. Long
+ * history entries, oversized diagnostics, or extra client keys must degrade
+ * (clamped/dropped) instead of rejecting the request.
+ */
+function lenientRequestBody(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return raw;
+  }
+
+  const body: Record<string, unknown> = { ...(raw as Record<string, unknown>) };
+
+  if (typeof body.prompt === 'string') {
+    body.prompt = body.prompt.trim().slice(0, 60_000);
+  }
+
+  if (typeof body.systemContext === 'string') {
+    body.systemContext = body.systemContext.slice(0, 60_000);
+  }
+
+  if (Array.isArray(body.history)) {
+    body.history = body.history
+      .slice(-20)
+      .map((entry) => {
+        const role = (entry as { role?: unknown })?.role === 'assistant' ? 'assistant' : 'user';
+        const content = typeof (entry as { content?: unknown })?.content === 'string' ? (entry as { content: string }).content : '';
+
+        return { role, content: content.slice(0, 60_000) };
+      })
+      .filter((entry) => entry.content.length > 0);
+  }
+
+  if (Array.isArray(body.previewErrors)) {
+    body.previewErrors = body.previewErrors.slice(-50).map((entry) => {
+      const source = typeof (entry as { source?: unknown })?.source === 'string' ? (entry as { source: string }).source.slice(0, 500) : undefined;
+      const line = (entry as { line?: unknown })?.line;
+      const clean: { message: string; source?: string; line?: number } = {
+        message: String((entry as { message?: unknown })?.message || '').slice(0, 2_000),
+      };
+
+      if (source) {
+        clean.source = source;
+      }
+
+      if (typeof line === 'number' && Number.isInteger(line) && line > 0) {
+        clean.line = line;
+      }
+
+      return clean;
+    });
+  }
+
+  if (body.files && typeof body.files === 'object' && !Array.isArray(body.files)) {
+    const files: Record<string, string> = {};
+
+    for (const [path, content] of Object.entries(body.files as Record<string, unknown>)) {
+      files[path] = typeof content === 'string' ? content.slice(0, 2_000_000) : '';
+    }
+
+    body.files = files;
+  }
+
+  return body;
+}
 
 const managerPlanToolSchema = {
   type: 'object',
@@ -114,7 +179,24 @@ function buildSystemPrompt(body: z.infer<typeof requestSchema>, files: Record<st
 export async function action({ request, context }: ActionFunctionArgs) {
   try {
     requireSameOrigin(request);
-    const body = requestSchema.parse(await request.json());
+
+    let body: z.infer<typeof requestSchema>;
+
+    try {
+      body = requestSchema.parse(lenientRequestBody(await request.json()));
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const detail = error.issues
+          .slice(0, 8)
+          .map((issue) => `${issue.path.join('.') || 'body'}: ${issue.message}`)
+          .join('; ');
+
+        return json({ error: `Invalid Cline request — ${detail}` }, { status: 400 });
+      }
+
+      throw error;
+    }
+
     const paths = Object.keys(body.files);
     if (paths.length > 500 || paths.some((path) => !isWorkspacePath(path))) {
       return json({ error: 'Workspace snapshot contains too many files or unsafe paths.' }, { status: 400 });

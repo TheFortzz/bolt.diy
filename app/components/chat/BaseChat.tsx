@@ -570,7 +570,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   <textarea
                     ref={textareaRef}
                     className={classNames(
-                      'w-full pl-4 pt-3.5 pb-2 pr-16 focus:outline-none resize-none text-[#2f220a] placeholder-[#604913]/70 bg-transparent text-sm sm:text-[14px]',
+                      'w-full pl-4 pt-3.5 pb-2 pr-16 focus:outline-none resize-none text-purple-50 placeholder-purple-200/45 bg-transparent text-sm sm:text-[14px]',
                       'transition-all duration-200',
                     )}
                     onDragEnter={(e) => {
@@ -680,13 +680,13 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       >
                         {enhancingPrompt ? (
                           <>
-                            <div className="i-svg-spinners:90-ring-with-bg text-[#76530e] text-xl animate-spin"></div>
-                            <div className="ml-1.5 text-sky-50">Enhancing prompt...</div>
+                            <div className="i-svg-spinners:90-ring-with-bg text-fuchsia-300 text-xl animate-spin"></div>
+                            <div className="ml-1.5 text-purple-100">Enhancing prompt...</div>
                           </>
                         ) : (
                           <>
-                            <div className="i-bolt:stars text-xl text-[#76530e]"></div>
-                            {promptEnhanced && <div className="ml-1.5 text-sky-50">Prompt enhanced</div>}
+                            <div className="i-bolt:stars text-xl text-fuchsia-300"></div>
+                            {promptEnhanced && <div className="ml-1.5 text-purple-100">Prompt enhanced</div>}
                           </>
                         )}
                       </IconButton>
