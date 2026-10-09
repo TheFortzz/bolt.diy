@@ -253,6 +253,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
             }));
           let previewErrors: Array<{ message: string }> = [];
           let lastError = '';
+          const seenErrorKeys: string[] = [];
           const maxAttempts = 3;
           const appliedWorkspacePaths = new Set<string>();
           let improvePassDone = false;
@@ -312,6 +313,19 @@ export function useCognitiveHarness(options: HarnessOptions) {
               return message;
             };
 
+            /*
+             * Replit-style loop discipline: diagnose from the actual error
+             * before touching code, and if the SAME diagnostic survives a fix
+             * attempt, force a strategy pivot instead of another variation of
+             * the failed approach.
+             */
+            const errorKey = lastError.slice(0, 200);
+            const repeatedError = Boolean(errorKey) && seenErrorKeys.includes(errorKey);
+
+            if (errorKey) {
+              seenErrorKeys.push(errorKey);
+            }
+
             const initialPrompt = [
               `Implement this user request using Cline tools: ${userRequest}`,
               `Approved blueprint (authoritative file allowlist): ${JSON.stringify(blueprint)}`,
@@ -321,6 +335,12 @@ export function useCognitiveHarness(options: HarnessOptions) {
               'Expose window.__GAME_DIAGNOSTICS__ with ready, simulationSteps, inputsHandled, restartCount, resizeCount, and truthful gameState. Update these only in the real game loop and actual button/input/restart/resize handlers; preview validation does not fake these counters.',
               'Run the available build and gameplay checks. If a check fails, diagnose from its actual output, repair approved files, and test again before finish_task. Verify every local stylesheet, script, import, and asset path resolves to a real approved file and fix folder mistakes by correcting the path. If a preview diagnostic says a name is missing from a file, add the missing export in that exact file — never change importers to work around it. The game must fill the entire viewport (full-window canvas, resize handler) with gameplay only — no text-heavy screens — and every approved file must load and run in the preview.',
               lastError ? `A previous preview/build attempt failed with this actual diagnostic:\n${lastError}` : '',
+              lastError
+                ? 'Diagnose before editing: call inspect_errors and read_file on the named file first, quote the exact error, state the root cause in one sentence, apply the SMALLEST fix that addresses it, then run the checks again. Never edit on a guess.'
+                : '',
+              repeatedError
+                ? 'PIVOT REQUIRED: this exact diagnostic survived your previous fix — that approach failed. Do not submit a variation of it. Re-read the real file contents with read_file, verify every referenced symbol, path, and selector exists in the actual code, and rewrite the broken section with a fundamentally different strategy.'
+                : '',
             ]
               .filter(Boolean)
               .join('\n\n');
