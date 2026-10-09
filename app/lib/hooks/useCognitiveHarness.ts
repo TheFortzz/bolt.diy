@@ -581,7 +581,28 @@ export function useCognitiveHarness(options: HarnessOptions) {
 
               transitionHarness('verifying', { detail: 'Running Bolt’s real build and preview verification…' });
 
-              const verification = await verifyGameBuild(agentMessageId, { approvedBlueprint: blueprint });
+              let verification = await verifyGameBuild(agentMessageId, { approvedBlueprint: blueprint });
+
+              if (verification.ok) {
+                /*
+                 * Late-error sweep: the visible preview iframe re-bundles and
+                 * boots AFTER the probe passes. Give it a beat and drain
+                 * anything it reports — a build that throws in the live
+                 * preview is not verified, whatever the probe said.
+                 */
+                await new Promise((resolve) => setTimeout(resolve, 5000));
+
+                const lateErrors = takePreviewGameErrors();
+
+                if (lateErrors.length > 0) {
+                  verification = {
+                    ok: false,
+                    error: `Live preview reported runtime errors after the build finished: ${lateErrors
+                      .slice(0, 2)
+                      .join(' | ')}`,
+                  };
+                }
+              }
 
               if (verification.ok) {
                 /*

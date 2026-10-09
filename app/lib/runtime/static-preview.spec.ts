@@ -337,6 +337,32 @@ describe('studio preview local module loading', () => {
     }
   });
 
+  it('auto-exports a default-exported declaration for a named importer', async () => {
+    const { blobs, restore } = captureBlobs();
+
+    try {
+      const content = 'import { createProfile } from "./persistence/profile.js";\ncreateProfile();';
+      const html =
+        '<html><head></head><body><script type="module" data-inlined="src/main.js">' +
+        content +
+        '</script></body></html>';
+      const out = inlineLocalModuleBlobImports(html, [
+        { path: 'src/main.js', content },
+        {
+          path: 'src/persistence/profile.js',
+          content: 'export default function createProfile(name) {\n  return { name, xp: 0 };\n}\n',
+        },
+      ]);
+
+      expect(out).not.toContain('__fortz_missing');
+
+      const texts = await Promise.all(blobs.map((b) => b.text()));
+      expect(texts.some((t) => t.includes('export { createProfile }'))).toBe(true);
+    } finally {
+      restore();
+    }
+  });
+
   it('still stubs names that are nowhere declared — without killing the game', () => {
     const { restore } = captureBlobs();
 

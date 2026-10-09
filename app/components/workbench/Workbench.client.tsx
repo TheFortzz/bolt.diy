@@ -221,6 +221,29 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
     }
   }, []);
 
+  const lastValidationPhaseRef = useRef(validation.status);
+
+  useEffect(() => {
+    const previous = lastValidationPhaseRef.current;
+
+    lastValidationPhaseRef.current = validation.status;
+
+    /*
+     * Open the live preview the moment a run settles (checking → passed or
+     * failed). Verification finishes AFTER streaming stops, so reacting to
+     * the streaming transition alone would always see 'checking' and never
+     * come back — watch the validation phase instead, once per transition.
+     */
+    if (previous !== 'checking' || (validation.status !== 'passed' && validation.status !== 'failed')) {
+      return;
+    }
+
+    setPinPlayView(true);
+    workbenchStore.preferPlayView.set(true);
+    workbenchStore.showWorkbench.set(true);
+    setSelectedView('preview');
+  }, [validation.status, setSelectedView]);
+
   useEffect(() => {
     const onPlayWhileBuilding = () => {
       setPinPlayView(true);

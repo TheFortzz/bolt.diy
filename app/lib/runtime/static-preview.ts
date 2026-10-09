@@ -85,11 +85,15 @@ function repairMissingOperators(src: string): string {
   ]);
 
   let patched = src.replace(/\)(\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)/g, (match, space, ident) => {
-    if (reservedWords.has(ident)) return match;
+    if (reservedWords.has(ident)) {
+      return match;
+    }
+
     return `)*${space}${ident}`;
   });
 
   patched = patched.replace(/(\b\d+)(\s*\()/g, '$1*$2');
+
   return patched;
 }
 
@@ -110,6 +114,7 @@ export function balanceAndCloseJs(code: string): string {
   }
 
   const repaired = repairMissingOperators(code);
+
   try {
     new Function(repaired);
     return repaired;
@@ -118,6 +123,7 @@ export function balanceAndCloseJs(code: string): string {
   }
 
   const lines = repaired.split('\n');
+
   while (lines.length > 0) {
     const candidate = lines.join('\n');
     let openBraces = 0;
@@ -128,38 +134,64 @@ export function balanceAndCloseJs(code: string): string {
 
     for (let i = 0; i < candidate.length; i++) {
       const char = candidate[i];
+
       if (escape) {
         escape = false;
         continue;
       }
+
       if (char === '\\') {
         escape = true;
         continue;
       }
+
       if (inString) {
         if (char === inString) {
           inString = null;
         }
+
         continue;
       }
+
       if (char === '"' || char === "'" || char === '`') {
         inString = char;
         continue;
       }
-      if (char === '{') openBraces++;
-      else if (char === '}') openBraces = Math.max(0, openBraces - 1);
-      else if (char === '(') openParens++;
-      else if (char === ')') openParens = Math.max(0, openParens - 1);
-      else if (char === '[') openBrackets++;
-      else if (char === ']') openBrackets = Math.max(0, openBrackets - 1);
+
+      if (char === '{') {
+        openBraces++;
+      } else if (char === '}') {
+        openBraces = Math.max(0, openBraces - 1);
+      } else if (char === '(') {
+        openParens++;
+      } else if (char === ')') {
+        openParens = Math.max(0, openParens - 1);
+      } else if (char === '[') {
+        openBrackets++;
+      } else if (char === ']') {
+        openBrackets = Math.max(0, openBrackets - 1);
+      }
     }
 
     let patch = '';
-    if (inString) patch += inString;
-    if (openBrackets > 0) patch += ']'.repeat(openBrackets);
-    if (openParens > 0) patch += ')'.repeat(openParens);
+
+    if (inString) {
+      patch += inString;
+    }
+
+    if (openBrackets > 0) {
+      patch += ']'.repeat(openBrackets);
+    }
+
+    if (openParens > 0) {
+      patch += ')'.repeat(openParens);
+    }
+
     patch += ';';
-    if (openBraces > 0) patch += '\n' + '}'.repeat(openBraces);
+
+    if (openBraces > 0) {
+      patch += '\n' + '}'.repeat(openBraces);
+    }
 
     try {
       new Function(candidate + patch);
@@ -717,8 +749,10 @@ export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPr
     code = rewriteRelativeImports(normPath, code);
     code = softenBlobImports(code, urlToPath());
 
-    // Append planned export repairs so the plain import survives: the target
-    // declared the binding but forgot `export`.
+    /*
+     * Append planned export repairs so the plain import survives: the target
+     * declared the binding but forgot `export`.
+     */
     const repairs = exportRepairs.get(normPath);
 
     if (repairs && repairs.size > 0) {
@@ -849,9 +883,14 @@ export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPr
 
           const escaped = prop.replace(/[$]/g, '\\$&');
 
-          // Direct module-scope declaration at column 0: `function x`, `const x`…
+          /*
+           * Direct module-scope declaration at column 0: `function x`, `const x`…
+           * `export default function x` also binds `x` in module scope, so
+           * `export { x };` is legal alongside it — a classic AI mix-up where
+           * the file default-exports but importers use the named import.
+           */
           const keywordDecl = new RegExp(
-            `^(?:export\\s+)?(?:async\\s+)?(?:function|class|const|let|var)\\s+${escaped}\\b`,
+            `^(?:export\\s+(?:default\\s+)?)?(?:async\\s+)?(?:function|class|const|let|var)\\s+${escaped}\\b`,
             'm',
           );
 
@@ -1109,9 +1148,11 @@ export const normalizeServerPreviewHtml: (html: string) => string = function (ht
     }
   }
 
-  // 6. Silent-failure watchdog (plain-JS twin of previewWatchdogScript: no
-  // backticks, no ${}, no annotations — this source is embedded verbatim).
-  // Keep the two copies in sync; the spec asserts both carry the markers.
+  /*
+   * 6. Silent-failure watchdog (plain-JS twin of previewWatchdogScript: no
+   * backticks, no ${}, no annotations — this source is embedded verbatim).
+   * Keep the two copies in sync; the spec asserts both carry the markers.
+   */
   if (out.indexOf('data-studio-watchdog') === -1) {
     const watchdog =
       '<script data-studio-watchdog>(function(){if(window.__fortzWatchdogFired)return;function fire(message){if(window.__fortzWatchdogFired)return;window.__fortzWatchdogFired=true;try{console.error("[Fortz preview watchdog] "+message);}catch(e){}try{window.parent.postMessage({type:"thefortz-game-error",message:"Preview watchdog: "+message},"*");}catch(e){}try{window.dispatchEvent(new ErrorEvent("error",{message:"Preview watchdog: "+message}));}catch(e){}}function alive(){try{var d=window.__GAME_DIAGNOSTICS__;if(d&&(d.ready===true||d.simulationSteps>5||d.inputsHandled>0))return true;}catch(e){}return false;}function check(){if(alive())return;try{if(document.hidden)return;}catch(e){}var canvas=null;try{canvas=document.querySelector("canvas");}catch(e){}if(!canvas){fire("no canvas element rendered after 15s - the entry script may not run or no canvas was created; check script wiring and console.");}else{fire("canvas is present but the game never reported ready after 15s - the loop may be dead or the start path stuck; check console and wiring.");}}setTimeout(check,15000);})();</script>';
@@ -1137,12 +1178,14 @@ export function buildFallbackHtml(
   imageAssets: Record<string, GeneratedAsset> = {},
 ): string | undefined {
   let htmlContent: string | undefined;
+
   for (const [path, dirent] of Object.entries(files)) {
     if (dirent?.type === 'file' && dirent.content && (path.endsWith('/index.html') || path === 'index.html')) {
       htmlContent = dirent.content;
       break;
     }
   }
+
   if (!htmlContent) {
     for (const [path, dirent] of Object.entries(files)) {
       if (dirent?.type === 'file' && dirent.content && path.endsWith('.html')) {
@@ -1154,6 +1197,7 @@ export function buildFallbackHtml(
 
   if (!htmlContent) {
     const hasJs = Object.keys(files).some((p) => p.endsWith('.js') || p.endsWith('.mjs'));
+
     if (hasJs) {
       htmlContent = `<!DOCTYPE html>
 <html lang="en">
@@ -1206,10 +1250,13 @@ export function buildFallbackHtml(
     /<link\b[^>]*\bhref\s*=\s*["'](?!https?:\/\/|\/\/|data:|blob:)([^"']+)["'][^>]*>/gi,
     (match, href) => {
       const css = getFileEntry(href);
+
       if (css !== undefined) {
         return `<style data-inlined="${css.path}">\n${css.content}\n</style>`;
       }
+
       noteStripped(href);
+
       return match;
     },
   );
@@ -1219,10 +1266,13 @@ export function buildFallbackHtml(
     /<script\b([^>]*)\bsrc\s*=\s*["'](?!https?:\/\/|\/\/|data:|blob:)([^"']+)["']([^>]*)>(?:[\s\S]*?<\/script>)?/gi,
     (match, before, src, after) => {
       const js = getFileEntry(src);
+
       if (js !== undefined) {
-        // A .js file written with import/export MUST run as a module even when
-        // the HTML loads it with a classic tag — otherwise it is a certain
-        // SyntaxError and the whole game dies.
+        /*
+         * A .js file written with import/export MUST run as a module even when
+         * the HTML loads it with a classic tag — otherwise it is a certain
+         * SyntaxError and the whole game dies.
+         */
         const isModule =
           /type\s*=\s*["']module["']/i.test(`${before} ${after}`) ||
           js.path.endsWith('.mjs') ||
@@ -1231,15 +1281,19 @@ export function buildFallbackHtml(
         const safePath = js.path.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
         const safeContent =
           js.path.endsWith('.js') || js.path.endsWith('.mjs') ? balanceAndCloseJs(js.content) : js.content;
+
         return `<script${typeAttr} data-inlined="${safePath}">\n${safeContent}\n</script>`;
       }
+
       noteStripped(src);
+
       return `<!-- bolt-stripped: could not resolve "${src}" in virtual filesystem -->`;
     },
   );
 
   // 3. Dynamic Script Discovery
   const inlinedFiles = new Set<string>();
+
   for (const match of bundled.matchAll(/data-inlined=["']([^"']+)["']/g)) {
     const normMatch = cleanWorkDirRelativePath(match[1]).toLowerCase();
     inlinedFiles.add(normMatch);
@@ -1266,9 +1320,11 @@ export function buildFallbackHtml(
   ];
 
   const projectJsFiles: string[] = [];
+
   for (const [p, dirent] of Object.entries(files)) {
     if (dirent?.type === 'file' && dirent.content) {
       const norm = cleanWorkDirRelativePath(p);
+
       if (
         !norm.startsWith('node_modules/') &&
         !norm.startsWith('.') &&
@@ -1286,9 +1342,12 @@ export function buildFallbackHtml(
   const unlinkedEntries: string[] = [];
 
   for (const file of projectJsFiles) {
-    if (isAlreadyInlined(file)) continue;
+    if (isAlreadyInlined(file)) {
+      continue;
+    }
 
     const base = file.replace(/^.*[\\/]/, '').toLowerCase();
+
     if (entryCandidates.some((e) => e.toLowerCase() === base || e.toLowerCase() === file.toLowerCase())) {
       unlinkedEntries.push(file);
     } else {
@@ -1298,17 +1357,25 @@ export function buildFallbackHtml(
 
   const getDepRank = (filename: string): number => {
     const lower = filename.toLowerCase();
+
     if (
       lower.includes('math') ||
       lower.includes('vec') ||
       lower.includes('util') ||
       lower.includes('const') ||
       lower.includes('config')
-    )
+    ) {
       return 1;
-    if (lower.includes('audio') || lower.includes('sound') || lower.includes('music')) return 2;
-    if (lower.includes('input') || lower.includes('control') || lower.includes('keyboard') || lower.includes('key'))
+    }
+
+    if (lower.includes('audio') || lower.includes('sound') || lower.includes('music')) {
+      return 2;
+    }
+
+    if (lower.includes('input') || lower.includes('control') || lower.includes('keyboard') || lower.includes('key')) {
       return 3;
+    }
+
     if (
       lower.includes('particle') ||
       lower.includes('effect') ||
@@ -1316,9 +1383,14 @@ export function buildFallbackHtml(
       lower.includes('emitter') ||
       lower.includes('smoke') ||
       lower.includes('spark')
-    )
+    ) {
       return 4;
-    if (lower.includes('physics') || lower.includes('collision')) return 5;
+    }
+
+    if (lower.includes('physics') || lower.includes('collision')) {
+      return 5;
+    }
+
     if (
       lower.includes('track') ||
       lower.includes('map') ||
@@ -1326,8 +1398,10 @@ export function buildFallbackHtml(
       lower.includes('world') ||
       lower.includes('camera') ||
       lower.includes('grid')
-    )
+    ) {
       return 6;
+    }
+
     if (
       lower.includes('car') ||
       lower.includes('vehicle') ||
@@ -1337,27 +1411,36 @@ export function buildFallbackHtml(
       lower.includes('entities') ||
       lower.includes('actor') ||
       lower.includes('ai')
-    )
+    ) {
       return 7;
+    }
+
     if (
       lower.includes('ui') ||
       lower.includes('hud') ||
       lower.includes('score') ||
       lower.includes('menu') ||
       lower.includes('shop')
-    )
+    ) {
       return 8;
+    }
+
     return 9;
   };
   unlinkedDependencies.sort((a, b) => getDepRank(a) - getDepRank(b));
 
   const toInlineScript = (path: string) => {
     const entry = getFileEntry(path);
-    if (!entry) return undefined;
+
+    if (!entry) {
+      return undefined;
+    }
+
     const safePath = entry.path.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
     const typeAttr = entry.path.endsWith('.mjs') || looksLikeEsm(entry.content) ? ' type="module"' : '';
     const safeContent =
       entry.path.endsWith('.js') || entry.path.endsWith('.mjs') ? balanceAndCloseJs(entry.content) : entry.content;
+
     return `<script${typeAttr} data-inlined="${safePath}">\n${safeContent}\n</script>`;
   };
 
@@ -1366,7 +1449,10 @@ export function buildFallbackHtml(
 
   for (const dep of unlinkedDependencies) {
     const script = toInlineScript(dep);
-    if (script) dependencyScripts.push(script);
+
+    if (script) {
+      dependencyScripts.push(script);
+    }
   }
 
   const hasDeclaredEntry = Array.from(inlinedFiles).some((path) =>
@@ -1381,14 +1467,19 @@ export function buildFallbackHtml(
 
     if (entry) {
       const script = toInlineScript(entry);
-      if (script) entryScripts.push(script);
+
+      if (script) {
+        entryScripts.push(script);
+      }
     }
   }
 
   bundled = injectStaticScripts(bundled, dependencyScripts, entryScripts);
 
-  // Rewrite relative ESM imports to blob URLs so multi-file module games
-  // actually load every file inside the blob/srcdoc preview iframe.
+  /*
+   * Rewrite relative ESM imports to blob URLs so multi-file module games
+   * actually load every file inside the blob/srcdoc preview iframe.
+   */
   bundled = inlineLocalModuleBlobImports(bundled, sourceFiles);
 
   // Automatically rewrite broken / 404 Three.js URLs to rock-solid stable CDN
@@ -1402,7 +1493,9 @@ export function buildFallbackHtml(
   );
 
   bundled = bundled.trim();
+
   const doctypeRegex = /<!DOCTYPE\s+html[^>]*>/i;
+
   if (doctypeRegex.test(bundled)) {
     bundled = '<!DOCTYPE html>\n' + bundled.replace(doctypeRegex, '').trim();
   } else {
@@ -1419,16 +1512,20 @@ export function buildFallbackHtml(
     bundled = mathUtilsScript + '\n' + bundled;
   }
 
-  // Report genuinely unresolvable local references to the parent frame so the
-  // repair loop learns the exact wrong path instead of playing a silent game.
+  /*
+   * Report genuinely unresolvable local references to the parent frame so the
+   * repair loop learns the exact wrong path instead of playing a silent game.
+   */
   const missingReporter =
     strippedRefs.length === 0
       ? ''
       : `<script id="bolt-game-missing-refs">(function(){try{var refs=${JSON.stringify(strippedRefs)};for(var i=0;i<refs.length;i++){window.parent.postMessage({type:'thefortz-game-error',message:'Missing file reference: ' + refs[i] + ' (no project file matches this path)'},'*');}}catch(e){}})();</script>`;
 
-  // Watchdog for silent failures: a game that boots with zero exceptions but
-  // never renders or starts still looks dead. After 15s it reports a hedged,
-  // actionable diagnostic so the repair loop investigates instead of idling.
+  /*
+   * Watchdog for silent failures: a game that boots with zero exceptions but
+   * never renders or starts still looks dead. After 15s it reports a hedged,
+   * actionable diagnostic so the repair loop investigates instead of idling.
+   */
   const previewWatchdogScript = `<script id="bolt-game-watchdog">
 (function() {
   if (window.__fortzWatchdogFired) return;
@@ -1464,9 +1561,13 @@ export function buildFallbackHtml(
 </script>`;
 
   if (bundled.includes('</body>')) {
-    bundled = bundled.replace('</body>', `${focusHelper}\n${errorOverlayScript}\n${missingReporter}\n${previewWatchdogScript}\n</body>`);
+    bundled = bundled.replace(
+      '</body>',
+      `${focusHelper}\n${errorOverlayScript}\n${missingReporter}\n${previewWatchdogScript}\n</body>`,
+    );
   } else {
-    bundled = bundled + '\n' + focusHelper + '\n' + errorOverlayScript + '\n' + missingReporter + '\n' + previewWatchdogScript;
+    bundled =
+      bundled + '\n' + focusHelper + '\n' + errorOverlayScript + '\n' + missingReporter + '\n' + previewWatchdogScript;
   }
 
   const livePaths = new Set(
@@ -1476,8 +1577,10 @@ export function buildFallbackHtml(
   );
   const liveAssets = Object.fromEntries(Object.entries(imageAssets).filter(([path]) => livePaths.has(path)));
 
-  // Publish parity: run the same normalization the published build receives
-  // (Puter strip, unpkg->jsDelivr, three import map, storage shim, audio
-  // unlock) so the Studio preview runs exactly like thefortz.me copy.
+  /*
+   * Publish parity: run the same normalization the published build receives
+   * (Puter strip, unpkg->jsDelivr, three import map, storage shim, audio
+   * unlock) so the Studio preview runs exactly like thefortz.me copy.
+   */
   return inlineGeneratedAssetUrls(normalizeStudioGameHtml(bundled), liveAssets);
 }
