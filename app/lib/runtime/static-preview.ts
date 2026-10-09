@@ -595,6 +595,27 @@ function unescapeAttr(value: string): string {
 }
 
 /**
+ * Detect ES-module syntax (import/export statements) in source, ignoring
+ * strings and comments. A .js file full of `import` lines that is loaded with
+ * a classic `<script src>` MUST still run as a module — inlining it as a
+ * classic script is a certain SyntaxError and a dead game.
+ */
+export function looksLikeEsm(code: string): boolean {
+  if (!code || typeof code !== 'string') {
+    return false;
+  }
+
+  const stripped = code
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^\w$])\/\/[^\n]*/g, '$1')
+    .replace(/'(?:[^'\\\n]|\\.)*'/g, "''")
+    .replace(/"(?:[^"\\\n]|\\.)*"/g, '""')
+    .replace(/`(?:[^`\\]|\\.)*`/g, '``');
+
+  return /^\s*import[\s('"{]|^\s*export[\s{*]/m.test(stripped);
+}
+
+/**
  * Rewrite relative ES-module imports inside inlined module scripts to blob:
  * URLs minted from the actual project files. Separate inline
  * `<script type="module">` blocks cannot resolve `./x.js` against each other
@@ -877,7 +898,13 @@ export function buildFallbackHtml(
     (match, before, src, after) => {
       const js = getFileEntry(src);
       if (js !== undefined) {
-        const isModule = /type\s*=\s*["']module["']/i.test(`${before} ${after}`) || js.path.endsWith('.mjs');
+        // A .js file written with import/export MUST run as a module even when
+        // the HTML loads it with a classic tag — otherwise it is a certain
+        // SyntaxError and the whole game dies.
+        const isModule =
+          /type\s*=\s*["']module["']/i.test(`${before} ${after}`) ||
+          js.path.endsWith('.mjs') ||
+          looksLikeEsm(js.content);
         const typeAttr = isModule ? ' type="module"' : '';
         const safePath = js.path.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
         const safeContent =
@@ -1005,7 +1032,7 @@ export function buildFallbackHtml(
     const entry = getFileEntry(path);
     if (!entry) return undefined;
     const safePath = entry.path.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-    const typeAttr = entry.path.endsWith('.mjs') ? ' type="module"' : '';
+    const typeAttr = entry.path.endsWith('.mjs') || looksLikeEsm(entry.content) ? ' type="module"' : '';
     const safeContent =
       entry.path.endsWith('.js') || entry.path.endsWith('.mjs') ? balanceAndCloseJs(entry.content) : entry.content;
     return `<script${typeAttr} data-inlined="${safePath}">\n${safeContent}\n</script>`;

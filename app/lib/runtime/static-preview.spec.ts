@@ -7,6 +7,7 @@ import {
   ensureThreeImportMap,
   inlineLocalModuleBlobImports,
   injectStaticScripts,
+  looksLikeEsm,
   normalizeServerPreviewHtml,
   normalizeStudioGameHtml,
   resolveStaticPreviewFile,
@@ -292,6 +293,37 @@ describe('studio preview local module loading', () => {
     });
 
     expect(html).toBeDefined();
+    expect(html).not.toContain('"./input.js"');
+    expect(html).toContain('from "blob:');
+  });
+
+  it('detects real module syntax and ignores lookalikes', () => {
+    expect(looksLikeEsm('import { a } from "./x.js";\ninit();')).toBe(true);
+    expect(looksLikeEsm('import "./polyfill.js";')).toBe(true);
+    expect(looksLikeEsm('export function start() {}')).toBe(true);
+    expect(looksLikeEsm('export default class Game {}')).toBe(true);
+    expect(looksLikeEsm('const m = import.meta.url;')).toBe(false);
+    expect(looksLikeEsm('module.exports = { start };')).toBe(false);
+    expect(looksLikeEsm('// import this later\nvar label = "press export to save";\nstart();')).toBe(false);
+    expect(looksLikeEsm('')).toBe(false);
+  });
+
+  it('upgrades classic script tags carrying module syntax so they parse and load', () => {
+    const html = buildFallbackHtml({
+      'index.html': {
+        type: 'file',
+        content:
+          '<!doctype html><html><head></head><body><canvas id="game"></canvas><script src="src/main.js"></script></body></html>',
+      },
+      'src/main.js': {
+        type: 'file',
+        content: 'import { readInput } from "./input.js";\nwindow.started = readInput();',
+      },
+      'src/input.js': { type: 'file', content: 'export function readInput() { return 1; }' },
+    });
+
+    expect(html).toBeDefined();
+    expect(html).toContain('type="module"');
     expect(html).not.toContain('"./input.js"');
     expect(html).toContain('from "blob:');
   });
