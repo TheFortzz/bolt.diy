@@ -989,6 +989,26 @@ export const normalizeServerPreviewHtml: (html: string) => string = function (ht
     }
   }
 
+  // 6. Silent-failure watchdog (plain-JS twin of previewWatchdogScript: no
+  // backticks, no ${}, no annotations — this source is embedded verbatim).
+  // Keep the two copies in sync; the spec asserts both carry the markers.
+  if (out.indexOf('data-studio-watchdog') === -1) {
+    const watchdog =
+      '<script data-studio-watchdog>(function(){if(window.__fortzWatchdogFired)return;function fire(message){if(window.__fortzWatchdogFired)return;window.__fortzWatchdogFired=true;try{console.error("[Fortz preview watchdog] "+message);}catch(e){}try{window.parent.postMessage({type:"thefortz-game-error",message:"Preview watchdog: "+message},"*");}catch(e){}try{window.dispatchEvent(new ErrorEvent("error",{message:"Preview watchdog: "+message}));}catch(e){}}function alive(){try{var d=window.__GAME_DIAGNOSTICS__;if(d&&(d.ready===true||d.simulationSteps>5||d.inputsHandled>0))return true;}catch(e){}return false;}function check(){if(alive())return;try{if(document.hidden)return;}catch(e){}var canvas=null;try{canvas=document.querySelector("canvas");}catch(e){}if(!canvas){fire("no canvas element rendered after 15s - the entry script may not run or no canvas was created; check script wiring and console.");}else{fire("canvas is present but the game never reported ready after 15s - the loop may be dead or the start path stuck; check console and wiring.");}}setTimeout(check,15000);})();</script>';
+
+    if (/<head[\s>]/i.test(out)) {
+      out = out.replace(/<head[\s>]/i, (m) => {
+        return m + '\n' + watchdog;
+      });
+    } else if (/<body[\s>]/i.test(out)) {
+      out = out.replace(/<body[\s>]/i, (m) => {
+        return m + '\n' + watchdog;
+      });
+    } else {
+      out = watchdog + '\n' + out;
+    }
+  }
+
   return out;
 };
 
@@ -1286,10 +1306,47 @@ export function buildFallbackHtml(
       ? ''
       : `<script id="bolt-game-missing-refs">(function(){try{var refs=${JSON.stringify(strippedRefs)};for(var i=0;i<refs.length;i++){window.parent.postMessage({type:'thefortz-game-error',message:'Missing file reference: ' + refs[i] + ' (no project file matches this path)'},'*');}}catch(e){}})();</script>`;
 
+  // Watchdog for silent failures: a game that boots with zero exceptions but
+  // never renders or starts still looks dead. After 15s it reports a hedged,
+  // actionable diagnostic so the repair loop investigates instead of idling.
+  const previewWatchdogScript = `<script id="bolt-game-watchdog">
+(function() {
+  if (window.__fortzWatchdogFired) return;
+  function fire(message) {
+    if (window.__fortzWatchdogFired) return;
+    window.__fortzWatchdogFired = true;
+    try { console.error('[Fortz preview watchdog] ' + message); } catch (e) {}
+    try { window.parent.postMessage({ type: 'thefortz-game-error', message: 'Preview watchdog: ' + message }, '*'); } catch (e) {}
+    try { window.dispatchEvent(new ErrorEvent('error', { message: 'Preview watchdog: ' + message })); } catch (e) {}
+  }
+  function alive() {
+    try {
+      var d = window.__GAME_DIAGNOSTICS__;
+      if (d && (d.ready === true || d.simulationSteps > 5 || d.inputsHandled > 0)) return true;
+    } catch (e) {}
+    return false;
+  }
+  function check() {
+    if (alive()) return;
+    try {
+      if (document.hidden) return;
+    } catch (e) {}
+    var canvas = null;
+    try { canvas = document.querySelector('canvas'); } catch (e) {}
+    if (!canvas) {
+      fire('no canvas element rendered after 15s — the entry script may not run or no canvas was created; check script wiring and console.');
+    } else {
+      fire('canvas is present but the game never reported ready after 15s — the loop may be dead or the start path stuck; check console and wiring.');
+    }
+  }
+  setTimeout(check, 15000);
+})();
+</script>`;
+
   if (bundled.includes('</body>')) {
-    bundled = bundled.replace('</body>', `${focusHelper}\n${errorOverlayScript}\n${missingReporter}\n</body>`);
+    bundled = bundled.replace('</body>', `${focusHelper}\n${errorOverlayScript}\n${missingReporter}\n${previewWatchdogScript}\n</body>`);
   } else {
-    bundled = bundled + '\n' + focusHelper + '\n' + errorOverlayScript + '\n' + missingReporter;
+    bundled = bundled + '\n' + focusHelper + '\n' + errorOverlayScript + '\n' + missingReporter + '\n' + previewWatchdogScript;
   }
 
   const livePaths = new Set(

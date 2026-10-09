@@ -42,9 +42,7 @@ describe('static preview file resolution', () => {
     expect(resolveStaticPreviewFileLoose([{ path: 'style.css', content: 'x' }], 'src/style.css')?.path).toBe(
       'style.css',
     );
-    expect(
-      resolveStaticPreviewFileLoose([{ path: 'src/app.js', content: 'x' }], 'app.js')?.path,
-    ).toBe('src/app.js');
+    expect(resolveStaticPreviewFileLoose([{ path: 'src/app.js', content: 'x' }], 'app.js')?.path).toBe('src/app.js');
   });
 
   it('loose resolution still refuses ambiguous basenames', () => {
@@ -208,6 +206,8 @@ describe('studio preview publish parity', () => {
     expect(html).not.toContain('js.puter.com');
     expect(html).toContain('data-studio-storage-shim');
     expect(html).toContain('data-studio-autostart');
+    expect(html).toContain('bolt-game-watchdog');
+    expect(html).toContain('__fortzWatchdogFired');
   });
 
   it('server-embedded normalizer parses as plain JS and matches publish parity', () => {
@@ -231,6 +231,9 @@ describe('studio preview publish parity', () => {
     expect(out).toContain('data-studio-three-importmap');
     expect(out).toContain('data-studio-storage-shim');
     expect(out).toContain('data-studio-autostart');
+    expect(out).toContain('data-studio-watchdog');
+    expect(out).toContain('__fortzWatchdogFired');
+    expect(out).toContain('Preview watchdog: ');
     expect(embedded(out)).toBe(out);
   });
 });
