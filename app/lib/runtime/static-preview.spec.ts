@@ -337,7 +337,7 @@ describe('studio preview local module loading', () => {
     }
   });
 
-  it('still stubs names that are nowhere declared', () => {
+  it('still stubs names that are nowhere declared — without killing the game', () => {
     const { restore } = captureBlobs();
 
     try {
@@ -351,6 +351,31 @@ describe('studio preview local module loading', () => {
 
       expect(out).toContain('__fortz_missing');
       expect(out).toContain('does not export it');
+
+      // The stub reports once to the repair inbox instead of throwing.
+      expect(out).toContain('thefortz-game-error');
+      expect(out).not.toContain('throw new Error');
+    } finally {
+      restore();
+    }
+  });
+
+  it('repairs destructured module-scope bindings', async () => {
+    const { blobs, restore } = captureBlobs();
+
+    try {
+      const content = 'import { readRecord } from "./records.js";\nreadRecord();';
+      const html =
+        '<html><head></head><body><script type="module" data-inlined="app.js">' + content + '</script></body></html>';
+      const out = inlineLocalModuleBlobImports(html, [
+        { path: 'app.js', content },
+        { path: 'records.js', content: 'const store = { readRecord() {} };\nconst { readRecord } = store;\n' },
+      ]);
+
+      expect(out).not.toContain('__fortz_missing');
+
+      const texts = await Promise.all(blobs.map((b) => b.text()));
+      expect(texts.some((t) => t.includes('export { readRecord }'))).toBe(true);
     } finally {
       restore();
     }

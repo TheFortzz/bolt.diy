@@ -848,12 +848,23 @@ export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPr
           }
 
           const escaped = prop.replace(/[$]/g, '\\$&');
-          const declaredAtTop = new RegExp(
+
+          // Direct module-scope declaration at column 0: `function x`, `const x`…
+          const keywordDecl = new RegExp(
             `^(?:export\\s+)?(?:async\\s+)?(?:function|class|const|let|var)\\s+${escaped}\\b`,
             'm',
           );
 
-          if (!declaredAtTop.test(target.content)) {
+          /*
+           * Module-scope destructure: `const { a, x } = …` / `const [x] = …` —
+           * a real binding that `export { x }` is valid for.
+           */
+          const destructureDecl = new RegExp(
+            `^(?:export\\s+)?(?:const|let|var)\\s+[\\[{][^;\\n]*\\b${escaped}\\b[^;\\n]*[\\]}][^;\\n]*=`,
+            'm',
+          );
+
+          if (!keywordDecl.test(target.content) && !destructureDecl.test(target.content)) {
             continue;
           }
 
@@ -965,9 +976,26 @@ export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPr
       },
     );
 
+    /*
+     * Non-fatal diagnostic stub: report the missing export ONCE (console +
+     * repair inbox) and return undefined so the game keeps running instead
+     * of dying on a black screen. The repair loop still gets the exact
+     * file/name to fix on the next attempt.
+     */
     if (nsCounter > softenedBefore && !result.includes('function __fortz_missing')) {
       return (
-        'function __fortz_missing(file, name) { return function() { throw new Error("[Fortz preview] \\"" + name + "\\" is missing from " + file + " — file is truncated or does not export it; add an export for \\"" + name + "\\" in " + file); }; }\n' +
+        'function __fortz_missing(file, name) {\n' +
+        '  var reported = false;\n' +
+        '  return function () {\n' +
+        '    if (!reported) {\n' +
+        '      reported = true;\n' +
+        '      var msg = "[Fortz preview] \\"" + name + "\\" is missing from " + file + " — the file does not export it; add an export for \\"" + name + "\\" in " + file;\n' +
+        '      try { console.error(msg); } catch (e) {}\n' +
+        '      try { window.parent.postMessage({ type: "thefortz-game-error", message: msg }, "*"); } catch (e) {}\n' +
+        '    }\n' +
+        '    return undefined;\n' +
+        '  };\n' +
+        '}\n' +
         result
       );
     }
