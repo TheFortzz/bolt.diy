@@ -14,15 +14,17 @@ const fileMapSchema = z.record(z.string().max(2_000_000)).refine(
 );
 
 const requestSchema = z.object({
-  prompt: z.string().trim().min(1).max(20_000),
+  // Big 12-24-file blueprints and full workspace excerpts exceed the old
+  // 12-20k ceilings; rejecting them 400s the run before planning starts.
+  prompt: z.string().trim().min(1).max(60_000),
   files: fileMapSchema,
   readOnly: z.boolean().default(false),
   planningOnly: z.boolean().default(false),
   approvedBlueprint: blueprintSchema.optional(),
   executionToken: z.string().max(4096).optional(),
-  history: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string().max(12_000) })).max(20).default([]),
+  history: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string().max(60_000) })).max(20).default([]),
   previewErrors: z.array(z.object({ message: z.string().max(2000), source: z.string().max(500).optional(), line: z.number().int().positive().optional() })).max(50).default([]),
-  systemContext: z.string().max(12_000).optional(),
+  systemContext: z.string().max(60_000).optional(),
   provider: z.string().max(60).optional(),
   model: z.string().max(128).optional(),
   apiKey: z.string().max(2_000).optional(),

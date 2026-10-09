@@ -26,6 +26,7 @@ import { authStore, isAuthModalOpen, checkAuthSession } from '~/lib/auth/appwrit
 import { AppwriteAuthModal } from '~/components/auth/AppwriteAuthModal';
 
 import FilePreview from './FilePreview';
+import { AiWorkingGif } from './AiWorkingGif';
 import { ModelSelector } from '~/components/chat/ModelSelector';
 import { SpeechRecognitionButton } from '~/components/chat/SpeechRecognition';
 import type { IProviderSetting, ProviderInfo } from '~/types/model';
@@ -113,6 +114,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const isVerifying = validation.status === 'checking';
     const isAgentBusy = harnessIsBusy(harness.phase);
     const canStopAgent = isStreaming || ['planning', 'preparing-assets', 'editing'].includes(harness.phase);
+    // "AI working" banner: visible after planning ends until the run settles.
+    const showWorkingGif = ['preparing-assets', 'editing', 'verifying'].includes(harness.phase);
     const [apiKeys, setApiKeys] = useState<Record<string, string>>(() => {
       const savedKeys = Cookies.get('apiKeys');
 
@@ -560,6 +563,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     setImageDataList?.(imageDataList.filter((_, i) => i !== index));
                   }}
                 />
+
+                <AiWorkingGif visible={showWorkingGif} className="mb-2" />
 
                 <div className={classNames(styles.Composer, 'group/inputbox relative')}>
                   <textarea
