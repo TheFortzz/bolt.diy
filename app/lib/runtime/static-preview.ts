@@ -685,6 +685,7 @@ export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPr
       entry.path.endsWith('.js') || entry.path.endsWith('.mjs') ? balanceAndCloseJs(entry.content) : entry.content;
 
     code = rewriteRelativeImports(normPath, code);
+    code = softenBlobImports(code, urlToPath());
     inProgress.delete(normPath);
 
     try {
@@ -713,6 +714,133 @@ export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPr
     });
   };
 
+  const urlToPath = (): Map<string, string> => {
+    const map = new Map<string, string>();
+
+    for (const [path, url] of blobCache) {
+      map.set(url, path);
+    }
+
+    return map;
+  };
+
+  const collectExportedNames = (content: string): { names: Set<string>; hasDefault: boolean; wildcard: boolean } => {
+    const names = new Set<string>();
+    const decl = /export\s+(?:async\s+)?(?:function|class|const|let|var)\s+([A-Za-z_$][\w$]*)/g;
+    let m: RegExpExecArray | null;
+
+    while ((m = decl.exec(content)) !== null) {
+      names.add(m[1]);
+    }
+
+    const list = /export\s*\{([^}]*)\}/g;
+
+    while ((m = list.exec(content)) !== null) {
+      for (const item of m[1].split(',')) {
+        const parts = item.trim().split(/\s+as\s+/);
+        const exportedName = (parts[1] || parts[0] || '').trim();
+
+        if (/^[A-Za-z_$][\w$]*$/.test(exportedName)) {
+          names.add(exportedName);
+        }
+      }
+    }
+
+    return { names, hasDefault: /export\s+default\b/.test(content), wildcard: /export\s*\*/.test(content) };
+  };
+
+  const parseNamedList = (list: string): Array<{ prop: string; local: string }> => {
+    const parsed: Array<{ prop: string; local: string }> = [];
+
+    for (const item of list.split(',')) {
+      const parts = item.trim().split(/\s+as\s+/);
+      const prop = (parts[0] || '').trim();
+      const local = (parts[1] || prop).trim();
+
+      if (/^[A-Za-z_$][\w$]*$/.test(prop) && /^[A-Za-z_$][\w$]*$/.test(local)) {
+        parsed.push({ prop, local });
+      }
+    }
+
+    return parsed;
+  };
+
+  let nsCounter = 0;
+
+  const softenOneImport = (
+    defName: string | null,
+    list: string,
+    quote: string,
+    url: string,
+    reverse: Map<string, string>,
+  ): string | null => {
+    const normPath = reverse.get(url);
+
+    if (!normPath) {
+      return null;
+    }
+
+    const entry = sourceFiles.find((file) => file.path === normPath);
+
+    if (!entry) {
+      return null;
+    }
+
+    const exported = collectExportedNames(entry.content);
+    const named = parseNamedList(list);
+    const missingDefault = Boolean(defName) && !exported.hasDefault;
+    const missingNamed = exported.wildcard ? [] : named.filter((n) => !exported.names.has(n.prop));
+
+    if (!missingDefault && missingNamed.length === 0) {
+      return null;
+    }
+
+    nsCounter += 1;
+
+    const ns = `__fortz_ns_${nsCounter}`;
+    const decls: string[] = [];
+
+    if (defName) {
+      decls.push(`default: ${defName} = undefined`);
+    }
+
+    for (const n of named) {
+      decls.push(n.prop === n.local ? `${n.local} = undefined` : `${n.prop}: ${n.local} = undefined`);
+    }
+
+    return `import * as ${ns} from ${quote}${url}${quote};\nconst { ${decls.join(', ')} } = ${ns};`;
+  };
+
+  /*
+   * A single missing export name aborts the ENTIRE module graph at parse time
+   * ("does not provide an export named 'x'") and kills the game before it
+   * boots. Soften only the broken statements into namespace imports with
+   * undefined defaults: the game boots, working systems run, and the real
+   * error surfaces only if the missing path executes.
+   */
+  const softenBlobImports = (code: string, reverse: Map<string, string>): string => {
+    const combined = code.replace(
+      /\bimport\s+([A-Za-z_$][\w$]*)\s*,\s*\{([^}]*)\}\s*from\s*(["'])(blob:[^"']+)\3/g,
+      (match, defName: string, list: string, quote: string, url: string) => {
+        return softenOneImport(defName, list, quote, url, reverse) ?? match;
+      },
+    );
+
+    const namedOnly = combined.replace(
+      /\bimport\s*\{([^}]*)\}\s*from\s*(["'])(blob:[^"']+)\2/g,
+      (match, list: string, quote: string, url: string) => {
+        return softenOneImport(null, list, quote, url, reverse) ?? match;
+      },
+    );
+
+    return namedOnly.replace(
+      /\bimport\s+([A-Za-z_$][\w$]*)\s+from\s*(["'])(blob:[^"']+)\2/g,
+      (match, defName: string, quote: string, url: string) => {
+        return softenOneImport(defName, '', quote, url, reverse) ?? match;
+      },
+    );
+  };
+
   const out = html.replace(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi, (tag, attrs: string, content: string) => {
     const attrText = String(attrs || '');
 
@@ -730,7 +858,7 @@ export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPr
 
     const importerPath = cleanWorkDirRelativePath(unescapeAttr(inlined[1]));
 
-    const rewritten = rewriteRelativeImports(importerPath, content);
+    const rewritten = softenBlobImports(rewriteRelativeImports(importerPath, content), urlToPath());
 
     if (rewritten === content) {
       return tag;

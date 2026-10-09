@@ -327,4 +327,62 @@ describe('studio preview local module loading', () => {
     expect(html).not.toContain('"./input.js"');
     expect(html).toContain('from "blob:');
   });
+
+  it('softens a missing export into a namespace default instead of killing boot', () => {
+    const html = buildFallbackHtml({
+      'index.html': {
+        type: 'file',
+        content:
+          '<!doctype html><html><head></head><body><canvas id="game"></canvas><script type="module" src="src/main.js"></script></body></html>',
+      },
+      'src/main.js': {
+        type: 'file',
+        content: 'import { loadPreferences, savePreferences } from "./prefs.js";\nloadPreferences();',
+      },
+      'src/prefs.js': { type: 'file', content: 'export function savePreferences() {}' },
+    });
+
+    expect(html).toBeDefined();
+    expect(html).toContain('import * as __fortz_ns_');
+    expect(html).toContain('loadPreferences = undefined');
+    expect(html).not.toContain('import { loadPreferences');
+  });
+
+  it('leaves fully-satisfied imports exactly as written', () => {
+    const html = buildFallbackHtml({
+      'index.html': {
+        type: 'file',
+        content:
+          '<!doctype html><html><head></head><body><canvas></canvas><script type="module" src="main.js"></script></body></html>',
+      },
+      'main.js': {
+        type: 'file',
+        content: 'import Game, { start } from "./game.js";\nnew Game(start);',
+      },
+      'game.js': { type: 'file', content: 'export function start() {}\nexport default class Game {}' },
+    });
+
+    expect(html).toBeDefined();
+    expect(html).not.toContain('__fortz_ns_');
+    expect(html).toContain('from "blob:');
+  });
+
+  it('softens a missing default export while keeping working named imports', () => {
+    const html = buildFallbackHtml({
+      'index.html': {
+        type: 'file',
+        content:
+          '<!doctype html><html><head></head><body><canvas></canvas><script type="module" src="main.js"></script></body></html>',
+      },
+      'main.js': {
+        type: 'file',
+        content: 'import Engine, { tick } from "./engine.js";\nEngine.boot(tick);',
+      },
+      'engine.js': { type: 'file', content: 'export function tick() {}' },
+    });
+
+    expect(html).toBeDefined();
+    expect(html).toContain('default: Engine = undefined');
+    expect(html).toContain('tick = undefined');
+  });
 });
