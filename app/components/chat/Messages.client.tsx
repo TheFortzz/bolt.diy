@@ -88,6 +88,17 @@ const MessageRow = React.memo((props: MessageRowProps) => {
   } = props;
   const { role, content, id: messageId } = message;
   const isUserMessage = role === 'user';
+  const harness = useStore(harnessState);
+
+  /*
+   * Revert/fork are recovery actions: show them only once the run has
+   * actually finished, never while the AI is still planning or building.
+   */
+  const runFinished = !(
+    (isStreaming && isLast) ||
+    harnessIsBusy(harness.phase) ||
+    harness.phase === 'awaiting-approval'
+  );
   const hasArtifact =
     (typeof content === 'string' &&
       (content.includes('__boltArtifact__') ||
@@ -182,35 +193,37 @@ const MessageRow = React.memo((props: MessageRowProps) => {
               />
             )}
             {!hasArtifact && <ActivityTimeline messageId={messageId} isStreaming={isStreaming && isLast} />}
-            <div className={styles.MessageActions}>
-              <WithTooltip tooltip="Revert to this message">
-                {messageId && (
+            {runFinished && (
+              <div className={styles.MessageActions}>
+                <WithTooltip tooltip="Revert to this message">
+                  {messageId && (
+                    <button
+                      type="button"
+                      aria-label="Revert to this message"
+                      onClick={() => onRewind(messageId)}
+                      key="i-ph:arrow-u-up-left"
+                      className={classNames(
+                        'i-ph:arrow-u-up-left',
+                        'text-xl text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary transition-colors',
+                      )}
+                    />
+                  )}
+                </WithTooltip>
+
+                <WithTooltip tooltip="Fork chat from this message">
                   <button
                     type="button"
-                    aria-label="Revert to this message"
-                    onClick={() => onRewind(messageId)}
-                    key="i-ph:arrow-u-up-left"
+                    aria-label="Fork chat from this message"
+                    onClick={() => onFork(messageId)}
+                    key="i-ph:git-fork"
                     className={classNames(
-                      'i-ph:arrow-u-up-left',
+                      'i-ph:git-fork',
                       'text-xl text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary transition-colors',
                     )}
                   />
-                )}
-              </WithTooltip>
-
-              <WithTooltip tooltip="Fork chat from this message">
-                <button
-                  type="button"
-                  aria-label="Fork chat from this message"
-                  onClick={() => onFork(messageId)}
-                  key="i-ph:git-fork"
-                  className={classNames(
-                    'i-ph:git-fork',
-                    'text-xl text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary transition-colors',
-                  )}
-                />
-              </WithTooltip>
-            </div>
+                </WithTooltip>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -255,7 +268,9 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
 
       scrollFrame.current = requestAnimationFrame(() => {
         scrollFrame.current = undefined;
+
         const now = performance.now();
+
         if (force || now - lastFollowTime.current >= 80) {
           lastFollowTime.current = now;
           followLatest();
@@ -291,7 +306,9 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
   const lastMessageContent = lastMessage?.content;
   const showPendingResponse =
     (isStreaming || isHarnessBusy) &&
-    (!lastMessage || lastMessage.role === 'user' || (lastMessage.role === 'assistant' && !String(lastMessage.content || '').trim()));
+    (!lastMessage ||
+      lastMessage.role === 'user' ||
+      (lastMessage.role === 'assistant' && !String(lastMessage.content || '').trim()));
 
   useEffect(() => {
     if (!isStreaming) {
