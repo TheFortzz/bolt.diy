@@ -1,5 +1,37 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { activitySteps, runActivityStep, startActionActivity, startActivity, updateActivity } from './activity';
+import {
+  activitySteps,
+  describeClineToolStep,
+  runActivityStep,
+  startActionActivity,
+  startActivity,
+  updateActivity,
+} from './activity';
+
+describe('cline tool step labels', () => {
+  it('describes reads and writes as workspace actions with clickable paths', () => {
+    const read = describeClineToolStep('read_file', 'src/persistence/records.js');
+    expect(read.label).toBe('Reading src/persistence/records.js');
+    expect(read.doneLabel).toBe('Read src/persistence/records.js');
+    expect(read.filePath).toBe('src/persistence/records.js');
+
+    const write = describeClineToolStep('write_file', 'src/app.js');
+    expect(write.label).toBe('Writing src/app.js');
+    expect(write.doneLabel).toBe('Wrote src/app.js');
+    expect(write.id).toBe('cline:write:src/app.js');
+  });
+
+  it('shares one path-keyed id across write events and handles path-less tools', () => {
+    const toolStart = describeClineToolStep('edit_file', 'game.js');
+    const writeEvent = describeClineToolStep('write_file', 'game.js');
+    expect(toolStart.id).toBe(writeEvent.id);
+
+    const build = describeClineToolStep('run_build');
+    expect(build.label).toBe('Running build');
+    expect(build.doneLabel).toBe('Build finished');
+    expect(build.filePath).toBeUndefined();
+  });
+});
 
 describe('build activity events', () => {
   beforeEach(() => activitySteps.set({}));

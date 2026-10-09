@@ -1,6 +1,7 @@
 import { useStore } from '@nanostores/react';
 import { memo, useId, useMemo, useState } from 'react';
 import { activitySteps, type ActivityStep } from '~/lib/stores/activity';
+import { harnessState } from '~/lib/stores/harness';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { classNames } from '~/utils/classNames';
 import { WORK_DIR } from '~/utils/constants';
@@ -37,7 +38,13 @@ export const ActivityTimeline = memo(({ messageId, isStreaming = false, embedded
   const [showAll, setShowAll] = useState(false);
   const listId = useId();
   const steps = messageId ? (stepsByMessage[messageId] ?? []) : [];
-  const summary = summarizeActivity(steps, isStreaming);
+  const harness = useStore(harnessState);
+  const busyNow =
+    harness.phase === 'planning' ||
+    harness.phase === 'preparing-assets' ||
+    harness.phase === 'editing' ||
+    harness.phase === 'verifying';
+  const summary = summarizeActivity(steps, isStreaming, busyNow);
   const important = steps.filter((step) => step.status === 'running' || step.status === 'failed');
   const displayed = embedded ? steps : showAll ? steps : important.length ? important : steps.slice(-VISIBLE_STEPS);
 

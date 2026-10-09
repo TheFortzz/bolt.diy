@@ -3,7 +3,13 @@ import { useCallback, useEffect, useRef } from 'react';
 import { toast } from 'react-toastify';
 import { captureProject, saveCheckpoint } from '~/lib/persistence/checkpoints';
 import { chatId, dbPromise } from '~/lib/persistence';
-import { blueprintSchema, createWorkspaceManifest, managerBlueprintSchema, revisionHash, type Blueprint } from '~/lib/harness/blueprint';
+import {
+  blueprintSchema,
+  createWorkspaceManifest,
+  managerBlueprintSchema,
+  revisionHash,
+  type Blueprint,
+} from '~/lib/harness/blueprint';
 import { executionPolicy } from '~/lib/harness/execution-policy';
 import { harnessState, harnessIsBusy, transitionHarness } from '~/lib/stores/harness';
 import { workbenchStore } from '~/lib/stores/workbench';
@@ -14,7 +20,7 @@ import { takePreviewGameErrors } from '~/lib/runtime/preview-validation';
 import { verifyGameBuild } from '~/lib/runtime/game-build-pipeline';
 import { generatedAssets } from '~/lib/stores/generated-assets';
 import { generateProjectAssets } from '~/lib/runtime/asset-generator';
-import { runActivityStep, startActivity, updateActivity } from '~/lib/stores/activity';
+import { runActivityStep, startActivity, updateActivity, describeClineToolStep } from '~/lib/stores/activity';
 import { runClineAgent } from '~/lib/runtime/cline-bridge';
 
 interface HarnessOptions {
@@ -101,8 +107,7 @@ async function postHarness<T>(payload: unknown, signal: AbortSignal): Promise<T>
       return result as T;
     } catch (error: any) {
       const isNetworkError =
-        error?.name === 'TypeError' ||
-        /network|failed to fetch|quic|load failed|protocol/i.test(error?.message || '');
+        error?.name === 'TypeError' || /network|failed to fetch|quic|load failed|protocol/i.test(error?.message || '');
 
       if (attempt < 3 && !signal.aborted && isNetworkError) {
         await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
@@ -228,21 +233,24 @@ export function useCognitiveHarness(options: HarnessOptions) {
           executionToken: approval.executionToken,
           detail: 'Writing the approved game modules and playable content…',
         });
-        // Reveal the actual Bolt workspace as soon as the approved build starts,
-        // rather than waiting for the first streamed artifact token.
+
+        /*
+         * Reveal the actual Bolt workspace as soon as the approved build starts,
+         * rather than waiting for the first streamed artifact token.
+         */
         workbenchStore.showWorkbench.set(true);
         workbenchStore.currentView.set('code');
         validationState.set({ status: 'idle', detail: '' });
 
         if (options.agentEngine === 'cline') {
           const approvedPaths = blueprint.fileOperations.map((operation) => operation.path);
-            const runHistory: Array<{ role: 'user' | 'assistant'; content: string }> = (options.conversationHistory || [])
-              .filter((message) => message.content.trim().length > 0)
-              .slice(-12)
-              .map((message) => ({
-                role: message.role === 'assistant' ? ('assistant' as const) : ('user' as const),
-                content: message.content,
-              }));
+          const runHistory: Array<{ role: 'user' | 'assistant'; content: string }> = (options.conversationHistory || [])
+            .filter((message) => message.content.trim().length > 0)
+            .slice(-12)
+            .map((message) => ({
+              role: message.role === 'assistant' ? ('assistant' as const) : ('user' as const),
+              content: message.content,
+            }));
           let previewErrors: Array<{ message: string }> = [];
           let lastError = '';
           const maxAttempts = 3;
@@ -251,10 +259,13 @@ export function useCognitiveHarness(options: HarnessOptions) {
           let polishPassActive = false;
 
           for (let attempt = 0; attempt < maxAttempts; attempt++) {
-            if (sequence !== requestSequence.current || controller.signal.aborted) return;
+            if (sequence !== requestSequence.current || controller.signal.aborted) {
+              return;
+            }
 
             const agentMessageId = crypto.randomUUID();
             lastClineMessageId = agentMessageId;
+
             if (attempt > 0) {
               executionPolicy.allowRepair(agentMessageId, true);
               transitionHarness('editing', {
@@ -263,7 +274,10 @@ export function useCognitiveHarness(options: HarnessOptions) {
                   : `Cline fixing preview/build error (${attempt}/${maxAttempts - 1})…`,
               });
               polishPassActive = false;
-              validationState.set({ status: 'checking', detail: `Cline retry ${attempt}/${maxAttempts - 1}: inspecting actual preview error…` });
+              validationState.set({
+                status: 'checking',
+                detail: `Cline retry ${attempt}/${maxAttempts - 1}: inspecting actual preview error…`,
+              });
             } else {
               executionPolicy.allowRepair(agentMessageId, true);
             }
@@ -287,9 +301,14 @@ export function useCognitiveHarness(options: HarnessOptions) {
               };
               options.setMessages((messages) => {
                 const index = messages.findIndex((entry) => entry.id === agentMessageId);
-                if (index === -1) return [...messages, message];
+
+                if (index === -1) {
+                  return [...messages, message];
+                }
+
                 return messages.map((entry) => (entry.id === agentMessageId ? message : entry));
               });
+
               return message;
             };
 
@@ -302,7 +321,9 @@ export function useCognitiveHarness(options: HarnessOptions) {
               'Expose window.__GAME_DIAGNOSTICS__ with ready, simulationSteps, inputsHandled, restartCount, resizeCount, and truthful gameState. Update these only in the real game loop and actual button/input/restart/resize handlers; preview validation does not fake these counters.',
               'Run the available build and gameplay checks. If a check fails, diagnose from its actual output, repair approved files, and test again before finish_task. Verify every local stylesheet, script, import, and asset path resolves to a real approved file and fix folder mistakes by correcting the path. If a preview diagnostic says a name is missing from a file, add the missing export in that exact file — never change importers to work around it. The game must fill the entire viewport (full-window canvas, resize handler) with gameplay only — no text-heavy screens — and every approved file must load and run in the preview.',
               lastError ? `A previous preview/build attempt failed with this actual diagnostic:\n${lastError}` : '',
-            ].filter(Boolean).join('\n\n');
+            ]
+              .filter(Boolean)
+              .join('\n\n');
 
             const currentSnapshot = attempt === 0 ? snapshot : await captureProject(await getWebContainer());
             const currentSources = sourceContext(currentSnapshot, 7_500_000, 200_000, [
@@ -314,15 +335,24 @@ export function useCognitiveHarness(options: HarnessOptions) {
               { role: 'user' as const, content: initialPrompt },
             ].slice(-20);
 
-            startActivity(agentMessageId, 'cline:inspect', 'Cline inspecting approved project files', 'Project inspection finished');
+            startActivity(
+              agentMessageId,
+              'cline:inspect',
+              'Cline inspecting approved project files',
+              'Project inspection finished',
+            );
             updateAgentMessage('Inspecting project and preparing the approved build…');
 
-            // Drain live iframe runtime errors (games that boot but throw in
-            // play) into this attempt so they get repaired, not ignored.
+            /*
+             * Drain live iframe runtime errors (games that boot but throw in
+             * play) into this attempt so they get repaired, not ignored.
+             */
             try {
               const liveErrors = takePreviewGameErrors();
+
               if (liveErrors.length) {
                 const seen = new Set(previewErrors.map((entry) => entry.message));
+
                 for (const message of liveErrors.slice(0, 10)) {
                   if (!seen.has(message)) {
                     seen.add(message);
@@ -349,7 +379,11 @@ export function useCognitiveHarness(options: HarnessOptions) {
                   model: options.model,
                   apiKey: options.apiKeys[options.provider],
                   baseUrl: options.providerBaseUrl,
-                  systemContext: compileSystemContext(workbenchStore.files.get(), generatedAssets.get(), validationState.get()),
+                  systemContext: compileSystemContext(
+                    workbenchStore.files.get(),
+                    generatedAssets.get(),
+                    validationState.get(),
+                  ),
                 },
                 {
                   signal: controller.signal,
@@ -365,29 +399,59 @@ export function useCognitiveHarness(options: HarnessOptions) {
                       responseText += String(event.payload?.chunk || '');
                     } else if (event.type === 'tool_start') {
                       const call = event.payload || {};
-                      const stepId = `cline:tool:${toolSequence++}`;
-                      const label = `${call.tool || 'Cline tool'}${call.input?.path ? ` · ${call.input.path}` : ''}`;
+                      const path = typeof call.input?.path === 'string' ? call.input.path : '';
+                      const step = describeClineToolStep(String(call.tool || 'Cline tool'), path);
+
+                      /*
+                       * Path-keyed write ids stay stable so the workspace write
+                       * event completes this exact row; others get a unique suffix.
+                       */
+                      const stepId = step.id.startsWith('cline:write:') ? step.id : `${step.id}#${toolSequence++}`;
                       activeToolSteps.set(Number(call.startTime) || toolSequence, stepId);
-                      startActivity(agentMessageId, stepId, label, `${label} complete`);
+                      startActivity(agentMessageId, stepId, step.label, step.doneLabel, 'running', step.filePath);
                     } else if (event.type === 'tool_end') {
                       const call = event.payload || {};
                       const key = Number(call.startTime) || 0;
                       const stepId = activeToolSteps.get(key) || Array.from(activeToolSteps.values()).at(-1);
-                      if (stepId) updateActivity(agentMessageId, stepId, call.status === 'error' ? 'failed' : 'complete');
+
+                      if (stepId) {
+                        updateActivity(agentMessageId, stepId, call.status === 'error' ? 'failed' : 'complete');
+                      }
                     } else if (event.type === 'file_write') {
                       const path = String(event.payload?.path || '');
                       const content = typeof event.payload?.content === 'string' ? event.payload.content : '';
+                      const writeStep = describeClineToolStep('write_file', path);
+
                       if (!approvedPaths.includes(path)) {
                         writeViolation = `Cline attempted to write a path outside the approved blueprint: ${path || '(empty path)'}`;
+                        startActivity(
+                          agentMessageId,
+                          `cline:write:${path}`,
+                          `Rejected write · ${path}`,
+                          writeViolation,
+                          'failed',
+                          path,
+                        );
+
                         return;
                       }
 
                       const currentWrite = fileWriteSequence++;
                       let statusLine = `Writing ${path}…`;
+                      startActivity(
+                        agentMessageId,
+                        `cline:write:${path}`,
+                        writeStep.label,
+                        writeStep.doneLabel,
+                        'running',
+                        path,
+                      );
                       assistantContent += `${assistantContent ? '\n' : ''}${statusLine}`;
                       updateAgentMessage(assistantContent);
                       pendingFileWrites = pendingFileWrites.then(async () => {
-                        if (writeViolation) return;
+                        if (writeViolation) {
+                          return;
+                        }
 
                         try {
                           const writeResult = await workbenchStore.applyClineFileWrite(
@@ -408,8 +472,10 @@ export function useCognitiveHarness(options: HarnessOptions) {
                           appliedWorkspacePaths.add(path);
                           assistantContent += `\n✓ Wrote ${path} (${writeResult.characters.toLocaleString()} formatted characters).`;
                           updateAgentMessage(assistantContent);
+                          updateActivity(agentMessageId, `cline:write:${path}`, 'complete');
                         } catch (error) {
                           writeViolation = `Bolt could not write ${path} into the workspace: ${(error as Error).message}`;
+                          updateActivity(agentMessageId, `cline:write:${path}`, 'failed');
                         }
                       });
                     } else if (event.type === 'task_complete') {
@@ -426,6 +492,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
               );
 
               await pendingFileWrites;
+
               if (writeViolation) {
                 lastError = writeViolation;
                 runHistory.push({
@@ -444,16 +511,21 @@ export function useCognitiveHarness(options: HarnessOptions) {
                   executionPolicy.revoke();
                   validationState.set({ status: 'failed', detail });
                   transitionHarness('failed', { detail });
+
                   return;
                 }
 
-                updateAgentMessage(`Bolt rejected a file write. Cline is correcting it (${attempt + 1}/${maxAttempts})…`);
+                updateAgentMessage(
+                  `Bolt rejected a file write. Cline is correcting it (${attempt + 1}/${maxAttempts})…`,
+                );
                 continue;
               }
 
               const filesTouched = runResult.payload?.filesTouched;
+
               if (!Array.isArray(filesTouched) || filesTouched.length === 0) {
-                lastError = 'Cline finished a tool turn without writing any approved workspace files. The build is not complete.';
+                lastError =
+                  'Cline finished a tool turn without writing any approved workspace files. The build is not complete.';
                 updateActivity(agentMessageId, 'cline:inspect', 'complete');
                 runHistory.push({
                   role: 'user',
@@ -467,26 +539,35 @@ export function useCognitiveHarness(options: HarnessOptions) {
                   executionPolicy.revoke();
                   validationState.set({ status: 'failed', detail });
                   transitionHarness('failed', { detail });
+
                   return;
                 }
 
-                updateAgentMessage(`Cline has not written any files yet. Retrying the approved build (${attempt + 1}/${maxAttempts})…`);
+                updateAgentMessage(
+                  `Cline has not written any files yet. Retrying the approved build (${attempt + 1}/${maxAttempts})…`,
+                );
                 continue;
               }
 
-              completionSummary ||= String(runResult.payload?.summary || responseText || 'Cline completed the implementation.');
+              completionSummary ||= String(
+                runResult.payload?.summary || responseText || 'Cline completed the implementation.',
+              );
               workbenchStore.closeArtifact(agentMessageId);
               assistantContent += `${assistantContent ? '\n\n' : ''}${completionSummary}`;
-              const completedMessage = updateAgentMessage(assistantContent);
+
+              updateAgentMessage(assistantContent);
               updateActivity(agentMessageId, 'cline:inspect', 'complete');
               runHistory.push({ role: 'assistant', content: `${completionSummary}\n${responseText}`.slice(0, 12000) });
 
               transitionHarness('verifying', { detail: 'Running Bolt’s real build and preview verification…' });
+
               const verification = await verifyGameBuild(agentMessageId, { approvedBlueprint: blueprint });
 
               if (verification.ok) {
-                // First results are rough drafts: run one automatic polish pass
-                // before calling the build done, bounded by the attempt budget.
+                /*
+                 * First results are rough drafts: run one automatic polish pass
+                 * before calling the build done, bounded by the attempt budget.
+                 */
                 if (!improvePassDone && attempt < maxAttempts - 1) {
                   improvePassDone = true;
                   polishPassActive = true;
@@ -500,7 +581,13 @@ export function useCognitiveHarness(options: HarnessOptions) {
                   continue;
                 }
 
-                startActivity(agentMessageId, 'cline:verified', 'Build and live preview verified', 'Build and live preview verified', 'complete');
+                startActivity(
+                  agentMessageId,
+                  'cline:verified',
+                  'Build and live preview verified',
+                  'Build and live preview verified',
+                  'complete',
+                );
                 executionPolicy.revoke();
                 validationState.set({ status: 'passed', detail: 'Cline build and live preview verified.' });
                 transitionHarness('verified', { detail: 'Cline changes passed build and live preview checks.' });
@@ -523,37 +610,65 @@ export function useCognitiveHarness(options: HarnessOptions) {
                 return;
               }
 
-              lastError = safeClineDiagnostic(verification.error || 'Build or preview validation failed without a diagnostic.');
+              lastError = safeClineDiagnostic(
+                verification.error || 'Build or preview validation failed without a diagnostic.',
+              );
               previewErrors = [{ message: lastError }];
+
               if (attempt === maxAttempts - 1) {
-                startActivity(agentMessageId, 'cline:failed', 'Build or preview needs attention', 'Build or preview needs attention', 'failed');
+                startActivity(
+                  agentMessageId,
+                  'cline:failed',
+                  'Build or preview needs attention',
+                  'Build or preview needs attention',
+                  'failed',
+                );
                 executionPolicy.revoke();
                 validationState.set({ status: 'failed', detail: lastError });
                 transitionHarness('failed', { detail: `Cline stopped after ${maxAttempts} attempts: ${lastError}` });
-                options.setMessages((messages) => messages.map((entry) =>
-                  entry.id === agentMessageId
-                    ? { ...entry, content: `${entry.content}\n\n⚠️ Preview/build verification failed after ${maxAttempts} attempts.\n\n${lastError}` }
-                    : entry,
-                ));
+                options.setMessages((messages) =>
+                  messages.map((entry) =>
+                    entry.id === agentMessageId
+                      ? {
+                          ...entry,
+                          content: `${entry.content}\n\n⚠️ Preview/build verification failed after ${maxAttempts} attempts.\n\n${lastError}`,
+                        }
+                      : entry,
+                  ),
+                );
+
                 return;
               }
 
-              runHistory.push({ role: 'user', content: `Actual Bolt preview/build error from attempt ${attempt + 1}:\n${lastError}\nRead the updated approved files and repair the cause. Do not restart the project from scratch.` });
+              runHistory.push({
+                role: 'user',
+                content: `Actual Bolt preview/build error from attempt ${attempt + 1}:\n${lastError}\nRead the updated approved files and repair the cause. Do not restart the project from scratch.`,
+              });
               executionPolicy.allowRepair();
             } catch (error) {
-              if (sequence !== requestSequence.current || controller.signal.aborted) return;
+              if (sequence !== requestSequence.current || controller.signal.aborted) {
+                return;
+              }
+
               const message = (error as Error).message || String(error);
-              const transient = /503|502|504|429|network|fetch failed|load failed|timed out|timeout|1102|522|524|socket|econnreset/i.test(message);
+              const transient =
+                /503|502|504|429|network|fetch failed|load failed|timed out|timeout|1102|522|524|socket|econnreset/i.test(
+                  message,
+                );
+
               if (transient && attempt < maxAttempts - 1) {
                 lastError = `Studio request hiccup: ${message}`;
                 runHistory.push({
                   role: 'user',
                   content: `The previous run died from a transient studio error (${message}). Continue the approved build exactly where it stopped; do not restart.`,
                 });
-                updateAgentMessage(`Studio hiccup (${message}). Retrying the approved build (${attempt + 1}/${maxAttempts})…`);
+                updateAgentMessage(
+                  `Studio hiccup (${message}). Retrying the approved build (${attempt + 1}/${maxAttempts})…`,
+                );
 
                 continue;
               }
+
               assistantContent += `${assistantContent ? '\n\n' : ''}Cline run stopped: ${message}`;
               updateAgentMessage(assistantContent);
               throw error;
@@ -596,12 +711,18 @@ export function useCognitiveHarness(options: HarnessOptions) {
         transitionHarness('failed', { detail });
         validationState.set({ status: 'failed', detail });
         startActivity(messageId, 'approval:failed', detail, detail, 'failed');
+
         const visibleErrorMessageId = lastClineMessageId || messageId;
-        options.setMessages((messages) => messages.map((entry) =>
-          entry.id === visibleErrorMessageId
-            ? { ...entry, content: `${entry.content}\n\n⚠️ Cline could not continue the build. No additional files were applied.\n\n${detail}` }
-            : entry,
-        ));
+        options.setMessages((messages) =>
+          messages.map((entry) =>
+            entry.id === visibleErrorMessageId
+              ? {
+                  ...entry,
+                  content: `${entry.content}\n\n⚠️ Cline could not continue the build. No additional files were applied.\n\n${detail}`,
+                }
+              : entry,
+          ),
+        );
         toast.error(detail);
       }
     },
@@ -696,7 +817,8 @@ export function useCognitiveHarness(options: HarnessOptions) {
               readOnly: true,
               planningOnly: true,
               history: (options.conversationHistory || []).slice(-12),
-              previewErrors: validation.status === 'failed' ? [{ message: safeClineDiagnostic(validation.detail) }] : [],
+              previewErrors:
+                validation.status === 'failed' ? [{ message: safeClineDiagnostic(validation.detail) }] : [],
               provider: options.provider,
               model: options.model,
               apiKey: options.apiKeys[options.provider],
@@ -707,7 +829,9 @@ export function useCognitiveHarness(options: HarnessOptions) {
               signal: controller.signal,
               onEvent: (event) => {
                 if (event.type === 'status') {
-                  transitionHarness('planning', { detail: String(event.payload?.message || 'Cline planning…').slice(0, 240) });
+                  transitionHarness('planning', {
+                    detail: String(event.payload?.message || 'Cline planning…').slice(0, 240),
+                  });
                 } else if (event.type === 'reasoning') {
                   transitionHarness('planning', { detail: 'Cline analyzing the project and planning…' });
                 } else if (event.type === 'plan_ready') {
@@ -719,10 +843,16 @@ export function useCognitiveHarness(options: HarnessOptions) {
           clineProposedPlan ||= planResult.payload?.plan
             ? managerBlueprintSchema.parse(planResult.payload.plan)
             : undefined;
+
           if (!clineProposedPlan) {
             throw new Error('Cline did not submit a structured game plan. No files were changed.');
           }
-          managerContext = `${managerContext}\n\nCline plan summary: ${clineProposedPlan.summary}\nPlanned systems: ${clineProposedPlan.systems.join('; ')}`.slice(0, 3900);
+
+          managerContext =
+            `${managerContext}\n\nCline plan summary: ${clineProposedPlan.summary}\nPlanned systems: ${clineProposedPlan.systems.join('; ')}`.slice(
+              0,
+              3900,
+            );
         }
 
         const result = await postHarness<{ blueprint: Blueprint; reviewToken: string }>(

@@ -25,4 +25,12 @@ describe('observed activity summary', () => {
   it('does not leave aborted operations spinning', () => {
     expect(summarizeActivity([step('action:file', 'aborted')], false).state).toBe('aborted');
   });
+
+  it('never claims completion while the harness is still working', () => {
+    const result = summarizeActivity([step('manager:plan', 'complete')], false, true);
+
+    expect(result.state).toBe('running');
+    expect(result.title).toBe('Working on your game');
+    expect(result.subtitle).toContain('continuing');
+  });
 });

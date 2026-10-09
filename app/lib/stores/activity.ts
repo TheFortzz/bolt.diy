@@ -18,6 +18,54 @@ export const activitySteps = map<Record<string, ActivityStep[]>>({});
 
 export const actionStepId = (actionId: string) => `action:${actionId}`;
 
+/**
+ * Human labels for Cline tool events so the chat timeline reads like a real
+ * workspace feed ("Reading src/app.js", "Wrote src/app.js") instead of raw
+ * tool identifiers. Path-less tools get a plain verb pair.
+ */
+const CLINE_TOOL_LABELS: Record<string, { verb: string; done: string }> = {
+  write_file: { verb: 'Writing', done: 'Wrote' },
+  edit_file: { verb: 'Editing', done: 'Edited' },
+  read_file: { verb: 'Reading', done: 'Read' },
+  list_files: { verb: 'Listing files', done: 'Files listed' },
+  inspect_project: { verb: 'Inspecting project', done: 'Project inspected' },
+  search_files: { verb: 'Searching files', done: 'Search finished' },
+  run_build: { verb: 'Running build', done: 'Build finished' },
+  run_tests: { verb: 'Running tests', done: 'Tests finished' },
+  finish_task: { verb: 'Finishing task', done: 'Task finished' },
+  submit_plan: { verb: 'Submitting plan', done: 'Plan submitted' },
+};
+
+export function describeClineToolStep(
+  tool: string,
+  path?: string,
+): {
+  id: string;
+  label: string;
+  doneLabel: string;
+  filePath?: string;
+} {
+  const labels = CLINE_TOOL_LABELS[tool] ?? { verb: tool, done: `${tool} complete` };
+  const clean = path ? cleanWorkDirRelativePath(path) : '';
+  const filePath = path || undefined;
+
+  /*
+   * Writes/edits share a path-keyed id so the authoritative workspace write
+   * event completes the same step instead of adding a duplicate row.
+   */
+  const id =
+    filePath && (tool === 'write_file' || tool === 'edit_file')
+      ? `cline:write:${filePath}`
+      : `cline:tool:${tool}:${filePath || ''}`;
+
+  return {
+    id,
+    label: clean ? `${labels.verb} ${clean}` : labels.verb,
+    doneLabel: clean ? `${labels.done} ${clean}` : labels.done,
+    filePath,
+  };
+}
+
 export function startActivity(
   messageId: string,
   id: string,
