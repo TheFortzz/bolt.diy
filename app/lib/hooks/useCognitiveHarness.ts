@@ -246,6 +246,8 @@ export function useCognitiveHarness(options: HarnessOptions) {
           let lastError = '';
           const maxAttempts = 3;
           const appliedWorkspacePaths = new Set<string>();
+          let improvePassDone = false;
+          let polishPassActive = false;
 
           for (let attempt = 0; attempt < maxAttempts; attempt++) {
             if (sequence !== requestSequence.current || controller.signal.aborted) return;
@@ -255,8 +257,11 @@ export function useCognitiveHarness(options: HarnessOptions) {
             if (attempt > 0) {
               executionPolicy.allowRepair(agentMessageId, true);
               transitionHarness('editing', {
-                detail: `Cline fixing preview/build error (${attempt}/${maxAttempts - 1})…`,
+                detail: polishPassActive
+                  ? 'Automatic polish pass: deepening gameplay and visuals…'
+                  : `Cline fixing preview/build error (${attempt}/${maxAttempts - 1})…`,
               });
+              polishPassActive = false;
               validationState.set({ status: 'checking', detail: `Cline retry ${attempt}/${maxAttempts - 1}: inspecting actual preview error…` });
             } else {
               executionPolicy.allowRepair(agentMessageId, true);
@@ -461,6 +466,21 @@ export function useCognitiveHarness(options: HarnessOptions) {
               const verification = await verifyGameBuild(agentMessageId, { approvedBlueprint: blueprint });
 
               if (verification.ok) {
+                // First results are rough drafts: run one automatic polish pass
+                // before calling the build done, bounded by the attempt budget.
+                if (!improvePassDone && attempt < maxAttempts - 1) {
+                  improvePassDone = true;
+                  polishPassActive = true;
+                  runHistory.push({
+                    role: 'user',
+                    content:
+                      'Build verified. Do ONE final automatic polish pass over the approved game files: deepen the gameplay, fix anything thin or rough, strengthen visuals and feedback, and complete anything half-built. Prefer small surgical edit_file calls; do not restructure or restart. Then run the checks and finish_task.',
+                  });
+                  updateAgentMessage('First build verified. Cline is polishing it once more…');
+
+                  continue;
+                }
+
                 startActivity(agentMessageId, 'cline:verified', 'Build and live preview verified', 'Build and live preview verified', 'complete');
                 executionPolicy.revoke();
                 validationState.set({ status: 'passed', detail: 'Cline build and live preview verified.' });
@@ -503,7 +523,19 @@ export function useCognitiveHarness(options: HarnessOptions) {
               executionPolicy.allowRepair();
             } catch (error) {
               if (sequence !== requestSequence.current || controller.signal.aborted) return;
-              assistantContent += `${assistantContent ? '\n\n' : ''}Cline run stopped: ${(error as Error).message}`;
+              const message = (error as Error).message || String(error);
+              const transient = /503|502|504|429|network|fetch failed|load failed|timed out|timeout|1102|522|524|socket|econnreset/i.test(message);
+              if (transient && attempt < maxAttempts - 1) {
+                lastError = `Studio request hiccup: ${message}`;
+                runHistory.push({
+                  role: 'user',
+                  content: `The previous run died from a transient studio error (${message}). Continue the approved build exactly where it stopped; do not restart.`,
+                });
+                updateAgentMessage(`Studio hiccup (${message}). Retrying the approved build (${attempt + 1}/${maxAttempts})…`);
+
+                continue;
+              }
+              assistantContent += `${assistantContent ? '\n\n' : ''}Cline run stopped: ${message}`;
               updateAgentMessage(assistantContent);
               throw error;
             }
