@@ -567,7 +567,7 @@ export class ActionRunner {
 
         if (!isIntentionalEngineMigration && previous.length > 3000 && contentToWrite.length < previous.length * 0.85) {
           throw new Error(
-            `Refused to overwrite ${action.filePath}: the new version (${contentToWrite.length} chars) is much smaller than the existing file (${previous.length} chars), so existing features would be lost. The original file was kept; output the COMPLETE file with ALL existing code kept and the new features added on top.`,
+            `Refused to overwrite ${action.filePath}: the new version (${contentToWrite.length} chars) is much smaller than the existing file (${previous.length} chars), so existing features would be lost. The original file was kept; output the COMPLETE file with ALL existing code kept and the new features added on top. For small changes, call edit_file on the existing file instead of rewriting it.`,
           );
         }
 
@@ -589,7 +589,7 @@ export class ActionRunner {
 
           if (missing.length >= 3 && missing.length / Math.max(1, before.size) >= 0.1) {
             throw new Error(
-              `Refused to overwrite ${action.filePath}: the new version dropped existing code (${missing.slice(0, 8).join(', ')}). The original file was kept; output the COMPLETE file keeping every existing function and constant.`,
+              `Refused to overwrite ${action.filePath}: the new version dropped existing code (${missing.slice(0, 8).join(', ')}). The original file was kept; output the COMPLETE file keeping every existing function and constant. For small changes, call edit_file on the existing file instead of rewriting it.`,
             );
           }
         }

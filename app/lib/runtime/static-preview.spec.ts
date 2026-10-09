@@ -43,7 +43,8 @@ describe('static preview script assembly', () => {
     const html = buildFallbackHtml({
       'index.html': {
         type: 'file',
-        content: '<!doctype html><html><head></head><body><canvas id="game"></canvas><script src="game.js"></script></body></html>',
+        content:
+          '<!doctype html><html><head></head><body><canvas id="game"></canvas><script src="game.js"></script></body></html>',
       },
       'game.js': { type: 'file', content: 'requestAnimationFrame(() => {});' },
     });
@@ -175,12 +176,12 @@ describe('studio preview publish parity', () => {
   });
 
   it('server-embedded normalizer parses as plain JS and matches publish parity', () => {
-    // workbench.ts embeds this exact source into the WebContainer static
-    // server, so it must contain no TypeScript syntax. Rebuild it here the
-    // same way and prove it parses and behaves.
-    const embedded = new Function(`return (${normalizeServerPreviewHtml.toString()});`)() as (
-      html: string,
-    ) => string;
+    /**
+     * workbench.ts embeds this exact source into the WebContainer static
+     * server, so it must contain no TypeScript syntax. Rebuild it here the
+     * same way and prove it parses and behaves.
+     */
+    const embedded = new Function(`return (${normalizeServerPreviewHtml.toString()});`)() as (html: string) => string;
 
     expect(normalizeServerPreviewHtml.toString()).not.toContain(': string');
     expect(normalizeServerPreviewHtml.toString()).not.toContain('`');
@@ -205,8 +206,10 @@ describe('studio preview local module loading', () => {
     const original = URL.createObjectURL;
     URL.createObjectURL = ((obj: any) => {
       blobs.push(obj as Blob);
+
       return `blob:test-${blobs.length}`;
     }) as any;
+
     return {
       blobs,
       restore: () => {
@@ -217,6 +220,7 @@ describe('studio preview local module loading', () => {
 
   it('rewrites relative ESM imports to blob URLs across nested modules', async () => {
     const { blobs, restore } = captureBlobs();
+
     try {
       const html =
         '<html><head></head><body><canvas></canvas>' +
@@ -224,14 +228,19 @@ describe('studio preview local module loading', () => {
         '</body></html>';
       const out = inlineLocalModuleBlobImports(html, [
         { path: 'src/main.js', content: 'import { readInput } from "./input.js";\nreadInput();' },
-        { path: 'src/input.js', content: 'import { clamp } from "./utils.js";\nexport function readInput() { return clamp(1); }' },
+        {
+          path: 'src/input.js',
+          content: 'import { clamp } from "./utils.js";\nexport function readInput() { return clamp(1); }',
+        },
         { path: 'src/utils.js', content: 'export function clamp(v) { return v; }' },
       ]);
 
       expect(out).toContain('from "blob:test-');
       expect(out).not.toContain('"./input.js"');
+
       // Transitive dependency was bundled too.
       expect(blobs.length).toBeGreaterThanOrEqual(2);
+
       const texts = await Promise.all(blobs.map((b) => b.text()));
       expect(texts.some((t) => t.includes('readInput'))).toBe(true);
       expect(texts.some((t) => t.includes('blob:test-') && t.includes('clamp'))).toBe(true);
@@ -246,9 +255,7 @@ describe('studio preview local module loading', () => {
       '<html><head></head><body>' +
       '<script type="module" data-inlined="game.js">import * as THREE from "three";\nimport { x } from "./missing.js";\nconsole.log(THREE, x);</script>' +
       '</body></html>';
-    const out = inlineLocalModuleBlobImports(html, [
-      { path: 'game.js', content: 'import * as THREE from "three";' },
-    ]);
+    const out = inlineLocalModuleBlobImports(html, [{ path: 'game.js', content: 'import * as THREE from "three";' }]);
 
     expect(out).toContain('from "three"');
     expect(out).toContain('"./missing.js"');
@@ -270,9 +277,7 @@ describe('studio preview local module loading', () => {
 
   it('leaves classic scripts untouched', () => {
     const html =
-      '<html><head></head><body>' +
-      '<script data-inlined="game.js">var x = "./input.js";</script>' +
-      '</body></html>';
+      '<html><head></head><body>' + '<script data-inlined="game.js">var x = "./input.js";</script>' + '</body></html>';
     const out = inlineLocalModuleBlobImports(html, [{ path: 'game.js', content: '' }]);
 
     expect(out).toBe(html);
@@ -344,7 +349,9 @@ describe('studio preview local module loading', () => {
 
     expect(html).toBeDefined();
     expect(html).toContain('import * as __fortz_ns_');
-    expect(html).toContain('loadPreferences = undefined');
+    expect(html).toContain('__fortz_missing(');
+    expect(html).toContain('"loadPreferences"');
+    expect(html).toContain('function __fortz_missing');
     expect(html).not.toContain('import { loadPreferences');
   });
 
@@ -364,6 +371,7 @@ describe('studio preview local module loading', () => {
 
     expect(html).toBeDefined();
     expect(html).not.toContain('__fortz_ns_');
+    expect(html).not.toContain('__fortz_missing');
     expect(html).toContain('from "blob:');
   });
 
@@ -382,7 +390,7 @@ describe('studio preview local module loading', () => {
     });
 
     expect(html).toBeDefined();
-    expect(html).toContain('default: Engine = undefined');
-    expect(html).toContain('tick = undefined');
+    expect(html).toContain('default: Engine = __fortz_missing(');
+    expect(html).toContain('tick = __fortz_missing(');
   });
 });

@@ -801,11 +801,13 @@ export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPr
     const decls: string[] = [];
 
     if (defName) {
-      decls.push(`default: ${defName} = undefined`);
+      decls.push(`default: ${defName} = __fortz_missing(${JSON.stringify(normPath)}, "default")`);
     }
 
     for (const n of named) {
-      decls.push(n.prop === n.local ? `${n.local} = undefined` : `${n.prop}: ${n.local} = undefined`);
+      const stub = `__fortz_missing(${JSON.stringify(normPath)}, ${JSON.stringify(n.prop)})`;
+
+      decls.push(n.prop === n.local ? `${n.local} = ${stub}` : `${n.prop}: ${n.local} = ${stub}`);
     }
 
     return `import * as ${ns} from ${quote}${url}${quote};\nconst { ${decls.join(', ')} } = ${ns};`;
@@ -814,11 +816,14 @@ export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPr
   /*
    * A single missing export name aborts the ENTIRE module graph at parse time
    * ("does not provide an export named 'x'") and kills the game before it
-   * boots. Soften only the broken statements into namespace imports with
-   * undefined defaults: the game boots, working systems run, and the real
-   * error surfaces only if the missing path executes.
+   * boots. Soften only the broken statements into namespace imports whose
+   * defaults throw a diagnostic naming the missing export and file: the game
+   * boots, working systems run, and the repair loop gets an actionable error
+   * instead of a cryptic "x is not a function".
    */
   const softenBlobImports = (code: string, reverse: Map<string, string>): string => {
+    const softenedBefore = nsCounter;
+
     const combined = code.replace(
       /\bimport\s+([A-Za-z_$][\w$]*)\s*,\s*\{([^}]*)\}\s*from\s*(["'])(blob:[^"']+)\3/g,
       (match, defName: string, list: string, quote: string, url: string) => {
@@ -833,12 +838,21 @@ export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPr
       },
     );
 
-    return namedOnly.replace(
+    const result = namedOnly.replace(
       /\bimport\s+([A-Za-z_$][\w$]*)\s+from\s*(["'])(blob:[^"']+)\2/g,
       (match, defName: string, quote: string, url: string) => {
         return softenOneImport(defName, '', quote, url, reverse) ?? match;
       },
     );
+
+    if (nsCounter > softenedBefore && !result.includes('function __fortz_missing')) {
+      return (
+        'function __fortz_missing(file, name) { return function() { throw new Error("[Fortz preview] \\"" + name + "\\" is missing from " + file + " (truncated or partly written file)"); }; }\n' +
+        result
+      );
+    }
+
+    return result;
   };
 
   const out = html.replace(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi, (tag, attrs: string, content: string) => {

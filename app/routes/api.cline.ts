@@ -207,7 +207,8 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
             const writeFile = createTool({
               name: 'write_file',
-              description: 'Create/overwrite a file only when its path is listed in the server-approved Bolt blueprint.',
+              description:
+                'Create a new file, or overwrite a file ONLY with its COMPLETE new content (every existing function and constant kept, plus changes). Never emit a partial rewrite — for small changes call edit_file instead.',
               inputSchema: { type: 'object', properties: { path: { type: 'string' }, content: { type: 'string' } }, required: ['path', 'content'] },
               execute: async ({ path, content }: { path: string; content: string }) => {
                 const safePath = String(path || '').replace(/^\.?\//, '');
