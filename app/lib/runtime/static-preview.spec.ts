@@ -11,6 +11,7 @@ import {
   normalizeServerPreviewHtml,
   normalizeStudioGameHtml,
   resolveStaticPreviewFile,
+  resolveStaticPreviewFileLoose,
   rewriteUnpkgThreeToJsdelivr,
   stripBlockedSdkScripts,
 } from '~/lib/runtime/static-preview';
@@ -35,6 +36,40 @@ describe('static preview file resolution', () => {
 
     expect(resolveStaticPreviewFile(ambiguous, 'foo/game.js')).toBeUndefined();
     expect(resolveStaticPreviewFile(files, '../game.js')).toBeUndefined();
+  });
+
+  it('loosely heals folder mistakes to the unique basename match', () => {
+    expect(resolveStaticPreviewFileLoose([{ path: 'style.css', content: 'x' }], 'src/style.css')?.path).toBe(
+      'style.css',
+    );
+    expect(
+      resolveStaticPreviewFileLoose([{ path: 'src/app.js', content: 'x' }], 'app.js')?.path,
+    ).toBe('src/app.js');
+  });
+
+  it('loose resolution still refuses ambiguous basenames', () => {
+    const ambiguous = [
+      { path: 'src/game.js', content: 'one' },
+      { path: 'lib/game.js', content: 'two' },
+    ];
+
+    expect(resolveStaticPreviewFileLoose(ambiguous, 'game.js')).toBeUndefined();
+    expect(resolveStaticPreviewFileLoose(ambiguous, 'deep/nested/game.js')).toBeUndefined();
+  });
+
+  it('reports unresolvable references to the parent frame for repair', () => {
+    const html = buildFallbackHtml({
+      'index.html': {
+        type: 'file',
+        content:
+          '<!doctype html><html><head></head><body><canvas></canvas><script src="src/nope.js"></script></body></html>',
+      },
+    });
+
+    expect(html).toBeDefined();
+    expect(html).toContain('bolt-game-missing-refs');
+    expect(html).toContain('Missing file reference:');
+    expect(html).toContain('src/nope.js');
   });
 });
 

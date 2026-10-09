@@ -37,6 +37,36 @@ export function resolveStaticPreviewFile(files: StaticPreviewFile[], reference: 
   return suffixMatches.length === 1 ? suffixMatches[0] : undefined;
 }
 
+/**
+ * Lenient twin used ONLY by the fallback HTML builder (never by validation,
+ * which must keep reporting the strict truth). When `src/style.css` names a
+ * file that actually lives at `style.css` (or vice versa), an exact match
+ * fails and the file would be silently dropped. If exactly one project file
+ * shares the basename, that is the intended target — use it.
+ */
+export function resolveStaticPreviewFileLoose(files: StaticPreviewFile[], reference: string) {
+  const exact = resolveStaticPreviewFile(files, reference);
+
+  if (exact) {
+    return exact;
+  }
+
+  const refPath = reference.split(/[?#]/, 1)[0];
+  const base = cleanWorkDirRelativePath(refPath).split('/').pop() || '';
+
+  if (!base || base === '.' || base === '..') {
+    return undefined;
+  }
+
+  const matches = files.filter((file) => {
+    const name = file.path.split('/').pop() || '';
+
+    return name.toLowerCase() === base.toLowerCase();
+  });
+
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
 function repairMissingOperators(src: string): string {
   const reservedWords = new Set([
     'instanceof',
@@ -1020,7 +1050,16 @@ export function buildFallbackHtml(
       ? [{ path: cleanWorkDirRelativePath(path), content: dirent.content }]
       : [],
   );
-  const getFileEntry = (refPath: string) => resolveStaticPreviewFile(sourceFiles, refPath);
+  const getFileEntry = (refPath: string) => resolveStaticPreviewFileLoose(sourceFiles, refPath);
+  const strippedRefs: string[] = [];
+
+  const noteStripped = (ref: string) => {
+    const clean = String(ref || '').slice(0, 160);
+
+    if (clean && strippedRefs.length < 8 && !strippedRefs.includes(clean)) {
+      strippedRefs.push(clean);
+    }
+  };
 
   // 1. Inline local stylesheets
   bundled = bundled.replace(
@@ -1030,6 +1069,7 @@ export function buildFallbackHtml(
       if (css !== undefined) {
         return `<style data-inlined="${css.path}">\n${css.content}\n</style>`;
       }
+      noteStripped(href);
       return match;
     },
   );
@@ -1053,6 +1093,7 @@ export function buildFallbackHtml(
           js.path.endsWith('.js') || js.path.endsWith('.mjs') ? balanceAndCloseJs(js.content) : js.content;
         return `<script${typeAttr} data-inlined="${safePath}">\n${safeContent}\n</script>`;
       }
+      noteStripped(src);
       return `<!-- bolt-stripped: could not resolve "${src}" in virtual filesystem -->`;
     },
   );
@@ -1238,10 +1279,17 @@ export function buildFallbackHtml(
     bundled = mathUtilsScript + '\n' + bundled;
   }
 
+  // Report genuinely unresolvable local references to the parent frame so the
+  // repair loop learns the exact wrong path instead of playing a silent game.
+  const missingReporter =
+    strippedRefs.length === 0
+      ? ''
+      : `<script id="bolt-game-missing-refs">(function(){try{var refs=${JSON.stringify(strippedRefs)};for(var i=0;i<refs.length;i++){window.parent.postMessage({type:'thefortz-game-error',message:'Missing file reference: ' + refs[i] + ' (no project file matches this path)'},'*');}}catch(e){}})();</script>`;
+
   if (bundled.includes('</body>')) {
-    bundled = bundled.replace('</body>', `${focusHelper}\n${errorOverlayScript}\n</body>`);
+    bundled = bundled.replace('</body>', `${focusHelper}\n${errorOverlayScript}\n${missingReporter}\n</body>`);
   } else {
-    bundled = bundled + '\n' + focusHelper + '\n' + errorOverlayScript;
+    bundled = bundled + '\n' + focusHelper + '\n' + errorOverlayScript + '\n' + missingReporter;
   }
 
   const livePaths = new Set(

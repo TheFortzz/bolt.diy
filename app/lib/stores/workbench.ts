@@ -441,6 +441,33 @@ http.createServer((req, res) => {
     try { return fs.existsSync(candidate) && fs.statSync(candidate).isFile(); } catch (e) { return false; }
   });
 
+  if (!file) {
+    try {
+      var wantBase = cleanUrl.split('/').pop().toLowerCase();
+      var wantExt = path.extname(cleanUrl).toLowerCase();
+      var baseDepth = baseDir.split(path.sep).length;
+      var stack = [baseDir];
+      var found = null;
+      while (stack.length && !found) {
+        var dir = stack.pop();
+        var entries = [];
+        try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { continue; }
+        for (var k = 0; k < entries.length; k++) {
+          var ent = entries[k];
+          if (!ent || !ent.name || ent.name.charAt(0) === '.' || ent.name === 'node_modules') continue;
+          var full = path.join(dir, ent.name);
+          if (ent.isDirectory()) {
+            if (full.split(path.sep).length - baseDepth < 4) stack.push(full);
+          } else if (ent.isFile() && ent.name.toLowerCase() === wantBase && path.extname(ent.name).toLowerCase() === wantExt) {
+            found = full;
+            break;
+          }
+        }
+      }
+      if (found) file = found;
+    } catch (e) {}
+  }
+
   if (!file && (cleanUrl.endsWith('.html') || !path.extname(cleanUrl))) {
     const defaultIndex = path.join(baseDir, 'index.html');
     if (fs.existsSync(defaultIndex)) file = defaultIndex;
