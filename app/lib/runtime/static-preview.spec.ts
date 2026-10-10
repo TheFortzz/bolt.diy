@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  auditGameModuleGraph,
   balanceAndCloseJs,
   buildFallbackHtml,
   ensurePreviewAudioUnlock,
@@ -524,5 +525,80 @@ describe('studio preview local module loading', () => {
     expect(html).toBeDefined();
     expect(html).toContain('default: Engine = __fortz_missing(');
     expect(html).toContain('tick = __fortz_missing(');
+  });
+});
+
+describe('auditGameModuleGraph', () => {
+  it('reports a named import the target file never declares', () => {
+    const findings = auditGameModuleGraph([
+      { path: 'src/main.js', content: 'import { loadSettings } from "./systems/persistence.js";\nloadSettings();' },
+      { path: 'src/systems/persistence.js', content: 'export const saveSettings = () => {};\n' },
+    ]);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].file).toBe('src/main.js');
+    expect(findings[0].detail).toContain('"loadSettings" is missing from src/systems/persistence.js');
+    expect(findings[0].detail).toContain('export function loadSettings');
+  });
+
+  it('reports an un-exported top-level declaration as a wiring bug', () => {
+    const findings = auditGameModuleGraph([
+      { path: 'src/main.js', content: 'import { loadSettings } from "./persistence.js";\nloadSettings();' },
+      { path: 'src/persistence.js', content: 'function loadSettings() {\n  return { best: 0 };\n}\n' },
+    ]);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].detail).toContain('without the export keyword');
+  });
+
+  it('reports a default-exported declaration that importers use by name', () => {
+    const findings = auditGameModuleGraph([
+      { path: 'src/main.js', content: 'import { loadSettings } from "./persistence.js";\nloadSettings();' },
+      {
+        path: 'src/persistence.js',
+        content: 'export default function loadSettings() {\n  return { best: 0 };\n}\n',
+      },
+    ]);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].detail).toContain('without the export keyword');
+  });
+
+  it('passes a fully wired project', () => {
+    const findings = auditGameModuleGraph([
+      {
+        path: 'src/main.js',
+        content:
+          'import { Engine } from "./engine.js";\nimport Game from "./game.js";\nimport * as THREE from "three";\nnew Engine(Game, THREE);',
+      },
+      { path: 'src/engine.js', content: 'export class Engine {\n  constructor() {}\n}\n' },
+      { path: 'src/game.js', content: 'export default class Game {}\n' },
+    ]);
+
+    expect(findings).toEqual([]);
+  });
+
+  it('flags external packages but never three or URL imports', () => {
+    const findings = auditGameModuleGraph([
+      {
+        path: 'src/main.js',
+        content:
+          'import { Account } from "appwrite";\nimport { Scene } from "three";\nimport { X } from "https://cdn.example.com/x.js";\nconsole.log(Account, Scene, X);',
+      },
+    ]);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].detail).toContain('external package "appwrite"');
+    expect(findings[0].detail).not.toContain('three');
+  });
+
+  it('flags a default import from a file with no default export', () => {
+    const findings = auditGameModuleGraph([
+      { path: 'src/main.js', content: 'import Engine from "./engine.js";\nEngine.start();' },
+      { path: 'src/engine.js', content: 'export class Engine {\n  start() {}\n}\n' },
+    ]);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].detail).toContain('no default export');
   });
 });

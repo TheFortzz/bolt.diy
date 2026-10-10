@@ -608,6 +608,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
                 !body.planningOnly && !body.readOnly
                   ? 'Repair discipline: before editing anything, inspect the actual diagnostic (inspect_errors / read_file), quote the exact error, name the root cause in one sentence, apply the SMALLEST fix, and re-run the checks. Never edit on a guess. If the same diagnostic appears again after a fix, that approach failed — do not vary it: re-read the real file contents and rewrite the broken section with a fundamentally different strategy.'
                   : '',
+                'Module wiring (MANDATORY): declare every shared symbol at TOP LEVEL with `export function name(…)` / `export const name = …`. Never hide declarations inside an IIFE, closure, or object facade — a named import only resolves to module-scope bindings. Never use `export default` for symbols other files import by name. Cross-check each named import against the target file’s actual top-level exports before finishing; a missing top-level export is a build-breaking bug. No external packages or network backends — the game must run fully offline.',
               ]
                 .filter(Boolean)
                 .join('\n\n'),

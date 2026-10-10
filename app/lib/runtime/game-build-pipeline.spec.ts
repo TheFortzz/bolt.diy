@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   wait: vi.fn(),
   generate: vi.fn(),
   validate: vi.fn(),
+  files: {} as Record<string, { type: string; content?: string }>,
   artifact: {
     closed: true,
     runner: { actions: { get: () => ({ file: { type: 'file', status: 'complete', executed: true } }) } },
@@ -13,6 +14,7 @@ vi.mock('~/lib/stores/workbench', () => ({
   workbenchStore: {
     waitForExecutionQueue: mocks.wait,
     artifacts: { get: () => ({ build: mocks.artifact }) },
+    files: { get: () => mocks.files },
   },
 }));
 vi.mock('~/lib/runtime/asset-generator', () => ({ generateProjectAssets: mocks.generate }));
@@ -25,6 +27,7 @@ describe('final game verification pipeline', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     activitySteps.set({});
+    mocks.files = {};
     mocks.artifact.closed = true;
     mocks.wait.mockResolvedValue(undefined);
     mocks.generate.mockResolvedValue({ ok: true, updatedPaths: ['game.js'] });
@@ -63,5 +66,28 @@ describe('final game verification pipeline', () => {
     await verifyGameBuild('build');
     expect(mocks.generate).not.toHaveBeenCalled();
     expect(mocks.validate).toHaveBeenCalledWith('build');
+  });
+
+  it('fails fast on broken module wiring before any paid checks', async () => {
+    mocks.files = {
+      'src/main.js': {
+        type: 'file',
+        content: 'import { loadSettings } from "./systems/persistence.js";\nloadSettings();',
+      },
+      'src/systems/persistence.js': { type: 'file', content: 'export const saveSettings = () => {};\n' },
+    };
+
+    const result = await verifyGameBuild('build');
+
+    expect(result.ok).toBe(false);
+
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error).toContain('Broken module wiring');
+    expect(result.error).toContain('loadSettings');
+    expect(mocks.generate).not.toHaveBeenCalled();
+    expect(mocks.validate).not.toHaveBeenCalled();
   });
 });

@@ -686,6 +686,169 @@ export function looksLikeEsm(code: string): boolean {
  * (named/default/namespace imports, cycles via live bindings) with no
  * bundler. Bare specifiers ('three', CDN URLs) are left for the import map.
  */
+/**
+ * Everything the module system knows how to extract from a JS file: explicit
+ * named exports (declarations and `export { … }` lists), whether a default
+ * export exists, and whether any star re-export swallows the rest.
+ */
+function collectModuleExportNames(content: string): { names: Set<string>; hasDefault: boolean; wildcard: boolean } {
+  const names = new Set<string>();
+  const decl = /export\s+(?:async\s+)?(?:function|class|const|let|var)\s+([A-Za-z_$][\w$]*)/g;
+  let m: RegExpExecArray | null;
+
+  while ((m = decl.exec(content)) !== null) {
+    names.add(m[1]);
+  }
+
+  const list = /export\s*\{([^}]*)\}/g;
+
+  while ((m = list.exec(content)) !== null) {
+    for (const item of m[1].split(',')) {
+      const parts = item.trim().split(/\s+as\s+/);
+      const exportedName = (parts[1] || parts[0] || '').trim();
+
+      if (/^[A-Za-z_$][\w$]*$/.test(exportedName)) {
+        names.add(exportedName);
+      }
+    }
+  }
+
+  return { names, hasDefault: /export\s+default\b/.test(content), wildcard: /export\s*\*/.test(content) };
+}
+
+/**
+ * Does the file declare `name` as a real module-scope binding (so
+ * `export { name };` would be valid for it)? Column-0 keyword declarations
+ * (`function x`, `const x`, `export default function x`…) and column-0
+ * destructures (`const { a, x } = …`) qualify — the same patterns the blob
+ * bundler auto-repairs, so audits and repairs can never disagree.
+ */
+function declaresModuleScopeBinding(content: string, name: string): boolean {
+  const escaped = name.replace(/[$]/g, '\\$&');
+
+  const keywordDecl = new RegExp(
+    `^(?:export\\s+(?:default\\s+)?)?(?:async\\s+)?(?:function|class|const|let|var)\\s+${escaped}\\b`,
+    'm',
+  );
+
+  /*
+   * Module-scope destructure: `const { a, x } = …` / `const [x] = …` —
+   * a real binding that `export { x }` is valid for.
+   */
+  const destructureDecl = new RegExp(
+    `^(?:export\\s+)?(?:const|let|var)\\s+[\\[{][^;\\n]*\\b${escaped}\\b[^;\\n]*[\\]}][^;\\n]*=`,
+    'm',
+  );
+
+  return keywordDecl.test(content) || destructureDecl.test(content);
+}
+
+export type ModuleGraphFinding = { file: string; detail: string };
+
+/**
+ * Static module-wiring audit. Every named/default import must resolve to a
+ * project file that actually exports the symbol at top level, and local
+ * scripts must not depend on external packages the browser cannot resolve.
+ *
+ * This catches the whole "import parses, game boots, then crashes on
+ * undefined" family BEFORE the preview watchdog ever fires, and hands the
+ * repair loop a surgical file+symbol diagnostic instead of a raw
+ * TypeError from somewhere deep in the game loop.
+ */
+export function auditGameModuleGraph(files: StaticPreviewFile[]): ModuleGraphFinding[] {
+  const findings: ModuleGraphFinding[] = [];
+  const jsFiles = files.filter((file) => /\.(?:m?js|jsx)$/.test(file.path) && Boolean(file.content));
+
+  const exportCache = new Map<string, { names: Set<string>; hasDefault: boolean; wildcard: boolean }>();
+
+  const exportsOf = (path: string) => {
+    let hit = exportCache.get(path);
+
+    if (!hit) {
+      hit = collectModuleExportNames(jsFiles.find((entry) => entry.path === path)?.content || '');
+      exportCache.set(path, hit);
+    }
+
+    return hit;
+  };
+
+  for (const file of jsFiles) {
+    const importRe = /\bimport\s+(?:([A-Za-z_$][\w$]*)\s*,\s*)?\{([^}]*)\}\s*from\s*(["'])([^"']+)\3/g;
+    const defaultImportRe = /\bimport\s+([A-Za-z_$][\w$]*)\s+from\s*(["'])([^"']+)\2/g;
+    const problems: string[] = [];
+    let m: RegExpExecArray | null;
+
+    while ((m = importRe.exec(file.content)) !== null) {
+      const list = m[2];
+      const spec = m[4];
+      const cleanSpec = spec.split(/[?#]/, 1)[0];
+
+      // Known CDN-backed library resolved through the preview import map.
+      if (!cleanSpec.startsWith('.') && /^(?:three(?:\/|$)|https?:\/\/)/i.test(cleanSpec)) {
+        continue;
+      }
+
+      const target = resolveStaticPreviewFileLoose(files, cleanSpec);
+
+      if (!target) {
+        problems.push(
+          cleanSpec.startsWith('.')
+            ? `imports "${spec}" but no project file matches that path`
+            : `imports external package "${spec}" — no project file matches; games must run fully offline`,
+        );
+
+        continue;
+      }
+
+      const exported = exportsOf(target.path);
+
+      if (exported.wildcard) {
+        continue;
+      }
+
+      for (const item of list.split(',')) {
+        const name = (item.trim().split(/\s+as\s+/)[0] || '').trim();
+
+        if (!/^[A-Za-z_$][\w$]*$/.test(name) || name === 'default' || exported.names.has(name)) {
+          continue;
+        }
+
+        problems.push(
+          declaresModuleScopeBinding(target.content, name)
+            ? `"${name}" is declared in ${target.path} without the export keyword — add a top-level \`export\` so every importer (and the published game) can use it`
+            : `"${name}" is missing from ${target.path} — the file does not export it; declare it as \`export function ${name}(…)\` / \`export const ${name} = …\` at top level`,
+        );
+      }
+    }
+
+    while ((m = defaultImportRe.exec(file.content)) !== null) {
+      const local = m[1];
+      const spec = m[3];
+      const cleanSpec = spec.split(/[?#]/, 1)[0];
+
+      if (!cleanSpec.startsWith('.') || /^(?:three(?:\/|$)|https?:\/\/)/i.test(cleanSpec)) {
+        continue;
+      }
+
+      const target = resolveStaticPreviewFileLoose(files, cleanSpec);
+
+      if (!target || exportsOf(target.path).wildcard || exportsOf(target.path).hasDefault) {
+        continue;
+      }
+
+      problems.push(
+        `default-imports "${local}" from ${target.path}, but that file has no default export — use its named exports or add \`export default\``,
+      );
+    }
+
+    if (problems.length > 0) {
+      findings.push({ file: file.path, detail: problems.join('; ') });
+    }
+  }
+
+  return findings;
+}
+
 export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPreviewFile[]): string {
   if (!html || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
     return html;
@@ -797,30 +960,8 @@ export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPr
     return map;
   };
 
-  const collectExportedNames = (content: string): { names: Set<string>; hasDefault: boolean; wildcard: boolean } => {
-    const names = new Set<string>();
-    const decl = /export\s+(?:async\s+)?(?:function|class|const|let|var)\s+([A-Za-z_$][\w$]*)/g;
-    let m: RegExpExecArray | null;
-
-    while ((m = decl.exec(content)) !== null) {
-      names.add(m[1]);
-    }
-
-    const list = /export\s*\{([^}]*)\}/g;
-
-    while ((m = list.exec(content)) !== null) {
-      for (const item of m[1].split(',')) {
-        const parts = item.trim().split(/\s+as\s+/);
-        const exportedName = (parts[1] || parts[0] || '').trim();
-
-        if (/^[A-Za-z_$][\w$]*$/.test(exportedName)) {
-          names.add(exportedName);
-        }
-      }
-    }
-
-    return { names, hasDefault: /export\s+default\b/.test(content), wildcard: /export\s*\*/.test(content) };
-  };
+  const collectExportedNames = (content: string): { names: Set<string>; hasDefault: boolean; wildcard: boolean } =>
+    collectModuleExportNames(content);
 
   /*
    * Auto-repair: when a module DECLARES a binding at top level but forgets the
@@ -881,29 +1022,7 @@ export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPr
             continue;
           }
 
-          const escaped = prop.replace(/[$]/g, '\\$&');
-
-          /*
-           * Direct module-scope declaration at column 0: `function x`, `const x`…
-           * `export default function x` also binds `x` in module scope, so
-           * `export { x };` is legal alongside it — a classic AI mix-up where
-           * the file default-exports but importers use the named import.
-           */
-          const keywordDecl = new RegExp(
-            `^(?:export\\s+(?:default\\s+)?)?(?:async\\s+)?(?:function|class|const|let|var)\\s+${escaped}\\b`,
-            'm',
-          );
-
-          /*
-           * Module-scope destructure: `const { a, x } = …` / `const [x] = …` —
-           * a real binding that `export { x }` is valid for.
-           */
-          const destructureDecl = new RegExp(
-            `^(?:export\\s+)?(?:const|let|var)\\s+[\\[{][^;\\n]*\\b${escaped}\\b[^;\\n]*[\\]}][^;\\n]*=`,
-            'm',
-          );
-
-          if (!keywordDecl.test(target.content) && !destructureDecl.test(target.content)) {
+          if (!declaresModuleScopeBinding(target.content, prop)) {
             continue;
           }
 
@@ -1028,7 +1147,7 @@ export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPr
         '  return function () {\n' +
         '    if (!reported) {\n' +
         '      reported = true;\n' +
-        '      var msg = "[Fortz preview] \\"" + name + "\\" is missing from " + file + " — the file does not export it; add an export for \\"" + name + "\\" in " + file;\n' +
+        '      var msg = "[Fortz preview] \\"" + name + "\\" is missing from " + file + " — the file does not export it; declare it at top level as export function " + name + "(…) or export const " + name + " = … in that file;\n' +
         '      try { console.error(msg); } catch (e) {}\n' +
         '      try { window.parent.postMessage({ type: "thefortz-game-error", message: msg }, "*"); } catch (e) {}\n' +
         '    }\n' +
