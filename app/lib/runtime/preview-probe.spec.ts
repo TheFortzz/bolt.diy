@@ -148,6 +148,40 @@ describe('iframe game runtime probe', () => {
     expect(win.parent.postMessage.mock.calls.some(([message]) => message.type === 'preview-loaded')).toBe(false);
   });
 
+  it('rejects a 2D canvas that stays fully transparent after draw hooks fire', () => {
+    const blankCanvas = {
+      width: 800,
+      height: 600,
+      getContext: () => ({
+        getImageData: () => ({ data: new Uint8ClampedArray([0, 0, 0, 0]) }),
+      }),
+    };
+    vi.stubGlobal('document', {
+      readyState: 'interactive',
+      images: documentImages,
+      querySelector: () => blankCanvas,
+      querySelectorAll: () => [],
+    });
+
+    installPreviewProbe('blank-canvas', 'https://ide.example');
+
+    const loop = () => {
+      context.fillRect();
+      win.requestAnimationFrame(loop);
+    };
+    win.requestAnimationFrame(loop);
+    advance(1800);
+
+    expect(win.parent.postMessage.mock.calls.some(([message]) => message.type === 'preview-loaded')).toBe(false);
+    expect(win.parent.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'preview-error',
+        error: expect.stringContaining('Canvas appears blank'),
+      }),
+      'https://ide.example',
+    );
+  });
+
   it('does not invent diagnostics for a game that never exposes them', () => {
     installPreviewProbe('missing-diagnostics', 'https://ide.example', {
       requireDiagnostics: true,

@@ -5,6 +5,12 @@ import { getModel } from '~/lib/.server/llm/model';
 import { CLINE_TURN_MAX_TOKENS, createBoltAgentModel } from '~/lib/.server/bolt-agent-model';
 import { getHarnessSecret, requireSameOrigin, verifyCapability } from '~/lib/.server/harness/capabilities';
 import { blueprintSchema, isWorkspacePath, managerBlueprintSchema } from '~/lib/harness/blueprint';
+import {
+  runAgentBuildCheck,
+  runAgentGameplayCheck,
+  runAgentQualityCheck,
+} from '~/lib/runtime/agent-project-checks';
+import { resolveStaticPreviewFileLoose } from '~/lib/runtime/static-preview';
 import type { IProviderSetting } from '~/types/model';
 import { DEFAULT_MODEL, DEFAULT_PROVIDER, getModelList } from '~/utils/constants';
 
@@ -470,6 +476,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
               inputSchema: { type: 'object', properties: {} },
               execute: async () => {
                 const html = workingFiles['index.html'] || '';
+                const fileList = Object.entries(workingFiles).map(([path, content]) => ({ path, content }));
                 const references = [
                   ...html.matchAll(/<(?:script|link)\b[^>]*(?:src|href)=["']([^"']+)["'][^>]*>/gi),
                 ].map((match) => match[1]);
@@ -478,7 +485,10 @@ export async function action({ request, context }: ActionFunctionArgs) {
                   hasIndexHtml: Boolean(html),
                   references,
                   missingReferences: references.filter(
-                    (path) => !/^https?:\/\//i.test(path) && workingFiles[path] === undefined,
+                    (path) =>
+                      !/^https?:\/\//i.test(path) &&
+                      !path.startsWith('data:') &&
+                      !resolveStaticPreviewFileLoose(fileList, path),
                   ),
                   files: Object.keys(workingFiles),
                 };
@@ -488,46 +498,34 @@ export async function action({ request, context }: ActionFunctionArgs) {
             const runBuild = createTool({
               name: 'run_build',
               description:
-                'Run preliminary entry-point and local reference checks. Bolt performs its actual WebContainer build/preview check after edits.',
+                'Run the real Bolt wiring/syntax/module-graph checks used before preview. Fix every reported issue before finish_task.',
               inputSchema: { type: 'object', properties: {} },
               execute: async () => {
-                send('status', { message: 'Running preliminary build checks…' });
-
-                const html = workingFiles['index.html'] || '';
-                const missing = [...html.matchAll(/<(?:script|link)\b[^>]*(?:src|href)=["']([^"']+)["'][^>]*>/gi)]
-                  .map((match) => match[1])
-                  .filter((path) => !/^https?:\/\//i.test(path) && workingFiles[path] === undefined);
-                const issues = [
-                  ...(!html ? ['Missing index.html.'] : []),
-                  ...missing.map((path) => `Missing local reference: ${path}`),
-                ];
-
-                return {
-                  success: issues.length === 0,
-                  issues,
-                  note: 'Bolt runs actual build and preview validation after files are applied.',
-                };
+                send('status', { message: 'Running Bolt build / module-graph checks…' });
+                return runAgentBuildCheck(workingFiles);
               },
             });
 
             const runTests = createTool({
               name: 'run_tests',
-              description: 'Check for a game loop, input handling, and restart/game-state behavior.',
+              description:
+                'Run gameplay-contract and static quality checks (loop, input, diagnostics, polish). Must pass before finish_task.',
               inputSchema: { type: 'object', properties: {} },
               execute: async () => {
-                send('status', { message: 'Checking gameplay loop and controls…' });
+                send('status', { message: 'Checking gameplay contracts and quality…' });
 
-                const code = Object.values(workingFiles).join('\n');
-                const tests = [
-                  { name: 'Animation loop', pass: /requestAnimationFrame|setInterval/i.test(code) },
-                  {
-                    name: 'Input handling',
-                    pass: /addEventListener\s*\(\s*["'](?:keydown|keyup|pointerdown|touchstart)["']/i.test(code),
-                  },
-                  { name: 'Restart/state', pass: /restart|reset|game.?over|playAgain/i.test(code) },
-                ];
+                const gameplay = runAgentGameplayCheck(workingFiles);
+                const quality = runAgentQualityCheck(workingFiles);
+                const tests = [...(gameplay.tests || []), ...(quality.tests || [])];
+                const issues = [...gameplay.issues, ...quality.issues];
 
-                return { passed: tests.every((test) => test.pass), tests };
+                return {
+                  success: gameplay.success && quality.success,
+                  passed: gameplay.success && quality.success,
+                  issues,
+                  tests,
+                  note: 'Gameplay + static quality gates. Bolt still runs a live preview probe after finish_task.',
+                };
               },
             });
 
@@ -544,7 +542,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
             const finishTask = createTool({
               name: 'finish_task',
               description:
-                'Finish the request. For planning-only runs, summary must contain the structured plan JSON and must not claim edits.',
+                'Finish only after run_build and run_tests both succeed. Throws if checks still fail so the run continues repairing.',
               inputSchema: {
                 type: 'object',
                 properties: {
@@ -556,6 +554,19 @@ export async function action({ request, context }: ActionFunctionArgs) {
               },
               lifecycle: { completesRun: true },
               execute: async (value: { summary: string; controls?: string; features?: string[] }) => {
+                if (!body.readOnly) {
+                  const build = runAgentBuildCheck(workingFiles);
+                  const gameplay = runAgentGameplayCheck(workingFiles);
+                  const quality = runAgentQualityCheck(workingFiles);
+                  const issues = [...build.issues, ...gameplay.issues, ...quality.issues];
+
+                  if (issues.length > 0) {
+                    throw new Error(
+                      `finish_task blocked — fix these checks first:\n${issues.slice(0, 20).join('\n')}`,
+                    );
+                  }
+                }
+
                 send('task_complete', value);
                 return value;
               },
@@ -604,15 +615,19 @@ export async function action({ request, context }: ActionFunctionArgs) {
                   ? `Plan only; do not edit files or claim edits. Use the supplied manifest, source excerpts, and context directly; do not call inspection tools. In this turn, call submit_plan with a tailored structured plan. Do not return a plan as free-form text. Plan BIG and ORIGINAL: 12-24 files and 6-10 connected systems totaling at minimum 10,000 lines of complete code, with module names and architecture derived from THIS request only — never the same index/style/main/game/input/audio skeleton twice. The game fills the entire viewport (full-window canvas, resizes with the window); no login, lobby, branding, or text-heavy screens — gameplay only, playable instantly. Source excerpts: ${JSON.stringify(workingFiles).slice(0, 30000)}`
                   : body.readOnly
                     ? 'Read-only chat: answer from supplied context; do not claim file changes.'
-                    : `Approved build: edit only ${Array.from(approvedPaths).join(', ')}. Do not delete files or execute shell commands. Read current files, implement the approved plan, run checks, and finish truthfully. For an approved renderer migration, replace renderer-coupled code and markup consistently while retaining the requested gameplay, controls, and HUD; do not force obsolete engine-specific function names to remain. Every visible start, pause/resume, and restart button must have a real handler that changes game state; use the diagnostic state 'paused' while paused, keep HTML IDs and selectors in sync, and wire keyboard/touch controls to the same gameplay actions. Only use 'new' on values defined with the 'class' keyword in an approved file — never 'new' a factory function, arrow function, plain object, or unverified import; call factories without 'new'. Expose window.__GAME_DIAGNOSTICS__ and update its counters only from the real game loop and handlers; preview tests do not fabricate diagnostics or missing DOM nodes. Format source readably with 2-space indentation, one statement per line, and lines near 100 characters; never minify. Use smooth delta-time animation and interpolation rather than abrupt motion. For Three.js, use the pinned 0.160.0 ES module and null-check every canvas and HUD lookup. Full-game builds ship at minimum 10,000 lines of complete working code across 12-24 focused modules: write files in sequence across turns, complete every file fully in its own write, and never truncate. The game fills the entire viewport at all times: full-window canvas that resizes with the window, gameplay only with no text-heavy screens, and a start overlay solely for audio unlock whose handler directly starts the real game. Before finish_task, call run_build and run_tests, repair every reported failure in the approved files, and re-check until they pass — never finish with failing checks or truncated files. Call inspect_project as well: every local stylesheet, script, import, and asset reference must resolve to a real approved file — fix folder mistakes (src/ versus root) by correcting the path to the real file, never by deleting the reference. Bolt will run actual preview validation and send repair errors in a follow-up run.`,
+                    : `Approved build: edit only ${Array.from(approvedPaths).join(', ')}. Do not delete files or execute shell commands. Read current files, implement the approved plan, run checks, and finish truthfully. For an approved renderer migration, replace renderer-coupled code and markup consistently while retaining the requested gameplay, controls, and HUD; do not force obsolete engine-specific function names to remain. Every visible start, pause/resume, and restart button must have a real handler that changes game state; use the diagnostic state 'paused' while paused, keep HTML IDs and selectors in sync, and wire keyboard/touch controls to the same gameplay actions. Only use 'new' on values defined with the 'class' keyword in an approved file — never 'new' a factory function, arrow function, plain object, or unverified import; call factories without 'new'. Expose window.__GAME_DIAGNOSTICS__ and update its counters only from the real game loop and handlers; preview tests do not fabricate diagnostics or missing DOM nodes. Format source readably with 2-space indentation, one statement per line, and lines near 100 characters; never minify. Use smooth delta-time animation and interpolation rather than abrupt motion. For Three.js, use the pinned 0.160.0 ES module and null-check every canvas and HUD lookup. Full-game builds ship at minimum 10,000 lines of complete working code across 12-24 focused modules: write files in sequence across turns, complete every file fully in its own write, and never truncate. The game fills the entire viewport at all times: full-window canvas that resizes with the window, gameplay only with no text-heavy screens, and a start overlay solely for audio unlock whose handler directly starts the real game. Before finish_task, call run_build and run_tests (they run the real module-graph, syntax, gameplay, and quality gates), repair every reported failure in the approved files, and re-check until they pass — never finish with failing checks or truncated files. Call inspect_project as well: every local stylesheet, script, import, and asset reference must resolve to a real approved file — fix folder mistakes (src/ versus root) by correcting the path to the real file, never by deleting the reference. Bolt will run actual preview validation and send repair errors in a follow-up run.`,
                 !body.planningOnly && !body.readOnly
                   ? 'Repair discipline: before editing anything, inspect the actual diagnostic (inspect_errors / read_file), quote the exact error, name the root cause in one sentence, apply the SMALLEST fix, and re-run the checks. Never edit on a guess. If the same diagnostic appears again after a fix, that approach failed — do not vary it: re-read the real file contents and rewrite the broken section with a fundamentally different strategy.'
                   : '',
                 'Module wiring (MANDATORY): declare every shared symbol at TOP LEVEL with `export function name(…)` / `export const name = …`. Never hide declarations inside an IIFE, closure, or object facade — a named import only resolves to module-scope bindings. Never use `export default` for symbols other files import by name. Cross-check each named import against the target file’s actual top-level exports before finishing; a missing top-level export is a build-breaking bug. No external packages or network backends — the game must run fully offline.',
+                !body.planningOnly && !body.readOnly
+                  ? 'Audio (SAFE): Prefer procedural Web Audio (AudioContext oscillators + gain envelopes) unlocked on a user gesture. Never fetch remote audio files. Wrap AudioContext creation in try/catch and degrade silently if unavailable. Do not let audio throw and break gameplay.'
+                  : '',
               ]
                 .filter(Boolean)
                 .join('\n\n'),
               tools,
+              completionPolicy: { requireCompletionTool: true },
               initialMessages: body.history.slice(-20).map((message, index) => ({
                 id: `bolt-history-${index}`,
                 role: message.role,
@@ -648,8 +663,12 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
             const result = await agent.run(body.prompt);
 
-            if (result.status === 'failed') {
-              send('fatal_error', { error: result.error?.message || 'Cline Agent run failed.' });
+            if (result.status === 'failed' || result.status === 'aborted') {
+              send('fatal_error', {
+                error:
+                  result.error?.message ||
+                  (result.status === 'aborted' ? 'Cline Agent run was aborted.' : 'Cline Agent run failed.'),
+              });
             } else {
               send('result', {
                 summary: result.outputText,
@@ -660,6 +679,11 @@ export async function action({ request, context }: ActionFunctionArgs) {
               });
             }
           } catch (error) {
+            /*
+             * Always emit a terminal SSE event before [DONE]. Otherwise the
+             * client throws "stream ended without a result" on proxy cuts and
+             * uncaught agent exceptions.
+             */
             send('fatal_error', { error: error instanceof Error ? error.message : 'Cline Agent failed.' });
           } finally {
             unsubscribe?.();

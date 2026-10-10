@@ -26,6 +26,37 @@ function actionableClineError(message: string) {
   return message;
 }
 
+function consumeSseChunk(
+  chunk: string,
+  onEvent: (event: ClineAgentEvent) => void,
+  state: { resultEvent?: ClineAgentEvent },
+) {
+  for (const line of chunk.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('data:')) continue;
+    const raw = trimmed.slice(5).trim();
+    if (!raw || raw === '[DONE]') continue;
+
+    let event: ClineAgentEvent;
+
+    try {
+      event = JSON.parse(raw) as ClineAgentEvent;
+    } catch {
+      throw new Error('Cline Agent stream returned malformed JSON.');
+    }
+
+    onEvent(event);
+
+    if (event.type === 'fatal_error') {
+      throw new Error(actionableClineError(event.payload?.error || 'Cline Agent failed.'));
+    }
+
+    if (event.type === 'result') {
+      state.resultEvent = event;
+    }
+  }
+}
+
 /** Run the Cline SDK agent in Bolt's own API route. */
 export async function runClineAgent(
   request: ClineAgentRequest,
@@ -50,7 +81,13 @@ export async function runClineAgent(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
-  let resultEvent: ClineAgentEvent | undefined;
+  const state: { resultEvent?: ClineAgentEvent } = {};
+  let sawAnyEvent = false;
+
+  const onEvent = (event: ClineAgentEvent) => {
+    sawAnyEvent = true;
+    options.onEvent(event);
+  };
 
   while (true) {
     if (options.signal?.aborted) throw new DOMException('Cline run cancelled.', 'AbortError');
@@ -59,22 +96,22 @@ export async function runClineAgent(
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split('\n');
     buffer = lines.pop() || '';
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith('data:')) continue;
-      const raw = trimmed.slice(5).trim();
-      if (!raw || raw === '[DONE]') continue;
-
-      const event = JSON.parse(raw) as ClineAgentEvent;
-      options.onEvent(event);
-      if (event.type === 'fatal_error') {
-        throw new Error(actionableClineError(event.payload?.error || 'Cline Agent failed.'));
-      }
-      if (event.type === 'result') resultEvent = event;
-    }
+    consumeSseChunk(lines.join('\n'), onEvent, state);
   }
 
-  if (!resultEvent) throw new Error('Cline Agent stream ended without a result.');
-  return resultEvent;
+  // Flush a trailing SSE frame that arrived without a final newline.
+  buffer += decoder.decode();
+  if (buffer.trim()) {
+    consumeSseChunk(buffer, onEvent, state);
+  }
+
+  if (!state.resultEvent) {
+    if (!sawAnyEvent) {
+      throw new Error('Cline Agent stream ended without a result (empty stream).');
+    }
+
+    throw new Error('Cline Agent stream ended without a result.');
+  }
+
+  return state.resultEvent;
 }

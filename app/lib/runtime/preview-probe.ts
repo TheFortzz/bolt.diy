@@ -388,8 +388,53 @@ export function installPreviewProbe(
     }
 
     const imagesReady = tracked.every((image) => image.complete && image.naturalWidth > 0);
-    const canvas = document.querySelector('canvas');
+    const canvas = document.querySelector('canvas') as HTMLCanvasElement | null;
     const diagnosticsError = diagnosticsFailure();
+    const canvasLivenessError = (() => {
+      if (!canvas?.width || !canvas.height) {
+        return 'No game canvas found';
+      }
+
+      /*
+       * Draw-call hooks alone can pass on a cleared/blank frame. Sample a few
+       * pixels; require either WebGL draw activity or visible 2D variance.
+       */
+      if (webglDrawCalls > 0) {
+        return undefined;
+      }
+
+      try {
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+        if (!ctx) {
+          // Likely a WebGL canvas without draw calls yet — keep observing.
+          return undefined;
+        }
+
+        const alphas: number[] = [];
+        const stepX = Math.max(1, Math.floor(canvas.width / 6));
+        const stepY = Math.max(1, Math.floor(canvas.height / 6));
+
+        for (let y = Math.floor(stepY / 2); y < canvas.height; y += stepY) {
+          for (let x = Math.floor(stepX / 2); x < canvas.width; x += stepX) {
+            alphas.push(ctx.getImageData(x, y, 1, 1).data[3]);
+          }
+        }
+
+        if (alphas.length === 0) {
+          return 'Canvas produced no readable pixels.';
+        }
+
+        // Fail only when every sample is fully transparent (never painted).
+        if (alphas.every((alpha) => alpha === 0)) {
+          return 'Canvas appears blank (transparent pixels only); draw visible gameplay content.';
+        }
+      } catch {
+        // Cross-origin or lost context — do not fail solely on sampling.
+      }
+
+      return undefined;
+    })();
 
     if (
       started &&
@@ -399,7 +444,8 @@ export function installPreviewProbe(
       imagesReady &&
       canvas?.width &&
       canvas.height &&
-      !diagnosticsError
+      !diagnosticsError &&
+      !canvasLivenessError
     ) {
       report('preview-loaded');
       return;
@@ -412,6 +458,7 @@ export function installPreviewProbe(
           : !canvas
             ? 'No game canvas found'
             : diagnosticsError ||
+              canvasLivenessError ||
               `Game loop or rendering did not advance (${applicationFrames} callbacks, ${renderFrames} rendered frames)`,
       );
       return;

@@ -22,6 +22,7 @@ import { generatedAssets } from '~/lib/stores/generated-assets';
 import { generateProjectAssets } from '~/lib/runtime/asset-generator';
 import { runActivityStep, startActivity, updateActivity, describeClineToolStep } from '~/lib/stores/activity';
 import { runClineAgent } from '~/lib/runtime/cline-bridge';
+import { isTransientClineFailure } from '~/lib/runtime/agent-project-checks';
 
 interface HarnessOptions {
   model: string;
@@ -693,10 +694,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
               }
 
               const message = (error as Error).message || String(error);
-              const transient =
-                /503|502|504|429|network|fetch failed|load failed|timed out|timeout|1102|522|524|socket|econnreset/i.test(
-                  message,
-                );
+              const transient = isTransientClineFailure(message);
 
               if (transient && attempt < maxAttempts - 1) {
                 lastError = `Studio request hiccup: ${message}`;
