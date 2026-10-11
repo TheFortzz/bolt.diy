@@ -147,6 +147,31 @@ describe('balanceAndCloseJs syntax healing', () => {
     expect(healed).toContain('(b - a)*t');
     expect(healed).toContain('2*(x + 1)');
   });
+
+  it('heals truncation without corrupting single-statement control flow', () => {
+    const broken = 'function boot() {\n  if (running) update();\n  while (alive) step();\n  const l = (b - a)t;';
+    const healed = balanceAndCloseJs(broken);
+
+    // Valid `) update()` / `) step()` bodies must never become `)*update()`.
+    expect(healed).not.toContain('*update');
+    expect(healed).not.toContain('*step');
+    expect(healed).toContain('(b - a)*t');
+    expect(() => new Function(healed)).not.toThrow();
+  });
+
+  it('never corrupts string or comment content while healing', () => {
+    const broken = 'function boot() {\n  const s = "tap) start now";\n  const l = (b - a)t;';
+    const healed = balanceAndCloseJs(broken);
+
+    expect(healed).toContain('tap) start now');
+    expect(healed).toContain('(b - a)*t');
+  });
+
+  it('returns a valid ES module untouched even though new Function cannot parse it', () => {
+    const moduleCode = 'import { a } from "./a.js";\nexport function main() {\n  if (a) start();\n}\n';
+
+    expect(balanceAndCloseJs(moduleCode)).toBe(moduleCode);
+  });
 });
 
 describe('studio preview publish parity', () => {

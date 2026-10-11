@@ -67,6 +67,13 @@ export function resolveStaticPreviewFileLoose(files: StaticPreviewFile[], refere
   return matches.length === 1 ? matches[0] : undefined;
 }
 
+/**
+ * Words that legitimately follow a `)` in valid code (`if (x) return;`,
+ * `while (c) break;` …). Healing `) ident` into `)*ident` for these would
+ * turn valid code into "Invalid or unexpected token".
+ */
+const CONTROL_WORDS = new Set(['if', 'while', 'for', 'switch', 'catch', 'with', 'do']);
+
 function repairMissingOperators(src: string): string {
   const reservedWords = new Set([
     'instanceof',
@@ -82,10 +89,59 @@ function repairMissingOperators(src: string): string {
     'do',
     'case',
     'default',
+    'throw',
+    'break',
+    'continue',
+    'new',
+    'of',
   ]);
 
-  let patched = src.replace(/\)(\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)/g, (match, space, ident) => {
+  /** Does the `)` at closeIndex close an if/while/for/switch/catch condition? */
+  const closesControlParen = (closeIndex: number): boolean => {
+    let depth = 0;
+
+    for (let i = closeIndex; i >= 0; i--) {
+      const ch = src[i];
+
+      if (ch === ')') {
+        depth++;
+      } else if (ch === '(') {
+        depth--;
+
+        if (depth === 0) {
+          const before = src.slice(0, i).match(/([A-Za-z_$][\w$]*)\s*$/);
+
+          return Boolean(before && CONTROL_WORDS.has(before[1]));
+        }
+      }
+    }
+
+    return false;
+  };
+
+  let patched = src.replace(/\)(\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)/g, (match, space, ident, offset: number) => {
     if (reservedWords.has(ident)) {
+      return match;
+    }
+
+    /*
+     * `if (x) update();` / `while (c) tick();` — valid single-statement
+     * bodies, NOT missing multiplication. Leave them untouched.
+     */
+    if (closesControlParen(offset)) {
+      return match;
+    }
+
+    /*
+     * What follows the identifier decides: a call `) fn(`, an assignment
+     * `) x = …`, a quote, or arithmetic `) x + 1` are all valid
+     * continuations — only a genuine expression tail like `(b-a)t;` is a
+     * missing operator.
+     */
+    const after = src.slice(offset + match.length).match(/^\s*([A-Za-z_$(='"`]|\+|-|\*|\/)/);
+    const next = after?.[1] || '';
+
+    if (next) {
       return match;
     }
 

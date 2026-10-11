@@ -19,12 +19,10 @@ function safeDiagnostic(output: string) {
     .slice(-MAX_OUTPUT);
 }
 
-const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
 
 export function validateJavaScriptSyntax(code: string, fileName: string): string | undefined {
-  const cleanCode = code
-    .replace(/^```(?:javascript|js|typescript|ts)?\s*\n?/i, '')
-    .replace(/\n?```\s*$/i, '');
+  const cleanCode = code.replace(/^```(?:javascript|js|typescript|ts)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
 
   try {
     new Function(cleanCode);
@@ -44,6 +42,7 @@ export function validateJavaScriptSyntax(code: string, fileName: string): string
         } catch (asyncErr: unknown) {
           if (asyncErr instanceof SyntaxError) {
             const asyncMsg = (asyncErr as Error).message || '';
+
             if (!asyncMsg.includes('import') && !asyncMsg.includes('export') && !asyncMsg.includes('import.meta')) {
               return `${fileName}: ${asyncMsg}`;
             }
@@ -71,6 +70,7 @@ export function validateJavaScriptSyntax(code: string, fileName: string): string
             .replace(/^\s*export\s+(?:class|const|let|var)\b/gm, (m) => m.replace('export', ''))
             .replace(/^\s*export\s*\{[^}]*\}\s*;?/gm, '// export')
             .replace(/^\s*export\s+\*\s+from\s+['"][^'"]+['"];?/gm, '// export *');
+
           try {
             new Function(sanitized);
             return undefined;
@@ -82,11 +82,14 @@ export function validateJavaScriptSyntax(code: string, fileName: string): string
           if (innerErr instanceof SyntaxError) {
             return `${fileName}: ${(innerErr as Error).message}`;
           }
+
           return undefined;
         }
       }
+
       return `${fileName}: ${msg}`;
     }
+
     return undefined;
   }
 }
@@ -239,6 +242,7 @@ export async function validateBuild(
           `Checking ${name}`,
           async () => {
             const syntaxErr = validateJavaScriptSyntax(content, name);
+
             if (syntaxErr) {
               throw new Error(syntaxErr);
             }
@@ -249,6 +253,7 @@ export async function validateBuild(
 
             if (error) {
               const lower = error.toLowerCase();
+
               if (lower.includes('no such file or directory') || lower.includes('enoent')) {
                 error = await runCheck(wc, 'node', ['--check', `./${name}`]);
               }
@@ -256,6 +261,7 @@ export async function validateBuild(
 
             if (error) {
               const lower = error.toLowerCase();
+
               if (
                 lower.includes('syntaxerror') &&
                 !lower.includes('cannot use import statement') &&
@@ -267,6 +273,48 @@ export async function validateBuild(
 
               // In-memory syntax check already passed; ignore environment spawn/not found errors
               return;
+            }
+          },
+          `Syntax passed: ${name}`,
+        );
+      } else if (name.endsWith('.html')) {
+        /*
+         * Inline <script> bodies inside HTML are served into the preview
+         * completely raw — no bundler, no node --check. A truncated or
+         * corrupt inline script therefore boots as "Invalid or unexpected
+         * token" and nothing ever catches it. Probe each one here.
+         */
+        await runActivityStep(
+          messageId,
+          `validation:syntax:${name}`,
+          `Checking ${name}`,
+          async () => {
+            const scriptRe = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
+            let match: RegExpExecArray | null;
+            let index = 0;
+
+            while ((match = scriptRe.exec(content)) !== null) {
+              const attrs = match[1] || '';
+              const body = (match[2] || '').trim();
+
+              if (!body || /\bsrc\s*=/i.test(attrs)) {
+                continue;
+              }
+
+              const typeMatch = attrs.match(/\btype\s*=\s*["']([^"']+)["']/i);
+
+              // Only real JavaScript blocks: modules and classic scripts.
+              if (typeMatch && !/(?:javascript|module)/i.test(typeMatch[1])) {
+                continue;
+              }
+
+              index++;
+
+              const syntaxErr = validateJavaScriptSyntax(body, `${name} inline script #${index}`);
+
+              if (syntaxErr) {
+                throw new Error(syntaxErr);
+              }
             }
           },
           `Syntax passed: ${name}`,

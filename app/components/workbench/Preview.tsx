@@ -120,7 +120,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       if (fallbackBlobUrlRef.current) {
         const toRevoke = fallbackBlobUrlRef.current;
         fallbackBlobUrlRef.current = undefined;
-        setTimeout(() => URL.revokeObjectURL(toRevoke), 500);
+        setTimeout(() => URL.revokeObjectURL(toRevoke), 30_000);
       }
       setFallbackBlobUrl(undefined);
     }
@@ -202,7 +202,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
         const toRevoke = fallbackBlobUrlRef.current;
         fallbackBlobUrlRef.current = undefined;
         setFallbackBlobUrl(undefined);
-        setTimeout(() => URL.revokeObjectURL(toRevoke), 500);
+        setTimeout(() => URL.revokeObjectURL(toRevoke), 30_000);
       }
       return;
     }
@@ -215,7 +215,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     setFallbackBlobUrl(objectUrl);
 
     if (oldUrl && oldUrl !== objectUrl) {
-      setTimeout(() => URL.revokeObjectURL(oldUrl), 1000);
+      setTimeout(() => URL.revokeObjectURL(oldUrl), 30_000);
     }
   }, [displayFallbackHtml, activePreview]);
 
@@ -229,7 +229,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       if (fallbackBlobUrlRef.current) {
         const toRevoke = fallbackBlobUrlRef.current;
         fallbackBlobUrlRef.current = undefined;
-        setTimeout(() => URL.revokeObjectURL(toRevoke), 500);
+        setTimeout(() => URL.revokeObjectURL(toRevoke), 30_000);
       }
 
       setFallbackBlobUrl(undefined);
