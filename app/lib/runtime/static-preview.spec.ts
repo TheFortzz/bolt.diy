@@ -70,6 +70,23 @@ describe('static preview file resolution', () => {
     expect(html).toContain('Missing file reference:');
     expect(html).toContain('src/nope.js');
   });
+
+  it('names the exact file when a source fails the module syntax audit', () => {
+    const html = buildFallbackHtml({
+      'index.html': {
+        type: 'file',
+        content:
+          '<!doctype html><html><head></head><body><canvas></canvas><script type="module" src="src/game.js"></script></body></html>',
+      },
+      'src/game.js': { type: 'file', content: 'import { a, b from "./lib.js";\nexport const c = a + b;\n' },
+      'src/lib.js': { type: 'file', content: 'export const a = 1;\nexport const b = 2;\n' },
+    });
+
+    expect(html).toBeDefined();
+    expect(html).toContain('bolt-game-syntax-issues');
+    expect(html).toContain('src/game.js');
+    expect(html).toContain('malformed import');
+  });
 });
 
 describe('static preview script assembly', () => {

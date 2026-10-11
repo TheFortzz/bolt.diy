@@ -5,7 +5,10 @@ import { workbenchStore } from '~/lib/stores/workbench';
 import { actionStepId, runActivityStep, startActivity, updateActivity } from '~/lib/stores/activity';
 import { cleanWorkDirRelativePath } from '~/utils/diff';
 import { validatePreview } from './preview-validation';
+import { validateJavaScriptSyntax } from '~/lib/runtime/js-syntax';
 import type { PreviewVerificationRequirements } from '~/lib/runtime/preview-probe';
+
+export { validateJavaScriptSyntax } from '~/lib/runtime/js-syntax';
 
 export type ValidationState = { status: 'idle' | 'checking' | 'passed' | 'failed'; detail: string };
 export const validationState = atom<ValidationState>({ status: 'idle', detail: '' });
@@ -17,81 +20,6 @@ function safeDiagnostic(output: string) {
     .replace(/\x1b\[[0-9;]*m/g, '')
     .replace(/\b(?:sk-[A-Za-z0-9_-]{12,}|Bearer\s+[A-Za-z0-9._-]{12,})\b/gi, '[redacted]')
     .slice(-MAX_OUTPUT);
-}
-
-const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
-
-export function validateJavaScriptSyntax(code: string, fileName: string): string | undefined {
-  const cleanCode = code.replace(/^```(?:javascript|js|typescript|ts)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
-
-  try {
-    new Function(cleanCode);
-    return undefined;
-  } catch (err: unknown) {
-    if (err instanceof SyntaxError) {
-      const msg = (err as Error).message || '';
-
-      if (
-        msg.includes('await is only valid in async functions') ||
-        msg.includes('top level bodies of modules') ||
-        cleanCode.includes('await ')
-      ) {
-        try {
-          new AsyncFunction(cleanCode);
-          return undefined;
-        } catch (asyncErr: unknown) {
-          if (asyncErr instanceof SyntaxError) {
-            const asyncMsg = (asyncErr as Error).message || '';
-
-            if (!asyncMsg.includes('import') && !asyncMsg.includes('export') && !asyncMsg.includes('import.meta')) {
-              return `${fileName}: ${asyncMsg}`;
-            }
-          }
-        }
-      }
-
-      if (
-        msg.includes('Cannot use import statement') ||
-        msg.includes("Unexpected token 'export'") ||
-        msg.includes('export declarations may only appear') ||
-        msg.includes('import declarations may only appear') ||
-        msg.includes("Cannot use 'import.meta'") ||
-        msg.includes('import.meta') ||
-        cleanCode.includes('import ') ||
-        cleanCode.includes('export ')
-      ) {
-        try {
-          const sanitized = cleanCode
-            .replace(/(?:^|\n)\s*import\s+[\s\S]*?from\s+['"][^'"]+['"];?/g, '\n// import')
-            .replace(/(?:^|\n)\s*import\s+['"][^'"]+['"];?/g, '\n// import')
-            .replace(/import\.meta/g, '({})')
-            .replace(/^\s*export\s+default\s+/gm, 'const __export_default__ = ')
-            .replace(/^\s*export\s+(?:async\s+)?function\b/gm, 'function')
-            .replace(/^\s*export\s+(?:class|const|let|var)\b/gm, (m) => m.replace('export', ''))
-            .replace(/^\s*export\s*\{[^}]*\}\s*;?/gm, '// export')
-            .replace(/^\s*export\s+\*\s+from\s+['"][^'"]+['"];?/gm, '// export *');
-
-          try {
-            new Function(sanitized);
-            return undefined;
-          } catch {
-            new AsyncFunction(sanitized);
-            return undefined;
-          }
-        } catch (innerErr: unknown) {
-          if (innerErr instanceof SyntaxError) {
-            return `${fileName}: ${(innerErr as Error).message}`;
-          }
-
-          return undefined;
-        }
-      }
-
-      return `${fileName}: ${msg}`;
-    }
-
-    return undefined;
-  }
 }
 
 async function runCheck(
@@ -282,8 +210,12 @@ export async function validateBuild(
          * Inline <script> bodies inside HTML are served into the preview
          * completely raw — no bundler, no node --check. A truncated or
          * corrupt inline script therefore boots as "Invalid or unexpected
-         * token" and nothing ever catches it. Probe each one here.
+         * token" and nothing ever catches it. Probe each one here, and
+         * back the probe with the REAL node parser via a temp .mjs so the
+         * check is authoritative no matter how exotic the breakage.
          */
+        const inlineScripts: string[] = [];
+
         await runActivityStep(
           messageId,
           `validation:syntax:${name}`,
@@ -309,6 +241,7 @@ export async function validateBuild(
               }
 
               index++;
+              inlineScripts.push(body);
 
               const syntaxErr = validateJavaScriptSyntax(body, `${name} inline script #${index}`);
 
@@ -319,6 +252,35 @@ export async function validateBuild(
           },
           `Syntax passed: ${name}`,
         );
+
+        for (let index = 0; index < inlineScripts.length; index++) {
+          const tmpName = `.bolt-inline-check-${index}.mjs`;
+
+          try {
+            await wc.fs.writeFile(tmpName, inlineScripts[index]);
+
+            const checkTarget = `${wc.workdir.replace(/\/+$/, '')}/${tmpName}`;
+            let error = await runCheck(wc, 'node', ['--check', checkTarget]);
+
+            if (error && error.toLowerCase().includes('enoent')) {
+              error = await runCheck(wc, 'node', ['--check', `./${tmpName}`]);
+            }
+
+            if (error) {
+              const lower = error.toLowerCase();
+
+              if (lower.includes('syntaxerror') || lower.includes('invalid or unexpected')) {
+                throw new Error(`${name} inline script #${index + 1}: ${error}`);
+              }
+            }
+          } finally {
+            try {
+              await wc.fs.rm(tmpName, { force: true });
+            } catch {
+              // Temp file never landed; nothing to clean up.
+            }
+          }
+        }
       }
     }
 

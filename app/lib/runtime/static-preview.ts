@@ -1,5 +1,6 @@
 import { cleanWorkDirRelativePath } from '~/utils/diff';
 import { inlineGeneratedAssetUrls, type GeneratedAsset } from '~/lib/stores/generated-assets';
+import { probeModuleSyntax } from '~/lib/runtime/js-syntax';
 
 function insertBeforeBody(html: string, scripts: string) {
   if (!scripts) {
@@ -1412,6 +1413,30 @@ export function buildFallbackHtml(
   const getFileEntry = (refPath: string) => resolveStaticPreviewFileLoose(sourceFiles, refPath);
   const strippedRefs: string[] = [];
 
+  /*
+   * Self-naming syntax audit: whatever the validator missed (unchecked
+   * files, exotic breakage inside import statements), the preview itself
+   * reports WHICH file is broken straight to the repair inbox instead of
+   * dying anonymously behind the watchdog.
+   */
+  const syntaxIssues: string[] = [];
+
+  for (const file of sourceFiles) {
+    if (!/\.(?:m?js|jsx)$/.test(file.path) || syntaxIssues.length >= 8) {
+      continue;
+    }
+
+    if (typeof file.content !== 'string') {
+      continue;
+    }
+
+    const issue = probeModuleSyntax(file.content, file.path);
+
+    if (issue) {
+      syntaxIssues.push(issue.slice(0, 500));
+    }
+  }
+
   const noteStripped = (ref: string) => {
     const clean = String(ref || '').slice(0, 160);
 
@@ -1697,6 +1722,17 @@ export function buildFallbackHtml(
       : `<script id="bolt-game-missing-refs">(function(){try{var refs=${JSON.stringify(strippedRefs)};for(var i=0;i<refs.length;i++){window.parent.postMessage({type:'thefortz-game-error',message:'Missing file reference: ' + refs[i] + ' (no project file matches this path)'},'*');}}catch(e){}})();</script>`;
 
   /*
+   * The audit companion: name the exact file and structural problem for any
+   * JS source that fails the module probe, so the console and the repair
+   * inbox both say "src/x.js: malformed import…" instead of an anonymous
+   * SyntaxError three documents later.
+   */
+  const syntaxReporter =
+    syntaxIssues.length === 0
+      ? ''
+      : `<script id="bolt-game-syntax-issues">(function(){try{var issues=${JSON.stringify(syntaxIssues)};for(var i=0;i<issues.length;i++){try{console.error('[Fortz preview] ' + issues[i]);}catch(e){}try{window.parent.postMessage({type:'thefortz-game-error',message:issues[i]},'*');}catch(e){}}}catch(e){}})();</script>`;
+
+  /*
    * Watchdog for silent failures: a game that boots with zero exceptions but
    * never renders or starts still looks dead. After 15s it reports a hedged,
    * actionable diagnostic so the repair loop investigates instead of idling.
@@ -1738,11 +1774,21 @@ export function buildFallbackHtml(
   if (bundled.includes('</body>')) {
     bundled = bundled.replace(
       '</body>',
-      `${focusHelper}\n${errorOverlayScript}\n${missingReporter}\n${previewWatchdogScript}\n</body>`,
+      `${focusHelper}\n${errorOverlayScript}\n${missingReporter}\n${syntaxReporter}\n${previewWatchdogScript}\n</body>`,
     );
   } else {
     bundled =
-      bundled + '\n' + focusHelper + '\n' + errorOverlayScript + '\n' + missingReporter + '\n' + previewWatchdogScript;
+      bundled +
+      '\n' +
+      focusHelper +
+      '\n' +
+      errorOverlayScript +
+      '\n' +
+      missingReporter +
+      '\n' +
+      syntaxReporter +
+      '\n' +
+      previewWatchdogScript;
   }
 
   const livePaths = new Set(

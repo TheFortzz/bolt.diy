@@ -144,7 +144,7 @@ describe('build validation gate', () => {
       exit: Promise.resolve(1),
       output: new ReadableStream<string>({
         start(controller) {
-          controller.enqueue('node: can\'t open file \'/input.js\': [Errno 2] No such file or directory');
+          controller.enqueue("node: can't open file '/input.js': [Errno 2] No such file or directory");
           controller.close();
         },
       }),
@@ -155,7 +155,9 @@ describe('build validation gate', () => {
         readFile: vi
           .fn()
           .mockImplementation((path: string) =>
-            path.endsWith('input.js') ? Promise.resolve('const speed = 10; function drive() { return speed; }') : Promise.reject(new Error('No package.json')),
+            path.endsWith('input.js')
+              ? Promise.resolve('const speed = 10; function drive() { return speed; }')
+              : Promise.reject(new Error('No package.json')),
           ),
       },
       spawn,
