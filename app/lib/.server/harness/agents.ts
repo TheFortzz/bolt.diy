@@ -22,10 +22,11 @@ interface AgentOptions {
 }
 
 /**
- * Hard ceiling for managed build plans. Full games plan 12-24 focused modules;
- * the agent writes them across many turns, so the plan must not be collapsed.
+ * Hard ceiling for managed build plans. Full games plan 40-80 focused
+ * modules, executed by the harness in sequential ~12-file phases, so the
+ * plan must not be collapsed back to a small skeleton.
  */
-export const MAX_PLANNED_FILES = 24;
+export const MAX_PLANNED_FILES = 80;
 
 const MANAGER_SYSTEM = `You are the Manager Agent in Fortz Studio, powered by GPT 6 Luna.
 You may plan only. You have no filesystem, shell, asset generation, or publication permission.
@@ -34,8 +35,8 @@ Schema:
 {"title":"Short game name","summary":"Concise approach for the user","engine":"canvas2d","systems":["Gameplay system and purpose"],"fileOperations":[{"path":"index.html","operation":"create","purpose":"Game shell, viewport canvas, HUD containers, script loading in dependency order"},{"path":"style.css","operation":"create","purpose":"Full-viewport layout, HUD, menus, overlays"},{"path":"systems/physics.js","operation":"create","purpose":"Movement, collision and world interaction for this game"}],"assetOperations":[{"id":"vehicle.car","path":"assets/car.png","kind":"sprite","prompt":"Detailed image prompt with coherent art style","width":512,"height":512}],"scriptOrder":["systems/physics.js","game.js"],"acceptanceCriteria":["Observable gameplay outcome"]}
 The example paths above show SHAPE only — always derive real module names, systems, and architecture from THIS request, never copy example names.
 Choose canvas2d for 2D games. For explicit requests for true 3D, Three.js, perspective 3D cameras, or WebGL, choose webgl and plan real 3D geometry, lighting, and a perspective camera. Load Three.js with the pinned ES module https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js from a type=module entry; never use the deprecated three.min.js bundle or request npm installs. Otherwise use classic JavaScript. Never invent an unlisted file, overwrite existing images, or delete user files.
-Use create only for absent paths and edit only for present paths. Give every module a sharp purpose that serves this request; 12-24 focused modules is the normal full-game shape. Keep implementation readable, 2-space indented, and formatted to roughly 100 columns. Never request minified or one-line source.
-SCOPE BIG AND ORIGINAL: every full-game request gets 12-24 files and 6-10 connected systems totaling at minimum 10,000 lines of complete code — never a 3-file sketch. Derive architecture, systems, art direction, and mechanics from THIS request alone; never repeat a previous game's structure, file names, or gameplay loop. For narrow repairs and tweaks, stay surgical and small instead. Do not add unrequested shops, currencies, or class rosters that do not serve the requested core loop.
+Use create only for absent paths and edit only for present paths. Give every module a sharp purpose that serves this request; 40-80 focused modules is the normal full-game shape. Keep implementation readable, 2-space indented, and formatted to roughly 100 columns. Never request minified or one-line source.
+SCOPE BIG AND ORIGINAL: every full-game request gets 40-80 files and 8-16 connected systems totaling at minimum 60,000 lines of complete code — never a 3-file sketch. Derive architecture, systems, art direction, and mechanics from THIS request alone; never repeat a previous game's structure, file names, or gameplay loop. For narrow repairs and tweaks, stay surgical and small instead. Do not add unrequested shops, currencies, or class rosters that do not serve the requested core loop.
 PLAN ENGINEERING CHANGES: name concrete mechanics and touched files. For ordinary feature edits, preserve unrelated working behavior and add only requested features. For an explicit renderer/engine migration (such as Canvas 2D to WebGL), authorize complete replacements of renderer-coupled files (HTML, styles, and renderer/game entry points) as one consistent migration. Preserve the requested gameplay, controls, HUD, and progression, but do not require old engine-specific function names or code to remain. Do not add unrelated features.
 All planned games must expose window.__GAME_DIAGNOSTICS__ with ready, simulationSteps, inputsHandled, restartCount, resizeCount, and gameState. This is a runtime test contract, not a substitute for genuine gameplay.
 If the image model is unavailable, assetOperations MUST be empty and plan polished procedural visuals. Otherwise generate only missing sprites/backgrounds/UI needed by this specific game, give exact assets/*.png paths and use dimensions 64-1024 divisible by 32. Existing images should be reused. Source paths are safe project-relative html/css/js/json/md files.
@@ -85,9 +86,15 @@ function createFallbackProposed(request: string, existingPaths: string[], existi
               operation: 'edit' as const,
               purpose: `Update ${path} for user request`,
             }));
+
           if (requiresWebGL && !ops.some((o) => o.path === 'index.html') && existingPaths.includes('index.html')) {
-            ops.unshift({ path: 'index.html', operation: 'edit', purpose: 'Load Three.js 3D engine script in index.html' });
+            ops.unshift({
+              path: 'index.html',
+              operation: 'edit',
+              purpose: 'Load Three.js 3D engine script in index.html',
+            });
           }
+
           return ops.slice(0, MAX_GAME_FILE_OPERATIONS);
         })()
       : [
@@ -185,8 +192,10 @@ export async function runManagerAgent(
   let proposed;
 
   if (options.proposedPlan) {
-    // Cline produced the plan; keep this server-side pass as the authority that
-    // validates paths, file preconditions, limits, revision, and capabilities.
+    /*
+     * Cline produced the plan; keep this server-side pass as the authority that
+     * validates paths, file preconditions, limits, revision, and capabilities.
+     */
     proposed = managerBlueprintSchema.parse(options.proposedPlan);
   } else {
     try {
@@ -218,7 +227,7 @@ export async function runManagerAgent(
             ],
           },
         ],
-        maxTokens: 8000,
+        maxTokens: 16000,
         temperature: 0.7,
         abortSignal: options.signal,
       });

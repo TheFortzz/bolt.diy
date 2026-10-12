@@ -4,6 +4,13 @@ export interface ClineAgentRequest {
   readOnly?: boolean;
   planningOnly?: boolean;
   approvedBlueprint?: unknown;
+
+  /**
+   * Per-run path allowlist for phased builds: the server intersects these
+   * paths with the approved blueprint's file operations, so a phase run can
+   * only ever write its own slice of the plan.
+   */
+  phasePaths?: string[];
   executionToken?: string;
   systemContext?: string;
   history?: Array<{ role: 'user' | 'assistant'; content: string }>;
@@ -23,6 +30,7 @@ function actionableClineError(message: string) {
   if (/\b429\b|rate.?limit|quota exceeded/i.test(message)) {
     return `${message}\n\nThe selected provider is rate-limited. Choose another configured provider/model above or retry after its quota resets.`;
   }
+
   return message;
 }
 
@@ -33,9 +41,16 @@ function consumeSseChunk(
 ) {
   for (const line of chunk.split('\n')) {
     const trimmed = line.trim();
-    if (!trimmed.startsWith('data:')) continue;
+
+    if (!trimmed.startsWith('data:')) {
+      continue;
+    }
+
     const raw = trimmed.slice(5).trim();
-    if (!raw || raw === '[DONE]') continue;
+
+    if (!raw || raw === '[DONE]') {
+      continue;
+    }
 
     let event: ClineAgentEvent;
 
@@ -76,7 +91,10 @@ export async function runClineAgent(
     const result = (await response.json().catch(() => null)) as { error?: string } | null;
     throw new Error(actionableClineError(result?.error || `Bolt Cline API returned HTTP ${response.status}.`));
   }
-  if (!response.body) throw new Error('Bolt Cline API returned an empty stream.');
+
+  if (!response.body) {
+    throw new Error('Bolt Cline API returned an empty stream.');
+  }
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -90,10 +108,18 @@ export async function runClineAgent(
   };
 
   while (true) {
-    if (options.signal?.aborted) throw new DOMException('Cline run cancelled.', 'AbortError');
+    if (options.signal?.aborted) {
+      throw new DOMException('Cline run cancelled.', 'AbortError');
+    }
+
     const { done, value } = await reader.read();
-    if (done) break;
+
+    if (done) {
+      break;
+    }
+
     buffer += decoder.decode(value, { stream: true });
+
     const lines = buffer.split('\n');
     buffer = lines.pop() || '';
     consumeSseChunk(lines.join('\n'), onEvent, state);
@@ -101,6 +127,7 @@ export async function runClineAgent(
 
   // Flush a trailing SSE frame that arrived without a final newline.
   buffer += decoder.decode();
+
   if (buffer.trim()) {
     consumeSseChunk(buffer, onEvent, state);
   }

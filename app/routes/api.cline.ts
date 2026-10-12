@@ -5,11 +5,7 @@ import { getModel } from '~/lib/.server/llm/model';
 import { CLINE_TURN_MAX_TOKENS, createBoltAgentModel } from '~/lib/.server/bolt-agent-model';
 import { getHarnessSecret, requireSameOrigin, verifyCapability } from '~/lib/.server/harness/capabilities';
 import { blueprintSchema, isWorkspacePath, managerBlueprintSchema } from '~/lib/harness/blueprint';
-import {
-  runAgentBuildCheck,
-  runAgentGameplayCheck,
-  runAgentQualityCheck,
-} from '~/lib/runtime/agent-project-checks';
+import { runAgentBuildCheck, runAgentGameplayCheck, runAgentQualityCheck } from '~/lib/runtime/agent-project-checks';
 import { resolveStaticPreviewFileLoose } from '~/lib/runtime/static-preview';
 import type { IProviderSetting } from '~/types/model';
 import { DEFAULT_MODEL, DEFAULT_PROVIDER, getModelList } from '~/utils/constants';
@@ -23,7 +19,7 @@ const fileMapSchema = z
 
 const requestSchema = z.object({
   /*
-   * Big 12-24-file blueprints and full workspace excerpts exceed the old
+   * Big 40-80-file blueprints and full workspace excerpts exceed the old
    * 12-20k ceilings; rejecting them 400s the run before planning starts.
    */
   prompt: z.string().trim().min(1).max(60_000),
@@ -31,6 +27,13 @@ const requestSchema = z.object({
   readOnly: z.boolean().default(false),
   planningOnly: z.boolean().default(false),
   approvedBlueprint: blueprintSchema.optional(),
+
+  /*
+   * Phased builds send the full approved blueprint (the execution token is
+   * bound to it) plus the paths this specific run may write; the route
+   * intersects them into the write allowlist.
+   */
+  phasePaths: z.array(z.string().max(400)).max(200).optional(),
   executionToken: z.string().max(4096).optional(),
   history: z
     .array(z.object({ role: z.enum(['user', 'assistant']), content: z.string().max(60_000) }))
@@ -252,7 +255,11 @@ export async function action({ request, context }: ActionFunctionArgs) {
         await getHarnessSecret(context.cloudflare.env),
         new URL(request.url).origin,
       );
-      approved.fileOperations.forEach((operation) => approvedPaths.add(operation.path));
+      approved.fileOperations.forEach((operation) => {
+        if (!body.phasePaths || body.phasePaths.includes(operation.path)) {
+          approvedPaths.add(operation.path);
+        }
+      });
     }
 
     const cookies = parseCookieMap(request.headers.get('Cookie') || '');
@@ -561,13 +568,12 @@ export async function action({ request, context }: ActionFunctionArgs) {
                   const issues = [...build.issues, ...gameplay.issues, ...quality.issues];
 
                   if (issues.length > 0) {
-                    throw new Error(
-                      `finish_task blocked — fix these checks first:\n${issues.slice(0, 20).join('\n')}`,
-                    );
+                    throw new Error(`finish_task blocked — fix these checks first:\n${issues.slice(0, 20).join('\n')}`);
                   }
                 }
 
                 send('task_complete', value);
+
                 return value;
               },
             });
@@ -575,7 +581,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
             const submitPlan = createTool({
               name: 'submit_plan',
               description:
-                'Submit the structured game implementation plan (12-24 files, 6-10 systems, genre-derived architecture — never a 3-file repeat) and finish this planning-only run. Do not claim files were changed.',
+                'Submit the structured game implementation plan (40-80 files, 8-16 systems, genre-derived architecture — never a 3-file repeat) and finish this planning-only run. Do not claim files were changed.',
               inputSchema: managerPlanToolSchema,
               lifecycle: { completesRun: true },
               execute: async (plan: z.infer<typeof managerBlueprintSchema>) => {
@@ -612,10 +618,10 @@ export async function action({ request, context }: ActionFunctionArgs) {
                   : '',
                 body.previewErrors.length ? `Recent actual Bolt errors: ${JSON.stringify(body.previewErrors)}` : '',
                 body.planningOnly
-                  ? `Plan only; do not edit files or claim edits. Use the supplied manifest, source excerpts, and context directly; do not call inspection tools. In this turn, call submit_plan with a tailored structured plan. Do not return a plan as free-form text. Plan BIG and ORIGINAL: 12-24 files and 6-10 connected systems totaling at minimum 10,000 lines of complete code, with module names and architecture derived from THIS request only — never the same index/style/main/game/input/audio skeleton twice. The game fills the entire viewport (full-window canvas, resizes with the window); no login, lobby, branding, or text-heavy screens — gameplay only, playable instantly. Source excerpts: ${JSON.stringify(workingFiles).slice(0, 30000)}`
+                  ? `Plan only; do not edit files or claim edits. Use the supplied manifest, source excerpts, and context directly; do not call inspection tools. In this turn, call submit_plan with a tailored structured plan. Do not return a plan as free-form text. Plan BIG and ORIGINAL: 40-80 files and 8-16 connected systems totaling at minimum 60,000 lines of complete code, with module names and architecture derived from THIS request only — never the same index/style/main/game/input/audio skeleton twice. The game fills the entire viewport (full-window canvas, resizes with the window); no login, lobby, branding, or text-heavy screens — gameplay only, playable instantly. Source excerpts: ${JSON.stringify(workingFiles).slice(0, 30000)}`
                   : body.readOnly
                     ? 'Read-only chat: answer from supplied context; do not claim file changes.'
-                    : `Approved build: edit only ${Array.from(approvedPaths).join(', ')}. Do not delete files or execute shell commands. Read current files, implement the approved plan, run checks, and finish truthfully. For an approved renderer migration, replace renderer-coupled code and markup consistently while retaining the requested gameplay, controls, and HUD; do not force obsolete engine-specific function names to remain. Every visible start, pause/resume, and restart button must have a real handler that changes game state; use the diagnostic state 'paused' while paused, keep HTML IDs and selectors in sync, and wire keyboard/touch controls to the same gameplay actions. Only use 'new' on values defined with the 'class' keyword in an approved file — never 'new' a factory function, arrow function, plain object, or unverified import; call factories without 'new'. Expose window.__GAME_DIAGNOSTICS__ and update its counters only from the real game loop and handlers; preview tests do not fabricate diagnostics or missing DOM nodes. Format source readably with 2-space indentation, one statement per line, and lines near 100 characters; never minify. Use smooth delta-time animation and interpolation rather than abrupt motion. For Three.js, use the pinned 0.160.0 ES module and null-check every canvas and HUD lookup. Full-game builds ship at minimum 10,000 lines of complete working code across 12-24 focused modules: write files in sequence across turns, complete every file fully in its own write, and never truncate. The game fills the entire viewport at all times: full-window canvas that resizes with the window, gameplay only with no text-heavy screens, and a start overlay solely for audio unlock whose handler directly starts the real game. Before finish_task, call run_build and run_tests (they run the real module-graph, syntax, gameplay, and quality gates), repair every reported failure in the approved files, and re-check until they pass — never finish with failing checks or truncated files. Call inspect_project as well: every local stylesheet, script, import, and asset reference must resolve to a real approved file — fix folder mistakes (src/ versus root) by correcting the path to the real file, never by deleting the reference. Bolt will run actual preview validation and send repair errors in a follow-up run.`,
+                    : `Approved build: edit only ${Array.from(approvedPaths).join(', ')}. Do not delete files or execute shell commands. Read current files, implement the approved plan, run checks, and finish truthfully. For an approved renderer migration, replace renderer-coupled code and markup consistently while retaining the requested gameplay, controls, and HUD; do not force obsolete engine-specific function names to remain. Every visible start, pause/resume, and restart button must have a real handler that changes game state; use the diagnostic state 'paused' while paused, keep HTML IDs and selectors in sync, and wire keyboard/touch controls to the same gameplay actions. Only use 'new' on values defined with the 'class' keyword in an approved file — never 'new' a factory function, arrow function, plain object, or unverified import; call factories without 'new'. Expose window.__GAME_DIAGNOSTICS__ and update its counters only from the real game loop and handlers; preview tests do not fabricate diagnostics or missing DOM nodes. Format source readably with 2-space indentation, one statement per line, and lines near 100 characters; never minify. Use smooth delta-time animation and interpolation rather than abrupt motion. For Three.js, use the pinned 0.160.0 ES module and null-check every canvas and HUD lookup. Full-game builds ship at minimum 60,000 lines of complete working code across 40-80 focused modules; this run may cover only an approved phase of that larger build — write EVERY approved path in this run completely in sequence across turns, each in its own write, and never truncate. The game fills the entire viewport at all times: full-window canvas that resizes with the window, gameplay only with no text-heavy screens, and a start overlay solely for audio unlock whose handler directly starts the real game. Before finish_task, call run_build and run_tests (they run the real module-graph, syntax, gameplay, and quality gates), repair every reported failure in the approved files, and re-check until they pass — never finish with failing checks or truncated files. Call inspect_project as well: every local stylesheet, script, import, and asset reference must resolve to a real approved file — fix folder mistakes (src/ versus root) by correcting the path to the real file, never by deleting the reference. Bolt will run actual preview validation and send repair errors in a follow-up run.`,
                 !body.planningOnly && !body.readOnly
                   ? 'Repair discipline: before editing anything, inspect the actual diagnostic (inspect_errors / read_file), quote the exact error, name the root cause in one sentence, apply the SMALLEST fix, and re-run the checks. Never edit on a guess. If the same diagnostic appears again after a fix, that approach failed — do not vary it: re-read the real file contents and rewrite the broken section with a fundamentally different strategy.'
                   : '',
@@ -635,8 +641,8 @@ export async function action({ request, context }: ActionFunctionArgs) {
                 createdAt: Date.now() - (body.history.length - index) * 1000,
               })),
 
-              // Big full-game builds need many file-writing turns; 18 steps starves 12-24 file projects.
-              maxIterations: 32,
+              // Phased full-game builds need many file-writing turns; 32 starves 40-80 file projects.
+              maxIterations: 56,
             });
             activeAgent = agent;
 
