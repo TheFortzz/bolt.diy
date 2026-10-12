@@ -61,6 +61,22 @@ describe('final game verification pipeline', () => {
     expect(mocks.validate).toHaveBeenCalledWith('build', [], verification);
   });
 
+  it('validates every game source on managed builds, not just the last attempt', async () => {
+    mocks.files = {
+      'index.html': { type: 'file', content: '<!doctype html><html><body><canvas></canvas></body></html>' },
+      'game.js': { type: 'file', content: 'export const boot = () => {};\n' },
+      'style.css': { type: 'file', content: 'canvas { display: block; }' },
+      'data.json': { type: 'file', content: '{}' },
+    };
+
+    await verifyGameBuild('build', { approvedBlueprint: { verification: {} } as any });
+
+    const validatedPaths = mocks.validate.mock.calls[0][1] as string[];
+
+    expect(validatedPaths).toEqual(expect.arrayContaining(['index.html', 'game.js', 'data.json']));
+    expect(validatedPaths).not.toContain('style.css');
+  });
+
   it('does not generate paid images for an incomplete build', async () => {
     mocks.artifact.closed = false;
     await verifyGameBuild('build');

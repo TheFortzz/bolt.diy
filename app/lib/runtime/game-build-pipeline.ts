@@ -34,7 +34,19 @@ export async function verifyGameBuild(messageId: string, options: GenerateProjec
 
   // Managed runs already generated their approved assets before the Editor.
   if (options.approvedBlueprint) {
-    return validateBuild(messageId, [], options.approvedBlueprint.verification);
+    /*
+     * Phased managed builds span multiple attempts: the artifact actions of
+     * the final attempt only cover ITS writes, so validating just those
+     * would let every earlier phase's file ship without a syntax check
+     * (the wiring audit reads the whole workspace, but it never parses).
+     * Validate every game source — the shipped game is what verification
+     * is for, not the last repair.
+     */
+    const sourcePaths = sourceFiles
+      .filter((file) => /\.(?:html|js|mjs|cjs|json)$/i.test(file.path))
+      .map((file) => file.path);
+
+    return validateBuild(messageId, sourcePaths, options.approvedBlueprint.verification);
   }
 
   try {

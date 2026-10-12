@@ -22,7 +22,7 @@ import { generatedAssets } from '~/lib/stores/generated-assets';
 import { generateProjectAssets } from '~/lib/runtime/asset-generator';
 import { runActivityStep, startActivity, updateActivity, describeClineToolStep } from '~/lib/stores/activity';
 import { runClineAgent } from '~/lib/runtime/cline-bridge';
-import { probeModuleSyntax } from '~/lib/runtime/js-syntax';
+import { probeHtmlInlineScripts, probeModuleSyntax } from '~/lib/runtime/js-syntax';
 import { isTransientClineFailure } from '~/lib/runtime/agent-project-checks';
 
 interface HarnessOptions {
@@ -279,7 +279,17 @@ export function useCognitiveHarness(options: HarnessOptions) {
             }
           }
 
-          const phases = rawChunks.map((paths) => ({ paths }));
+          /*
+           * index.html and style.css are shared shells: every phase may edit
+           * them (each phase's new modules need script tags and styles wired
+           * in), but only the phase that actually contains them is required
+           * to write them.
+           */
+          const shellPaths = approvedPaths.filter((path) => /^(?:index\.html|style\.css)$/i.test(path));
+          const phases = rawChunks.map((paths) => ({
+            paths,
+            sharedPaths: shellPaths.filter((path) => !paths.includes(path)),
+          }));
           let phaseIndex = 0;
           let firstRun = true;
 
@@ -302,28 +312,52 @@ export function useCognitiveHarness(options: HarnessOptions) {
            * anything is missing, empty, or structurally broken — long before
            * the expensive full verification runs.
            */
-          const gatePhase = (paths: string[]): string[] => {
+          const gatePhase = (required: string[], shared: string[]): string[] => {
             const workspace = workbenchStore.files.get();
             const issues: string[] = [];
 
-            for (const path of paths) {
+            const probePath = (path: string, requireContent: boolean) => {
               const entry = workspace[path];
               const content = entry?.type === 'file' && typeof entry.content === 'string' ? entry.content : '';
 
               if (!content) {
-                issues.push(`${path} is missing or empty after this phase.`);
-                continue;
+                if (requireContent) {
+                  issues.push(`${path} is missing or empty after this phase.`);
+                }
+
+                return;
               }
 
-              if (!/\.(?:m?js|jsx)$/.test(path)) {
-                continue;
+              if (/\.(?:m?js|jsx)$/.test(path)) {
+                const issue = probeModuleSyntax(content, path);
+
+                if (issue) {
+                  issues.push(issue.slice(0, 400));
+                }
+
+                return;
               }
 
-              const issue = probeModuleSyntax(content, path);
+              if (/\.html?$/i.test(path)) {
+                const inlineIssue = probeHtmlInlineScripts(content, path);
 
-              if (issue) {
-                issues.push(issue.slice(0, 400));
+                if (inlineIssue) {
+                  issues.push(inlineIssue.slice(0, 400));
+                }
               }
+            };
+
+            for (const path of required) {
+              probePath(path, true);
+            }
+
+            /*
+             * Shared shells (index.html/style.css owned by a later phase)
+             * are only probed when this run left content in them — a shell
+             * that does not exist yet is not this phase's failure.
+             */
+            for (const path of shared) {
+              probePath(path, false);
             }
 
             return issues;
@@ -689,6 +723,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                 while (phaseIndex < phases.length && !runFailure) {
                   const phase = phases[phaseIndex];
                   const phaseNumber = phaseIndex + 1;
+                  const runPaths = [...phase.paths, ...phase.sharedPaths];
 
                   transitionHarness('editing', {
                     detail: `Build phase ${phaseNumber}/${phases.length}: writing ${phase.paths.length} approved modules…`,
@@ -708,7 +743,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                     'running',
                   );
 
-                  const result = await executeRun(buildPhasePrompt(phaseNumber, phase.paths), phase.paths);
+                  const result = await executeRun(buildPhasePrompt(phaseNumber, runPaths), runPaths);
 
                   if (!result.ok) {
                     runFailure = result.error;
@@ -724,7 +759,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                     break;
                   }
 
-                  const gateIssues = gatePhase(phase.paths);
+                  const gateIssues = gatePhase(phase.paths, phase.sharedPaths);
 
                   if (gateIssues.length > 0) {
                     runFailure = `Phase ${phaseNumber} wrote incomplete or broken code:\n${gateIssues.join('\n')}`;

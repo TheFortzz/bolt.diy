@@ -140,3 +140,43 @@ export function auditImportStatements(code: string, fileName: string): string | 
 export function probeModuleSyntax(code: string, fileName: string): string | undefined {
   return auditImportStatements(code, fileName) ?? validateJavaScriptSyntax(code, fileName);
 }
+
+const INLINE_SCRIPT_RE = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
+
+/**
+ * Probe the inline <script> bodies inside an HTML file with the same module
+ * auditor. Inline scripts ship into the preview completely raw, so a broken
+ * one boots as an anonymous SyntaxError unless we name it here.
+ */
+export function probeHtmlInlineScripts(html: string, fileName: string): string | undefined {
+  let match: RegExpExecArray | null;
+  let index = 0;
+
+  INLINE_SCRIPT_RE.lastIndex = 0;
+
+  while ((match = INLINE_SCRIPT_RE.exec(html)) !== null) {
+    const attrs = match[1] || '';
+    const body = (match[2] || '').trim();
+
+    if (!body || /\bsrc\s*=/i.test(attrs)) {
+      continue;
+    }
+
+    const typeMatch = attrs.match(/\btype\s*=\s*["']([^"']+)["']/i);
+
+    // Only real JavaScript blocks: modules and classic scripts.
+    if (typeMatch && !/(?:javascript|module)/i.test(typeMatch[1])) {
+      continue;
+    }
+
+    index++;
+
+    const issue = probeModuleSyntax(body, `${fileName} inline script #${index}`);
+
+    if (issue) {
+      return issue;
+    }
+  }
+
+  return undefined;
+}

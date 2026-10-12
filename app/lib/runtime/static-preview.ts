@@ -1,6 +1,28 @@
 import { cleanWorkDirRelativePath } from '~/utils/diff';
 import { inlineGeneratedAssetUrls, type GeneratedAsset } from '~/lib/stores/generated-assets';
-import { probeModuleSyntax } from '~/lib/runtime/js-syntax';
+import { probeHtmlInlineScripts, probeModuleSyntax } from '~/lib/runtime/js-syntax';
+
+/*
+ * A literal "</script" inside emitted script content terminates the tag at
+ * HTML level even when it sits inside a JS string — the browser then parses
+ * a truncated script ("Invalid or unexpected token") that every JS-level
+ * probe passes because the file is valid JavaScript on its own. "<\/script"
+ * is a valid escape in every JS lexical context where the sequence can
+ * legally occur (strings, template literals, comments; regex literals can
+ * never contain a raw "</script" because the slash would close them), so
+ * neutralize it at serialization time.
+ */
+function escapeInlineScriptContent(content: string): string {
+  return content.replace(/<\/script/gi, '<\\/script');
+}
+
+/*
+ * JSON embedded directly in a <script> block: escape "<" so a "</script>"
+ * inside a diagnostic string can never terminate the reporter early.
+ */
+function jsonForInlineScript(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, '\\u003c');
+}
 
 function insertBeforeBody(html: string, scripts: string) {
   if (!scripts) {
@@ -1415,22 +1437,28 @@ export function buildFallbackHtml(
 
   /*
    * Self-naming syntax audit: whatever the validator missed (unchecked
-   * files, exotic breakage inside import statements), the preview itself
-   * reports WHICH file is broken straight to the repair inbox instead of
-   * dying anonymously behind the watchdog.
+   * files, exotic breakage inside import statements, broken inline HTML
+   * scripts), the preview itself reports WHICH file is broken straight to
+   * the repair inbox instead of dying anonymously behind the watchdog.
    */
   const syntaxIssues: string[] = [];
 
   for (const file of sourceFiles) {
-    if (!/\.(?:m?js|jsx)$/.test(file.path) || syntaxIssues.length >= 8) {
-      continue;
+    if (syntaxIssues.length >= 8) {
+      break;
     }
 
     if (typeof file.content !== 'string') {
       continue;
     }
 
-    const issue = probeModuleSyntax(file.content, file.path);
+    let issue: string | undefined;
+
+    if (/\.(?:m?js|jsx)$/.test(file.path)) {
+      issue = probeModuleSyntax(file.content, file.path);
+    } else if (/\.html?$/.test(file.path)) {
+      issue = probeHtmlInlineScripts(file.content, file.path);
+    }
 
     if (issue) {
       syntaxIssues.push(issue.slice(0, 500));
@@ -1482,7 +1510,7 @@ export function buildFallbackHtml(
         const safeContent =
           js.path.endsWith('.js') || js.path.endsWith('.mjs') ? balanceAndCloseJs(js.content) : js.content;
 
-        return `<script${typeAttr} data-inlined="${safePath}">\n${safeContent}\n</script>`;
+        return `<script${typeAttr} data-inlined="${safePath}">\n${escapeInlineScriptContent(safeContent)}\n</script>`;
       }
 
       noteStripped(src);
@@ -1641,7 +1669,7 @@ export function buildFallbackHtml(
     const safeContent =
       entry.path.endsWith('.js') || entry.path.endsWith('.mjs') ? balanceAndCloseJs(entry.content) : entry.content;
 
-    return `<script${typeAttr} data-inlined="${safePath}">\n${safeContent}\n</script>`;
+    return `<script${typeAttr} data-inlined="${safePath}">\n${escapeInlineScriptContent(safeContent)}\n</script>`;
   };
 
   const dependencyScripts: string[] = [];
@@ -1719,7 +1747,7 @@ export function buildFallbackHtml(
   const missingReporter =
     strippedRefs.length === 0
       ? ''
-      : `<script id="bolt-game-missing-refs">(function(){try{var refs=${JSON.stringify(strippedRefs)};for(var i=0;i<refs.length;i++){window.parent.postMessage({type:'thefortz-game-error',message:'Missing file reference: ' + refs[i] + ' (no project file matches this path)'},'*');}}catch(e){}})();</script>`;
+      : `<script id="bolt-game-missing-refs">(function(){try{var refs=${jsonForInlineScript(strippedRefs)};for(var i=0;i<refs.length;i++){window.parent.postMessage({type:'thefortz-game-error',message:'Missing file reference: ' + refs[i] + ' (no project file matches this path)'},'*');}}catch(e){}})();</script>`;
 
   /*
    * The audit companion: name the exact file and structural problem for any
@@ -1730,7 +1758,7 @@ export function buildFallbackHtml(
   const syntaxReporter =
     syntaxIssues.length === 0
       ? ''
-      : `<script id="bolt-game-syntax-issues">(function(){try{var issues=${JSON.stringify(syntaxIssues)};for(var i=0;i<issues.length;i++){try{console.error('[Fortz preview] ' + issues[i]);}catch(e){}try{window.parent.postMessage({type:'thefortz-game-error',message:issues[i]},'*');}catch(e){}}}catch(e){}})();</script>`;
+      : `<script id="bolt-game-syntax-issues">(function(){try{var issues=${jsonForInlineScript(syntaxIssues)};for(var i=0;i<issues.length;i++){try{console.error('[Fortz preview] ' + issues[i]);}catch(e){}try{window.parent.postMessage({type:'thefortz-game-error',message:issues[i]},'*');}catch(e){}}}catch(e){}})();</script>`;
 
   /*
    * Watchdog for silent failures: a game that boots with zero exceptions but

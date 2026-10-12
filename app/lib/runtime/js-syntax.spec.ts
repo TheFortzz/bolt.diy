@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { auditImportStatements, probeModuleSyntax, validateJavaScriptSyntax } from '~/lib/runtime/js-syntax';
+import {
+  auditImportStatements,
+  probeHtmlInlineScripts,
+  probeModuleSyntax,
+  validateJavaScriptSyntax,
+} from '~/lib/runtime/js-syntax';
 
 describe('validateJavaScriptSyntax', () => {
   it('passes valid classic and module code', () => {
@@ -49,5 +54,26 @@ describe('auditImportStatements', () => {
 
   it('stays quiet on non-import code', () => {
     expect(auditImportStatements('const importx = 1;\nconsole.log(importx);', 'f.js')).toBeUndefined();
+  });
+});
+
+describe('probeHtmlInlineScripts', () => {
+  it('reports a broken inline script, naming the file and script index', () => {
+    const html = '<html><body><script>const broken = "abc</script></body></html>';
+    const issue = probeHtmlInlineScripts(html, 'index.html');
+
+    expect(issue).toContain('index.html inline script #1');
+  });
+
+  it('accepts valid inline module scripts and skips src and non-JS blocks', () => {
+    const html = [
+      '<html><head>',
+      '<script type="module">import { boot } from "./game.js";\nboot();</script>',
+      '<script src="vendor.js"></script>',
+      '<script type="application/json">{"a": 1}</script>',
+      '</head><body></body></html>',
+    ].join('\n');
+
+    expect(probeHtmlInlineScripts(html, 'index.html')).toBeUndefined();
   });
 });

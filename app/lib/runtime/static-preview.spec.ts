@@ -87,6 +87,45 @@ describe('static preview file resolution', () => {
     expect(html).toContain('src/game.js');
     expect(html).toContain('malformed import');
   });
+
+  it('escapes </script> sequences so string content can never truncate an inlined script', () => {
+    const html = buildFallbackHtml({
+      'index.html': {
+        type: 'file',
+        content:
+          '<!doctype html><html><head></head><body><canvas></canvas><script src="game.js"></script></body></html>',
+      },
+      'game.js': {
+        type: 'file',
+        content:
+          'const tag = "</script>";\ndocument.addEventListener("DOMContentLoaded", () => {\n  const c = document.querySelector("canvas");\n  if (c) c.focus();\n});\nconsole.log(tag);\n',
+      },
+    });
+
+    expect(html).toBeDefined();
+
+    /*
+     * The raw sequence would end the tag early in the HTML parser; the
+     * escaped form is identical JS and safe to serialize.
+     */
+    expect(html).toContain('<\\/script');
+    expect(html).not.toContain('const tag = "</script>";');
+    expect(html).not.toContain('bolt-game-syntax-issues');
+  });
+
+  it('names a broken inline HTML script in the syntax reporter', () => {
+    const html = buildFallbackHtml({
+      'index.html': {
+        type: 'file',
+        content:
+          '<!doctype html><html><head></head><body><canvas></canvas><script>const broken = "abc</script></body></html>',
+      },
+    });
+
+    expect(html).toBeDefined();
+    expect(html).toContain('bolt-game-syntax-issues');
+    expect(html).toContain('index.html inline script #1');
+  });
 });
 
 describe('static preview script assembly', () => {
