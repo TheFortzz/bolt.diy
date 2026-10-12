@@ -100,6 +100,69 @@ function shakeCamera() {}
     expect(quality.success).toBe(true);
   });
 
+  it('defers planned future-phase references instead of blocking the phase run', () => {
+    const phaseFiles = {
+      'index.html': `<!doctype html><html><body>
+<script type="module" src="./src/boot/entry.js"></script>
+<script type="module" src="./src/road/course.js"></script>
+</body></html>`,
+      'src/boot/entry.js': `import { buildCourse } from '../road/course.js';
+import { drawWorld } from '../render/world.js';
+
+buildCourse();
+drawWorld();
+`,
+    };
+    const scope = {
+      phasePaths: ['index.html', 'src/boot/entry.js'],
+      plannedPaths: ['index.html', 'src/boot/entry.js', 'src/road/course.js', 'src/render/world.js'],
+    };
+
+    const result = runAgentBuildCheck(phaseFiles, scope);
+
+    expect(result.success).toBe(true);
+    expect(result.note).toMatch(/deferred/i);
+  });
+
+  it('still blocks a phase run on broken syntax or unresolvable imports in its own files', () => {
+    const scope = {
+      phasePaths: ['index.html', 'src/boot/entry.js'],
+      plannedPaths: ['index.html', 'src/boot/entry.js', 'src/core/config.js'],
+    };
+    const shell = { 'index.html': '<script type="module" src="./src/boot/entry.js"></script>' };
+
+    const syntaxBroken = runAgentBuildCheck({ ...shell, 'src/boot/entry.js': 'const x = "unterminated' }, scope);
+    expect(syntaxBroken.success).toBe(false);
+    expect(syntaxBroken.issues.some((issue) => issue.includes('src/boot/entry.js'))).toBe(true);
+
+    const unresolvable = runAgentBuildCheck(
+      { ...shell, 'src/boot/entry.js': `import { thing } from './nowhere.js';\nconsole.log(thing);\n` },
+      scope,
+    );
+    expect(unresolvable.success).toBe(false);
+    expect(unresolvable.issues.some((issue) => issue.includes('nowhere.js'))).toBe(true);
+  });
+
+  it('defers whole-game contracts and quality bars while scoped, keeping phase-file rules', () => {
+    const scope = {
+      phasePaths: ['foundation.js'],
+      plannedPaths: ['foundation.js', 'game.js', 'render.js'],
+    };
+
+    const gameplay = runAgentGameplayCheck({}, scope);
+    expect(gameplay.success).toBe(true);
+    expect(gameplay.note).toMatch(/deferred/i);
+
+    const dirty = runAgentQualityCheck({ 'foundation.js': '// TODO implement later\n' }, scope);
+    expect(dirty.success).toBe(false);
+
+    const cleanOtherPhase = runAgentQualityCheck(
+      { 'foundation.js': 'export const ok = 1;\n', 'game.js': '// TODO fix later\n' },
+      scope,
+    );
+    expect(cleanOtherPhase.success).toBe(true);
+  });
+
   it('treats stream-ended-without-result as a transient studio failure', () => {
     expect(isTransientClineFailure('Cline Agent stream ended without a result.')).toBe(true);
     expect(isTransientClineFailure('HTTP 504 Gateway Timeout')).toBe(true);

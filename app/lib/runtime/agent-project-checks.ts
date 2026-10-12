@@ -12,6 +12,45 @@ export type AgentCheckResult = {
   note?: string;
 };
 
+/**
+ * Phased runs see an intentionally incomplete workspace: most planned files
+ * belong to LATER phases. Scope the in-loop gates to this phase's files and
+ * defer references to planned-but-not-yet-written modules, or finish_task
+ * becomes impossible to satisfy and the run burns out chasing files it is
+ * not allowed to write. The final verification still audits everything.
+ */
+export interface AgentCheckScope {
+  /** Paths this specific run may write (the phase allowlist). */
+  phasePaths: string[];
+
+  /** Every path the approved blueprint plans, including future phases. */
+  plannedPaths: string[];
+}
+
+/** Resolve a relative (or root-anchored) import/spec against its importer. */
+function resolveRelativePath(fromPath: string, spec: string): string {
+  if (spec.startsWith('/')) {
+    return spec.slice(1);
+  }
+
+  const baseDir = fromPath.includes('/') ? fromPath.slice(0, fromPath.lastIndexOf('/')) : '';
+  const parts = baseDir ? baseDir.split('/') : [];
+
+  for (const segment of spec.split('/')) {
+    if (!segment || segment === '.') {
+      continue;
+    }
+
+    if (segment === '..') {
+      parts.pop();
+    } else {
+      parts.push(segment);
+    }
+  }
+
+  return parts.join('/');
+}
+
 function toFileList(files: Record<string, string>): StaticPreviewFile[] {
   return Object.entries(files).map(([path, content]) => ({ path, content }));
 }
@@ -24,8 +63,7 @@ function collectHtmlLocalRefs(html: string): string[] {
 
 function collectJsLocalImports(code: string): string[] {
   const specs: string[] = [];
-  const re =
-    /\b(?:import|export)\s+(?:[\s\S]*?\s+from\s*)?["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']\s*\)/g;
+  const re = /\b(?:import|export)\s+(?:[\s\S]*?\s+from\s*)?["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']\s*\)/g;
   let match: RegExpExecArray | null;
 
   while ((match = re.exec(code)) !== null) {
@@ -40,23 +78,44 @@ function collectJsLocalImports(code: string): string[] {
 }
 
 /** Same checks the post-build pipeline uses — available inside the agent tool loop. */
-export function runAgentBuildCheck(files: Record<string, string>): AgentCheckResult {
+export function runAgentBuildCheck(files: Record<string, string>, scope?: AgentCheckScope): AgentCheckResult {
   const fileList = toFileList(files);
   const issues: string[] = [];
+  const deferred: string[] = [];
+  const phaseSet = scope ? new Set(scope.phasePaths) : undefined;
+  const planned = new Set(scope?.plannedPaths || []);
   const html = files['index.html'] || '';
 
   if (!html) {
-    issues.push('Missing index.html.');
+    if (phaseSet && !phaseSet.has('index.html')) {
+      deferred.push('index.html is planned for a later build phase.');
+    } else {
+      issues.push('Missing index.html.');
+    }
   } else {
     for (const ref of collectHtmlLocalRefs(html)) {
-      if (!resolveStaticPreviewFileLoose(fileList, ref)) {
-        issues.push(`Missing local reference from index.html: ${ref}`);
+      if (resolveStaticPreviewFileLoose(fileList, ref)) {
+        continue;
       }
+
+      const normalized = ref.replace(/^\.\//, '');
+
+      if (planned.has(normalized) && (!phaseSet || !phaseSet.has(normalized))) {
+        deferred.push(`index.html references ${ref} — planned for a later build phase.`);
+        continue;
+      }
+
+      issues.push(`Missing local reference from index.html: ${ref}`);
     }
   }
 
   for (const [path, content] of Object.entries(files)) {
     if (!/\.(?:m?js|cjs)$/.test(path) || !content) {
+      continue;
+    }
+
+    // Files outside this phase are gated by their own phase; do not block on them.
+    if (phaseSet && !phaseSet.has(path)) {
       continue;
     }
 
@@ -67,25 +126,63 @@ export function runAgentBuildCheck(files: Record<string, string>): AgentCheckRes
     }
 
     for (const spec of collectJsLocalImports(content)) {
-      if (!resolveStaticPreviewFileLoose(fileList, spec)) {
-        issues.push(`${path} imports "${spec}" but no project file matches that path`);
+      if (resolveStaticPreviewFileLoose(fileList, spec)) {
+        continue;
       }
+
+      const resolved = resolveRelativePath(path, spec);
+
+      if (planned.has(resolved) && (!phaseSet || !phaseSet.has(resolved))) {
+        deferred.push(`${path} imports "${spec}" — that module is planned for a later build phase.`);
+        continue;
+      }
+
+      issues.push(`${path} imports "${spec}" but no project file matches that path`);
     }
   }
 
-  for (const finding of auditGameModuleGraph(fileList)) {
-    issues.push(`${finding.file} → ${finding.detail}`);
+  if (phaseSet) {
+    /*
+     * Whole-graph wiring (missing exports, cross-module contracts) needs
+     * every file present and full edit rights — both belong to the final
+     * verification, not a phase run that cannot touch other phases' files.
+     */
+    deferred.push('Module-graph wiring audit deferred to final verification (phased build).');
+  } else {
+    for (const finding of auditGameModuleGraph(fileList)) {
+      issues.push(`${finding.file} → ${finding.detail}`);
+    }
   }
+
+  const note =
+    deferred.length > 0
+      ? `Phase-scoped build gate. Deferred to later phases/final verification: ${deferred.slice(0, 6).join(' | ')}`
+      : 'These are the same wiring/syntax checks Bolt runs before preview. Fix every issue before finish_task.';
 
   return {
     success: issues.length === 0,
     issues,
-    note: 'These are the same wiring/syntax checks Bolt runs before preview. Fix every issue before finish_task.',
+    note,
   };
 }
 
 /** Structural gameplay/contracts checks the agent must pass before finishing. */
-export function runAgentGameplayCheck(files: Record<string, string>): AgentCheckResult {
+export function runAgentGameplayCheck(files: Record<string, string>, scope?: AgentCheckScope): AgentCheckResult {
+  if (scope) {
+    /*
+     * Whole-game contracts (full loop, restart, diagnostics, resize) only
+     * make sense once every phase has landed; enforcing them mid-build makes
+     * finish_task unreachable and kills the run. The final verification
+     * owns them.
+     */
+    return {
+      success: true,
+      issues: [],
+      tests: [],
+      note: 'Gameplay contracts deferred to final verification (phased build).',
+    };
+  }
+
   const code = Object.values(files).join('\n');
   const tests = [
     {
@@ -95,9 +192,7 @@ export function runAgentGameplayCheck(files: Record<string, string>): AgentCheck
     },
     {
       name: 'Input handling',
-      pass: /addEventListener\s*\(\s*["'](?:keydown|keyup|pointerdown|pointerup|touchstart|mousedown)["']/i.test(
-        code,
-      ),
+      pass: /addEventListener\s*\(\s*["'](?:keydown|keyup|pointerdown|pointerup|touchstart|mousedown)["']/i.test(code),
       detail: 'Needs real keyboard/pointer/touch listeners.',
     },
     {
@@ -134,7 +229,39 @@ export function runAgentGameplayCheck(files: Record<string, string>): AgentCheck
  * Static quality bar: catches empty shells and generic stubs before the agent
  * claims success. Not a substitute for visual playtesting.
  */
-export function runAgentQualityCheck(files: Record<string, string>): AgentCheckResult {
+export function runAgentQualityCheck(files: Record<string, string>, scope?: AgentCheckScope): AgentCheckResult {
+  if (scope) {
+    /*
+     * Whole-game quality bars (visual variety, feedback, minimum size) are
+     * meaningless halfway through a phased build. Only the writing-quality
+     * rules apply to this phase's own files.
+     */
+    const phaseSet = new Set(scope.phasePaths);
+    const phaseCode = Object.entries(files)
+      .filter(([path]) => phaseSet.has(path))
+      .map(([, content]) => content)
+      .join('\n');
+    const scopedTests = [
+      {
+        name: 'No placeholder TODOs',
+        pass: !/\bTODO\b|\bFIXME\b|rest of code|implement later|coming soon/i.test(phaseCode),
+        detail: 'Remove placeholders; ship complete working code.',
+      },
+      {
+        name: 'Offline-safe',
+        pass: !/\b(?:fetch\s*\(|XMLHttpRequest|firebase|supabase|appwrite)\b/i.test(phaseCode),
+        detail: 'Do not call network backends; the game must run fully offline in the preview.',
+      },
+    ];
+
+    return {
+      success: scopedTests.every((test) => test.pass),
+      issues: scopedTests.filter((test) => !test.pass).map((test) => `${test.name}: ${test.detail}`),
+      tests: scopedTests,
+      note: 'Phase-scoped writing-quality gate (TODOs + offline safety). Full quality bar runs at final verification.',
+    };
+  }
+
   const entries = Object.entries(files).filter(([, content]) => typeof content === 'string' && content.length > 0);
   const jsEntries = entries.filter(([path]) => /\.(?:m?js|cjs)$/.test(path));
   const totalJsChars = jsEntries.reduce((sum, [, content]) => sum + content.length, 0);

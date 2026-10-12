@@ -23,7 +23,6 @@ import { generateProjectAssets } from '~/lib/runtime/asset-generator';
 import { runActivityStep, startActivity, updateActivity, describeClineToolStep } from '~/lib/stores/activity';
 import { runClineAgent } from '~/lib/runtime/cline-bridge';
 import { probeHtmlInlineScripts, probeModuleSyntax } from '~/lib/runtime/js-syntax';
-import { isTransientClineFailure } from '~/lib/runtime/agent-project-checks';
 
 interface HarnessOptions {
   model: string;
@@ -495,23 +494,29 @@ export function useCognitiveHarness(options: HarnessOptions) {
             /*
              * Drain live iframe runtime errors (games that boot but throw in
              * play) into this attempt so they get repaired, not ignored.
+             * While phases are still landing the preview shows an
+             * intentionally incomplete game — its watchdog and missing-module
+             * noise would send the agent chasing incompleteness it may not
+             * fix — so draining waits until the whole build is written.
              */
-            try {
-              const liveErrors = takePreviewGameErrors();
+            if (phaseIndex >= phases.length) {
+              try {
+                const liveErrors = takePreviewGameErrors();
 
-              if (liveErrors.length) {
-                const seen = new Set(previewErrors.map((entry) => entry.message));
+                if (liveErrors.length) {
+                  const seen = new Set(previewErrors.map((entry) => entry.message));
 
-                for (const message of liveErrors.slice(0, 10)) {
-                  if (!seen.has(message)) {
-                    seen.add(message);
-                    previewErrors.push({ message });
+                  for (const message of liveErrors.slice(0, 10)) {
+                    if (!seen.has(message)) {
+                      seen.add(message);
+                      previewErrors.push({ message });
+                    }
                   }
+                  previewErrors = previewErrors.slice(-10);
                 }
-                previewErrors = previewErrors.slice(-10);
+              } catch {
+                /* error inbox unavailable; continue with known errors */
               }
-            } catch {
-              /* error inbox unavailable; continue with known errors */
             }
 
             /*
@@ -709,6 +714,51 @@ export function useCognitiveHarness(options: HarnessOptions) {
               return { ok: true, filesTouched: filesTouched as string[] };
             };
 
+            /*
+             * Never-stop run wrapper: any run-level failure (SSE drop, 5xx,
+             * gateway timeout, provider hiccup, run that cannot complete)
+             * retries after a short delay and resumes exactly where it
+             * stopped — without burning the attempt budget that content
+             * failures need for their diagnostics. The cap exists only so a
+             * dead provider cannot loop forever.
+             */
+            const MAX_RUN_RETRIES = 8;
+            const runWithRetry = async (
+              prompt: string,
+              runAllowlist: string[],
+            ): Promise<{ ok: true; filesTouched: string[] } | { ok: false; error: string }> => {
+              for (let runTry = 0; ; runTry++) {
+                try {
+                  return await executeRun(prompt, runAllowlist);
+                } catch (error) {
+                  if (sequence !== requestSequence.current || controller.signal.aborted) {
+                    throw error;
+                  }
+
+                  const message = (error as Error).message || String(error);
+
+                  if (runTry >= MAX_RUN_RETRIES) {
+                    throw new Error(`The run kept failing after ${MAX_RUN_RETRIES + 1} tries. Last error: ${message}`);
+                  }
+
+                  const delay = Math.min(5000 * (runTry + 1), 30_000);
+
+                  runHistory.push({
+                    role: 'user',
+                    content: `The run stopped unexpectedly (${message}). Continue the approved build exactly where it stopped — do not restart and do not redo completed files.`,
+                  });
+                  updateAgentMessage(
+                    `Run stopped: ${message.slice(0, 220)}\nRetrying in ${Math.round(delay / 1000)}s — try ${runTry + 2}/${MAX_RUN_RETRIES + 1} (resuming phase ${Math.min(phaseIndex + 1, phases.length)}/${phases.length})…`,
+                  );
+                  validationState.set({
+                    status: 'checking',
+                    detail: `Run hiccup — retrying in ${Math.round(delay / 1000)}s (${runTry + 2}/${MAX_RUN_RETRIES + 1})…`,
+                  });
+                  await new Promise((resolve) => setTimeout(resolve, delay));
+                }
+              }
+            };
+
             let runFailure = '';
 
             try {
@@ -743,7 +793,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                     'running',
                   );
 
-                  const result = await executeRun(buildPhasePrompt(phaseNumber, runPaths), runPaths);
+                  const result = await runWithRetry(buildPhasePrompt(phaseNumber, runPaths), runPaths);
 
                   if (!result.ok) {
                     runFailure = result.error;
@@ -777,7 +827,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                  * Every planned phase is written: this run is a repair or the
                  * automatic polish pass over the whole approved blueprint.
                  */
-                const result = await executeRun(initialPrompt, approvedPaths);
+                const result = await runWithRetry(initialPrompt, approvedPaths);
 
                 if (!result.ok) {
                   runFailure = result.error;
@@ -932,22 +982,28 @@ export function useCognitiveHarness(options: HarnessOptions) {
               }
 
               const message = (error as Error).message || String(error);
-              const transient = isTransientClineFailure(message);
 
-              if (transient && attempt < maxAttempts - 1) {
-                lastError = `Studio request hiccup: ${message}`;
+              /*
+               * Never stop on run-level errors: retry ANY failure (not just
+               * pre-classified transient ones) while attempt budget remains,
+               * after the same short pause — only a truly dead provider or an
+               * exhausted budget ends the build.
+               */
+              if (attempt < maxAttempts - 1) {
+                lastError = `Studio run error: ${message}`;
                 runHistory.push({
                   role: 'user',
-                  content: `The previous run died from a transient studio error (${message}). Continue the approved build exactly where it stopped; do not restart.`,
+                  content: `The previous run died with an unexpected error (${message}). Continue the approved build exactly where it stopped; do not restart. If it was a provider/network hiccup, simply resume; if it was a real build error, fix it first.`,
                 });
                 updateAgentMessage(
-                  `Studio hiccup (${message}). Retrying the approved build (${attempt + 1}/${maxAttempts})…`,
+                  `Run stopped: ${message.slice(0, 220)}\nRetrying in 5s (${attempt + 1}/${maxAttempts})…`,
                 );
+                await new Promise((resolve) => setTimeout(resolve, 5000));
 
                 continue;
               }
 
-              assistantContent += `${assistantContent ? '\n\n' : ''}Cline run stopped: ${message}`;
+              assistantContent += `${assistantContent ? '\n\n' : ''}Cline run stopped after ${maxAttempts} attempts: ${message}`;
               updateAgentMessage(assistantContent);
               throw error;
             }

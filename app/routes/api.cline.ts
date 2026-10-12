@@ -262,6 +262,20 @@ export async function action({ request, context }: ActionFunctionArgs) {
       });
     }
 
+    /*
+     * Phased runs work over an intentionally incomplete workspace: their
+     * in-loop gates (run_build / run_tests / finish_task) are scoped to the
+     * phase's own files, and references to planned future-phase modules are
+     * reported as deferred instead of unfixable blockers.
+     */
+    const phaseScope =
+      !readOnly && body.phasePaths?.length && body.approvedBlueprint
+        ? {
+            phasePaths: body.phasePaths,
+            plannedPaths: body.approvedBlueprint.fileOperations.map((operation) => operation.path),
+          }
+        : undefined;
+
     const cookies = parseCookieMap(request.headers.get('Cookie') || '');
     const apiKeys = JSON.parse(cookies.apiKeys || '{}') as Record<string, string>;
     const providerSettings =
@@ -509,7 +523,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
               inputSchema: { type: 'object', properties: {} },
               execute: async () => {
                 send('status', { message: 'Running Bolt build / module-graph checks…' });
-                return runAgentBuildCheck(workingFiles);
+                return runAgentBuildCheck(workingFiles, phaseScope);
               },
             });
 
@@ -521,8 +535,8 @@ export async function action({ request, context }: ActionFunctionArgs) {
               execute: async () => {
                 send('status', { message: 'Checking gameplay contracts and quality…' });
 
-                const gameplay = runAgentGameplayCheck(workingFiles);
-                const quality = runAgentQualityCheck(workingFiles);
+                const gameplay = runAgentGameplayCheck(workingFiles, phaseScope);
+                const quality = runAgentQualityCheck(workingFiles, phaseScope);
                 const tests = [...(gameplay.tests || []), ...(quality.tests || [])];
                 const issues = [...gameplay.issues, ...quality.issues];
 
@@ -562,9 +576,9 @@ export async function action({ request, context }: ActionFunctionArgs) {
               lifecycle: { completesRun: true },
               execute: async (value: { summary: string; controls?: string; features?: string[] }) => {
                 if (!body.readOnly) {
-                  const build = runAgentBuildCheck(workingFiles);
-                  const gameplay = runAgentGameplayCheck(workingFiles);
-                  const quality = runAgentQualityCheck(workingFiles);
+                  const build = runAgentBuildCheck(workingFiles, phaseScope);
+                  const gameplay = runAgentGameplayCheck(workingFiles, phaseScope);
+                  const quality = runAgentQualityCheck(workingFiles, phaseScope);
                   const issues = [...build.issues, ...gameplay.issues, ...quality.issues];
 
                   if (issues.length > 0) {
