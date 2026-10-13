@@ -6,6 +6,79 @@
 
 const ASYNC_FUNCTION = Object.getPrototypeOf(async () => {}).constructor;
 
+/** Blank out comments and string/template literals so scans see real code. */
+function stripJsLiterals(code: string): string {
+  return code
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^\w$])\/\/[^\n]*/g, '$1')
+    .replace(/'(?:[^'\\\n]|\\.)*'/g, "''")
+    .replace(/"(?:[^"\\\n]|\\.)*"/g, '""')
+    .replace(/`(?:[^`\\]|\\.)*`/g, '``');
+}
+
+/**
+ * Detect syntax that MUST execute as an ES module: import/export statements,
+ * `import.meta`, and top-level await — ignoring strings and comments. A file
+ * carrying any of them that ships as a classic `<script>` is a certain
+ * SyntaxError and a dead game, so the preview bundler keys type="module" and
+ * the strict-mode probe below off this one detector. Line-started await inside
+ * an async function may mark a file as ESM; shipping such a file as a module
+ * is semantics-preserving, so the false positive is harmless by design.
+ */
+export function looksLikeEsm(code: string): boolean {
+  if (!code || typeof code !== 'string') {
+    return false;
+  }
+
+  const stripped = stripJsLiterals(code);
+
+  return (
+    /^\s*import[\s('"{]|^\s*export[\s{*]/m.test(stripped) ||
+    /^\s*(?:for\s+await\b|await\s)/m.test(stripped) ||
+    /\bimport\.meta\b/.test(stripped)
+  );
+}
+
+/**
+ * Module files run in strict mode with HTML comments banned — sloppy
+ * `new Function` (and node --check on CommonJS) happily accepts `with`, octal
+ * literals, octal escapes, and `<!--`, so those passed every probe and then
+ * died in the browser as an anonymous SyntaxError at a bare document line.
+ * Re-probe with a strict prelude so the diagnostic names the file instead.
+ *
+ * `parseSource` lets the ESM branch strict-probe its import-stripped source
+ * while detection and the HTML-comment scan still see the real file.
+ */
+function strictModuleIssue(code: string, fileName: string, parseSource: string = code): string | undefined {
+  if (!looksLikeEsm(code)) {
+    return undefined;
+  }
+
+  const parse = (prelude: string) => {
+    try {
+      new Function(prelude + parseSource);
+    } catch {
+      new ASYNC_FUNCTION(prelude + parseSource);
+    }
+  };
+
+  try {
+    parse('"use strict";\n');
+  } catch (strictErr: unknown) {
+    if (strictErr instanceof SyntaxError) {
+      return `${fileName}: ${(strictErr as Error).message}`;
+    }
+
+    return undefined;
+  }
+
+  if (/^\s*(?:<!--|-->)/m.test(stripJsLiterals(code))) {
+    return `${fileName}: HTML comments are not allowed in module scripts`;
+  }
+
+  return undefined;
+}
+
 export function validateJavaScriptSyntax(code: string, fileName: string): string | undefined {
   const cleanCode = code.replace(/^```(?:javascript|js|typescript|ts)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
 
@@ -23,7 +96,8 @@ export function validateJavaScriptSyntax(code: string, fileName: string): string
       ) {
         try {
           new ASYNC_FUNCTION(cleanCode);
-          return undefined;
+
+          return strictModuleIssue(cleanCode, fileName);
         } catch (asyncErr: unknown) {
           if (asyncErr instanceof SyntaxError) {
             const asyncMsg = (asyncErr as Error).message || '';
@@ -56,13 +130,21 @@ export function validateJavaScriptSyntax(code: string, fileName: string): string
             .replace(/^\s*export\s*\{[^}]*\}\s*;?/gm, '// export')
             .replace(/^\s*export\s+\*\s+from\s+['"][^'"]+['"];?/gm, '// export *');
 
-          try {
-            new Function(sanitized);
-            return undefined;
-          } catch {
-            new ASYNC_FUNCTION(sanitized);
-            return undefined;
-          }
+          const parseSanitized = (prelude: string) => {
+            try {
+              new Function(prelude + sanitized);
+            } catch {
+              new ASYNC_FUNCTION(prelude + sanitized);
+            }
+          };
+
+          /*
+           * Throws to the outer catch (named with fileName) when neither the
+           * plain nor the async parser accepts the sanitized source.
+           */
+          parseSanitized('');
+
+          return strictModuleIssue(cleanCode, fileName, sanitized);
         } catch (innerErr: unknown) {
           if (innerErr instanceof SyntaxError) {
             return `${fileName}: ${(innerErr as Error).message}`;

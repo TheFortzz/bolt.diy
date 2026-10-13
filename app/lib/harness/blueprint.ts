@@ -119,6 +119,71 @@ export const blueprintSchema = managerBlueprintSchema.extend({
 export type Blueprint = z.infer<typeof blueprintSchema>;
 export type WorkspaceManifest = z.infer<typeof workspaceManifestSchema>;
 
+function decodeJsonString(raw: string): string {
+  try {
+    return JSON.parse(`"${raw}"`) as string;
+  } catch {
+    return raw;
+  }
+}
+
+/**
+ * Recover a plan the token budget cut off mid-JSON. The cut leaves every entry
+ * written before it fully intact — a 40-80 file blueprint with complete
+ * fileOperations — so recovering those is the difference between a huge build
+ * and the caller's two-file skeleton fallback, which silently shrinks the game
+ * to nothing. Returns undefined when not even one complete file operation
+ * survives, so hopeless output still takes the normal error path.
+ */
+function salvageTruncatedManagerPlan(text: string): Record<string, unknown> | undefined {
+  const fileOperations: Array<{ path: string; operation: 'create' | 'edit'; purpose: string }> = [];
+  const entryRe =
+    /\{\s*"path"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,[^{}]*?"operation"\s*:\s*"(create|edit)"[^{}]*?"purpose"\s*:\s*"((?:[^"\\]|\\.)*)"\s*\}/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = entryRe.exec(text)) !== null) {
+    fileOperations.push({
+      path: decodeJsonString(match[1])
+        .replace(/^\.?\//, '')
+        .trim(),
+      operation: match[2] as 'create' | 'edit',
+      purpose: decodeJsonString(match[3]).slice(0, 800),
+    });
+  }
+
+  if (fileOperations.length === 0) {
+    return undefined;
+  }
+
+  const scalar = (key: string): string | undefined => {
+    const hit = text.match(new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`));
+    return hit ? decodeJsonString(hit[1]) : undefined;
+  };
+
+  const stringArray = (key: string): string[] => {
+    const hit = text.match(new RegExp(`"${key}"\\s*:\\s*\\[([^\\]]*)`));
+    return hit ? [...hit[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => decodeJsonString(m[1])) : [];
+  };
+
+  const assetOperations: Array<{ id: string; path: string }> = [];
+  const assetRe = /\{\s*"id"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,\s*"path"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
+
+  while ((match = assetRe.exec(text)) !== null) {
+    assetOperations.push({ id: decodeJsonString(match[1]), path: decodeJsonString(match[2]) });
+  }
+
+  return {
+    title: scalar('title'),
+    summary: scalar('summary'),
+    engine: text.match(/"engine"\s*:\s*"(webgl|canvas2d)"/)?.[1],
+    systems: stringArray('systems'),
+    fileOperations,
+    assetOperations,
+    scriptOrder: stringArray('scriptOrder').filter((entry) => /\.(?:js|mjs)$/.test(entry)),
+    acceptanceCriteria: stringArray('acceptanceCriteria'),
+  };
+}
+
 export function parseManagerOutput(text: string) {
   let clean = text.trim();
 
@@ -142,9 +207,19 @@ export function parseManagerOutput(text: string) {
   try {
     raw = JSON.parse(clean);
   } catch {
-    // Attempt cleaning non-JSON wrappers
-    clean = clean.replace(/^[^{\[]*/, '').replace(/[^}\]]*$/, '');
-    raw = JSON.parse(clean);
+    try {
+      // Attempt cleaning non-JSON wrappers
+      const trimmed = clean.replace(/^[^{\[]*/, '').replace(/[^}\]]*$/, '');
+      raw = JSON.parse(trimmed);
+    } catch {
+      const salvaged = salvageTruncatedManagerPlan(clean);
+
+      if (!salvaged) {
+        throw new Error('Manager agent output is not a JSON object.');
+      }
+
+      raw = salvaged;
+    }
   }
 
   if (typeof raw !== 'object' || raw === null) {

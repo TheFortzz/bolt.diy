@@ -4,12 +4,27 @@ import type { AgentModel, AgentModelEvent, AgentModelRequest } from '@cline/shar
 const MAX_EMPTY_TURN_RETRIES = 2;
 
 /**
+ * Max times a provider max_tokens rejection halves the turn budget. The turn
+ * starts at the full budget so big files are written whole; a strict provider
+ * walks 32000 → 16000 → 8000 → 4000 without ever failing the turn, while
+ * permissive providers keep the full budget.
+ */
+const MAX_CAP_RETRIES = 3;
+const MIN_TURN_TOKENS = 4000;
+
+/**
  * Output budget per Cline agent turn. The old 8000-token ceiling capped every
  * write_file call at ~600 lines, so full games were physically impossible and
  * large files were truncated mid-write (broken games). 32000 fits the Fortz
  * model ceiling (32768); per-model caps are applied by the caller.
  */
 export const CLINE_TURN_MAX_TOKENS = 32000;
+
+/** True when a provider error rejects the requested max_tokens budget. */
+export function isMaxTokensExceeded(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error || '');
+  return /\bmax[_ ]?tokens?\b|maximum\s+(?:number\s+of\s+)?tokens/i.test(message);
+}
 
 function isEmptyModelResponse(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || '');
@@ -46,10 +61,23 @@ export function createBoltAgentModel(boltModel: unknown, maxTurnTokens: number =
         parameters: jsonSchema(definition.inputSchema as any),
       }]));
 
-      for (let attempt = 0; attempt <= MAX_EMPTY_TURN_RETRIES; attempt++) {
+      /*
+       * Adaptive budget: starts at the full model budget, halves only when a
+       * provider actually rejects the requested max_tokens.
+       */
+      let turnTokens = maxTurnTokens;
+      let emptyRetries = 0;
+      let capRetries = 0;
+
+      /*
+       * Every retry path increments one of the counters above, so this always
+       * terminates: at most 2 empty retries + 3 cap reductions.
+       */
+      for (let attempt = 0; ; attempt++) {
         let hasUsableOutput = false;
         let finishEmitted = false;
-        let retryEmptyTurn = false;
+        let retryTurn = false;
+        let retryNote: string | undefined;
 
         try {
           const result = await streamText({
@@ -61,7 +89,7 @@ export function createBoltAgentModel(boltModel: unknown, maxTurnTokens: number =
             // answer with prose and stop without calling a workspace tool.
             toolChoice: 'required',
             maxSteps: 1,
-            maxTokens: maxTurnTokens,
+            maxTokens: turnTokens,
             // Creative temperature: game builds must vary in architecture and feel, never repeat a template.
             temperature: 0.8,
             abortSignal: request.signal,
@@ -93,8 +121,9 @@ export function createBoltAgentModel(boltModel: unknown, maxTurnTokens: number =
               const finishReason = normalizeFinishReason(part.finishReason);
               const retryableEmptyFinish = !hasUsableOutput && finishReason === 'stop';
 
-              if (retryableEmptyFinish && attempt < MAX_EMPTY_TURN_RETRIES) {
-                retryEmptyTurn = true;
+              if (retryableEmptyFinish && emptyRetries < MAX_EMPTY_TURN_RETRIES) {
+                emptyRetries += 1;
+                retryTurn = true;
                 break;
               }
 
@@ -102,7 +131,7 @@ export function createBoltAgentModel(boltModel: unknown, maxTurnTokens: number =
                 yield {
                   type: 'finish',
                   reason: 'error',
-                  error: `Model returned empty response after ${attempt + 1} attempts.`,
+                  error: `Model returned empty response after ${emptyRetries + 1} attempts.`,
                   errorRetryable: true,
                 };
                 return;
@@ -121,8 +150,24 @@ export function createBoltAgentModel(boltModel: unknown, maxTurnTokens: number =
               yield { type: 'finish', reason: finishReason };
             } else if (part.type === 'error') {
               const message = part.error instanceof Error ? part.error.message : String(part.error || 'Provider request failed.');
-              if (!hasUsableOutput && isEmptyModelResponse(message) && attempt < MAX_EMPTY_TURN_RETRIES) {
-                retryEmptyTurn = true;
+
+              if (
+                !hasUsableOutput &&
+                capRetries < MAX_CAP_RETRIES &&
+                turnTokens > MIN_TURN_TOKENS &&
+                isMaxTokensExceeded(message)
+              ) {
+                const previous = turnTokens;
+                turnTokens = Math.max(MIN_TURN_TOKENS, Math.floor(turnTokens / 2));
+                capRetries += 1;
+                retryNote = `Provider rejected a ${previous}-token turn budget. Retrying with ${turnTokens} tokens…\n`;
+                retryTurn = true;
+                break;
+              }
+
+              if (!hasUsableOutput && isEmptyModelResponse(message) && emptyRetries < MAX_EMPTY_TURN_RETRIES) {
+                emptyRetries += 1;
+                retryTurn = true;
                 break;
               }
 
@@ -139,14 +184,15 @@ export function createBoltAgentModel(boltModel: unknown, maxTurnTokens: number =
 
           if (finishEmitted) return;
 
-          if (!retryEmptyTurn) {
-            if (!hasUsableOutput && attempt < MAX_EMPTY_TURN_RETRIES) {
-              retryEmptyTurn = true;
+          if (!retryTurn) {
+            if (!hasUsableOutput && emptyRetries < MAX_EMPTY_TURN_RETRIES) {
+              emptyRetries += 1;
+              retryTurn = true;
             } else if (!hasUsableOutput) {
               yield {
                 type: 'finish',
                 reason: 'error',
-                error: `Model returned empty response after ${attempt + 1} attempts.`,
+                error: `Model returned empty response after ${emptyRetries + 1} attempts.`,
                 errorRetryable: true,
               };
               return;
@@ -160,23 +206,42 @@ export function createBoltAgentModel(boltModel: unknown, maxTurnTokens: number =
             yield { type: 'finish', reason: 'aborted' };
             return;
           }
-          if (!isEmptyModelResponse(error) || attempt >= MAX_EMPTY_TURN_RETRIES) {
+
+          const message = error instanceof Error ? error.message : 'Provider request failed.';
+
+          if (
+            !hasUsableOutput &&
+            capRetries < MAX_CAP_RETRIES &&
+            turnTokens > MIN_TURN_TOKENS &&
+            isMaxTokensExceeded(error)
+          ) {
+            const previous = turnTokens;
+            turnTokens = Math.max(MIN_TURN_TOKENS, Math.floor(turnTokens / 2));
+            capRetries += 1;
+            retryNote = `Provider rejected a ${previous}-token turn budget. Retrying with ${turnTokens} tokens…\n`;
+            retryTurn = true;
+          } else if (!isEmptyModelResponse(error) || emptyRetries >= MAX_EMPTY_TURN_RETRIES) {
             yield {
               type: 'finish',
               reason: 'error',
-              error: error instanceof Error ? error.message : 'Provider request failed.',
+              error: message,
               errorRetryable: true,
             };
             return;
+          } else {
+            emptyRetries += 1;
+            retryTurn = true;
           }
-          retryEmptyTurn = true;
         }
 
-        if (retryEmptyTurn) {
+        if (retryTurn) {
           const delayMs = 450 * (attempt + 1);
+          const note =
+            retryNote ??
+            `The model returned an empty turn. Retrying in ${(delayMs / 1000).toFixed(1)}s (${emptyRetries}/${MAX_EMPTY_TURN_RETRIES})…\n`;
           yield {
             type: 'text-delta',
-            text: `The model returned an empty turn. Retrying in ${(delayMs / 1000).toFixed(1)}s (${attempt + 1}/${MAX_EMPTY_TURN_RETRIES})…\n`,
+            text: note,
           };
           if (!(await waitForRetry(delayMs, request.signal))) {
             yield { type: 'finish', reason: 'aborted' };

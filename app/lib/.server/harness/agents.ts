@@ -1,5 +1,6 @@
 import { generateText } from 'ai';
 import { getModel } from '~/lib/.server/llm/model';
+import { isMaxTokensExceeded } from '~/lib/.server/bolt-agent-model';
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from '~/utils/constants';
 import {
   MAX_GAME_FILE_OPERATIONS,
@@ -27,6 +28,15 @@ interface AgentOptions {
  * plan must not be collapsed back to a small skeleton.
  */
 export const MAX_PLANNED_FILES = 80;
+
+/**
+ * Output budgets for the manager's plan JSON, tried in order. A 40-80 entry
+ * blueprint with purposes runs past the old flat 16000 ceiling, the JSON was
+ * cut mid-array, parseManagerOutput threw, and the run silently collapsed to
+ * the two-file skeleton — the "builds very small" bug. Start at the full
+ * budget and walk down only when the provider actually rejects the size.
+ */
+const MANAGER_TOKEN_BUDGETS = [32000, 16000, 8000];
 
 const MANAGER_SYSTEM = `You are the Manager Agent in Fortz Studio, powered by GPT 6 Luna.
 You may plan only. You have no filesystem, shell, asset generation, or publication permission.
@@ -199,39 +209,58 @@ export async function runManagerAgent(
     proposed = managerBlueprintSchema.parse(options.proposedPlan);
   } else {
     try {
-      const result = await generateText({
-        // Provider packages currently expose incompatible duplicate LanguageModelV1 types.
-        model: getModel(
-          options.provider || DEFAULT_PROVIDER.name,
-          options.model || DEFAULT_MODEL,
-          options.env,
-          options.apiKeys,
-        ) as any,
-        system: MANAGER_SYSTEM,
-        messages: [
-          {
-            role: 'user',
-            content: [
+      let resultText: string | undefined;
+
+      for (const budget of MANAGER_TOKEN_BUDGETS) {
+        try {
+          const result = await generateText({
+            // Provider packages currently expose incompatible duplicate LanguageModelV1 types.
+            model: getModel(
+              options.provider || DEFAULT_PROVIDER.name,
+              options.model || DEFAULT_MODEL,
+              options.env,
+              options.apiKeys,
+            ) as any,
+            system: MANAGER_SYSTEM,
+            messages: [
               {
-                type: 'text',
-                text: JSON.stringify({
-                  request: options.request,
-                  existingPaths: options.manifest.map((file) => file.path),
-                  context: options.systemContext,
-                  sourceExcerpts: options.sources,
-                  imagesAvailable: options.imagesAvailable,
-                  referenceImageCount: imageParts.length,
-                }),
+                role: 'user',
+                content: [
+                  {
+                    type: 'text',
+                    text: JSON.stringify({
+                      request: options.request,
+                      existingPaths: options.manifest.map((file) => file.path),
+                      context: options.systemContext,
+                      sourceExcerpts: options.sources,
+                      imagesAvailable: options.imagesAvailable,
+                      referenceImageCount: imageParts.length,
+                    }),
+                  },
+                  ...imageParts,
+                ],
               },
-              ...imageParts,
             ],
-          },
-        ],
-        maxTokens: 16000,
-        temperature: 0.7,
-        abortSignal: options.signal,
-      });
-      proposed = parseManagerOutput(result.text);
+            maxTokens: budget,
+            temperature: 0.7,
+            abortSignal: options.signal,
+          });
+
+          resultText = result.text;
+          break;
+        } catch (error) {
+          // Only a provider max_tokens rejection is worth a smaller budget.
+          if (!isMaxTokensExceeded(error) || budget === MANAGER_TOKEN_BUDGETS[MANAGER_TOKEN_BUDGETS.length - 1]) {
+            throw error;
+          }
+        }
+      }
+
+      if (typeof resultText !== 'string') {
+        throw new Error('Manager agent produced no plan output.');
+      }
+
+      proposed = parseManagerOutput(resultText);
     } catch (error) {
       console.warn('Manager agent generation or output parsing failed, falling back to resilient blueprint:', error);
       proposed = createFallbackProposed(

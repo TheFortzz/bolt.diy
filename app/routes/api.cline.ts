@@ -300,21 +300,25 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
     /*
      * Size each turn to the model's real output ceiling (Fortz models: 32768)
-     * so big files are written whole instead of truncated mid-file. Unknown or
-     * small models keep the safe 8000-token turn budget.
+     * so big files are written whole instead of truncated mid-file. Catalog
+     * entries reporting <= 8000 carry the default placeholder rather than a
+     * real output cap (nearly every dynamic provider hardcodes 8000, and the
+     * model a user actually picked often is not in the catalog at all), so
+     * they count as unknown: start at the full turn budget and let the model
+     * adapter walk down only when the provider actually rejects the size.
      */
-    let turnCap = 8000;
+    let turnCap = CLINE_TURN_MAX_TOKENS;
 
     try {
       const modelList = await getModelList(apiKeys, providerSettings);
 
       const listed = modelList.find((entry) => entry.name === (body.model || DEFAULT_MODEL));
 
-      if (listed && Number.isFinite(listed.maxTokenAllowed) && listed.maxTokenAllowed > 0) {
+      if (listed && Number.isFinite(listed.maxTokenAllowed) && listed.maxTokenAllowed > 8000) {
         turnCap = Math.min(CLINE_TURN_MAX_TOKENS, Math.floor(listed.maxTokenAllowed));
       }
     } catch {
-      // Model catalog unreachable; keep the safe default turn budget.
+      // Model catalog unreachable; keep the full turn budget.
     }
 
     const agentModel = createBoltAgentModel(boltModel, turnCap);

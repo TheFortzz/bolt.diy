@@ -370,16 +370,83 @@ describe('studio preview local module loading', () => {
     }
   });
 
-  it('leaves bare, absolute, and unresolvable specifiers alone', () => {
+  it('leaves bare and absolute specifiers alone', () => {
     const html =
       '<html><head></head><body>' +
-      '<script type="module" data-inlined="game.js">import * as THREE from "three";\nimport { x } from "./missing.js";\nconsole.log(THREE, x);</script>' +
+      '<script type="module" data-inlined="game.js">import * as THREE from "three";\nconst cdn = import("https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js");\nconsole.log(THREE, cdn);</script>' +
       '</body></html>';
     const out = inlineLocalModuleBlobImports(html, [{ path: 'game.js', content: 'import * as THREE from "three";' }]);
 
     expect(out).toContain('from "three"');
-    expect(out).toContain('"./missing.js"');
+    expect(out).toContain('"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"');
     expect(out).not.toContain('blob:');
+  });
+
+  it('mints a self-naming stub for a relative import no project file matches', async () => {
+    const { blobs, restore } = captureBlobs();
+
+    try {
+      const content = 'import { boot, launch } from "./missing.js";\nboot(launch);';
+      const html =
+        '<html><head></head><body><script type="module" data-inlined="game.js">' + content + '</script></body></html>';
+      const out = inlineLocalModuleBlobImports(html, [{ path: 'game.js', content }]);
+
+      /*
+       * Never ship the raw specifier: it dies against the blob base with
+       * "Invalid relative url or base scheme isn't hierarchical".
+       */
+      expect(out).not.toContain('"./missing.js"');
+      expect(out).toContain('blob:');
+
+      const texts = await Promise.all(blobs.map((b) => b.text()));
+
+      expect(texts.some((t) => t.includes('Missing module: ') && t.includes('"missing.js"'))).toBe(true);
+      expect(texts.some((t) => t.includes('export const boot = undefined;'))).toBe(true);
+      expect(texts.some((t) => t.includes('export const launch = undefined;'))).toBe(true);
+    } finally {
+      restore();
+    }
+  });
+
+  it('rewrites side-effect imports, which no import pattern used to match', () => {
+    const content = 'import "./polyfill.js";\nimport "./config.js";';
+    const html =
+      '<html><head></head><body><script type="module" data-inlined="src/main.js">' +
+      content +
+      '</script></body></html>';
+    const out = inlineLocalModuleBlobImports(html, [
+      { path: 'src/main.js', content },
+      { path: 'src/polyfill.js', content: 'globalThis.__polyfilled = true;' },
+      { path: 'src/config.js', content: 'globalThis.__config = { hard: true };' },
+    ]);
+
+    expect(out).not.toContain('"./polyfill.js"');
+    expect(out).not.toContain('"./config.js"');
+    expect(out.match(/import "blob:/g)?.length ?? 0).toBe(2);
+  });
+
+  it('rewrites relative imports in an AI-authored inline module script with no data-inlined path', () => {
+    const html =
+      '<html><head></head><body>' +
+      '<script type="module">import { boot } from "./src/boot/launch.js";\nboot();</script>' +
+      '</body></html>';
+    const out = inlineLocalModuleBlobImports(html, [
+      { path: 'src/boot/launch.js', content: 'export function boot() { return 1; }' },
+    ]);
+
+    expect(out).toContain('from "blob:');
+    expect(out).not.toContain('./src/boot/launch.js');
+  });
+
+  it('rewrites dynamic imports inside classic scripts but never their strings', () => {
+    const html =
+      '<html><head></head><body>' +
+      '<script>var note = "load ./lib.js later";\nvar lazy = function () { return import("./lib.js"); };</script>' +
+      '</body></html>';
+    const out = inlineLocalModuleBlobImports(html, [{ path: 'lib.js', content: 'export const value = 7;' }]);
+
+    expect(out).toContain('import("blob:');
+    expect(out).toContain('"load ./lib.js later"');
   });
 
   it('survives circular imports without hanging', () => {
@@ -521,10 +588,33 @@ describe('studio preview local module loading', () => {
     expect(looksLikeEsm('import "./polyfill.js";')).toBe(true);
     expect(looksLikeEsm('export function start() {}')).toBe(true);
     expect(looksLikeEsm('export default class Game {}')).toBe(true);
-    expect(looksLikeEsm('const m = import.meta.url;')).toBe(false);
+    expect(looksLikeEsm('const m = import.meta.url;')).toBe(true);
+    expect(looksLikeEsm('await preloadAssets();\nstart();')).toBe(true);
     expect(looksLikeEsm('module.exports = { start };')).toBe(false);
     expect(looksLikeEsm('// import this later\nvar label = "press export to save";\nstart();')).toBe(false);
     expect(looksLikeEsm('')).toBe(false);
+  });
+
+  it('never splices an operator into ASI code while healing a truncated file', () => {
+    const truncated = ['update()', 'scoreEl.textContent = score', 'const label = "unterminated'].join('\n');
+    const healed = balanceAndCloseJs(truncated);
+
+    /*
+     * `update()\nscoreEl` is two valid statements; inserting `*` there turned
+     * working code into an invalid assignment target.
+     */
+    expect(healed).not.toContain(')*');
+    expect(healed).toContain('scoreEl.textContent = score');
+  });
+
+  it('ships a broken ES module verbatim instead of a truncated prefix', () => {
+    const moduleCode = 'import { a } from "./a.js";\n\nexport const value = compute(a';
+
+    /*
+     * A module can never parse in `new Function` context; healing would pop
+     * statements and ship a silent truncation.
+     */
+    expect(balanceAndCloseJs(moduleCode)).toBe(moduleCode);
   });
 
   it('upgrades classic script tags carrying module syntax so they parse and load', () => {

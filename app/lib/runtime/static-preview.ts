@@ -1,6 +1,6 @@
 import { cleanWorkDirRelativePath } from '~/utils/diff';
 import { inlineGeneratedAssetUrls, type GeneratedAsset } from '~/lib/stores/generated-assets';
-import { probeHtmlInlineScripts, probeModuleSyntax } from '~/lib/runtime/js-syntax';
+import { looksLikeEsm, probeHtmlInlineScripts, probeModuleSyntax } from '~/lib/runtime/js-syntax';
 
 /*
  * A literal "</script" inside emitted script content terminates the tag at
@@ -142,7 +142,14 @@ function repairMissingOperators(src: string): string {
     return false;
   };
 
-  let patched = src.replace(/\)(\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)/g, (match, space, ident, offset: number) => {
+  /*
+   * Only same-line whitespace can be a missing operator: `) ident` with a
+   * newline between is Automatic Semicolon Insertion — `update()\nscoreEl.x = 1`
+   * is two valid statements, and inserting `*` there corrupts working code
+   * into an invalid assignment target (the "Invalid or unexpected token"
+   * preview death). Cross-line matches are left verbatim.
+   */
+  let patched = src.replace(/\)([ \t]*)([a-zA-Z_$][a-zA-Z0-9_$]*)/g, (match, space, ident, offset: number) => {
     if (reservedWords.has(ident)) {
       return match;
     }
@@ -182,6 +189,19 @@ function repairMissingOperators(src: string): string {
  */
 export function balanceAndCloseJs(code: string): string {
   if (!code || typeof code !== 'string') {
+    return code;
+  }
+
+  /*
+   * Module files (import/export at line start) can NEVER be healed by this
+   * function: `new Function` parses them in sloppy function-body context,
+   * where every `import` is a hard SyntaxError — so the structural loop
+   * below would either return the file untouched (imports at top) or,
+   * worse, ship a silently TRUNCATED prefix when plain statements precede
+   * the first import. Modules are validated by probeModuleSyntax instead;
+   * ship their source verbatim.
+   */
+  if (looksLikeEsm(code)) {
     return code;
   }
 
@@ -736,25 +756,13 @@ function unescapeAttr(value: string): string {
 }
 
 /**
- * Detect ES-module syntax (import/export statements) in source, ignoring
- * strings and comments. A .js file full of `import` lines that is loaded with
- * a classic `<script src>` MUST still run as a module — inlining it as a
- * classic script is a certain SyntaxError and a dead game.
+ * Detect ES-module syntax in source, ignoring strings and comments. The
+ * detector lives in js-syntax.ts so the syntax probes (strict-mode checks for
+ * module files) and the preview bundler (type="module" assignment) can never
+ * disagree about which files run as modules; re-exported here for callers
+ * that have historically imported it from the bundler.
  */
-export function looksLikeEsm(code: string): boolean {
-  if (!code || typeof code !== 'string') {
-    return false;
-  }
-
-  const stripped = code
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/(^|[^\w$])\/\/[^\n]*/g, '$1')
-    .replace(/'(?:[^'\\\n]|\\.)*'/g, "''")
-    .replace(/"(?:[^"\\\n]|\\.)*"/g, '""')
-    .replace(/`(?:[^`\\]|\\.)*`/g, '``');
-
-  return /^\s*import[\s('"{]|^\s*export[\s{*]/m.test(stripped);
-}
+export { looksLikeEsm };
 
 /**
  * Rewrite relative ES-module imports inside inlined module scripts to blob:
@@ -937,12 +945,16 @@ export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPr
   const blobCache = new Map<string, string>();
   const inProgress = new Set<string>();
 
-  const resolveRef = (importerPath: string, spec: string): string | undefined => {
+  /**
+   * Normalize a relative specifier against its importer to a workdir-relative
+   * key, with NO existence check. Missing-file stubs key off this so two
+   * importers naming the same absent path share one stub module.
+   */
+  const joinRef = (importerPath: string, spec: string): string | undefined => {
     const cleanSpec = spec.split(/[?#]/, 1)[0];
 
     if (!cleanSpec.startsWith('.')) {
-      const hit = resolveStaticPreviewFile(sourceFiles, cleanSpec);
-      return hit?.path;
+      return undefined;
     }
 
     const base = importerPath.includes('/') ? importerPath.slice(0, importerPath.lastIndexOf('/') + 1) : '';
@@ -961,9 +973,164 @@ export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPr
       }
     }
 
-    const hit = resolveStaticPreviewFile(sourceFiles, parts.join('/'));
+    return parts.join('/') || undefined;
+  };
+
+  const resolveRef = (importerPath: string, spec: string): string | undefined => {
+    const cleanSpec = spec.split(/[?#]/, 1)[0];
+
+    if (!cleanSpec.startsWith('.')) {
+      const hit = resolveStaticPreviewFile(sourceFiles, cleanSpec);
+      return hit?.path;
+    }
+
+    const key = joinRef(importerPath, spec);
+
+    if (!key) {
+      return undefined;
+    }
+
+    const hit = resolveStaticPreviewFile(sourceFiles, key);
 
     return hit?.path;
+  };
+
+  /*
+   * Missing-file stubs. A relative specifier that names no project file — a
+   * future-phase file during a phased build, or an import for a file the model
+   * never wrote — used to ship raw and die against the blob base with "Invalid
+   * relative url or base scheme isn't hierarchical", killing the whole module
+   * graph with an error that names nothing. Importers are pre-scanned so each
+   * absent path gets ONE stub module that reports the exact path to the
+   * console and the repair inbox at evaluation time and exports exactly the
+   * names the graph expects.
+   */
+  const missingModuleImports = new Map<string, { names: Set<string>; hasDefault: boolean }>();
+  const stubBlobUrls = new Map<string, string>();
+
+  const noteMissingModuleImport = (importerPath: string, spec: string, clause: string) => {
+    if (!spec.startsWith('.') || resolveRef(importerPath, spec)) {
+      return;
+    }
+
+    const key = joinRef(importerPath, spec);
+
+    if (!key) {
+      return;
+    }
+
+    const info = missingModuleImports.get(key) || { names: new Set<string>(), hasDefault: false };
+
+    const brace = clause.match(/\{([^}]*)\}/);
+
+    if (brace) {
+      for (const item of brace[1].split(',')) {
+        const prop = (item.trim().split(/\s+as\s+/)[0] || '').trim();
+
+        if (prop === 'default') {
+          info.hasDefault = true;
+        } else if (/^[A-Za-z_$][\w$]*$/.test(prop)) {
+          info.names.add(prop);
+        }
+      }
+    }
+
+    if (/^\s*[A-Za-z_$][\w$]*\s*(?:,|$)/.test(clause)) {
+      info.hasDefault = true;
+    }
+
+    missingModuleImports.set(key, info);
+  };
+
+  /**
+   * Scan one importer's source for relative import statements and record what
+   * each UNRESOLVABLE specifier expects. The clause alternation only matches
+   * real import-clause shapes, so scanning never walks from a side-effect
+   * import into the next statement's `from`.
+   */
+  const IMPORT_STMT_RE =
+    /\bimport\s+(?:([A-Za-z_$][\w$]*\s*,\s*\{[^}]*\}|[A-Za-z_$][\w$]*|\*\s+as\s+[A-Za-z_$][\w$]*|\{[^}]*\})\s+from\s+)?(["'])(\.[^"']+)\2/g;
+  const EXPORT_FROM_RE = /\bexport\s+(?:\*|\{([^}]*)\})\s+from\s+(["'])(\.[^"']+)\3/g;
+  const DYNAMIC_IMPORT_RE = /\bimport\s*\(\s*(["'])(\.[^"']+)\1\s*\)/g;
+
+  const collectMissingModuleImports = (importerPath: string, code: string) => {
+    let match: RegExpExecArray | null;
+
+    IMPORT_STMT_RE.lastIndex = 0;
+
+    while ((match = IMPORT_STMT_RE.exec(code)) !== null) {
+      noteMissingModuleImport(importerPath, match[3], match[1] || '');
+    }
+
+    EXPORT_FROM_RE.lastIndex = 0;
+
+    while ((match = EXPORT_FROM_RE.exec(code)) !== null) {
+      // `export * from` declares no names the stub must reproduce.
+      const clause = match[1] === undefined ? '' : `{${match[1]}}`;
+
+      noteMissingModuleImport(importerPath, match[3], clause);
+    }
+
+    DYNAMIC_IMPORT_RE.lastIndex = 0;
+
+    while ((match = DYNAMIC_IMPORT_RE.exec(code)) !== null) {
+      noteMissingModuleImport(importerPath, match[2], '');
+    }
+  };
+
+  /**
+   * Mint (once per path) the stub module for a relative specifier that names
+   * no project file. Bare and absolute specifiers stay untouched — the import
+   * map or a CDN may still resolve them — and a resolvable target with no URL
+   * yet (an in-progress cycle) keeps its raw specifier, exactly as before.
+   */
+  const stubUrlFor = (importerPath: string, spec: string): string | undefined => {
+    if (!spec.startsWith('.')) {
+      return undefined;
+    }
+
+    const key = joinRef(importerPath, spec);
+
+    if (!key) {
+      return undefined;
+    }
+
+    const cached = stubBlobUrls.get(key);
+
+    if (cached) {
+      return cached;
+    }
+
+    const info = missingModuleImports.get(key) || { names: new Set<string>(), hasDefault: false };
+    const pathLiteral = JSON.stringify(key);
+    const ownerLiteral = JSON.stringify(importerPath);
+    const lines = [
+      `const __path = ${pathLiteral};`,
+      `function __report() {` +
+        ` const msg = 'Missing module: ' + __path + ' (imported by ' + ${ownerLiteral} + ' - no project file matches this path)';` +
+        ` try { console.error('[Fortz preview] ' + msg); } catch (e) {}` +
+        ` try { window.parent.postMessage({ type: 'thefortz-game-error', message: msg }, '*'); } catch (e) {} }`,
+      '__report();',
+    ];
+
+    if (info.hasDefault) {
+      lines.push('export default undefined;');
+    }
+
+    for (const name of info.names) {
+      lines.push(`export const ${name} = undefined;`);
+    }
+
+    try {
+      const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/javascript;charset=utf-8' }));
+
+      generation.push(url);
+      stubBlobUrls.set(key, url);
+
+      return url;
+    } catch {
+      return undefined;
+    }
   };
 
   const getBlobUrl = (normPath: string): string | undefined => {
@@ -1014,19 +1181,48 @@ export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPr
     }
   };
 
-  const rewriteRelativeImports = (importerPath: string, code: string): string => {
-    const rewriteStatic = code.replace(/\bfrom\s*(["'])(\.[^"']+)\1/g, (match, quote: string, spec: string) => {
-      const dep = resolveRef(importerPath, spec);
-      const url = dep ? getBlobUrl(dep) : undefined;
+  /**
+   * Rewrite one relative specifier to its blob URL, minting a reporting stub
+   * when no project file matches (see stubUrlFor). Undefined means "keep the
+   * raw specifier": bare/absolute specs, or a resolvable target that has no
+   * URL yet (an in-progress cycle).
+   */
+  const specifierBlobUrl = (importerPath: string, spec: string): string | undefined => {
+    const dep = resolveRef(importerPath, spec);
 
-      return url ? `from ${quote}${url}${quote}` : match;
-    });
-    return rewriteStatic.replace(/\bimport\s*\(\s*(["'])(\.[^"']+)\1\s*\)/g, (match, quote: string, spec: string) => {
-      const dep = resolveRef(importerPath, spec);
-      const url = dep ? getBlobUrl(dep) : undefined;
+    return dep ? getBlobUrl(dep) : stubUrlFor(importerPath, spec);
+  };
+
+  const rewriteDynamicImports = (importerPath: string, code: string): string =>
+    code.replace(/\bimport\s*\(\s*(["'])(\.[^"']+)\1\s*\)/g, (match, quote: string, spec: string) => {
+      const url = specifierBlobUrl(importerPath, spec);
 
       return url ? `import(${quote}${url}${quote})` : match;
     });
+
+  const rewriteRelativeImports = (importerPath: string, code: string): string => {
+    const rewriteStatic = code.replace(/\bfrom\s*(["'])(\.[^"']+)\1/g, (match, quote: string, spec: string) => {
+      const url = specifierBlobUrl(importerPath, spec);
+
+      return url ? `from ${quote}${url}${quote}` : match;
+    });
+
+    /*
+     * Side-effect imports (`import "./polyfill.js";`) carry no `from` and no
+     * parentheses — neither historical pattern matched them, so even an
+     * EXISTING file shipped with its raw specifier and died at load with
+     * "Invalid relative url or base scheme isn't hierarchical".
+     */
+    const withSideEffect = rewriteStatic.replace(
+      /(\bimport\s*)(["'])(\.[^"']+)\2/g,
+      (match, kw: string, quote: string, spec: string) => {
+        const url = specifierBlobUrl(importerPath, spec);
+
+        return url ? `${kw}${quote}${url}${quote}` : match;
+      },
+    );
+
+    return rewriteDynamicImports(importerPath, withSideEffect);
   };
 
   const urlToPath = (): Map<string, string> => {
@@ -1242,24 +1438,75 @@ export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPr
 
   planExportRepairs();
 
+  /*
+   * Pre-scan every importer — project files and inline script bodies — for
+   * relative imports that name no project file, so each missing-path stub
+   * exports exactly the names the graph expects before any blob is minted.
+   */
+  for (const file of sourceFiles) {
+    if (/\.(?:m?js|jsx)$/.test(file.path)) {
+      collectMissingModuleImports(file.path, file.content);
+    }
+  }
+
+  html.replace(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi, (tag, attrs: string, content: string) => {
+    const attrText = String(attrs || '');
+
+    if (/\bsrc\s*=/i.test(attrText)) {
+      return tag;
+    }
+
+    const typeAttr = attrText.match(/\btype\s*=\s*["']([^"']+)["']/i);
+
+    if (typeAttr && !/(?:javascript|module)/i.test(typeAttr[1])) {
+      return tag;
+    }
+
+    const inlined = attrText.match(/data-inlined\s*=\s*["']([^"']+)["']/i);
+    const importerPath = inlined ? cleanWorkDirRelativePath(unescapeAttr(inlined[1])) : 'index.html';
+
+    collectMissingModuleImports(importerPath, content);
+
+    return tag;
+  });
+
   const out = html.replace(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi, (tag, attrs: string, content: string) => {
     const attrText = String(attrs || '');
 
-    const isModule = /type\s*=\s*["']module["']/i.test(attrText);
+    if (/\bsrc\s*=/i.test(attrText)) {
+      return tag;
+    }
 
+    const typeAttr = attrText.match(/\btype\s*=\s*["']([^"']+)["']/i);
+
+    if (typeAttr && !/(?:javascript|module)/i.test(typeAttr[1])) {
+      return tag;
+    }
+
+    if (!/\b(?:from\s*["']\.|import\s*["']\.|import\s*\(\s*["']\.)/.test(content)) {
+      return tag;
+    }
+
+    const isModule = /type\s*=\s*["']module["']/i.test(attrText);
     const inlined = attrText.match(/data-inlined\s*=\s*["']([^"']+)["']/i);
 
-    if (!isModule || !inlined) {
-      return tag;
-    }
+    /*
+     * AI-authored inline module scripts carry no data-inlined path: they
+     * execute from the document itself, so their relative specifiers resolve
+     * against the root (index.html). Rewriting only data-inlined blocks left
+     * `import "./src/boot/launch.js"` in the doc raw — the exact "Invalid
+     * relative url or base scheme isn't hierarchical" boot-killer.
+     */
+    const importerPath = inlined ? cleanWorkDirRelativePath(unescapeAttr(inlined[1])) : 'index.html';
 
-    if (!/\b(?:from\s*["']\.|import\s*\(\s*["']\.)/.test(content)) {
-      return tag;
-    }
-
-    const importerPath = cleanWorkDirRelativePath(unescapeAttr(inlined[1]));
-
-    const rewritten = softenBlobImports(rewriteRelativeImports(importerPath, content), urlToPath());
+    /*
+     * Classic scripts cannot hold static imports; only dynamic import(...) is
+     * legal there, so only that gets rewritten — touching `from "./x"` text in
+     * a string or comment would corrupt working code.
+     */
+    const rewritten = isModule
+      ? softenBlobImports(rewriteRelativeImports(importerPath, content), urlToPath())
+      : rewriteDynamicImports(importerPath, content);
 
     if (rewritten === content) {
       return tag;

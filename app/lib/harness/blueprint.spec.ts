@@ -85,6 +85,48 @@ Let me know if you would like any changes!
       expect(parsed.acceptanceCriteria.length).toBeGreaterThanOrEqual(3);
       expect(parsed.scriptOrder).toEqual(['game.js']);
     });
+
+    it('salvages a plan the token budget truncated mid-array', () => {
+      /*
+       * A 60-file blueprint cut off by the output ceiling used to throw here,
+       * and the caller's fallback is a two-file skeleton — the build silently
+       * shrank to almost nothing. Every complete entry before the cut is real
+       * work and must survive.
+       */
+      const fileOperations = Array.from({ length: 60 }, (_, index) => ({
+        path: `src/systems/module-${index}.js`,
+        operation: 'create',
+        purpose: `System ${index} behavior`,
+      }));
+      const full = JSON.stringify({
+        title: 'Void Runner',
+        summary: 'Huge arcade run',
+        engine: 'canvas2d',
+        systems: ['Movement', 'Combat'],
+        scriptOrder: ['src/systems/module-0.js'],
+        acceptanceCriteria: ['Runs at 60fps'],
+        assetOperations: [
+          { id: 'hero.ship', path: 'assets/ship.png', kind: 'sprite', prompt: 'ship', width: 512, height: 512 },
+        ],
+        fileOperations,
+      });
+      const cut = full.lastIndexOf('},{') + 1;
+      const truncated = full.slice(0, cut);
+
+      const parsed = parseManagerOutput(truncated);
+
+      expect(parsed.title).toBe('Void Runner');
+      expect(parsed.fileOperations.length).toBeGreaterThan(40);
+      expect(parsed.systems).toContain('Combat');
+      expect(parsed.scriptOrder).toEqual(['src/systems/module-0.js']);
+      expect(parsed.assetOperations[0]?.path).toBe('assets/ship.png');
+    });
+
+    it('still throws when truncation left no complete file operation', () => {
+      const truncated = '{"title":"Cut","fileOperations":[{"path":"a.js","operation":"create","purp';
+
+      expect(() => parseManagerOutput(truncated)).toThrow();
+    });
   });
 
   describe('blueprintSchema', () => {

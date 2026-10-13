@@ -15,6 +15,34 @@ describe('validateJavaScriptSyntax', () => {
   it('reports a truncated file', () => {
     expect(validateJavaScriptSyntax('const s = "abc', 'game.js')).toContain('game.js');
   });
+
+  it('rejects sloppy-only syntax in files that ship as modules', () => {
+    /*
+     * `new Function` (and node --check on CommonJS) accept these, but a module
+     * runs in strict mode: the file used to pass every probe and then die in
+     * the browser as an anonymous SyntaxError at a bare doc line.
+     */
+    const module = 'import { a } from "./a.js";\n';
+    const withStatement = validateJavaScriptSyntax(`${module}\nwith (a) {\n  a();\n}`, 'src/a.js');
+    const octalLiteral = validateJavaScriptSyntax(`${module}\nconst mask = 0777;`, 'src/a.js');
+    const htmlComment = validateJavaScriptSyntax(`${module}\n<!-- legacy note\na();`, 'src/a.js');
+
+    expect(withStatement).toContain('src/a.js:');
+    expect(octalLiteral).toContain('src/a.js:');
+    expect(htmlComment).toContain('HTML comments');
+  });
+
+  it('still accepts the same sloppy syntax in classic scripts, which run sloppy', () => {
+    expect(validateJavaScriptSyntax('with (a) {\n  a();\n}', 'src/legacy.js')).toBeUndefined();
+    expect(validateJavaScriptSyntax('const mask = 0777;', 'src/legacy.js')).toBeUndefined();
+    expect(validateJavaScriptSyntax('<!-- legacy note\na();', 'src/legacy.js')).toBeUndefined();
+  });
+
+  it('accepts top-level await in module files', () => {
+    const code = 'import { boot } from "./boot.js";\nawait boot();';
+
+    expect(validateJavaScriptSyntax(code, 'src/main.js')).toBeUndefined();
+  });
 });
 
 describe('auditImportStatements', () => {
