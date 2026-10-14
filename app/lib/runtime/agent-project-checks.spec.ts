@@ -143,6 +143,83 @@ drawWorld();
     expect(unresolvable.issues.some((issue) => issue.includes('nowhere.js'))).toBe(true);
   });
 
+  it('accepts approved generated images that exist on disk but not in fileOperations', () => {
+    /*
+     * Regression: generated images are written by the image builder, so they
+     * are never in `plannedPaths`. Treating them as missing pushed the model to
+     * DELETE correct image references.
+     */
+    const scope = {
+      phasePaths: ['index.html', 'src/boot/entry.js'],
+      plannedPaths: ['index.html', 'src/boot/entry.js'],
+      plannedAssetPaths: ['assets/hero.png'],
+    };
+    const files = {
+      'index.html': '<canvas id="c"></canvas><script type="module" src="./src/boot/entry.js"></script>',
+      'src/boot/entry.js': `const hero = new Image();\nhero.src = 'assets/hero.png';\n`,
+    };
+
+    const result = runAgentBuildCheck(files, scope);
+
+    expect(result.issues.filter((issue) => issue.includes('hero.png'))).toHaveLength(0);
+    expect(result.success).toBe(true);
+  });
+
+  it('blocks a reference to an image that was never approved or generated', () => {
+    const scope = {
+      phasePaths: ['index.html', 'src/boot/entry.js'],
+      plannedPaths: ['index.html', 'src/boot/entry.js'],
+      plannedAssetPaths: ['assets/hero.png'],
+    };
+    const files = {
+      'index.html':
+        '<canvas id="c"></canvas><img src="assets/ghost.png"><script type="module" src="./src/boot/entry.js"></script>',
+      'src/boot/entry.js': `const img = new Image();\nimg.src = 'assets/missing-boss.png';\n`,
+    };
+
+    const result = runAgentBuildCheck(files, scope);
+
+    expect(result.success).toBe(false);
+    expect(result.issues.some((issue) => issue.includes('assets/ghost.png'))).toBe(true);
+    expect(result.issues.some((issue) => issue.includes('assets/missing-boss.png'))).toBe(true);
+  });
+
+  it('catches CSS url() and srcset image references, not just img src', () => {
+    const scope = {
+      phasePaths: ['index.html'],
+      plannedPaths: ['index.html'],
+      plannedAssetPaths: [],
+    };
+    const result = runAgentBuildCheck(
+      {
+        'index.html':
+          '<style>.hud { background: url("assets/hud.png"); }</style>' +
+          '<img srcset="assets/hero-2x.png 2x" src="assets/hero.png">',
+      },
+      scope,
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.issues.some((issue) => issue.includes('assets/hud.png'))).toBe(true);
+    expect(result.issues.some((issue) => issue.includes('assets/hero-2x.png'))).toBe(true);
+  });
+
+  it('does not flag non-image asset-looking strings or remote URLs', () => {
+    const scope = {
+      phasePaths: ['index.html', 'src/boot/entry.js'],
+      plannedPaths: ['index.html', 'src/boot/entry.js'],
+      plannedAssetPaths: [],
+    };
+    const files = {
+      'index.html': '<img src="https://cdn.example.com/hero.png">',
+      'src/boot/entry.js': `const cfg = { path: 'assets/config.json' };\nconsole.log(cfg.path);\n`,
+    };
+
+    const result = runAgentBuildCheck(files, scope);
+
+    expect(result.success).toBe(true);
+  });
+
   it('defers whole-game contracts and quality bars while scoped, keeping phase-file rules', () => {
     const scope = {
       phasePaths: ['foundation.js'],

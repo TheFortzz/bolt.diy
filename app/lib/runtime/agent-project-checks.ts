@@ -25,6 +25,14 @@ export interface AgentCheckScope {
 
   /** Every path the approved blueprint plans, including future phases. */
   plannedPaths: string[];
+
+  /**
+   * Approved generated-image paths. They are written by the image builder
+   * rather than by the agent, so they are deliberately absent from
+   * `plannedPaths` — without this a correct `assets/hero.png` reference looks
+   * like a broken one.
+   */
+  plannedAssetPaths?: string[];
 }
 
 /** Resolve a relative (or root-anchored) import/spec against its importer. */
@@ -77,6 +85,64 @@ function collectJsLocalImports(code: string): string[] {
   return specs;
 }
 
+/**
+ * Images the game actually loads.
+ *
+ * Image references were validated nowhere: `collectHtmlLocalRefs` only matches
+ * `script|link`, so a game pointing at `assets/hero.png` that was never
+ * generated shipped a silently broken visual. These collectors catch
+ * `<img src>`, `srcset`, CSS `url(...)` and the `assets/...` string literals
+ * that `new Image()` / `drawImage` loaders use.
+ */
+const IMAGE_REF_PATTERN = /^assets\/[a-zA-Z0-9_./-]+\.(?:png|jpe?g|webp|gif|svg|bmp)$/i;
+
+function isImageRef(ref: string): boolean {
+  return IMAGE_REF_PATTERN.test(ref.replace(/^\.\//, '').replace(/^\//, ''));
+}
+
+export function collectHtmlAssetRefs(html: string): string[] {
+  const refs: string[] = [];
+  const add = (value: string) => {
+    const clean = value.trim().split(/[\s,]+/)[0] || '';
+
+    if (isImageRef(clean) && !refs.includes(clean)) {
+      refs.push(clean);
+    }
+  };
+
+  for (const match of html.matchAll(/<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/gi)) {
+    add(match[1]);
+  }
+
+  for (const match of html.matchAll(/\bsrcset\s*=\s*["']([^"']+)["']/gi)) {
+    for (const candidate of match[1].split(',')) {
+      add(candidate);
+    }
+  }
+
+  for (const match of html.matchAll(/url\(\s*["']?([^"')]+)["']?\s*\)/gi)) {
+    add(match[1]);
+  }
+
+  return refs;
+}
+
+export function collectJsAssetRefs(code: string): string[] {
+  const refs: string[] = [];
+  const re = /["'`](\/?assets\/[a-zA-Z0-9_./-]+\.(?:png|jpe?g|webp|gif|svg|bmp))["'`]/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = re.exec(code)) !== null) {
+    const ref = match[1].replace(/^\//, '');
+
+    if (!refs.includes(ref)) {
+      refs.push(ref);
+    }
+  }
+
+  return refs;
+}
+
 /** Same checks the post-build pipeline uses — available inside the agent tool loop. */
 export function runAgentBuildCheck(files: Record<string, string>, scope?: AgentCheckScope): AgentCheckResult {
   const fileList = toFileList(files);
@@ -84,6 +150,7 @@ export function runAgentBuildCheck(files: Record<string, string>, scope?: AgentC
   const deferred: string[] = [];
   const phaseSet = scope ? new Set(scope.phasePaths) : undefined;
   const planned = new Set(scope?.plannedPaths || []);
+  const approvedAssets = new Set((scope?.plannedAssetPaths || []).map((path) => path.replace(/^\.\//, '')));
   const html = files['index.html'] || '';
 
   if (!html) {
@@ -106,6 +173,22 @@ export function runAgentBuildCheck(files: Record<string, string>, scope?: AgentC
       }
 
       issues.push(`Missing local reference from index.html: ${ref}`);
+    }
+
+    /*
+     * Image references must resolve too. An approved generated image is
+     * written by the image builder, not by the agent, so it is absent from
+     * `plannedPaths` by design - that is why the previous wording pushed the
+     * model to DELETE correct image references.
+     */
+    for (const ref of collectHtmlAssetRefs(html)) {
+      const normalized = ref.replace(/^\.\//, '');
+
+      if (resolveStaticPreviewFileLoose(fileList, normalized) || approvedAssets.has(normalized)) {
+        continue;
+      }
+
+      issues.push(`index.html loads ${ref} but no approved image exists at that path`);
     }
   }
 
@@ -138,6 +221,14 @@ export function runAgentBuildCheck(files: Record<string, string>, scope?: AgentC
       }
 
       issues.push(`${path} imports "${spec}" but no project file matches that path`);
+    }
+
+    for (const ref of collectJsAssetRefs(content)) {
+      if (resolveStaticPreviewFileLoose(fileList, ref) || approvedAssets.has(ref)) {
+        continue;
+      }
+
+      issues.push(`${path} loads ${ref} but no approved image exists at that path`);
     }
   }
 

@@ -245,6 +245,29 @@ export function useCognitiveHarness(options: HarnessOptions) {
 
         if (options.agentEngine === 'cline') {
           const approvedPaths = blueprint.fileOperations.map((operation) => operation.path);
+          const approvedAssets = blueprint.assetOperations || [];
+
+          /*
+           * The builder prompt has a byte budget. `JSON.stringify(blueprint)`
+           * emits fileOperations before assetOperations, so with 80 modules
+           * carrying long purposes the approved IMAGES were sliced straight out
+           * of context and the game was written blind to its own art. Put the
+           * assets first and shorten each purpose; the file list (which the
+           * allowlist already enforces) is what the builder actually needs.
+           */
+          const blueprintForPrompt = (plan: typeof blueprint) =>
+            JSON.stringify({
+              assetOperations: plan.assetOperations || [],
+              engine: plan.engine,
+              systems: plan.systems,
+              title: plan.title,
+              fileOperations: plan.fileOperations.map((operation) => ({
+                path: operation.path,
+                operation: operation.operation,
+                purpose: String(operation.purpose || '').slice(0, 220),
+              })),
+              scriptOrder: plan.scriptOrder,
+            }).slice(0, 45_000);
 
           /*
            * 10x builds: one context window cannot hold a 60,000-line game.
@@ -301,7 +324,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
             'MODULE WIRING (MANDATORY): every symbol shared between files must be declared at TOP LEVEL with `export function name(…)` / `export const name = …` in its own module. Never hide declarations inside an IIFE, closure, or object facade — a named import only resolves to module-scope bindings. Never use `export default` for symbols other files import by name. After writing the files, cross-check each `import { … } from "./local.js"` against the target file’s actual top-level exports; a name the target does not top-level export is a build-breaking bug, not a style issue. No external packages or network backends (no Appwrite/Firebase/Supabase/CDN scripts) — the whole game must run offline in the browser.',
             'Wire every visible start, pause/resume, and restart button to a real state-changing handler; use diagnostic gameState "paused" while paused, keep HTML IDs/selectors in sync, and wire keyboard/touch input to gameplay. Only use `new` on values defined with the `class` keyword — never `new` a factory, arrow function, or plain object. Write readable source with 2-space indentation, one statement per line, and lines near 100 characters; never minify. Use smooth delta-time animation and easing/interpolation for motion and camera follow. Null-check canvas and HUD lookups.',
             'Expose window.__GAME_DIAGNOSTICS__ with ready, simulationSteps, inputsHandled, restartCount, resizeCount, and truthful gameState. Update these only in the real game loop and actual button/input/restart/resize handlers; preview validation does not fake these counters.',
-            'Run the available build and gameplay checks. If a check fails, diagnose from its actual output, repair approved files, and test again before finish_task. Verify every local stylesheet, script, import, and asset path resolves to a real approved file and fix folder mistakes by correcting the path. If a preview diagnostic says a name is missing from a file, add the missing export in that exact file — never change importers to work around it. The game must fill the entire viewport (full-window canvas, resize handler) with gameplay only — no text-heavy screens — and every approved file must load and run in the preview.',
+            'Run the available build and gameplay checks. If a check fails, diagnose from its actual output, repair approved files, and test again before finish_task. Verify every local stylesheet, script, and import resolves to a real approved file and fix folder mistakes by correcting the path. The images listed under APPROVED IMAGES are real files that already exist at exactly those paths — load them as-is and never delete or rename those references. If a preview diagnostic says a name is missing from a file, add the missing export in that exact file — never change importers to work around it. The game must fill the entire viewport (full-window canvas, resize handler) with gameplay only — no text-heavy screens — and every approved file must load and run in the preview.',
           ];
 
           /*
@@ -472,7 +495,13 @@ export function useCognitiveHarness(options: HarnessOptions) {
 
               return [
                 `Implement this user request using Cline tools: ${userRequest}`,
-                `Build phase ${phaseNumber} of ${phases.length} — approved blueprint: ${JSON.stringify(blueprint).slice(0, 45_000)}`,
+                `Build phase ${phaseNumber} of ${phases.length} — approved blueprint: ${blueprintForPrompt(blueprint)}`,
+                approvedAssets.length > 0
+                  ? `APPROVED IMAGES (already generated and written to disk — load them at these exact paths, do not recreate or rename them):\n${approvedAssets.map((asset) => `- ${asset.path} (${asset.kind}, ${asset.width}×${asset.height})`).join('\n')}`
+                  : 'APPROVED IMAGES: none were generated for this build. Draw everything procedurally on the canvas.',
+                approvedAssets.length > 0
+                  ? 'Load an approved image with `new Image()` and guard the draw: if `img.complete && img.naturalWidth > 0` draw the texture, otherwise render the equivalent shape so the game is never broken by a slow load.'
+                  : '',
                 `THIS RUN may write only these approved paths: ${paths.join(', ')}. The server rejects every other path.`,
                 writtenPaths.length
                   ? `Earlier phases already wrote: ${writtenPaths.join(', ')}. Read them with read_file when you need their APIs — never rewrite or delete them. Import only from this phase's files, earlier-phase files, or files already present in the workspace; never import a file that does not exist yet. Update index.html script tags (and styles) so this phase's new modules actually load.`
