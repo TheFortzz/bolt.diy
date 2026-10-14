@@ -11,6 +11,8 @@ interface Env {
   APPWRITE_DATABASE_ID?: string;
   APPWRITE_GAMES_COLLECTION_ID?: string;
   APPWRITE_BUCKET_ID?: string;
+  /** Storage bucket holding the reusable game-asset library (read-only access). */
+  APPWRITE_ASSETS_BUCKET_ID?: string;
   ANTHROPIC_API_KEY: string;
   OPENAI_API_KEY: string;
   GROQ_API_KEY: string;
