@@ -295,7 +295,12 @@ export function classifyAsset(input: ClassifyInput): Classification {
   }
 
   if (role !== 'asset') {
-    confidence = roleConfidence;
+    /*
+     * The ROLE is a reliable structural fact (the filename says "preview"),
+     * but what the preview depicts is not, so confidence is capped until a
+     * vision or human pass upgrades it.
+     */
+    confidence = Math.min(roleConfidence, 0.5);
   }
 
   // A preview is only trustworthy about its own role, never about its subject.

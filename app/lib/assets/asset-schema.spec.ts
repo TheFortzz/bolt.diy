@@ -81,8 +81,8 @@ describe('assetRecordSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('forbids preview text sourced only from the filename', () => {
-    const result = assetRecordSchema.safeParse(
+  it('caps unreviewed preview confidence so it never claims certainty', () => {
+    const overconfident = assetRecordSchema.safeParse(
       baseRecord({
         role: 'preview',
         dimension: 'data',
@@ -98,8 +98,25 @@ describe('assetRecordSchema', () => {
         },
       }),
     );
+    expect(overconfident.success).toBe(false);
 
-    expect(result.success).toBe(false);
+    const calibrated = assetRecordSchema.safeParse(
+      baseRecord({
+        role: 'preview',
+        dimension: 'data',
+        category: 'other',
+        format: 'png',
+        technical: undefined,
+        intelligence: {
+          description: 'Preview of crate',
+          tags: ['preview'],
+          source: 'filename',
+          confidence: 0.4,
+          perspective: 'any',
+        },
+      }),
+    );
+    expect(calibrated.success).toBe(true);
   });
 
   it('requires a reason for an unavailable asset', () => {

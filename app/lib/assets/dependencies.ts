@@ -48,13 +48,19 @@ export function matchDependency(catalogue: AssetCatalogue, uri: string): AssetRe
     return undefined;
   }
 
-  const exactPath = catalogue.filter((record) => normalizeRef(record.remotePath || record.originalName) === wanted);
+  /*
+   * Appwrite file NAMES carry the folder path ("models/crate.gltf"), so an
+   * exact comparison must use the full name, and the fallback must compare
+   * BASENAMES on both sides - comparing a basename to a full path silently
+   * matched nothing and left every model dependency unresolved.
+   */
+  const exactPath = catalogue.filter((record) => normalizeRef(record.originalName) === wanted);
 
   if (exactPath.length === 1) {
     return exactPath[0];
   }
 
-  const byBase = catalogue.filter((record) => normalizeRef(record.originalName) === wantedBase);
+  const byBase = catalogue.filter((record) => basename(record.originalName) === wantedBase);
 
   return byBase.length === 1 ? byBase[0] : undefined;
 }

@@ -282,11 +282,20 @@ export const assetRecordSchema = z
         });
       }
 
-      if (record.intelligence.source !== 'manual' && record.intelligence.source !== 'vision') {
+      /*
+       * A preview may carry a structural description ("preview of crate.glb")
+       * because that is derived from files we can actually verify, but it may
+       * never present itself as analysed or certain. The requirement is
+       * calibrated certainty, not a ban on all text.
+       */
+      const isReviewed = record.intelligence.source === 'manual' || record.intelligence.source === 'vision';
+
+      if (!isReviewed && record.intelligence.confidence > 0.6) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ['intelligence', 'source'],
-          message: 'Previews must be labelled from vision or manual review, never guessed from the filename.',
+          path: ['intelligence', 'confidence'],
+          message:
+            'A preview that was not reviewed by vision or a human must not claim more than 0.6 confidence about its subject.',
         });
       }
     }
@@ -299,8 +308,13 @@ export const assetRecordSchema = z
       });
     }
 
-    // A dimension must agree with the probed metadata it carries.
-    if (record.technical) {
+    /*
+     * A real asset's dimension must agree with its probed metadata. Previews
+     * are exempt: their dimension is deliberately demoted to `data` as a
+     * selection policy, while the probed facts (a 512x512 PNG) stay recorded
+     * and useful.
+     */
+    if (record.technical && record.role === 'asset') {
       const kindToDimension: Record<string, string> = { image: '2d', model3d: '3d', audio: 'audio' };
 
       if (kindToDimension[record.technical.kind] !== record.dimension) {

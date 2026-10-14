@@ -47,6 +47,18 @@ describe('dependency matching', () => {
     expect(matchDependency(catalogue, 'textures/crate.png')?.id).toBe('a');
   });
 
+  it('matches a dependency against a folder-prefixed catalogue filename', () => {
+    /*
+     * Appwrite stores the folder inside the file name, so the reference
+     * "crate_albedo.png" must still find "models/crate_albedo.png".
+     */
+    const catalogue = assetCatalogueSchema.parse([
+      record({ id: 'tex', originalName: 'models/crate_albedo.png', remotePath: 'models' }),
+    ]);
+
+    expect(matchDependency(catalogue, 'crate_albedo.png')?.id).toBe('tex');
+  });
+
   it('falls back to a unique basename match', () => {
     const catalogue = assetCatalogueSchema.parse([record({ id: 'a', originalName: 'crate.png' })]);
 
