@@ -13,6 +13,15 @@ interface Env {
   APPWRITE_BUCKET_ID?: string;
   /** Storage bucket holding the reusable game-asset library (read-only access). */
   APPWRITE_ASSETS_BUCKET_ID?: string;
+  /** Key inside ASSET_CATALOGUE_KV containing the generated JSON index. */
+  ASSET_CATALOGUE_PATH?: string;
+  /** Cloudflare KV namespace binding storing the asset catalogue. */
+  ASSET_CATALOGUE_KV?: {
+    get(key: string, type: 'text'): Promise<string | null>;
+    put(key: string, value: string): Promise<void>;
+  };
+  /** Separate operator-only token for POST /api/admin/asset-catalogue. */
+  ASSET_CATALOGUE_ADMIN_TOKEN?: string;
   ANTHROPIC_API_KEY: string;
   OPENAI_API_KEY: string;
   GROQ_API_KEY: string;

@@ -10,6 +10,8 @@ import {
 } from './dependencies';
 
 function record(overrides: Partial<AssetRecord> & { id: string; originalName: string }): AssetRecord {
+  const dimension = overrides.dimension || '2d';
+  const format = overrides.format || (dimension === '3d' ? 'glb' : 'png');
   const base = {
     id: overrides.id,
     appwrite: { bucketId: 'assets', fileId: overrides.id },
@@ -18,9 +20,26 @@ function record(overrides: Partial<AssetRecord> & { id: string; originalName: st
     mimeType: '',
     sizeOriginal: 1024,
     role: 'asset' as const,
-    dimension: '2d' as const,
+    dimension,
     category: 'sprite' as const,
-    format: 'png' as const,
+    format,
+    ...(dimension === '3d'
+      ? {
+          technical: {
+            kind: 'model3d' as const,
+            model: {
+              format: format as 'glb' | 'gltf' | 'obj' | 'mtl',
+              meshes: 1,
+              materials: [],
+              textures: [],
+              embeddedTextures: 0,
+              animations: 0,
+              requiresDraco: false,
+              externalRefs: [],
+            },
+          },
+        }
+      : {}),
     dependencies: [],
     intelligence: {
       description: 'asset',

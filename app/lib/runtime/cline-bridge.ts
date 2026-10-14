@@ -11,6 +11,8 @@ export interface ClineAgentRequest {
    * only ever write its own slice of the plan.
    */
   phasePaths?: string[];
+  /** Approved asset paths whose bytes were successfully materialised locally. */
+  availableAssetPaths?: string[];
   executionToken?: string;
   systemContext?: string;
   history?: Array<{ role: 'user' | 'assistant'; content: string }>;

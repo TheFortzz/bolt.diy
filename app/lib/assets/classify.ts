@@ -147,8 +147,10 @@ function dimensionFromFormat(format: AssetFormat): AssetDimension | undefined {
 }
 
 /**
- * Category for 2D images uses real pixel facts first (a uniform grid means a
- * sheet; a wide image with no alpha is a background), and only then names.
+ * Category for 2D images uses filename or reviewed visual evidence for
+ * purpose. Dimensions/alpha are technical facts, not proof an image is a
+ * background, particle or spritesheet; the low-confidence grid hint stays in
+ * metadata until a visual reviewer confirms it.
  */
 function categoryFromImage(
   technical: Extract<AssetTechnicalMetadata, { kind: 'image' }>,
@@ -156,18 +158,6 @@ function categoryFromImage(
 ): AssetCategory {
   const { image } = technical;
   const ratio = image.width / Math.max(1, image.height);
-
-  /*
-   * Pixel evidence outranks the low-confidence grid hint: a large opaque wide
-   * image is a background whether or not its size divides into cells.
-   */
-  if (!image.hasAlpha && image.width >= 512 && ratio >= 1.6) {
-    return 'background';
-  }
-
-  if (image.tileGrid) {
-    return 'spritesheet';
-  }
 
   if (image.frames > 1) {
     return 'animation';
@@ -190,11 +180,8 @@ function categoryFromImage(
     return namedCategory;
   }
 
-  if (image.hasAlpha && image.width <= 256 && image.height <= 256) {
-    return 'particle';
-  }
-
-  return 'sprite';
+  // Do not infer a sprite/background/particle purpose from dimensions alone.
+  return 'other';
 }
 
 function categoryFromModel(format: AssetFormat, namedCategory: AssetCategory | undefined): AssetCategory {

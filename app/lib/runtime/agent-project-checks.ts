@@ -86,18 +86,19 @@ function collectJsLocalImports(code: string): string[] {
 }
 
 /**
- * Images the game actually loads.
+ * Binary assets the game actually loads.
  *
  * Image references were validated nowhere: `collectHtmlLocalRefs` only matches
  * `script|link`, so a game pointing at `assets/hero.png` that was never
  * generated shipped a silently broken visual. These collectors catch
- * `<img src>`, `srcset`, CSS `url(...)` and the `assets/...` string literals
- * that `new Image()` / `drawImage` loaders use.
+ * `<img src>`, audio/video/source `src`, `srcset`, CSS `url(...)` and the
+ * `assets/...` string literals used by image/audio/model/font loaders.
  */
-const IMAGE_REF_PATTERN = /^assets\/[a-zA-Z0-9_./-]+\.(?:png|jpe?g|webp|gif|svg|bmp)$/i;
+const PROJECT_ASSET_REF_PATTERN =
+  /^assets\/[a-zA-Z0-9_./-]+\.(?:png|apng|jpe?g|webp|gif|svg|bmp|glb|gltf|bin|obj|mtl|fbx|wav|mp3|ogg|ktx2|ttf|otf|woff2?)$/i;
 
 function isImageRef(ref: string): boolean {
-  return IMAGE_REF_PATTERN.test(ref.replace(/^\.\//, '').replace(/^\//, ''));
+  return PROJECT_ASSET_REF_PATTERN.test(ref.replace(/^\.\//, '').replace(/^\//, ''));
 }
 
 export function collectHtmlAssetRefs(html: string): string[] {
@@ -111,6 +112,10 @@ export function collectHtmlAssetRefs(html: string): string[] {
   };
 
   for (const match of html.matchAll(/<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/gi)) {
+    add(match[1]);
+  }
+
+  for (const match of html.matchAll(/<(?:audio|video|source)\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/gi)) {
     add(match[1]);
   }
 

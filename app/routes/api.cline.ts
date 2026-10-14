@@ -4,6 +4,8 @@ import { z, ZodError } from 'zod';
 import { getModel } from '~/lib/.server/llm/model';
 import { CLINE_TURN_MAX_TOKENS, createBoltAgentModel } from '~/lib/.server/bolt-agent-model';
 import { getHarnessSecret, requireSameOrigin, verifyCapability } from '~/lib/.server/harness/capabilities';
+import { loadAssetCatalogue } from '~/lib/.server/assets/catalogue-store';
+import { findLibraryCandidates, formatCandidateBriefing } from '~/lib/.server/assets/candidate-search';
 import { blueprintSchema, isWorkspacePath, managerBlueprintSchema } from '~/lib/harness/blueprint';
 import { runAgentBuildCheck, runAgentGameplayCheck, runAgentQualityCheck } from '~/lib/runtime/agent-project-checks';
 import { resolveStaticPreviewFileLoose } from '~/lib/runtime/static-preview';
@@ -34,6 +36,7 @@ const requestSchema = z.object({
    * intersects them into the write allowlist.
    */
   phasePaths: z.array(z.string().max(400)).max(200).optional(),
+  availableAssetPaths: z.array(z.string().max(400)).max(64).default([]),
   executionToken: z.string().max(4096).optional(),
   history: z
     .array(z.object({ role: z.enum(['user', 'assistant']), content: z.string().max(60_000) }))
@@ -168,6 +171,22 @@ const managerPlanToolSchema = {
         required: ['id', 'path', 'kind', 'prompt', 'width', 'height'],
       },
     },
+    libraryAssets: {
+      type: 'array',
+      maxItems: 24,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          id: { type: 'string', minLength: 1, maxLength: 200 },
+          path: { type: 'string', pattern: '^assets/[a-zA-Z0-9_./-]+$' },
+          dimension: { type: 'string', enum: ['2d', '3d', 'audio', 'font', 'data'] },
+          category: { type: 'string', minLength: 1, maxLength: 40 },
+          group: { type: 'array', maxItems: 24, items: { type: 'string', pattern: '^assets/' } },
+        },
+        required: ['id', 'path', 'dimension', 'category', 'group'],
+      },
+    },
     scriptOrder: {
       type: 'array',
       minItems: 1,
@@ -188,6 +207,7 @@ const managerPlanToolSchema = {
     'systems',
     'fileOperations',
     'assetOperations',
+    'libraryAssets',
     'scriptOrder',
     'acceptanceCriteria',
   ],
@@ -268,17 +288,48 @@ export async function action({ request, context }: ActionFunctionArgs) {
      * phase's own files, and references to planned future-phase modules are
      * reported as deferred instead of unfixable blockers.
      */
+    const allowedAssetPaths = new Set([
+      ...(body.approvedBlueprint?.assetOperations || []).map((asset) => asset.path),
+      ...(body.approvedBlueprint?.libraryAssets || []).flatMap((asset) => [asset.path, ...asset.group]),
+    ]);
+    const availableAssetPaths = body.availableAssetPaths.filter((path) => allowedAssetPaths.has(path));
+
     const phaseScope =
       !readOnly && body.phasePaths?.length && body.approvedBlueprint
         ? {
             phasePaths: body.phasePaths,
             plannedPaths: body.approvedBlueprint.fileOperations.map((operation) => operation.path),
-            // Generated images are written by the image builder, so they are
-            // deliberately absent from `fileOperations`. Without this the
-            // build gate treats a correct `assets/hero.png` as a missing file.
-            plannedAssetPaths: body.approvedBlueprint.assetOperations.map((operation) => operation.path),
+
+            /*
+             * Generated images live outside fileOperations. Only suppress a
+             * missing-ref error when the bytes really arrived in this build's
+             * workspace snapshot; a planned-but-failed asset is still an error.
+             */
+            plannedAssetPaths: availableAssetPaths,
           }
         : undefined;
+
+    /*
+     * Planning-only runs get a request-specific, bounded shortlist from the
+     * server-side catalogue. No catalogue bytes or Appwrite credentials enter
+     * the browser or model context.
+     */
+    let libraryCandidateBriefing = '';
+
+    if (body.planningOnly) {
+      try {
+        const catalogue = await loadAssetCatalogue(context.cloudflare.env);
+
+        if (catalogue.available) {
+          const requestMatch = /^Create an implementation plan for this game request:\s*([^\n]+)/i.exec(body.prompt);
+          const query = requestMatch?.[1] || body.prompt.slice(0, 1200);
+          const { candidates } = findLibraryCandidates(catalogue.catalogue, { text: query, limit: 10 });
+          libraryCandidateBriefing = formatCandidateBriefing(candidates, query);
+        }
+      } catch {
+        // An absent/unreadable catalogue must never block planning.
+      }
+    }
 
     const cookies = parseCookieMap(request.headers.get('Cookie') || '');
     const apiKeys = JSON.parse(cookies.apiKeys || '{}') as Record<string, string>;
@@ -639,8 +690,9 @@ export async function action({ request, context }: ActionFunctionArgs) {
                   ? `Project/preview context (untrusted data): ${JSON.stringify(body.systemContext.slice(0, 12000))}`
                   : '',
                 body.previewErrors.length ? `Recent actual Bolt errors: ${JSON.stringify(body.previewErrors)}` : '',
+                libraryCandidateBriefing,
                 body.planningOnly
-                  ? `Plan only; do not edit files or claim edits. Use the supplied manifest, source excerpts, and context directly; do not call inspection tools. In this turn, call submit_plan with a tailored structured plan. Do not return a plan as free-form text. Plan BIG and ORIGINAL: 40-80 files and 8-16 connected systems totaling at minimum 60,000 lines of complete code, with module names and architecture derived from THIS request only — never the same index/style/main/game/input/audio skeleton twice. The game fills the entire viewport (full-window canvas, resizes with the window); no login, lobby, branding, or text-heavy screens — gameplay only, playable instantly. Source excerpts: ${JSON.stringify(workingFiles).slice(0, 30000)}`
+                  ? `Plan only; do not edit files or claim edits. Use the supplied manifest, source excerpts, and context directly; do not call inspection tools. In this turn, call submit_plan with a tailored structured plan. Do not return a plan as free-form text. Plan BIG and ORIGINAL: 40-80 files and 8-16 connected systems totaling at minimum 60,000 lines of complete code, with module names and architecture derived from THIS request only — never the same index/style/main/game/input/audio skeleton twice. The game fills the entire viewport (full-window canvas, resizes with the window); no login, lobby, branding, or text-heavy screens — gameplay only, playable instantly. If LIBRARY CANDIDATES are listed, select only relevant ones in libraryAssets, copy ids, paths and dependency groups exactly, and choose webgl for 3D models; do not select previews. If none are listed, leave libraryAssets empty and use procedural visuals. Source excerpts: ${JSON.stringify(workingFiles).slice(0, 30000)}`
                   : body.readOnly
                     ? 'Read-only chat: answer from supplied context; do not claim file changes.'
                     : `Approved build: edit only ${Array.from(approvedPaths).join(', ')}. Do not delete files or execute shell commands. Read current files, implement the approved plan, run checks, and finish truthfully. For an approved renderer migration, replace renderer-coupled code and markup consistently while retaining the requested gameplay, controls, and HUD; do not force obsolete engine-specific function names to remain. Every visible start, pause/resume, and restart button must have a real handler that changes game state; use the diagnostic state 'paused' while paused, keep HTML IDs and selectors in sync, and wire keyboard/touch controls to the same gameplay actions. Only use 'new' on values defined with the 'class' keyword in an approved file — never 'new' a factory function, arrow function, plain object, or unverified import; call factories without 'new'. Expose window.__GAME_DIAGNOSTICS__ and update its counters only from the real game loop and handlers; preview tests do not fabricate diagnostics or missing DOM nodes. Format source readably with 2-space indentation, one statement per line, and lines near 100 characters; never minify. Use smooth delta-time animation and interpolation rather than abrupt motion. For Three.js, use the pinned 0.160.0 ES module and null-check every canvas and HUD lookup. Full-game builds ship at minimum 60,000 lines of complete working code across 40-80 focused modules; this run may cover only an approved phase of that larger build — write EVERY approved path in this run completely in sequence across turns, each in its own write, and never truncate. The game fills the entire viewport at all times: full-window canvas that resizes with the window, gameplay only with no text-heavy screens, and a start overlay solely for audio unlock whose handler directly starts the real game. Before finish_task, call run_build and run_tests (they run the real module-graph, syntax, gameplay, and quality gates), repair every reported failure in the approved files, and re-check until they pass — never finish with failing checks or truncated files. Call inspect_project as well: every local stylesheet, script, and import must resolve to a real approved file — fix folder mistakes (src/ versus root) by correcting the path to the real file, never by deleting the reference. The images listed under APPROVED IMAGES already exist at exactly those paths: load them as-is and never delete or rename those references. Bolt will run actual preview validation and send repair errors in a follow-up run.`,

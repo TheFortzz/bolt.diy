@@ -13,7 +13,6 @@ import {
   type AssetLibraryConfig,
   fetchAssetBytes,
   listAssetFiles,
-  verifyAssetAccess,
 } from '~/lib/.server/assets/asset-library-client';
 
 /**
@@ -45,10 +44,13 @@ export interface CatalogueBuildOptions {
 
   /**
    * Optional enrichment (e.g. vision analysis). Receives the probed record and
-   * returns merged intelligence; throwing is treated as "no enrichment" so a
-   * flaky analyser never loses the catalogue.
+   * bytes; throwing is treated as "no enrichment" so a flaky analyser never
+   * loses the catalogue.
    */
-  enrich?: (record: AssetRecord) => Promise<Partial<AssetRecord['intelligence']>>;
+  enrich?: (record: AssetRecord, bytes: Uint8Array) => Promise<AssetVisionEnrichment>;
+
+  /** Existing catalogue records are merged/preserved, never silently dropped. */
+  previousCatalogue?: AssetCatalogue;
 }
 
 export interface CatalogueBuildReport {
@@ -67,6 +69,11 @@ export interface CatalogueBuildReport {
   /** Non-fatal problems worth surfacing in a report. */
   warnings: string[];
   blockers: AssetLibraryBlocker[];
+}
+
+export interface AssetVisionEnrichment {
+  category?: AssetRecord['category'];
+  intelligence?: Partial<AssetRecord['intelligence']>;
 }
 
 /** Derive a folder-relative path so dependency matching can use real paths. */
@@ -130,11 +137,12 @@ async function probeOne(
   }
 
   try {
-    const extra = await options.enrich(base);
+    const extra = await options.enrich(base, bytes);
 
     return {
       ...base,
-      intelligence: { ...base.intelligence, ...extra },
+      category: extra.category || base.category,
+      intelligence: { ...base.intelligence, ...(extra.intelligence || {}) },
     } as AssetRecord;
   } catch {
     // Enrichment is optional: keep the probed record rather than lose the file.
@@ -169,6 +177,8 @@ export async function buildAssetCatalogue(options: CatalogueBuildOptions): Promi
   }
 
   const files = listed.data.files.slice(0, maxFiles);
+  const previousById = new Map((options.previousCatalogue || []).map((record) => [record.id, record]));
+  const seenIds = new Set<string>();
 
   if (listed.data.files.length > maxFiles) {
     warnings.push(`Stopped at ${maxFiles} of ${listed.data.files.length} files (raise maxFiles to index more).`);
@@ -177,19 +187,67 @@ export async function buildAssetCatalogue(options: CatalogueBuildOptions): Promi
   const records: AssetRecord[] = [];
 
   for (const file of files) {
+    const id = stableAssetId(options.config.bucketId, file.id);
+    seenIds.add(id);
+
     // Previews and documentation are indexed for context, never as loadable art.
     const record = await probeOne(options, file);
 
     if (!record) {
+      const previous = previousById.get(id);
       unreadable.push({
         id: file.id,
         originalName: file.name,
         reason: 'bytes could not be read within the probing limit',
       });
+
+      if (previous) {
+        records.push({
+          ...previous,
+          available: false,
+          unavailableReason: 'Could not read remote bytes during the latest catalogue scan.',
+          lastVerifiedAt: (options.now ?? (() => new Date().toISOString()))(),
+        });
+      }
+
       continue;
     }
 
-    records.push(record);
+    const previous = previousById.get(id);
+    const contentUnchanged = Boolean(previous?.checksum && previous.checksum === record.checksum);
+    const preserveReviewed =
+      contentUnchanged && (previous?.intelligence.source === 'manual' || previous?.intelligence.source === 'vision');
+
+    records.push({
+      ...record,
+      discoveredAt: previous?.discoveredAt || record.discoveredAt,
+      licensing: previous?.licensing,
+      intelligence: preserveReviewed ? previous!.intelligence : record.intelligence,
+    });
+  }
+
+  /*
+   * Keep records from the previous index if they were not present in a
+   * completed bucket listing. Mark them unavailable rather than deleting
+   * metadata, license terms, hashes or dependency history. A paginated/limited
+   * scan cannot prove an unseen file was deleted, so only complete scans do
+   * this.
+   */
+  const scanComplete = !listed.data.nextCursor && listed.data.files.length <= maxFiles;
+
+  if (scanComplete) {
+    for (const previous of options.previousCatalogue || []) {
+      if (seenIds.has(previous.id)) {
+        continue;
+      }
+
+      records.push({
+        ...previous,
+        available: false,
+        unavailableReason: 'File was not present in the latest complete bucket listing.',
+        lastVerifiedAt: (options.now ?? (() => new Date().toISOString()))(),
+      });
+    }
   }
 
   /*
@@ -216,20 +274,11 @@ export async function buildAssetCatalogue(options: CatalogueBuildOptions): Promi
     }
   }
 
-  // Confirm reachability for anything we could not download.
-  for (const record of finalRecords) {
-    if (record.available) {
-      continue;
-    }
-
-    const verified = await verifyAssetAccess(options.config, record.appwrite.fileId, {
-      fetchImpl: options.fetchImpl,
-    });
-
-    if (!verified.ok) {
-      warnings.push(`${record.originalName}: ${verified.blocker.message}`);
-    }
-  }
+  /*
+   * Failed downloads and missing listings are already represented in
+   * `unreadable` and as `available: false` records; avoid a second remote
+   * request that could turn a useful partial scan into an exception.
+   */
 
   const counts: Record<string, number> = {};
 

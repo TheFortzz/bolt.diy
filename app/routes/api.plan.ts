@@ -1,6 +1,8 @@
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { z } from 'zod';
 import { getFluxApiKey } from '~/lib/.server/flux/flux-client';
+import { loadAssetCatalogue } from '~/lib/.server/assets/catalogue-store';
+import { findLibraryCandidates } from '~/lib/.server/assets/candidate-search';
 import { runManagerAgent } from '~/lib/.server/harness/agents';
 import { getBaseURL } from '~/lib/.server/llm/api-key';
 import { getFortzChatCompletionsUrl, getFortzDeploymentConfig } from '~/lib/.server/llm/deployment-config';
@@ -83,6 +85,36 @@ export async function action({ request, context }: ActionFunctionArgs) {
       throw new Error('Source excerpts must belong to the workspace manifest.');
     }
 
+    /*
+     * Search the verified library for THIS request and hand the manager a
+     * short, ranked shortlist. Bounded and failure-tolerant on purpose: no
+     * catalogue, an unreadable one, or zero matches all degrade to the exact
+     * behaviour the studio had before the library existed.
+     */
+    let libraryCandidates: Array<{
+      id: string;
+      path: string;
+      dimension: string;
+      category: string;
+      format: string;
+      requiredEngine?: 'webgl';
+      group: string[];
+      description: string;
+    }> = [];
+
+    try {
+      const catalogue = await loadAssetCatalogue(env);
+
+      if (catalogue.available) {
+        libraryCandidates = findLibraryCandidates(catalogue.catalogue, {
+          text: `${input.request} ${input.systemContext || ''}`.slice(0, 2000),
+          limit: 10,
+        }).candidates;
+      }
+    } catch {
+      // Never let catalogue trouble fail a build plan.
+    }
+
     let blueprint;
 
     try {
@@ -93,6 +125,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
         apiKeys: input.apiKeys,
         env,
         imagesAvailable: Boolean(getFluxApiKey(env)),
+        libraryCandidates,
         proposedPlan: input.proposedPlan,
         signal: request.signal,
       });

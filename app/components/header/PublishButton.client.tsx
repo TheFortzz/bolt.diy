@@ -1,17 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '@nanostores/react';
 import { workbenchStore } from '~/lib/stores/workbench';
+import { generatedAssets } from '~/lib/stores/generated-assets';
 import { chatId } from '~/lib/persistence';
 import { toast } from 'react-toastify';
 
 function generateAutoThumbnail(gameTitle: string, gameGenre: string): string {
-  if (typeof document === 'undefined') return '';
+  if (typeof document === 'undefined') {
+    return '';
+  }
+
   try {
     const canvas = document.createElement('canvas');
     canvas.width = 640;
     canvas.height = 360;
+
     const ctx = canvas.getContext('2d');
-    if (!ctx) return '';
+
+    if (!ctx) {
+      return '';
+    }
 
     const colors: Record<string, [string, string]> = {
       ACTION: ['#dc2626', '#f97316'],
@@ -34,12 +42,14 @@ function generateAutoThumbnail(gameTitle: string, gameGenre: string): string {
     // Decorative grid
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
     ctx.lineWidth = 1.5;
+
     for (let x = 0; x < 640; x += 40) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, 360);
       ctx.stroke();
     }
+
     for (let y = 0; y < 360; y += 40) {
       ctx.beginPath();
       ctx.moveTo(0, y);
@@ -57,11 +67,13 @@ function generateAutoThumbnail(gameTitle: string, gameGenre: string): string {
     // Genre pill
     ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
     ctx.beginPath();
+
     if (typeof (ctx as any).roundRect === 'function') {
       (ctx as any).roundRect(40, 35, 120, 32, 16);
     } else {
       ctx.rect(40, 35, 120, 32);
     }
+
     ctx.fill();
     ctx.strokeStyle = c2;
     ctx.lineWidth = 1.5;
@@ -80,6 +92,7 @@ function generateAutoThumbnail(gameTitle: string, gameGenre: string): string {
     ctx.textBaseline = 'middle';
     ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
     ctx.shadowBlur = 12;
+
     const displayTitle = (gameTitle || 'NEW GAME').toUpperCase();
     ctx.fillText(displayTitle.length > 24 ? displayTitle.slice(0, 22) + '...' : displayTitle, 320, 180);
     ctx.shadowBlur = 0;
@@ -122,11 +135,14 @@ export function PublishButton() {
       }
     };
     const onStorage = (event: StorageEvent) => {
-      if (event.key === publishStorageKey) refreshPublishedState();
+      if (event.key === publishStorageKey) {
+        refreshPublishedState();
+      }
     };
 
     refreshPublishedState();
     window.addEventListener('storage', onStorage);
+
     return () => window.removeEventListener('storage', onStorage);
   }, [publishStorageKey]);
 
@@ -136,6 +152,7 @@ export function PublishButton() {
       const artifacts = workbenchStore.artifacts.get();
       const latestId = workbenchStore.artifactIdList[workbenchStore.artifactIdList.length - 1];
       const latestArtifact = latestId ? artifacts[latestId] : undefined;
+
       if (latestArtifact?.title && !title) {
         setTitle(latestArtifact.title);
       }
@@ -147,6 +164,7 @@ export function PublishButton() {
     if (thumbnailFile) {
       const url = URL.createObjectURL(thumbnailFile);
       setPreviewThumb(url);
+
       return () => URL.revokeObjectURL(url);
     } else {
       const autoUrl = generateAutoThumbnail(title || 'My Game', genre || 'ACTION');
@@ -176,10 +194,12 @@ export function PublishButton() {
       toast.error('Build a game before publishing it.');
       return;
     }
+
     try {
       if (isPublished || localStorage.getItem(publishStorageKey)) {
         setPublishedStorageKey(publishStorageKey);
         toast.info('This game has already been published.');
+
         return;
       }
     } catch {
@@ -194,6 +214,7 @@ export function PublishButton() {
 
       // Convert thumbnail or use auto-generated thumbnail
       let thumbDataUrl = '';
+
       if (thumbnailFile) {
         thumbDataUrl = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
@@ -203,6 +224,7 @@ export function PublishButton() {
         });
       } else {
         setIsGeneratingThumbnail(true);
+
         try {
           const response = await fetch('/api/generate-thumbnail', {
             method: 'POST',
@@ -223,6 +245,7 @@ export function PublishButton() {
           setPreviewThumb(thumbDataUrl);
         } catch (error) {
           thumbDataUrl = generateAutoThumbnail(finalTitle, finalGenre);
+
           const detail = error instanceof Error ? error.message : '';
           toast.info(
             detail
@@ -237,6 +260,22 @@ export function PublishButton() {
 
       // Collect project files from the workbench store
       const projectFiles = (workbenchStore as any).files?.get?.() ?? files ?? {};
+
+      /*
+       * Binary assets (sprites, audio, 3D models) are not project source, so
+       * they travel separately as data URLs. Without this a published game
+       * keeps its assets/hero.png reference with nothing behind it.
+       */
+      const activeAssetPaths = new Set(
+        Object.keys(projectFiles).map((path) =>
+          path.replace(/^(?:\/home\/project\/|\/project\/|home\/project\/|project\/|\/|\.\/)+/, ''),
+        ),
+      );
+      const assetPayloads = Object.fromEntries(
+        Object.values(generatedAssets.get())
+          .filter((asset) => activeAssetPaths.has(asset.path))
+          .map((asset) => [asset.path, asset.dataUrl]),
+      );
       let publicationStatus = 'live';
 
       if (window.parent !== window) {
@@ -270,6 +309,7 @@ export function PublishButton() {
 
             window.clearTimeout(timeout);
             window.removeEventListener('message', onResult);
+
             if (event.data.success) {
               resolve(typeof event.data.status === 'string' ? event.data.status : 'live');
             } else {
@@ -288,6 +328,7 @@ export function PublishButton() {
                 description: description.trim(),
                 thumbDataUrl,
                 files: projectFiles,
+                assets: assetPayloads,
               },
             },
             parentOrigin,
@@ -303,6 +344,7 @@ export function PublishButton() {
             description: description.trim(),
             thumbDataUrl,
             files: projectFiles,
+            assets: assetPayloads,
           }),
         });
         const data = (await res.json()) as { success?: boolean; status?: string; error?: string };
@@ -339,7 +381,13 @@ export function PublishButton() {
           disabled={isPublished}
           title={isPublished ? 'This game is already published' : 'Publish your game to thefortz.me'}
         >
-          <div className={isPublished ? 'i-ph:check-circle-fill text-emerald-300 text-xs' : 'i-ph:rocket-launch text-orange-300 text-xs'} />
+          <div
+            className={
+              isPublished
+                ? 'i-ph:check-circle-fill text-emerald-300 text-xs'
+                : 'i-ph:rocket-launch text-orange-300 text-xs'
+            }
+          />
           <span>{isPublished ? 'PUBLISHED' : 'PUBLISH'}</span>
         </button>
       </div>
@@ -356,21 +404,28 @@ export function PublishButton() {
             <div className="flex items-center justify-between border-b border-orange-300/25 pb-3 mb-4">
               <div className="flex items-center gap-2">
                 <span className="text-xl">🎮</span>
-                <h3 className="font-extrabold text-lg tracking-wider uppercase text-orange-300 font-['Anton',sans-serif]">Publish Game</h3>
+                <h3 className="font-extrabold text-lg tracking-wider uppercase text-orange-300 font-['Anton',sans-serif]">
+                  Publish Game
+                </h3>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
                 className="text-white/70 hover:text-white px-2 py-1 text-sm rounded-none border border-transparent hover:border-white/20 transition-all cursor-pointer"
-              >✕</button>
+              >
+                ✕
+              </button>
             </div>
 
             <p className="text-xs text-slate-200 mb-4 leading-relaxed font-medium">
-              Publish directly to <strong className="text-orange-300">thefortz.me</strong>. AI cover art is generated automatically unless you upload a custom thumbnail.
+              Publish directly to <strong className="text-orange-300">thefortz.me</strong>. AI cover art is generated
+              automatically unless you upload a custom thumbnail.
             </p>
 
             <div className="flex flex-col gap-3">
               <div>
-                <label className="text-[11px] font-bold text-sky-100/80 uppercase tracking-wide mb-1 block">Game Name</label>
+                <label className="text-[11px] font-bold text-sky-100/80 uppercase tracking-wide mb-1 block">
+                  Game Name
+                </label>
                 <input
                   type="text"
                   placeholder="e.g. Cyber Runner"
@@ -381,7 +436,9 @@ export function PublishButton() {
               </div>
 
               <div>
-                <label className="text-[11px] font-bold text-sky-100/80 uppercase tracking-wide mb-1 block">Genre</label>
+                <label className="text-[11px] font-bold text-sky-100/80 uppercase tracking-wide mb-1 block">
+                  Genre
+                </label>
                 <select
                   value={genre}
                   onChange={(e) => setGenre(e.target.value)}
@@ -396,7 +453,9 @@ export function PublishButton() {
               </div>
 
               <div>
-                <label className="text-[11px] font-bold text-sky-100/80 uppercase tracking-wide mb-1 block">Description (optional)</label>
+                <label className="text-[11px] font-bold text-sky-100/80 uppercase tracking-wide mb-1 block">
+                  Description (optional)
+                </label>
                 <textarea
                   placeholder="Tell players about your game..."
                   value={description}

@@ -86,7 +86,7 @@ function tokenSetMatch(terms: string[], tokens: string[]): { matched: string[] }
 export function scoreAsset(record: AssetRecord, query: AssetQuery, catalogue: AssetCatalogue): RankedAsset | undefined {
   const report = checkCompatibility(record, catalogue);
 
-  if (!isAssetUsable(record)) {
+  if (!report.usable || !isAssetUsable(record)) {
     return undefined;
   }
 

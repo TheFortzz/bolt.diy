@@ -220,7 +220,9 @@ describe('buildAssetCatalogue', () => {
     const enriched = await buildAssetCatalogue({
       config,
       fetchImpl: fakeAppwrite(files),
-      enrich: async () => ({ source: 'vision', confidence: 0.95, description: 'A wooden crate.' }),
+      enrich: async () => ({
+        intelligence: { source: 'vision', confidence: 0.95, description: 'A wooden crate.' },
+      }),
     });
     expect(enriched.records[0].intelligence.source).toBe('vision');
 
@@ -250,6 +252,63 @@ describe('buildAssetCatalogue', () => {
 
     expect(report.unreadable).toHaveLength(1);
     expect(report.unreadable[0].originalName).toBe('big.png');
+  });
+
+  it('preserves licensing and reviewed metadata when re-indexing the same bytes', async () => {
+    const files = [{ id: 'f1', name: 'crate.png', bytes: pngBytes(64, 64) }];
+    const first = await buildAssetCatalogue({ config, fetchImpl: fakeAppwrite(files) });
+    const previous = first.records.map((record) => ({
+      ...record,
+      licensing: { name: 'CC-BY-4.0', attributionRequired: true },
+      intelligence: {
+        ...record.intelligence,
+        source: 'vision' as const,
+        confidence: 0.98,
+        description: 'A hand-painted crate.',
+      },
+    }));
+
+    const second = await buildAssetCatalogue({ config, fetchImpl: fakeAppwrite(files), previousCatalogue: previous });
+
+    expect(second.records[0].licensing?.name).toBe('CC-BY-4.0');
+    expect(second.records[0].intelligence.description).toBe('A hand-painted crate.');
+    expect(second.records[0].intelligence.source).toBe('vision');
+  });
+
+  it('keeps a previously catalogued file as unavailable instead of deleting its metadata', async () => {
+    const previous = assetCatalogueSchema.parse([
+      {
+        id: 'assets:f-gone',
+        appwrite: { bucketId: 'assets', fileId: 'f-gone' },
+        originalName: 'rare/old_model.glb',
+        remotePath: 'rare',
+        mimeType: 'model/gltf-binary',
+        sizeOriginal: 200,
+        role: 'asset',
+        dimension: '3d',
+        category: 'model3d',
+        format: 'glb',
+        dependencies: [],
+        intelligence: {
+          description: 'Verified old model',
+          tags: ['rare'],
+          source: 'manual',
+          confidence: 1,
+          perspective: 'any',
+        },
+        licensing: { name: 'Keep this license' },
+        available: true,
+        discoveredAt: '2025-01-01T00:00:00.000Z',
+        lastVerifiedAt: '2025-01-01T00:00:00.000Z',
+      },
+    ]);
+    const report = await buildAssetCatalogue({ config, fetchImpl: listOnly([]), previousCatalogue: previous });
+    const retained = report.records.find((record) => record.id === 'assets:f-gone');
+
+    expect(retained?.available).toBe(false);
+    expect(retained?.unavailableReason).toContain('not present');
+    expect(retained?.intelligence.description).toBe('Verified old model');
+    expect(retained?.licensing?.name).toBe('Keep this license');
   });
 });
 

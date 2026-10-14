@@ -2,12 +2,17 @@ import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { Client, Databases, ID, Permission, Role, Storage } from 'appwrite';
 import { z } from 'zod';
 import { cleanWorkDirRelativePath } from '~/utils/diff';
+import { inlineGeneratedAssetUrls, type GeneratedAsset } from '~/lib/stores/generated-assets';
 import { mathUtilsScript } from '~/lib/runtime/static-preview';
 
 const DEFAULT_ENDPOINT = 'https://fra.cloud.appwrite.io/v1';
 const DEFAULT_PROJECT_ID = '6a83071d00217ab38269';
 const DEFAULT_DATABASE_ID = 'fortz_db';
 const DEFAULT_COLLECTION_ID = 'games';
+
+/** Ceiling on binary payload inlined into one published document. */
+const MAX_INLINE_ASSET_BYTES = 24 * 1024 * 1024;
+
 const DEFAULT_BUCKET_ID = 'games';
 
 const publishInputSchema = z.object({
@@ -15,6 +20,19 @@ const publishInputSchema = z.object({
   genre: z.string().trim().max(40).optional(),
   description: z.string().trim().max(2000).optional(),
   thumbDataUrl: z.string().max(7_000_000).optional(),
+
+  /**
+   * Binary assets as data URLs, keyed by project path. A published game is a
+   * single HTML document, so images/audio/3D are inlined rather than 404ing.
+   */
+  assets: z
+    .record(z.string().max(34_000_000))
+    .optional()
+    .refine((assets) => !assets || Object.keys(assets).length <= 24, 'At most 24 assets may be published at once.')
+    .refine(
+      (assets) => !assets || Object.values(assets).reduce((sum, value) => sum + value.length, 0) <= 34_000_000,
+      'Published binary assets exceed the 24 MB total transfer budget.',
+    ),
   files: z.record(z.unknown()).default({}),
   creatorName: z.string().trim().max(100).optional(),
   creatorId: z.string().trim().max(100).optional(),
@@ -58,7 +76,10 @@ function inlineProjectFiles(files: Record<string, string>, title: string): strin
 
   html = html.replace(/<script\b([^>]*)>(?:[\s\S]*?<\/script>)?/gi, (tag, attributes: string) => {
     const src = attributes.match(/\bsrc\s*=\s*["']([^"']+)["']/i)?.[1];
-    if (!src) return tag;
+
+    if (!src) {
+      return tag;
+    }
 
     // Preserve external CDN scripts (e.g. Three.js CDN)
     if (/^(?:https?:)?\/\//i.test(src) || /^(?:data:|blob:)/i.test(src)) {
@@ -157,7 +178,10 @@ export async function action({ context, request }: ActionFunctionArgs) {
 
     for (const [path, value] of Object.entries(input.files)) {
       const cleanPath = cleanWorkDirRelativePath(path);
-      if (!cleanPath) continue;
+
+      if (!cleanPath) {
+        continue;
+      }
 
       if (typeof value === 'string') {
         cleanFiles[cleanPath] = value;
@@ -202,7 +226,61 @@ export async function action({ context, request }: ActionFunctionArgs) {
       thumbnail = new File([bytes], `thumbnail.${match[1].split('/')[1]}`, { type: match[1] });
     }
 
-    const htmlContent = inlineProjectFiles(cleanFiles, title);
+    let htmlContent = inlineProjectFiles(cleanFiles, title);
+
+    /*
+     * Inline binary assets. Binary files are not project source and never
+     * reach `cleanFiles`, so without this a published game keeps its
+     * `assets/hero.png` reference with nothing behind it. A budget keeps one
+     * huge model from producing an unusable document, and anything skipped is
+     * reported back rather than silently broken.
+     */
+    const skippedAssets: string[] = [];
+
+    if (input.assets && Object.keys(input.assets).length > 0) {
+      const inlineable: Record<string, GeneratedAsset> = {};
+      let budget = MAX_INLINE_ASSET_BYTES;
+
+      for (const [rawPath, dataUrl] of Object.entries(input.assets)) {
+        const assetPath = cleanWorkDirRelativePath(rawPath);
+
+        if (!assetPath || !assetPath.startsWith('assets/')) {
+          continue;
+        }
+
+        if (!/^data:[a-z0-9.+/-]+;base64,[a-z0-9+/=]+$/i.test(dataUrl)) {
+          skippedAssets.push(assetPath);
+          continue;
+        }
+
+        const approximateBytes = Math.floor((dataUrl.length * 3) / 4);
+
+        if (approximateBytes > budget) {
+          skippedAssets.push(assetPath);
+          continue;
+        }
+
+        budget -= approximateBytes;
+        inlineable[assetPath] = { id: assetPath, path: assetPath, dataUrl, byteLength: approximateBytes };
+      }
+
+      if (Object.keys(inlineable).length > 0) {
+        htmlContent = inlineGeneratedAssetUrls(htmlContent, inlineable);
+      }
+
+      if (skippedAssets.length > 0) {
+        return json(
+          {
+            error: `These assets could not be inlined, so publishing was stopped rather than shipping a broken game: ${skippedAssets
+              .slice(0, 8)
+              .join(', ')}.`,
+            skippedAssets,
+          },
+          { status: 413 },
+        );
+      }
+    }
+
     const cleanId = `pub_${Date.now()}`;
     const endpoint = env?.APPWRITE_ENDPOINT || process.env.APPWRITE_ENDPOINT || DEFAULT_ENDPOINT;
     const projectId = env?.APPWRITE_PROJECT_ID || process.env.APPWRITE_PROJECT_ID || DEFAULT_PROJECT_ID;

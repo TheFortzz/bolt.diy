@@ -44,6 +44,25 @@ export const assetOperationSchema = z.object({
   height: z.number().int().min(64).max(1024).multipleOf(32),
 }).strict();
 
+/**
+ * An asset the plan REUSES from the existing library, as opposed to one the
+ * image builder generates. The destination path is where the file is written
+ * inside the game, so generated code can reference it directly.
+ *
+ * `group` lists the extra files that must ship with it (a model's materials
+ * and external textures). Embedded textures are deliberately absent: they
+ * already live inside the model file.
+ */
+export const libraryAssetSchema = z.object({
+  /** Stable catalogue id (bucket:fileId). Never a display name. */
+  id: z.string().min(1).max(200),
+  path: pathSchema.refine((path) => path.startsWith('assets/'), 'Library assets are written under assets/.'),
+  dimension: z.enum(['2d', '3d', 'audio', 'font', 'data']),
+  category: z.string().min(1).max(40),
+  /** Additional file paths that must ship together with this asset. */
+  group: z.array(pathSchema.refine((path) => path.startsWith('assets/'))).max(24).default([]),
+}).strict();
+
 export const managerBlueprintSchema = z.object({
   title: z.string().min(1).max(100),
   summary: z.string().min(1).max(1200),
@@ -51,6 +70,7 @@ export const managerBlueprintSchema = z.object({
   systems: z.array(textSchema).min(2).max(12),
   fileOperations: z.array(fileOperationSchema).min(1).max(MAX_GAME_FILE_OPERATIONS),
   assetOperations: z.array(assetOperationSchema).max(4),
+  libraryAssets: z.array(libraryAssetSchema).max(24).default([]),
   scriptOrder: z.array(pathSchema).min(1).max(MAX_GAME_FILE_OPERATIONS),
   acceptanceCriteria: z.array(textSchema).min(3).max(12),
 }).strict();
@@ -80,6 +100,11 @@ export const blueprintSchema = managerBlueprintSchema.extend({
   const paths = new Set<string>();
   const existing = new Map(plan.manifest.map((file) => [file.path, file]));
 
+  const libraryDestinations = [
+    ...plan.libraryAssets.map((asset) => asset.path),
+    ...plan.libraryAssets.flatMap((asset) => asset.group),
+  ];
+
   for (const operation of [...plan.fileOperations, ...plan.assetOperations]) {
     const key = operation.path.toLowerCase();
     if (paths.has(key)) {
@@ -100,6 +125,20 @@ export const blueprintSchema = managerBlueprintSchema.extend({
   for (const asset of plan.assetOperations) {
     if (existing.has(asset.path)) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: `Reuse existing assets instead of overwriting: ${asset.path}` });
+    }
+  }
+  for (const path of libraryDestinations) {
+    const key = path.toLowerCase();
+    if (paths.has(key)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: `Duplicate planned library destination: ${path}` });
+    }
+    paths.add(key);
+    if (existing.has(path)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: `Library assets are create-only; refusing to overwrite ${path}.` });
+    }
+    const collision = plan.manifest.find((file) => file.path.toLowerCase() === key && file.path !== path);
+    if (collision) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: `Case-colliding library path: ${path}` });
     }
   }
   const assetIds = plan.assetOperations.map((asset) => asset.id);
@@ -276,6 +315,21 @@ export function parseManagerOutput(text: string) {
         }))
     : [];
 
+  const libraryAssets = Array.isArray(raw.libraryAssets)
+    ? raw.libraryAssets
+        .filter((asset: any) => asset && typeof asset.id === 'string' && typeof asset.path === 'string')
+        .map((asset: any) => ({
+          id: asset.id.slice(0, 200),
+          path: asset.path.replace(/^\.?\//, '').trim(),
+          dimension: ['2d', '3d', 'audio', 'font', 'data'].includes(asset.dimension) ? asset.dimension : '2d',
+          category: typeof asset.category === 'string' ? asset.category.slice(0, 40) : 'other',
+          group: Array.isArray(asset.group)
+            ? asset.group.filter((path: unknown) => typeof path === 'string').slice(0, 24)
+            : [],
+        }))
+        .slice(0, 24)
+    : [];
+
   const rawScriptOrder = Array.isArray(raw.scriptOrder)
     ? raw.scriptOrder
         .map((s: unknown) => String(s).replace(/^\.?\//, '').trim())
@@ -303,6 +357,7 @@ export function parseManagerOutput(text: string) {
     systems,
     fileOperations,
     assetOperations,
+    libraryAssets,
     scriptOrder,
     acceptanceCriteria,
   });

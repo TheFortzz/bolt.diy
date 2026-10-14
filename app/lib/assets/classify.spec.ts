@@ -91,25 +91,29 @@ describe('name analysis', () => {
 });
 
 describe('classifyAsset', () => {
-  it('uses real pixel facts over the filename for image category', () => {
+  it('does not mistake dimensions for image purpose', () => {
     const result = classifyAsset({
-      originalName: 'hero.png',
+      originalName: 'untitled_04.png',
       bytes: pngBytes(512, 512),
     });
 
-    // 512x512 with a detected 8x8 grid is a sheet, whatever the name says.
-    expect(result.category).toBe('spritesheet');
+    /*
+     * A power-of-two grid hint is low confidence. Without a name/vision
+     * signal, do not assert this ordinary square image is a spritesheet.
+     */
+    expect(result.category).toBe('other');
     expect(result.technical?.kind).toBe('image');
     expect(result.intelligence.source).toBe('metadata');
+    expect(result.technical?.kind === 'image' && result.technical.image.tileGrid?.confidence).toBeLessThan(0.5);
   });
 
-  it('labels an opaque wide image as a background', () => {
-    const result = classifyAsset({ originalName: 'sky.png', bytes: pngBytes(1024, 512, 2) });
+  it('uses an explicit filename signal for a background', () => {
+    const result = classifyAsset({ originalName: 'background_sky.png', bytes: pngBytes(1024, 512, 2) });
 
     expect(result.category).toBe('background');
   });
 
-  it('marks a small transparent image as a particle', () => {
+  it('uses an explicit filename signal for a particle effect', () => {
     const result = classifyAsset({ originalName: 'muzzle.png', bytes: pngBytes(128, 128) });
 
     expect(result.category).toBe('particle');

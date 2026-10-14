@@ -151,7 +151,10 @@ export function linkModelPreviews(catalogue: AssetCatalogue): AssetCatalogue {
       ],
       intelligence: {
         ...record.intelligence,
-        description: `Preview render of ${owner.originalName}. Not loadable geometry — load ${owner.originalName} instead.`,
+        description:
+          record.intelligence.source === 'vision'
+            ? `Preview of ${owner.originalName}: ${record.intelligence.description}. Not loadable geometry — load ${owner.originalName} instead.`
+            : `Preview render of ${owner.originalName}. Not loadable geometry — load ${owner.originalName} instead.`,
         tags: Array.from(new Set([...record.intelligence.tags, 'model-preview'])).slice(0, 40),
       },
     };
@@ -213,6 +216,20 @@ export function checkCompatibility(record: AssetRecord, catalogue: AssetCatalogu
 
   if (record.role !== 'asset') {
     blocking.push(`role is "${record.role}", not a loadable asset`);
+  }
+
+  if (record.dimension === '3d') {
+    if (record.format === 'fbx') {
+      blocking.push('FBX loader is not available in the offline game runtime');
+    } else if (record.format === 'mtl') {
+      blocking.push('MTL is a material dependency, not a standalone model; select its OBJ model instead');
+    } else if (!['glb', 'gltf', 'obj'].includes(record.format)) {
+      blocking.push(`3D format ${record.format} is not supported by the game runtime`);
+    }
+
+    if (!record.technical || record.technical.kind !== 'model3d') {
+      blocking.push('3D model metadata could not be probed; format/dependencies are unverified');
+    }
   }
 
   const missing = missingDependencies(record);

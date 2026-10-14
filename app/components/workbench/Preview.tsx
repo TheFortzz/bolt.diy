@@ -2,7 +2,11 @@ import { useStore } from '@nanostores/react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { IconButton } from '~/components/ui/IconButton';
 import { workbenchStore } from '~/lib/stores/workbench';
-import { registerPreviewValidator, reportPreviewGameError, type PreviewValidationResult } from '~/lib/runtime/preview-validation';
+import {
+  registerPreviewValidator,
+  reportPreviewGameError,
+  type PreviewValidationResult,
+} from '~/lib/runtime/preview-validation';
 import { cleanWorkDirRelativePath } from '~/utils/diff';
 import { PortDropdown } from './PortDropdown';
 import { generatedAssets } from '~/lib/stores/generated-assets';
@@ -27,15 +31,20 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
   const imageAssets = useStore(generatedAssets);
   const activePreview = previews[activePreviewIndex] ?? previews.find((preview) => preview.ready) ?? previews[0];
 
-  // Rehydrate binary URLs after a saved checkpoint or a page reload. Binary
-  // file-tree entries intentionally do not contain their payloads.
+  /*
+   * Rehydrate binary URLs after a saved checkpoint or a page reload. Binary
+   * file-tree entries intentionally do not contain their payloads. Keep this
+   * list in sync with the asset-library formats; 3D model sidecars, audio and
+   * textures need the same data-URL mapping as sprites or their references
+   * disappear after a refresh.
+   */
   useEffect(() => {
     let cancelled = false;
     const missing = Object.entries(files).filter(
       ([path, file]) =>
         file?.type === 'file' &&
         file.isBinary &&
-        /\.png$/i.test(path) &&
+        /\.(?:png|jpe?g|webp|gif|svg|glb|gltf|bin|obj|mtl|fbx|wav|mp3|ogg|ktx2|ttf|otf|woff2?)$/i.test(path) &&
         !generatedAssets.get()[cleanWorkDirRelativePath(path)],
     );
 
@@ -46,17 +55,49 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     const restore = async () => {
       const container = await getWebContainer();
 
-      for (const [rawPath] of missing.slice(0, 40)) {
+      let restoredBytes = 0;
+
+      for (const [rawPath] of missing.slice(0, 64)) {
         try {
           const path = cleanWorkDirRelativePath(rawPath);
           const bytes = await container.fs.readFile(path);
+
           if (cancelled) {
             return;
           }
-          if (bytes.length > 5 * 1024 * 1024) {
+
+          if (bytes.length > 20 * 1024 * 1024 || restoredBytes + bytes.length > 64 * 1024 * 1024) {
             continue;
           }
+
+          restoredBytes += bytes.length;
+
+          const extension = path.split('.').pop()?.toLowerCase() || '';
+          const mimeByExtension: Record<string, string> = {
+            png: 'image/png',
+            jpg: 'image/jpeg',
+            jpeg: 'image/jpeg',
+            webp: 'image/webp',
+            gif: 'image/gif',
+            svg: 'image/svg+xml',
+            glb: 'model/gltf-binary',
+            gltf: 'model/gltf+json',
+            bin: 'application/octet-stream',
+            obj: 'model/obj',
+            mtl: 'text/plain',
+            fbx: 'application/octet-stream',
+            wav: 'audio/wav',
+            mp3: 'audio/mpeg',
+            ogg: 'audio/ogg',
+            ktx2: 'image/ktx2',
+            ttf: 'font/ttf',
+            otf: 'font/otf',
+            woff: 'font/woff',
+            woff2: 'font/woff2',
+          };
+          const mime = mimeByExtension[extension] || 'application/octet-stream';
           let binary = '';
+
           for (let offset = 0; offset < bytes.length; offset += 32768) {
             binary += String.fromCharCode(...bytes.subarray(offset, offset + 32768));
           }
@@ -64,7 +105,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
             id: path,
             path,
             byteLength: bytes.length,
-            dataUrl: `data:image/png;base64,${btoa(binary)}`,
+            dataUrl: `data:${mime};base64,${btoa(binary)}`,
           });
         } catch {
           // Leave missing images unresolved so the runtime probe reports them.
@@ -117,11 +158,13 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     if (currentArtifactId && currentArtifactId !== currentArtifactIdRef.current) {
       currentArtifactIdRef.current = currentArtifactId;
       lastGoodHtmlRef.current = undefined;
+
       if (fallbackBlobUrlRef.current) {
         const toRevoke = fallbackBlobUrlRef.current;
         fallbackBlobUrlRef.current = undefined;
         setTimeout(() => URL.revokeObjectURL(toRevoke), 30_000);
       }
+
       setFallbackBlobUrl(undefined);
     }
   }, [currentArtifactId]);
@@ -131,8 +174,10 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       return undefined;
     }
 
-    // While AI is actively writing/streaming files, hold onto the last known good preview.
-    // NEVER mount half-streamed syntax-broken code into the iframe.
+    /*
+     * While AI is actively writing/streaming files, hold onto the last known good preview.
+     * NEVER mount half-streamed syntax-broken code into the iframe.
+     */
     if (isStreaming) {
       return lastGoodHtmlRef.current;
     }
@@ -159,12 +204,14 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       const projectHasPackage = Object.entries(workbenchStore.files.get()).some(
         ([path, file]) => path.endsWith('/package.json') && file?.type === 'file',
       );
+
       if (!serverUrl && !fallbackHtml) {
         for (let attempt = 0; attempt < 20 && !serverUrl; attempt++) {
           await new Promise((resolve) => setTimeout(resolve, 500));
           serverUrl = workbenchStore.previews.get().find((preview) => preview.ready)?.baseUrl;
         }
       }
+
       if (!serverUrl && !fallbackHtml) {
         return { ok: false, error: 'No runnable preview was produced.' };
       }
@@ -172,7 +219,10 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       if (serverUrl) {
         try {
           const response = await fetch(serverUrl, { signal: AbortSignal.timeout(10000) });
-          if (!response.ok) return { ok: false, error: `Preview returned HTTP ${response.status}.` };
+
+          if (!response.ok) {
+            return { ok: false, error: `Preview returned HTTP ${response.status}.` };
+          }
         } catch (error) {
           return { ok: false, error: `Could not reach preview: ${(error as Error).message}` };
         }
@@ -204,6 +254,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
         setFallbackBlobUrl(undefined);
         setTimeout(() => URL.revokeObjectURL(toRevoke), 30_000);
       }
+
       return;
     }
 
@@ -236,8 +287,10 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     }
   }, [files, isStreaming, activePreview]);
 
-  // Start a real project server after generation. Do not race Vite by
-  // occupying port 5173 while the model's start action is still pending.
+  /*
+   * Start a real project server after generation. Do not race Vite by
+   * occupying port 5173 while the model's start action is still pending.
+   */
   useEffect(() => {
     if (isStreaming || activePreview) {
       return;
@@ -246,6 +299,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     const projectFiles = Object.entries(files).filter(
       ([, dirent]) => dirent?.type === 'file' && Boolean(dirent.content),
     );
+
     if (projectFiles.length === 0) {
       return;
     }
@@ -280,6 +334,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
   useEffect(() => {
     const forwardKeyEvent = (type: 'keydown' | 'keyup') => (e: KeyboardEvent) => {
       const activeEl = document.activeElement;
+
       if (
         activeEl &&
         (activeEl.tagName === 'INPUT' ||
@@ -290,6 +345,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       }
 
       const iframe = iframeRef.current;
+
       if (!iframe || !iframe.contentWindow) {
         return;
       }
@@ -308,9 +364,12 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
           cancelable: true,
         };
         const evt = new KeyboardEvent(type, eventInit);
-        // Dispatch on the document only: it bubbles to window, so every game
-        // listener fires exactly once. Dispatching on both window and document
-        // double-fires window handlers (e.g. pause toggles twice = no-op).
+
+        /*
+         * Dispatch on the document only: it bubbles to window, so every game
+         * listener fires exactly once. Dispatching on both window and document
+         * double-fires window handlers (e.g. pause toggles twice = no-op).
+         */
         if (iframe.contentWindow.document) {
           iframe.contentWindow.document.dispatchEvent(evt);
         }
@@ -397,12 +456,14 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       if (activePreviewIndex !== 0) {
         setActivePreviewIndex(0);
       }
+
       return;
     }
 
     if (!previews[activePreviewIndex]) {
       const readyIndex = previews.findIndex((preview) => preview.ready);
       setActivePreviewIndex(readyIndex >= 0 ? readyIndex : 0);
+
       return;
     }
 
@@ -441,8 +502,10 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     };
   }, [reloadPreview]);
 
-  // Collect live runtime errors from the game iframe so the repair loop can
-  // fix games that boot but throw during play.
+  /*
+   * Collect live runtime errors from the game iframe so the repair loop can
+   * fix games that boot but throw during play.
+   */
   useEffect(() => {
     const handleGameError = (event: MessageEvent) => {
       if (!event.data || typeof event.data !== 'object') {
