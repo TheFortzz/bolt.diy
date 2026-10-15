@@ -253,7 +253,7 @@ export async function listAssetFiles(
   let pages = 0;
 
   while (pages < maxPages) {
-    const query = new URLSearchParams({ projectId: config.projectId, limit: String(limit) });
+    const query = new URLSearchParams();
 
     /*
      * Appwrite's raw REST listing historically exposes BOTH cursor-based and
@@ -271,10 +271,10 @@ export async function listAssetFiles(
     if (cursor) {
       query.set('cursor', cursor);
     } else if (offset > 0) {
-      query.append('queries[]', `offset(${offset})`);
+      query.append('queries', `offset(${offset})`);
     }
 
-    query.append('queries[]', `limit(${limit})`);
+    query.append('queries', `limit(${limit})`);
 
     let response: Response;
 
