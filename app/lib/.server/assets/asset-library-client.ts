@@ -39,6 +39,8 @@ export interface AssetLibraryBlocker {
   /** Operator-facing, credential-free explanation. */
   message: string;
   httpStatus?: number;
+  /** Original Appwrite error type, e.g. api_key_invalid or general_unauthorized_scope. */
+  providerCode?: string;
 }
 
 export type AssetLibraryResult<T> = { ok: true; data: T } | { ok: false; blocker: AssetLibraryBlocker };
@@ -160,13 +162,32 @@ function authHeaders(config: AssetLibraryConfig): Record<string, string> {
 
 async function blockerFromResponse(response: Response, action: string): Promise<AssetLibraryBlocker> {
   const httpStatus = response.status;
+  let providerCode = '';
+  let detail = '';
+
+  try {
+    const payload = (await response.clone().json()) as { code?: unknown; type?: unknown; message?: unknown };
+    providerCode =
+      typeof payload.type === 'string' ? payload.type : typeof payload.code === 'string' ? payload.code : '';
+    detail = typeof payload.message === 'string' ? redactSecrets(payload.message) : '';
+  } catch {
+    try {
+      detail = redactSecrets(await response.text());
+    } catch {
+      detail = '';
+    }
+  }
 
   if (httpStatus === 401) {
+    const scopeFailure = /scope/i.test(`${providerCode} ${detail}`);
+
     return {
       code: 'unauthorized',
       httpStatus,
-      message:
-        'Appwrite rejected the asset library key (401). It is missing, invalid, or expired — rotate APPWRITE_API_KEY and confirm it still has files.read/files.list on the assets bucket.',
+      providerCode: providerCode || undefined,
+      message: scopeFailure
+        ? `Appwrite denied the required scope(s) while ${action}${providerCode ? ` (${providerCode})` : ''}${detail ? `: ${detail}` : ''}. Add buckets.read, files.list and files.read to this key.`
+        : `Appwrite rejected APPWRITE_API_KEY while ${action}${providerCode ? ` (${providerCode})` : ''}${detail ? `: ${detail}` : ''}. This points to an invalid/expired key or a key from a different project; it is not a bucket-ID error.`,
     };
   }
 
@@ -174,8 +195,8 @@ async function blockerFromResponse(response: Response, action: string): Promise<
     return {
       code: 'unauthorized',
       httpStatus,
-      message:
-        'The asset library key lacks permission for this bucket (403). Grant the key access to the assets bucket, or set APPWRITE_ASSETS_BUCKET_ID to a bucket it can read.',
+      providerCode: providerCode || undefined,
+      message: `The asset library key was recognized but lacks permission while ${action} (403)${providerCode ? ` (${providerCode})` : ''}${detail ? `: ${detail}` : ''}.`,
     };
   }
 
@@ -187,17 +208,10 @@ async function blockerFromResponse(response: Response, action: string): Promise<
     };
   }
 
-  let detail = '';
-
-  try {
-    detail = redactSecrets(await response.text());
-  } catch {
-    detail = '';
-  }
-
   return {
     code: 'appwrite-error',
     httpStatus,
+    providerCode: providerCode || undefined,
     message: `Appwrite returned ${httpStatus} while ${action}${detail ? `: ${detail}` : '.'}`,
   };
 }

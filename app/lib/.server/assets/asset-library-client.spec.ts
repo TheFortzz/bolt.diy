@@ -177,8 +177,10 @@ describe('listAssetFiles', () => {
     expect(result.ok && result.data.files.map((file) => file.id)).toEqual(['ok']);
   });
 
-  it('translates a 401 into an actionable operator message', async () => {
-    const fetchImpl = vi.fn(async () => new Response('{"message":"Unauthorized"}', { status: 401 }));
+  it('preserves api_key_invalid so an invalid/wrong-project key is distinguishable from missing scopes', async () => {
+    const fetchImpl = vi.fn(
+      async () => new Response('{"type":"api_key_invalid","message":"API key is invalid"}', { status: 401 }),
+    );
 
     const result = await listAssetFiles(config(), { fetchImpl: fetchImpl as unknown as typeof fetch });
 
@@ -187,8 +189,29 @@ describe('listAssetFiles', () => {
     if (!result.ok) {
       expect(result.blocker.code).toBe('unauthorized');
       expect(result.blocker.httpStatus).toBe(401);
-      expect(result.blocker.message).toContain('rotate');
+      expect(result.blocker.providerCode).toBe('api_key_invalid');
+      expect(result.blocker.message).toContain('different project');
       expect(JSON.stringify(result)).not.toContain(SECRET);
+    }
+  });
+
+  it('reports a recognized key missing scopes without telling the user to rotate it', async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          '{"type":"general_unauthorized_scope","message":"API key missing scopes [files.list]"}',
+          { status: 401 },
+        ),
+    );
+
+    const result = await listAssetFiles(config(), { fetchImpl: fetchImpl as unknown as typeof fetch });
+
+    expect(result.ok).toBe(false);
+
+    if (!result.ok) {
+      expect(result.blocker.providerCode).toBe('general_unauthorized_scope');
+      expect(result.blocker.message).toContain('Add buckets.read, files.list and files.read');
+      expect(result.blocker.message).toContain('files.list');
     }
   });
 

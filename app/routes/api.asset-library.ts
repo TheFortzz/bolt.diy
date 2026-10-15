@@ -47,7 +47,10 @@ interface AssetPayload {
 }
 
 function blockerResponse(blocker: AssetLibraryBlocker, status: number) {
-  return json({ ok: false, error: blocker.message, code: blocker.code }, { status });
+  return json(
+    { ok: false, error: blocker.message, code: blocker.code, providerCode: blocker.providerCode },
+    { status },
+  );
 }
 
 export async function loader({ context }: LoaderFunctionArgs) {
