@@ -274,6 +274,30 @@ describe('studio preview publish parity', () => {
     expect(ensurePreviewAudioUnlock(once)).toBe(once);
   });
 
+  it('removes duplicate local script inclusions that can redeclare top-level bindings', () => {
+    const html =
+      '<html><body><script src="src/core/clock.js"></script><script src="./src/core/clock.js?v=2"></script></body></html>';
+    const normalized = normalizeStudioGameHtml(html);
+    expect(normalized.match(/src="(?:\.\/)?src\/core\/clock\.js/g)).toHaveLength(1);
+
+    const embedded = new Function(`return (${normalizeServerPreviewHtml.toString()});`)() as (html: string) => string;
+    const serverHtml = embedded(html);
+    expect(serverHtml.match(/src="(?:\.\/)?src\/core\/clock\.js/g)).toHaveLength(1);
+  });
+
+  it('deduplicates the same module after local script tags are inlined', () => {
+    const html = buildFallbackHtml({
+      'index.html': {
+        type: 'file',
+        content:
+          '<html><body><script src="src/core/clock.js"></script><script src="./src/core/clock.js"></script></body></html>',
+      },
+      'src/core/clock.js': { type: 'file', content: 'function createFrameClock() { return 1; }' },
+    });
+
+    expect(html?.match(/data-inlined="src\/core\/clock\.js"/g)).toHaveLength(1);
+  });
+
   it('buildFallbackHtml output carries the publish-parity normalization', () => {
     const html = buildFallbackHtml({
       'index.html': {

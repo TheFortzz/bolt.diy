@@ -708,9 +708,31 @@ export function ensurePreviewAudioUnlock(html: string): string {
   return `${audioUnlockScript}\n${html}`;
 }
 
+function dedupeScriptSources(html: string): string {
+  const seen = new Set<string>();
+
+  return html.replace(/<script\b([^>]*)>[\s\S]*?<\/script\s*>/gi, (tag, attributes: string) => {
+    const source = /\b(?:src|data-inlined)\s*=\s*(["'])(.*?)\1/i.exec(attributes)?.[2];
+    if (!source) return tag;
+
+    const key = source
+      .replace(/&amp;/g, '&')
+      .split(/[?#]/, 1)[0]
+      .replace(/\\/g, '/')
+      .replace(/^(?:\.\/|\/)+/, '')
+      .toLowerCase();
+    if (!key || !seen.has(key)) {
+      if (key) seen.add(key);
+      return tag;
+    }
+
+    return '<!-- duplicate script source omitted -->';
+  });
+}
+
 /** Run the full publish-parity normalization over Studio fallback HTML. */
 export function normalizeStudioGameHtml(html: string): string {
-  let out = html || '';
+  let out = dedupeScriptSources(html || '');
 
   out = stripBlockedSdkScripts(out);
   out = rewriteUnpkgThreeToJsdelivr(out);
@@ -1531,6 +1553,17 @@ export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPr
  */
 export const normalizeServerPreviewHtml: (html: string) => string = function (html) {
   let out = typeof html === 'string' ? html : '';
+  const seenScriptSources = new Set<string>();
+  out = out.replace(/<script\b([^>]*)>[\s\S]*?<\/script\s*>/gi, (tag, attributes) => {
+    const source = /\b(?:src|data-inlined)\s*=\s*(["'])(.*?)\1/i.exec(attributes);
+    if (!source) return tag;
+    const key = source[2].replace(/&amp;/g, '&').split(/[?#]/, 1)[0].replace(/\\/g, '/').replace(/^(?:\.\/|\/)+/, '').toLowerCase();
+    if (!key || !seenScriptSources.has(key)) {
+      if (key) seenScriptSources.add(key);
+      return tag;
+    }
+    return '<!-- duplicate script source omitted -->';
+  });
 
   // 1. Strip Puter.js: sandbox-blocked sockets/headers break game init.
   out = out.replace(/<script\b[^>]*src=["']https?:\/\/js\.puter\.com[^"']*["'][^>]*>[\s\S]*?<\/script>/gi, '');

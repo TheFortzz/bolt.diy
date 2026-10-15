@@ -93,7 +93,7 @@ Let me know if you would like any changes!
        * shrank to almost nothing. Every complete entry before the cut is real
        * work and must survive.
        */
-      const fileOperations = Array.from({ length: 60 }, (_, index) => ({
+      const fileOperations = Array.from({ length: 20 }, (_, index) => ({
         path: `src/systems/module-${index}.js`,
         operation: 'create',
         purpose: `System ${index} behavior`,
@@ -116,7 +116,7 @@ Let me know if you would like any changes!
       const parsed = parseManagerOutput(truncated);
 
       expect(parsed.title).toBe('Void Runner');
-      expect(parsed.fileOperations.length).toBeGreaterThan(40);
+      expect(parsed.fileOperations.length).toBeGreaterThan(10);
       expect(parsed.systems).toContain('Combat');
       expect(parsed.scriptOrder).toEqual(['src/systems/module-0.js']);
       expect(parsed.assetOperations[0]?.path).toBe('assets/ship.png');

@@ -165,6 +165,22 @@ export function runAgentBuildCheck(files: Record<string, string>, scope?: AgentC
       issues.push('Missing index.html.');
     }
   } else {
+    const seenScriptRefs = new Set<string>();
+
+    for (const match of html.matchAll(/<script\b([^>]*)\bsrc\s*=\s*(["'])([^"']+)\2[^>]*>/gi)) {
+      const source = match[3].split(/[?#]/, 1)[0].replace(/\\/g, '/').replace(/^(?:\.\/|\/)+/, '');
+
+      if (/^(?:https?:)?\/\//i.test(source) || source.startsWith('data:')) {
+        continue;
+      }
+
+      if (seenScriptRefs.has(source)) {
+        issues.push(`index.html loads ${source} more than once; remove duplicate script tags to prevent duplicate declarations.`);
+      } else {
+        seenScriptRefs.add(source);
+      }
+    }
+
     for (const ref of collectHtmlLocalRefs(html)) {
       if (resolveStaticPreviewFileLoose(fileList, ref)) {
         continue;

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const MAX_GAME_FILE_OPERATIONS = 80;
+export const MAX_GAME_FILE_OPERATIONS = 24;
 export const MAX_GAME_SOURCE_BYTES = 4 * 1024 * 1024;
 export const MAX_GAME_RESPONSE_SEGMENTS = 64;
 
@@ -168,7 +168,7 @@ function decodeJsonString(raw: string): string {
 
 /**
  * Recover a plan the token budget cut off mid-JSON. The cut leaves every entry
- * written before it fully intact — a 40-80 file blueprint with complete
+ * written before it fully intact — a multi-module blueprint with complete
  * fileOperations — so recovering those is the difference between a huge build
  * and the caller's two-file skeleton fallback, which silently shrinks the game
  * to nothing. Returns undefined when not even one complete file operation

@@ -143,6 +143,16 @@ drawWorld();
     expect(unresolvable.issues.some((issue) => issue.includes('nowhere.js'))).toBe(true);
   });
 
+  it('flags duplicate local script tags that can redeclare top-level identifiers', () => {
+    const result = runAgentBuildCheck({
+      'index.html': '<script src="src/core/clock.js"></script><script src="./src/core/clock.js?v=2"></script>',
+      'src/core/clock.js': 'function createFrameClock() { return 1; }',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.issues.join(' ')).toContain('loads src/core/clock.js more than once');
+  });
+
   it('accepts approved generated images that exist on disk but not in fileOperations', () => {
     /*
      * Regression: generated images are written by the image builder, so they
