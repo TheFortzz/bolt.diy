@@ -64,10 +64,31 @@ const STOP_WORDS = new Set([
 ]);
 
 /** Meaningful lowercase query terms. */
+const SYNONYMS: Record<string, string[]> = {
+  car: ['car', 'vehicle', 'automobile', 'sedan', 'suv', 'truck', 'racer', 'auto'],
+  road: ['road', 'street', 'highway', 'track', 'asphalt', 'route', 'path', 'drive', 'lane', 'tile'],
+  tree: ['tree', 'foliage', 'plant', 'forest', 'pine', 'bush'],
+  weapon: ['weapon', 'gun', 'blaster', 'rifle', 'pistol', 'laser', 'blaster'],
+  ship: ['ship', 'spaceship', 'fighter', 'vessel', 'rocket'],
+};
+
 export function queryTerms(query: AssetQuery): string[] {
   const text = (query.text || '').toLowerCase();
+  const raw = Array.from(new Set(text.split(/[^a-z0-9]+/).filter((term) => term.length > 2 && !STOP_WORDS.has(term))));
 
-  return Array.from(new Set(text.split(/[^a-z0-9]+/).filter((term) => term.length > 2 && !STOP_WORDS.has(term))));
+  const expanded = new Set<string>();
+
+  for (const term of raw) {
+    expanded.add(term);
+
+    for (const [key, values] of Object.entries(SYNONYMS)) {
+      if (term === key || term.includes(key) || values.includes(term)) {
+        values.forEach((value) => expanded.add(value));
+      }
+    }
+  }
+
+  return Array.from(expanded).filter((term) => term.length > 2);
 }
 
 /**

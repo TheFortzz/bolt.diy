@@ -124,7 +124,8 @@ function perspective(value: 'topdown' | 'sideview' | 'isometric' | 'firstperson'
 
 describe('queryTerms', () => {
   it('drops filler words and short noise', () => {
-    expect(queryTerms({ text: 'a space ship for the game' })).toEqual(['space', 'ship']);
+    const expanded = queryTerms({ text: 'a space ship for the game' });
+    expect(expanded).toEqual(expect.arrayContaining(['space', 'ship']));
   });
 });
 
