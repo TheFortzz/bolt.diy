@@ -77,5 +77,6 @@ describe('Studio request intent routing', () => {
   it('respects explicit plan/build modes', () => {
     expect(shouldUseBuildPlanner('hi', 'plan')).toBe(true);
     expect(shouldUseBuildPlanner('what is a game loop?', 'build')).toBe(true);
+    expect(shouldUseBuildPlanner('did it?', 'build')).toBe(false);
   });
 });

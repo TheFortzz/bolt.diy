@@ -369,14 +369,61 @@ export async function runManagerAgent(
     group: candidate.group.slice(0, 24),
   }));
 
-  // Sanitize asset operations
-  const cleanAssetOps = options.imagesAvailable
-    ? (proposed.assetOperations || []).filter(
-        (asset, index, self) =>
-          !baseFiles.has(asset.path.replace(/^\.?\//, '').trim()) &&
-          self.findIndex((a) => a.id === asset.id || a.path === asset.path) === index,
-      )
-    : [];
+  // Sanitize generated art paths and preserve create-only semantics.
+  const cleanAssetOps: typeof proposed.assetOperations = [];
+  const alternateAssetRequested = /\b(?:another|new|alternate|alternative|variant|different|extra|second)\b/i.test(
+    String(options.request || ''),
+  );
+  const occupiedAssetPaths = new Set(
+    [...baseFiles.keys(), ...normalizedFileOps.map((operation) => operation.path)].map((path) =>
+      path.replace(/^\.?\//, '').trim().toLowerCase(),
+    ),
+  );
+  const seenAssetIds = new Set<string>();
+  const seenAssetPaths = new Set<string>();
+
+  const reserveAssetPath = (requestedPath: string): string | undefined => {
+    const normalizedPath = requestedPath.replace(/^\.?\//, '').trim();
+    const key = normalizedPath.toLowerCase();
+
+    if (!occupiedAssetPaths.has(key)) {
+      occupiedAssetPaths.add(key);
+      return normalizedPath;
+    }
+
+    if (!alternateAssetRequested) return undefined;
+
+    const slash = normalizedPath.lastIndexOf('/');
+    const directory = slash >= 0 ? normalizedPath.slice(0, slash + 1) : '';
+    const filename = slash >= 0 ? normalizedPath.slice(slash + 1) : normalizedPath;
+    const dot = filename.lastIndexOf('.');
+    const stem = dot > 0 ? filename.slice(0, dot) : filename;
+    const extension = dot > 0 ? filename.slice(dot) : '.png';
+
+    for (let index = 2; index < 100; index++) {
+      const candidate = `${directory}${stem}-${index}${extension}`;
+      const candidateKey = candidate.toLowerCase();
+      if (!occupiedAssetPaths.has(candidateKey)) {
+        occupiedAssetPaths.add(candidateKey);
+        return candidate;
+      }
+    }
+
+    return undefined;
+  };
+
+  if (options.imagesAvailable) {
+    for (const asset of proposed.assetOperations || []) {
+      const originalPath = asset.path.replace(/^\.?\//, '').trim();
+      if (seenAssetIds.has(asset.id) || seenAssetPaths.has(originalPath.toLowerCase())) continue;
+      seenAssetIds.add(asset.id);
+      seenAssetPaths.add(originalPath.toLowerCase());
+
+      const path = reserveAssetPath(originalPath);
+      if (path) cleanAssetOps.push({ ...asset, path });
+    }
+  }
+
 
   /*
    * If the planner omitted art despite FLUX being configured, ensure the
@@ -403,9 +450,11 @@ export async function runManagerAgent(
             : 'direct overhead top-down view, vehicle nose pointing toward the top edge of the image'
         : 'clear readable game-camera view, full silhouette, composed for use during gameplay';
 
-      cleanAssetOps.push({
+      const path = reserveAssetPath(`assets/${slug}.png`);
+
+      if (path) cleanAssetOps.push({
         id: `subject.${slug}`,
-        path: `assets/${slug}.png`,
+        path,
         kind: 'sprite',
         prompt: `Isolated 2D game sprite of a ${subject}; ${orientation}. Show the complete subject, centered, with a crisp readable silhouette and no perspective toward the viewer. Flat pure green (#00FF00) chroma-key background, evenly colored with no gradients, floor, scenery, or cast shadow outside the subject. Art direction: ${request.slice(0, 240)}`,
         width: 512,

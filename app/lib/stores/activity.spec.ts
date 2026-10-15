@@ -3,6 +3,7 @@ import {
   activitySteps,
   describeClineToolStep,
   runActivityStep,
+  settleActiveActivities,
   startActionActivity,
   startActivity,
   updateActivity,
@@ -49,6 +50,15 @@ describe('build activity events', () => {
     updateActivity('first', 'action:0', 'running');
     expect(activitySteps.get().first[0].status).toBe('complete');
     expect(activitySteps.get().second[0].status).toBe('pending');
+  });
+
+  it('settles live rows when a build terminates', () => {
+    startActivity('build', 'phase', 'Writing files');
+    startActivity('build', 'inspect', 'Inspecting files');
+    settleActiveActivities('build', 'complete');
+
+    expect(activitySteps.get().build.map((step) => step.status)).toEqual(['complete', 'complete']);
+    expect(activitySteps.get().build.every((step) => typeof step.finishedAt === 'number')).toBe(true);
   });
 
   it('marks a real validation failure without claiming success', async () => {

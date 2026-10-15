@@ -21,7 +21,7 @@ import { verifyGameBuild } from '~/lib/runtime/game-build-pipeline';
 import { generatedAssets } from '~/lib/stores/generated-assets';
 import { materializeLibraryAssets } from '~/lib/runtime/library-assets';
 import { generateProjectAssets } from '~/lib/runtime/asset-generator';
-import { runActivityStep, startActivity, updateActivity, describeClineToolStep } from '~/lib/stores/activity';
+import { runActivityStep, startActivity, updateActivity, settleActiveActivities, describeClineToolStep } from '~/lib/stores/activity';
 import { runClineAgent } from '~/lib/runtime/cline-bridge';
 import { probeHtmlInlineScripts, probeModuleSyntax } from '~/lib/runtime/js-syntax';
 
@@ -62,6 +62,18 @@ function sourceContext(snapshot: Record<string, Uint8Array>, budget: number, per
   }
 
   return result;
+}
+
+const BUILD_STATUS_LINES = [
+  'The pixel pit crew is rolling out.',
+  'The tiny game-building robots are on it.',
+  'Dispatching the arcade workshop.',
+  'The code gremlins have their hard hats on.',
+  'A very focused pixel army is getting to work.',
+];
+
+function buildStatusLine(): string {
+  return BUILD_STATUS_LINES[Math.floor(Math.random() * BUILD_STATUS_LINES.length)];
 }
 
 function safeClineDiagnostic(value: string) {
@@ -302,15 +314,11 @@ export function useCognitiveHarness(options: HarnessOptions) {
         if (options.agentEngine === 'cline') {
           const approvedPaths = blueprint.fileOperations.map((operation) => operation.path);
           const approvedAssets = blueprint.assetOperations || [];
+          const existingImagePaths = blueprint.manifest
+            .map((file) => file.path)
+            .filter((path) => /\.(?:png|jpe?g|webp|gif|svg)$/i.test(path));
 
-          /*
-           * The builder prompt has a byte budget. `JSON.stringify(blueprint)`
-           * emits fileOperations before assetOperations, so with 80 modules
-           * carrying long purposes the approved IMAGES were sliced straight out
-           * of context and the game was written blind to its own art. Put the
-           * assets first and shorten each purpose; the file list (which the
-           * allowlist already enforces) is what the builder actually needs.
-           */
+          /* Keep generated and existing game art explicit in the compact build context. */
           const blueprintForPrompt = (plan: typeof blueprint) =>
             JSON.stringify({
               assetOperations: plan.assetOperations || [],
@@ -469,12 +477,12 @@ export function useCognitiveHarness(options: HarnessOptions) {
               transitionHarness('editing', {
                 detail: polishPassActive
                   ? 'Automatic polish pass: deepening gameplay and visuals…'
-                  : `Cline fixing preview/build error (${attempt}/${maxAttempts - 1})…`,
+                  : `Fixing preview/build error (${attempt}/${maxAttempts - 1})…`,
               });
               polishPassActive = false;
               validationState.set({
                 status: 'checking',
-                detail: `Cline retry ${attempt}/${maxAttempts - 1}: inspecting actual preview error…`,
+                detail: `Build retry ${attempt}/${maxAttempts - 1}: inspecting actual preview error…`,
               });
             } else {
               executionPolicy.allowRepair(agentMessageId, true);
@@ -558,8 +566,10 @@ export function useCognitiveHarness(options: HarnessOptions) {
                 `Implement this user request using Cline tools: ${userRequest}`,
                 `Build phase ${phaseNumber} of ${phases.length} — approved blueprint: ${blueprintForPrompt(blueprint)}`,
                 approvedAssets.length > 0
-                  ? `APPROVED IMAGES (already generated and written to disk — load them at these exact paths, do not recreate or rename them):\n${approvedAssets.map((asset) => `- ${asset.path} (${asset.kind}, ${asset.width}×${asset.height})`).join('\n')}`
-                  : 'APPROVED IMAGES: none were generated for this build. Draw everything procedurally on the canvas.',
+                  ? `APPROVED IMAGES (already generated and written to disk — load and visibly draw these exact paths):\n${approvedAssets.map((asset) => `- ${asset.path} (${asset.kind}, ${asset.width}×${asset.height})`).join('\n')}`
+                  : existingImagePaths.length > 0
+                    ? `EXISTING IMAGES (already in this workspace — reuse a relevant one instead of generating a duplicate):\n${existingImagePaths.slice(0, 24).join('\n')}`
+                    : 'No images were generated or already available; create polished procedural visuals.',
                 approvedAssets.length > 0
                   ? 'Actually use each approved image in the game renderer; do not merely list or preload it. Load `assets/...png` with `new Image()`, await its load (with a short failure timeout) before marking the game ready, and draw it in the correct scene layer. For a sprite, draw the entire isolated image with contain/aspect-preserving dimensions at the moving entity; never stretch a car/scooter sprite across the screen. For a background/road image, draw it as a scene layer with cover/tile behavior. Keep a procedural fallback if the image fails.'
                   : '',
@@ -637,7 +647,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
               startActivity(
                 messageId,
                 'cline:inspect',
-                'Cline inspecting approved project files',
+                'Inspecting approved project files',
                 'Project inspection finished',
               );
               updateAgentMessage('Inspecting project and preparing the approved build…');
@@ -678,7 +688,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                   signal: controller.signal,
                   onEvent: (event) => {
                     if (event.type === 'status') {
-                      const detail = String(event.payload?.message || 'Cline is working…').slice(0, 240);
+                      const detail = String(event.payload?.message || 'The builder is working…').slice(0, 240);
                       transitionHarness('editing', { detail });
                       validationState.set({ status: 'checking', detail });
                     } else if (event.type === 'reasoning') {
@@ -689,7 +699,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                     } else if (event.type === 'tool_start') {
                       const call = event.payload || {};
                       const path = typeof call.input?.path === 'string' ? call.input.path : '';
-                      const step = describeClineToolStep(String(call.tool || 'Cline tool'), path);
+                      const step = describeClineToolStep(String(call.tool || 'Builder tool'), path);
 
                       /*
                        * Path-keyed write ids stay stable so the workspace write
@@ -714,7 +724,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                       const writeStep = describeClineToolStep('write_file', path);
 
                       if (!runAllowlist.includes(path)) {
-                        writeViolation = `Cline attempted to write a path outside this run's approved paths: ${path || '(empty path)'}`;
+                        writeViolation = `The builder attempted to write a path outside this run's approved paths: ${path || '(empty path)'}`;
                         startActivity(
                           messageId,
                           `cline:write:${path}`,
@@ -770,12 +780,12 @@ export function useCognitiveHarness(options: HarnessOptions) {
                         }
                       });
                     } else if (event.type === 'task_complete') {
-                      completionSummary = String(event.payload?.summary || 'Cline finished the implementation.');
+                      completionSummary = String(event.payload?.summary || 'Implementation finished.');
                     } else if (event.type === 'usage') {
                       const usage = event.payload || {};
                       const cost = Number(usage.totalCost);
                       transitionHarness('editing', {
-                        detail: `Cline used ${Number(usage.inputTokens) || 0} input / ${Number(usage.outputTokens) || 0} output tokens${Number.isFinite(cost) ? ` · $${cost.toFixed(4)}` : ''}`,
+                        detail: `Builder used ${Number(usage.inputTokens) || 0} input / ${Number(usage.outputTokens) || 0} output tokens${Number.isFinite(cost) ? ` · $${cost.toFixed(4)}` : ''}`,
                       });
                     }
                   },
@@ -794,7 +804,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                 return {
                   ok: false,
                   error:
-                    'Cline finished a tool turn without reporting written workspace files. The build is not complete.',
+                    'Build finished without reporting written workspace files. The build is not complete.',
                 };
               }
 
@@ -802,7 +812,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                 completionSummary ||
                   runResult.payload?.summary ||
                   responseText ||
-                  'Cline completed the implementation.',
+                  'Implementation complete.',
               );
 
               completionSummary = runSummary;
@@ -934,7 +944,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                   runFailure = result.error;
                 } else if (result.filesTouched.length === 0) {
                   runFailure =
-                    'Cline finished a tool turn without writing any approved workspace files. The build is not complete.';
+                    'Build finished without writing any approved workspace files. The build is not complete.';
                 }
               }
 
@@ -963,10 +973,11 @@ export function useCognitiveHarness(options: HarnessOptions) {
                       : appliedWorkspacePaths.size
                         ? ` Files already written: ${Array.from(appliedWorkspacePaths).join(', ')}.`
                         : '';
-                  const detail = `Bolt could not safely complete this build after ${maxAttempts} attempts. ${lastError}${progress}`;
+                  const detail = `The build could not safely complete after ${maxAttempts} attempts. ${lastError}${progress}`;
+                  settleActiveActivities(messageId, 'failed');
 
                   updateAgentMessage(`⚠️ The build stopped before verification passed.\n\n${detail}`);
-                  startActivity(messageId, 'cline:failed', 'Cline could not complete the build', detail, 'failed');
+                  startActivity(messageId, 'cline:failed', 'Build could not complete', detail, 'failed');
                   executionPolicy.revoke();
                   validationState.set({ status: 'failed', detail });
                   transitionHarness('failed', { detail });
@@ -979,7 +990,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                   content: `Actual Bolt build error from attempt ${attempt + 1}:\n${runFailure}\nRead the current approved files, fix the actual cause, and continue the build exactly where it stopped — do not restart the project from scratch.`,
                 });
                 executionPolicy.allowRepair();
-                updateAgentMessage(`Build issue detected. Cline is correcting it (${attempt + 1}/${maxAttempts})…`);
+                updateAgentMessage(`Build issue detected. Fixing the build (${attempt + 1}/${maxAttempts})…`);
 
                 continue;
               }
@@ -1021,11 +1032,12 @@ export function useCognitiveHarness(options: HarnessOptions) {
                     role: 'user',
                     content: `Build verified. Do ONE final automatic polish pass over the approved game files: the finished game is ${approvedPaths.length} modules — do NOT restructure, restart, or rewrite whole modules. Aim surgical edit_file calls where the player feels it most: the entry/boot file, the core gameplay loop, first-minute feel, juice (particles, screen shake, hit feedback, sounds), and anything thin or rough. Complete anything half-built, then run the checks and finish_task.`,
                   });
-                  updateAgentMessage('First build verified. Cline is polishing it once more…');
+                  updateAgentMessage('First build verified. Polishing the build once more…');
 
                   continue;
                 }
 
+                settleActiveActivities(messageId, 'complete');
                 startActivity(
                   messageId,
                   'cline:verified',
@@ -1034,15 +1046,15 @@ export function useCognitiveHarness(options: HarnessOptions) {
                   'complete',
                 );
                 executionPolicy.revoke();
-                validationState.set({ status: 'passed', detail: 'Cline build and live preview verified.' });
-                transitionHarness('verified', { detail: 'Cline changes passed build and live preview checks.' });
+                validationState.set({ status: 'passed', detail: 'Build and live preview verified.' });
+                transitionHarness('verified', { detail: 'Build and live preview checks passed.' });
 
                 try {
                   const database = await dbPromise;
                   const projectId = chatId.get() || workbenchStore.firstArtifact?.id || blueprint.workspaceId;
                   await saveCheckpoint(database, await getWebContainer(), projectId, agentMessageId);
                 } catch (checkpointError) {
-                  console.warn('Cline build checkpoint save warning:', checkpointError);
+                  console.warn('Build checkpoint save warning:', checkpointError);
                 }
 
                 if (typeof window !== 'undefined' && window.parent !== window) {
@@ -1061,6 +1073,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
               previewErrors = [{ message: lastError }];
 
               if (attempt === maxAttempts - 1) {
+                settleActiveActivities(messageId, 'failed');
                 startActivity(
                   messageId,
                   'cline:failed',
@@ -1070,7 +1083,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                 );
                 executionPolicy.revoke();
                 validationState.set({ status: 'failed', detail: lastError });
-                transitionHarness('failed', { detail: `Cline stopped after ${maxAttempts} attempts: ${lastError}` });
+                transitionHarness('failed', { detail: `Build stopped after ${maxAttempts} attempts: ${lastError}` });
                 options.setMessages((messages) =>
                   messages.map((entry) =>
                     entry.id === agentMessageId
@@ -1117,13 +1130,13 @@ export function useCognitiveHarness(options: HarnessOptions) {
                 continue;
               }
 
-              assistantContent += `${assistantContent ? '\n\n' : ''}Cline run stopped after ${maxAttempts} attempts: ${message}`;
+              assistantContent += `${assistantContent ? '\n\n' : ''}Build stopped after ${maxAttempts} attempts: ${message}`;
               updateAgentMessage(assistantContent);
               throw error;
             }
           }
 
-          throw new Error(lastError || 'Cline reached its safe retry limit before verification passed.');
+          throw new Error(lastError || 'The builder reached its safe retry limit before verification passed.');
         }
 
         const artifactId = workbenchStore.firstArtifact?.id || `game-${blueprint.workspaceId}`;
@@ -1155,6 +1168,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
         }
 
         const detail = (error as Error).message || 'Could not start the approved build';
+        settleActiveActivities(messageId, 'failed');
         executionPolicy.revoke();
         transitionHarness('failed', { detail });
         validationState.set({ status: 'failed', detail });
@@ -1166,7 +1180,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
             entry.id === visibleErrorMessageId
               ? {
                   ...entry,
-                  content: `${entry.content}\n\n⚠️ Cline could not continue the build. No additional files were applied.\n\n${detail}`,
+                  content: `${entry.content}\n\n⚠️ The build could not continue. No additional files were applied.\n\n${detail}`,
                 }
               : entry,
           ),
@@ -1278,10 +1292,10 @@ export function useCognitiveHarness(options: HarnessOptions) {
               onEvent: (event) => {
                 if (event.type === 'status') {
                   transitionHarness('planning', {
-                    detail: String(event.payload?.message || 'Cline planning…').slice(0, 240),
+                    detail: String(event.payload?.message || 'Planning the build…').slice(0, 240),
                   });
                 } else if (event.type === 'reasoning') {
-                  transitionHarness('planning', { detail: 'Cline analyzing the project and planning…' });
+                  transitionHarness('planning', { detail: 'Analyzing the project and planning…' });
                 } else if (event.type === 'plan_ready') {
                   clineProposedPlan = managerBlueprintSchema.parse(event.payload?.plan);
                 }
@@ -1293,11 +1307,11 @@ export function useCognitiveHarness(options: HarnessOptions) {
             : undefined;
 
           if (!clineProposedPlan) {
-            throw new Error('Cline did not submit a structured game plan. No files were changed.');
+            throw new Error('A structured game plan was not submitted. No files were changed.');
           }
 
           managerContext =
-            `${managerContext}\n\nCline plan summary: ${clineProposedPlan.summary}\nPlanned systems: ${clineProposedPlan.systems.join('; ')}`.slice(
+            `${managerContext}\n\nBuild plan summary: ${clineProposedPlan.summary}\nSystems: ${clineProposedPlan.systems.join('; ')}`.slice(
               0,
               3900,
             );
@@ -1344,9 +1358,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
           {
             id: messageId,
             role: 'assistant',
-            content: clineProposedPlan
-              ? 'Cline plan ready — building now.'
-              : 'Plan ready — building now.',
+            content: buildStatusLine(),
             annotations: [{ type: 'studio-blueprint', blueprint }],
           },
         ]);

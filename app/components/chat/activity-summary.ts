@@ -1,11 +1,14 @@
 import type { ActivityStep } from '~/lib/stores/activity';
 
 export function summarizeActivity(steps: ActivityStep[], isStreaming: boolean, busyNow = false) {
-  const failed = steps.find((step) => step.status === 'failed');
   const running = steps.find((step) => step.status === 'running');
   const pending = steps.find((step) => step.status === 'pending');
   const aborted = steps.find((step) => step.status === 'aborted');
-  const verified = steps.some((step) => step.id === 'validation:result' && step.status === 'complete');
+  const verifiedBuild = steps.some((step) => step.id === 'cline:verified' && step.status === 'complete');
+  const verified = verifiedBuild || steps.some((step) => step.id === 'validation:result' && step.status === 'complete');
+  // A recovered retry may leave failed historical rows; the final completed
+  // build is authoritative for the overall activity state.
+  const failed = verifiedBuild ? undefined : steps.find((step) => step.status === 'failed');
   const current = failed ?? running ?? pending ?? aborted ?? steps[steps.length - 1];
 
   /*

@@ -87,6 +87,22 @@ export function startActivity(
   ]);
 }
 
+/** Settle every live row so a terminal build never leaves a spinner behind. */
+export function settleActiveActivities(messageId: string, status: 'complete' | 'failed' | 'aborted') {
+  const steps = activitySteps.get()[messageId];
+  if (!steps?.length) return;
+
+  const finishedAt = Date.now();
+  let changed = false;
+  const settled = steps.map((step) => {
+    if (step.status !== 'running' && step.status !== 'pending') return step;
+    changed = true;
+    return { ...step, status, finishedAt };
+  });
+
+  if (changed) activitySteps.setKey(messageId, settled);
+}
+
 export function updateActivity(messageId: string, id: string, status: ActivityStatus) {
   const steps = activitySteps.get()[messageId];
 

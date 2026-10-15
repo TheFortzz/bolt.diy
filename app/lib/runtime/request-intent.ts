@@ -45,6 +45,7 @@ const GAME_FEATURES =
 
 const EXPLANATION_OR_GREETING =
   /^(?:hi|hello|hey|yo|thanks|thank you|good morning|good evening|what|why|how|when|where|who|which|explain|tell me|(?:can|could) you tell me|do you|are you|is it)\b/i;
+const STATUS_QUESTION = /^(?:did|does|is|are)\s+(?:it|that|the build|the game|you)(?:\s+(?:work|finish|complete|run|done))?\s*\?$/i;
 
 const LEADING_INTERJECTION =
   /^(?:hi|hello|hey|yo|bro|dude|man|ok|okay|alright|all\s+right|ya|yeah|yes|yep|so|please|pleas|pls|nice|very\s+nice|good|very\s+good|great|great\s+job|good\s+job|awesome|cool|super|perfect|wonderful|fantastic|looks?\s+(?:good|great|nice)|loved?\s+it|now|next|also|and|then|again|well|but|however)[,!\s.-]+/i;
@@ -63,15 +64,16 @@ export function shouldUseBuildPlanner(
   mode: StudioAgentMode = 'auto',
   hasExistingProject = false,
 ) {
-  if (mode === 'plan' || mode === 'build') {
-    return true;
-  }
-
   if (mode === 'chat') {
     return false;
   }
 
   const text = request.trim();
+  if (STATUS_QUESTION.test(text)) return false;
+
+  if (mode === 'plan' || mode === 'build') {
+    return true;
+  }
 
   if (!text) {
     return false;

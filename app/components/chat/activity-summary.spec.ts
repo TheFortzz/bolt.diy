@@ -16,6 +16,12 @@ describe('observed activity summary', () => {
     expect(summarizeActivity([step('validation:result', 'complete')], false).state).toBe('verified');
   });
 
+  it('shows the final successful build as verified even if a retry had an old failure', () => {
+    const result = summarizeActivity([step('assets:write', 'failed'), step('cline:verified', 'complete')], false);
+    expect(result.state).toBe('verified');
+    expect(result.title).toBe('Build checks passed');
+  });
+
   it('keeps a failure visible even after other checks complete', () => {
     const result = summarizeActivity([step('assets:write', 'failed'), step('validation:result', 'complete')], false);
     expect(result.state).toBe('failed');

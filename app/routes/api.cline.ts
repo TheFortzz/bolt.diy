@@ -252,11 +252,16 @@ export async function action({ request, context }: ActionFunctionArgs) {
       throw error;
     }
 
+    /*
+     * Checkpoints can contain hidden tool files or a large dependency snapshot.
+     * Never fail an otherwise usable continuation for those entries: expose only
+     * safe project source paths and keep the tool context bounded.
+     */
+    const safeFileEntries = Object.entries(body.files)
+      .filter(([path]) => isWorkspacePath(path))
+      .slice(0, 500);
+    body.files = Object.fromEntries(safeFileEntries);
     const paths = Object.keys(body.files);
-
-    if (paths.length > 500 || paths.some((path) => !isWorkspacePath(path))) {
-      return json({ error: 'Workspace snapshot contains too many files or unsafe paths.' }, { status: 400 });
-    }
 
     const readOnly = body.readOnly || body.planningOnly;
     const approvedPaths = new Set<string>();
