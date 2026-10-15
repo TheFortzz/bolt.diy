@@ -94,7 +94,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     }));
 
     return json(
-      { ok: true, total: names.length, available: current.available, names },
+      { ok: true, total: names.length, source: current.source, available: current.available, names },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   }
@@ -107,6 +107,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
       {
         ok: true,
         query: input.query,
+        source: current.source,
         catalogueAvailable: current.available,
         catalogueSize: current.catalogue.length,
         candidateCount: found.candidates.length,

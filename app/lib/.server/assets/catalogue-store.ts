@@ -18,6 +18,9 @@ export interface CatalogueLoadResult {
   available: boolean;
   catalogue: AssetCatalogue;
 
+  /** Which backing store supplied this result. */
+  source?: 'env-json' | 'kv' | 'filesystem';
+
   /** Operator-facing explanation when unavailable. */
   reason?: string;
   path?: string;
@@ -57,6 +60,7 @@ export async function loadAssetCatalogue(
   const path = resolveCataloguePath(env);
 
   let raw: string | null = null;
+  let source: CatalogueLoadResult['source'];
 
   /*
    * Cloudflare Pages cannot read an arbitrary local JSON file at runtime.
@@ -64,15 +68,18 @@ export async function loadAssetCatalogue(
    */
   if (typeof env.ASSET_CATALOGUE_JSON === 'string' && env.ASSET_CATALOGUE_JSON.trim()) {
     raw = env.ASSET_CATALOGUE_JSON;
+    source = 'env-json';
   } else if (env.ASSET_CATALOGUE_KV) {
     try {
       raw = await env.ASSET_CATALOGUE_KV.get(path, 'text');
+      source = 'kv';
     } catch {
       raw = null;
     }
   } else {
     try {
       raw = await readFile(path);
+      source = 'filesystem';
     } catch {
       raw = null;
     }
@@ -82,7 +89,7 @@ export async function loadAssetCatalogue(
     const reason = env.ASSET_CATALOGUE_KV
       ? `No asset catalogue found in Cloudflare KV key "${path}".`
       : `No asset catalogue at ${path}.`;
-    cached = { key: path, result: { available: false, catalogue: [], reason } };
+    cached = { key: path, result: { available: false, catalogue: [], source, reason } };
 
     return cached.result;
   }
@@ -107,6 +114,7 @@ export async function loadAssetCatalogue(
       key: path,
       result: {
         available: false,
+        source,
         catalogue: [],
         reason: `Asset catalogue at ${path} failed validation (${validated.error.issues.length} issues).`,
       },
@@ -123,7 +131,7 @@ export async function loadAssetCatalogue(
    * a standalone game asset.
    */
   const hasUsableAssets = validated.data.some(isAssetUsable);
-  const result: CatalogueLoadResult = { available: hasUsableAssets, catalogue: validated.data, path };
+  const result: CatalogueLoadResult = { available: hasUsableAssets, source, catalogue: validated.data, path };
 
   if (!result.available) {
     result.reason = `Asset catalogue at ${path} contains no usable assets.`;
