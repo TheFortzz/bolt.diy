@@ -317,30 +317,12 @@ export async function action({ request, context }: ActionFunctionArgs) {
      */
     let libraryCandidateBriefing = '';
 
-    if (body.planningOnly) {
-      try {
-        const catalogue = await loadAssetCatalogue(context.cloudflare.env);
-        const queryMatch = /^Create an implementation plan for this game request:\s*([^\n]+)/i.exec(body.prompt);
-        const query = queryMatch?.[1] || body.prompt.slice(0, 1200);
-        const merged = [...(catalogue.available ? catalogue.catalogue : [])];
-        const seen = new Set(merged.map((record) => record.id));
-
-        try {
-          for (const record of await buildLiveAssetCatalogue(context.cloudflare.env, query)) {
-            if (!seen.has(record.id)) {
-              merged.push(record);
-              seen.add(record.id);
-            }
-          }
-        } catch {
-          // Live Appwrite search is opportunistic; keep the stored catalogue.
-        }
-
-        libraryCandidateBriefing = formatCandidateBriefing(findLibraryCandidates(merged, { text: query, limit: 10 }).candidates, query);
-      } catch {
-        // An absent/unreadable catalogue must never block planning.
-      }
-    }
+    /*
+     * Appwrite-backed library candidates are intentionally disabled. 2D imagery
+     * is generated through FLUX.2-pro, so planning no longer benefits from the
+     * external asset shortlist.
+     */
+    libraryCandidateBriefing = '';
 
     const cookies = parseCookieMap(request.headers.get('Cookie') || '');
     const apiKeys = JSON.parse(cookies.apiKeys || '{}') as Record<string, string>;

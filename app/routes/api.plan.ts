@@ -87,12 +87,11 @@ export async function action({ request, context }: ActionFunctionArgs) {
     }
 
     /*
-     * Search the verified library for THIS request and hand the manager a
-     * short, ranked shortlist. Bounded and failure-tolerant on purpose: no
-     * catalogue, an unreadable one, or zero matches all degrade to the exact
-     * behaviour the studio had before the library existed.
+     * Appwrite-backed library assets are intentionally disabled: generated
+     * 2D imagery via FLUX.2-pro is the approved asset source, so planning
+     * always starts with an empty verified-library shortlist.
      */
-    let libraryCandidates: Array<{
+    const libraryCandidates: Array<{
       id: string;
       path: string;
       dimension: string;
@@ -102,32 +101,6 @@ export async function action({ request, context }: ActionFunctionArgs) {
       group: string[];
       description: string;
     }> = [];
-
-    try {
-      const catalogue = await loadAssetCatalogue(env);
-      const mergedCatalogue = catalogue.available ? [...catalogue.catalogue] : [];
-
-      try {
-        const liveCatalogue = await buildLiveAssetCatalogue(env, `${input.request} ${input.systemContext || ''}`);
-        const seen = new Set(mergedCatalogue.map((record) => record.id));
-
-        for (const record of liveCatalogue) {
-          if (!seen.has(record.id)) {
-            mergedCatalogue.push(record);
-            seen.add(record.id);
-          }
-        }
-      } catch {
-        // Live Appwrite search is opportunistic; keep the stored catalogue.
-      }
-
-      libraryCandidates = findLibraryCandidates(mergedCatalogue, {
-        text: `${input.request} ${input.systemContext || ''}`.slice(0, 2000),
-        limit: 10,
-      }).candidates;
-    } catch {
-      // Never let catalogue trouble fail a build plan.
-    }
 
     let blueprint;
 
