@@ -4,8 +4,6 @@ import { z, ZodError } from 'zod';
 import { getModel } from '~/lib/.server/llm/model';
 import { CLINE_TURN_MAX_TOKENS, createBoltAgentModel } from '~/lib/.server/bolt-agent-model';
 import { getHarnessSecret, requireSameOrigin, verifyCapability } from '~/lib/.server/harness/capabilities';
-import { loadAssetCatalogue } from '~/lib/.server/assets/catalogue-store';
-import { buildLiveAssetCatalogue } from '~/lib/.server/assets/live-catalogue';
 import { findLibraryCandidates, formatCandidateBriefing } from '~/lib/.server/assets/candidate-search';
 import { blueprintSchema, isWorkspacePath, managerBlueprintSchema } from '~/lib/harness/blueprint';
 import { runAgentBuildCheck, runAgentGameplayCheck, runAgentQualityCheck } from '~/lib/runtime/agent-project-checks';

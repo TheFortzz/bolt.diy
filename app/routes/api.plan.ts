@@ -1,8 +1,6 @@
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { z } from 'zod';
 import { getFluxApiKey } from '~/lib/.server/flux/flux-client';
-import { loadAssetCatalogue } from '~/lib/.server/assets/catalogue-store';
-import { buildLiveAssetCatalogue } from '~/lib/.server/assets/live-catalogue';
 import { findLibraryCandidates } from '~/lib/.server/assets/candidate-search';
 import { runManagerAgent } from '~/lib/.server/harness/agents';
 import { getBaseURL } from '~/lib/.server/llm/api-key';
