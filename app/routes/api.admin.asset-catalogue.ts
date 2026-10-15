@@ -26,6 +26,7 @@ const requestSchema = z
     probe: z.boolean().default(true),
     offset: z.number().int().min(0).default(0),
     maxPages: z.number().int().min(1).max(200).default(50),
+    listNames: z.boolean().default(false),
   })
   .strict();
 
@@ -77,6 +78,21 @@ export async function action({ request, context }: ActionFunctionArgs) {
     input = requestSchema.parse(await request.json());
   } catch {
     return json({ ok: false, error: 'Invalid catalogue request.' }, { status: 400 });
+  }
+
+  if (input.listNames) {
+    const current = await loadAssetCatalogue(env);
+    const names = current.catalogue.map((record) => ({
+      name: record.originalName,
+      dimension: record.dimension,
+      format: record.format,
+      usable: record.available && record.role === 'asset',
+    }));
+
+    return json(
+      { ok: true, total: names.length, available: current.available, names },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
   }
 
   const appwrite = resolveAssetLibraryConfig(env);
