@@ -138,6 +138,7 @@ describe('listAssetFiles', () => {
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).not.toContain(SECRET);
     expect((init.headers as Record<string, string>)['X-Appwrite-Key']).toBe(SECRET);
+    expect((init.headers as Record<string, string>)['X-Appwrite-Project']).toBe('6a83071d00217ab38269');
   });
 
   it('follows pagination up to the page cap', async () => {

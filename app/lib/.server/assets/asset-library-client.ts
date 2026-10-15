@@ -157,7 +157,17 @@ function storageUrl(config: AssetLibraryConfig, suffix: string): string {
 }
 
 function authHeaders(config: AssetLibraryConfig): Record<string, string> {
-  return { 'X-Appwrite-Key': config.apiKey, 'Content-Type': 'application/json' };
+  /*
+   * Appwrite Server REST requires BOTH headers. Sending only X-Appwrite-Key
+   * while putting projectId in the query string is not equivalent: Appwrite
+   * rejects a valid key as `api_key_invalid` because no project context was
+   * attached. This was the false credential diagnosis from the first probe.
+   */
+  return {
+    'X-Appwrite-Key': config.apiKey,
+    'X-Appwrite-Project': config.projectId,
+    'Content-Type': 'application/json',
+  };
 }
 
 async function blockerFromResponse(response: Response, action: string): Promise<AssetLibraryBlocker> {
