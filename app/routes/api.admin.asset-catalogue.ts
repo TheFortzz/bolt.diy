@@ -2,7 +2,7 @@ import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { z } from 'zod';
 import { buildAssetCatalogue } from '~/lib/assets/catalogue-builder';
 import { assetCatalogueSchema } from '~/lib/assets/asset-schema';
-import { loadAssetCatalogue, resetCatalogueCache, writeCatalogueToKv } from '~/lib/.server/assets/catalogue-store';
+import { loadAssetCatalogue, resetCatalogueCache, resolveCataloguePath, writeCatalogueToKv } from '~/lib/.server/assets/catalogue-store';
 import { createVisionAssetEnricher } from '~/lib/.server/assets/vision-analysis';
 import { resolveAssetLibraryConfig } from '~/lib/.server/assets/asset-library-client';
 import { requireSameOrigin } from '~/lib/.server/harness/capabilities';
@@ -26,6 +26,8 @@ const requestSchema = z
     analyzeImages: z.boolean().default(false),
     probe: z.boolean().default(true),
     offset: z.number().int().min(0).default(0),
+    shardIndex: z.number().int().min(0).max(100000).optional(),
+    manifestShards: z.array(z.number().int().min(0).max(100000)).max(1000).optional(),
     maxPages: z.number().int().min(1).max(200).default(50),
     listNames: z.boolean().default(false),
     testCandidates: z.boolean().default(false),
@@ -213,11 +215,28 @@ export async function action({ request, context }: ActionFunctionArgs) {
       return json({ ok: false, error: 'The built catalogue failed final validation.' }, { status: 500 });
     }
 
-    write = await writeCatalogueToKv(kv, validated.data);
-    resetCatalogueCache();
+    /*
+     * Large catalogues are intentionally never overwrite-merged inside the
+     * worker: each chunk writes its own KV shard plus (when requested) a
+     * manifest that tells loaders how many shards to concatenate. This keeps
+     * a huge scan from collapsing back to the first small chunk.
+     */
+    if (input.shardIndex !== undefined) {
+      await kv.put(`${resolveCataloguePath(env)}.shard.${input.shardIndex}.json`, JSON.stringify(validated.data));
 
-    if (!write.written) {
-      return json({ ok: false, error: write.reason || 'Catalogue write was refused.' }, { status: 500 });
+      if (Array.isArray(input.manifestShards)) {
+        await kv.put(`${resolveCataloguePath(env)}.manifest.json`, JSON.stringify({ shards: input.manifestShards }));
+      }
+
+      resetCatalogueCache();
+      write = { written: true, backupKey: undefined };
+    } else {
+      write = await writeCatalogueToKv(kv, validated.data);
+      resetCatalogueCache();
+
+      if (!write.written) {
+        return json({ ok: false, error: write.reason || 'Catalogue write was refused.' }, { status: 500 });
+      }
     }
   }
 

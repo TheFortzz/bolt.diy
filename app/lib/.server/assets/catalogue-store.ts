@@ -70,11 +70,67 @@ export async function loadAssetCatalogue(
     raw = env.ASSET_CATALOGUE_JSON;
     source = 'env-json';
   } else if (env.ASSET_CATALOGUE_KV) {
+    /*
+     * A large catalogue is published as individually valid KV shards plus a
+     * manifest. Reading every shard by manifest avoids depending on the slow,
+     * eventually-consistent merged single key, which previously collapsed back
+     * to the first 25 records.
+     */
+    const shardManifestKey = `${path}.manifest.json`;
+    let manifestParsed: { shards?: unknown } | undefined;
+
     try {
-      raw = await env.ASSET_CATALOGUE_KV.get(path, 'text');
-      source = 'kv';
+      const manifestRaw = await env.ASSET_CATALOGUE_KV.get(shardManifestKey, 'text');
+      if (manifestRaw) {
+        manifestParsed = JSON.parse(manifestRaw) as { shards?: unknown };
+      }
     } catch {
-      raw = null;
+      // Fall through to the legacy single-key layout.
+    }
+
+    const shardIndexes = Array.isArray(manifestParsed?.shards)
+      ? manifestParsed.shards.filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0)
+      : [];
+
+    let shardRaw: string | null = null;
+
+    if (shardIndexes.length > 0) {
+      try {
+        const shardRaws = await Promise.all(
+          shardIndexes.map((shardIndex) => env.ASSET_CATALOGUE_KV!.get(`${path}.shard.${shardIndex}.json`, 'text')),
+        );
+        const merged: unknown[] = [];
+
+        for (const rawShard of shardRaws) {
+          if (!rawShard) {
+            continue;
+          }
+          try {
+            const parsed = JSON.parse(rawShard);
+            if (Array.isArray(parsed)) {
+              merged.push(...parsed);
+            }
+          } catch {
+            // Keep valid records from other shards.
+          }
+        }
+
+        shardRaw = merged.length ? JSON.stringify(merged) : null;
+      } catch {
+        shardRaw = null;
+      }
+    }
+
+    if (shardRaw) {
+      raw = shardRaw;
+      source = 'kv';
+    } else {
+      try {
+        raw = await env.ASSET_CATALOGUE_KV.get(path, 'text');
+        source = 'kv';
+      } catch {
+        raw = null;
+      }
     }
   } else {
     try {
