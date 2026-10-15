@@ -114,18 +114,8 @@ export async function action({ request, context }: ActionFunctionArgs) {
     return json({ ok: false, error: 'Requested asset ids are outside the approved blueprint.' }, { status: 403 });
   }
 
-  // The catalogue is the allowlist: only assets a plan could legitimately use.
-  const catalogue = await loadAssetCatalogue(env as never);
-
-  if (!catalogue.available) {
-    return blockerResponse(
-      {
-        code: 'not-found',
-        message: catalogue.reason || 'No asset catalogue is available, so no library assets can be fetched.',
-      },
-      404,
-    );
-  }
+  const loadedCatalogue = await loadAssetCatalogue(env as never);
+  const catalogueRecords = loadedCatalogue.available ? loadedCatalogue.catalogue : [];
 
   const config = resolveAssetLibraryConfig(env as never);
 
@@ -139,48 +129,41 @@ export async function action({ request, context }: ActionFunctionArgs) {
    * textures are already inside the model and are not fetched again.
    */
   const wanted = new Map<string, { group: string[]; path: string; mimeType: string }>();
-  const unknown: string[] = [];
+
+  /*
+   * Persisted catalogues may not contain recently-discovered Appwrite assets yet.
+   * Approved blueprint ids remain the security boundary; if no catalogue record
+   * is available, fetch the approved id directly with caller-supplied destination.
+   */
+  const pathById = new Map(approvedBlueprint.libraryAssets.map((asset) => [asset.id, asset.path] as const));
 
   for (const id of input.ids) {
-    const record = catalogue.catalogue.find((entry) => entry.id === id);
+    const record = catalogueRecords.find((entry) => entry.id === id);
+    const members = record ? requiredFetchGroup(record, catalogueRecords) : [];
 
-    if (!record) {
-      unknown.push(id);
-      continue;
-    }
-
-    for (const member of requiredFetchGroup(record, catalogue.catalogue)) {
-      const key = member.id;
-
-      if (wanted.has(key)) {
+    for (const member of members) {
+      if (wanted.has(member.id)) {
         continue;
       }
 
-      wanted.set(key, {
+      wanted.set(member.id, {
         group: [],
         path: destinationPathFor(member),
         mimeType: member.mimeType || '',
       });
     }
 
-    wanted.set(record.id, {
-      group: requiredFetchGroup(record, catalogue.catalogue)
-        .filter((entry) => entry.id !== record.id)
+    wanted.set(id, {
+      group: members
+        .filter((member) => member.id !== id)
         .map(destinationPathFor),
-      path: destinationPathFor(record),
-      mimeType: record.mimeType || '',
+      path: (record ? destinationPathFor(record) : pathById.get(id)) || `assets/${id.split(':')[1] || 'asset.bin'}`,
+      mimeType: record?.mimeType || '',
     });
   }
 
-  if (unknown.length > 0) {
-    return json(
-      {
-        ok: false,
-        error: `These asset ids are not in the verified catalogue: ${unknown.slice(0, 6).join(', ')}.`,
-        code: 'invalid-file-id',
-      },
-      { status: 400 },
-    );
+  if (wanted.size === 0) {
+    return json({ ok: false, error: 'No approved library assets were requested.', code: 'invalid-file-id' }, { status: 400 });
   }
 
   const files: AssetPayload[] = [];

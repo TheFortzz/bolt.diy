@@ -2,6 +2,7 @@ import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { z } from 'zod';
 import { getFluxApiKey } from '~/lib/.server/flux/flux-client';
 import { loadAssetCatalogue } from '~/lib/.server/assets/catalogue-store';
+import { buildLiveAssetCatalogue } from '~/lib/.server/assets/live-catalogue';
 import { findLibraryCandidates } from '~/lib/.server/assets/candidate-search';
 import { runManagerAgent } from '~/lib/.server/harness/agents';
 import { getBaseURL } from '~/lib/.server/llm/api-key';
@@ -104,13 +105,26 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
     try {
       const catalogue = await loadAssetCatalogue(env);
+      const mergedCatalogue = catalogue.available ? [...catalogue.catalogue] : [];
 
-      if (catalogue.available) {
-        libraryCandidates = findLibraryCandidates(catalogue.catalogue, {
-          text: `${input.request} ${input.systemContext || ''}`.slice(0, 2000),
-          limit: 10,
-        }).candidates;
+      try {
+        const liveCatalogue = await buildLiveAssetCatalogue(env, `${input.request} ${input.systemContext || ''}`);
+        const seen = new Set(mergedCatalogue.map((record) => record.id));
+
+        for (const record of liveCatalogue) {
+          if (!seen.has(record.id)) {
+            mergedCatalogue.push(record);
+            seen.add(record.id);
+          }
+        }
+      } catch {
+        // Live Appwrite search is opportunistic; keep the stored catalogue.
       }
+
+      libraryCandidates = findLibraryCandidates(mergedCatalogue, {
+        text: `${input.request} ${input.systemContext || ''}`.slice(0, 2000),
+        limit: 10,
+      }).candidates;
     } catch {
       // Never let catalogue trouble fail a build plan.
     }

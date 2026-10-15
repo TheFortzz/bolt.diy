@@ -5,6 +5,7 @@ import { getModel } from '~/lib/.server/llm/model';
 import { CLINE_TURN_MAX_TOKENS, createBoltAgentModel } from '~/lib/.server/bolt-agent-model';
 import { getHarnessSecret, requireSameOrigin, verifyCapability } from '~/lib/.server/harness/capabilities';
 import { loadAssetCatalogue } from '~/lib/.server/assets/catalogue-store';
+import { buildLiveAssetCatalogue } from '~/lib/.server/assets/live-catalogue';
 import { findLibraryCandidates, formatCandidateBriefing } from '~/lib/.server/assets/candidate-search';
 import { blueprintSchema, isWorkspacePath, managerBlueprintSchema } from '~/lib/harness/blueprint';
 import { runAgentBuildCheck, runAgentGameplayCheck, runAgentQualityCheck } from '~/lib/runtime/agent-project-checks';
@@ -319,13 +320,23 @@ export async function action({ request, context }: ActionFunctionArgs) {
     if (body.planningOnly) {
       try {
         const catalogue = await loadAssetCatalogue(context.cloudflare.env);
+        const queryMatch = /^Create an implementation plan for this game request:\s*([^\n]+)/i.exec(body.prompt);
+        const query = queryMatch?.[1] || body.prompt.slice(0, 1200);
+        const merged = [...(catalogue.available ? catalogue.catalogue : [])];
+        const seen = new Set(merged.map((record) => record.id));
 
-        if (catalogue.available) {
-          const requestMatch = /^Create an implementation plan for this game request:\s*([^\n]+)/i.exec(body.prompt);
-          const query = requestMatch?.[1] || body.prompt.slice(0, 1200);
-          const { candidates } = findLibraryCandidates(catalogue.catalogue, { text: query, limit: 10 });
-          libraryCandidateBriefing = formatCandidateBriefing(candidates, query);
+        try {
+          for (const record of await buildLiveAssetCatalogue(context.cloudflare.env, query)) {
+            if (!seen.has(record.id)) {
+              merged.push(record);
+              seen.add(record.id);
+            }
+          }
+        } catch {
+          // Live Appwrite search is opportunistic; keep the stored catalogue.
         }
+
+        libraryCandidateBriefing = formatCandidateBriefing(findLibraryCandidates(merged, { text: query, limit: 10 }).candidates, query);
       } catch {
         // An absent/unreadable catalogue must never block planning.
       }
