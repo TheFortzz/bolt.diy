@@ -105,15 +105,20 @@ export function removeGreenScreenPixels(imageData: ImageData): ImageData {
   const pixelCount = width * height;
   const visited = new Uint8Array(pixelCount);
   const queue = new Int32Array(pixelCount);
+  const keyRed = 0;
+  const keyGreen = 255;
+  const keyBlue = 0;
+  const keyTolerance = 80;
   let head = 0;
   let tail = 0;
 
   const isKeyColor = (index: number) => {
     const offset = index * 4;
-    const red = data[offset];
-    const green = data[offset + 1];
-    const blue = data[offset + 2];
-    return green > 70 && green - Math.max(red, blue) >= 12;
+    if (data[offset + 3] === 0) return false;
+    const red = data[offset] - keyRed;
+    const green = data[offset + 1] - keyGreen;
+    const blue = data[offset + 2] - keyBlue;
+    return Math.sqrt(red * red + green * green + blue * blue) <= keyTolerance;
   };
 
   const enqueue = (index: number) => {
@@ -148,19 +153,22 @@ export function removeGreenScreenPixels(imageData: ImageData): ImageData {
     const red = data[offset];
     const green = data[offset + 1];
     const blue = data[offset + 2];
-    const dominance = green - Math.max(red, blue);
-    const alpha = Math.max(0, Math.min(255, Math.round(255 - (dominance - 8) * 6)));
+    const deltaRed = red - keyRed;
+    const deltaGreen = green - keyGreen;
+    const deltaBlue = blue - keyBlue;
+    const distance = Math.sqrt(deltaRed * deltaRed + deltaGreen * deltaGreen + deltaBlue * deltaBlue);
+    const alpha = Math.max(0, Math.min(255, Math.round(((distance - 10) / (keyTolerance - 10)) * 255)));
 
     if (alpha === 0) {
       data[offset + 3] = 0;
       continue;
     }
 
-    // Unmix the green matte from antialiased edge pixels to avoid a green halo.
+    // Unmix only pixels very close to the matte color to avoid keying green art.
     const foreground = alpha / 255;
-    data[offset] = Math.max(0, Math.min(255, Math.round(red / foreground)));
-    data[offset + 1] = Math.max(0, Math.min(255, Math.round((green - 255 * (1 - foreground)) / foreground)));
-    data[offset + 2] = Math.max(0, Math.min(255, Math.round(blue / foreground)));
+    data[offset] = Math.max(0, Math.min(255, Math.round((red - keyRed * (1 - foreground)) / foreground)));
+    data[offset + 1] = Math.max(0, Math.min(255, Math.round((green - keyGreen * (1 - foreground)) / foreground)));
+    data[offset + 2] = Math.max(0, Math.min(255, Math.round((blue - keyBlue * (1 - foreground)) / foreground)));
     data[offset + 3] = alpha;
   }
 

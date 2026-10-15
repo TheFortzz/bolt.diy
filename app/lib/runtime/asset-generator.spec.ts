@@ -67,6 +67,37 @@ describe('green-screen sprite processing', () => {
     expect(result.data[3]).toBe(0);
     expect(result.data[4 * 4 + 3]).toBe(255);
   });
+
+  it('preserves green details enclosed inside a contrasting sprite outline', () => {
+    const width = 5;
+    const height = 5;
+    const data = new Uint8ClampedArray(width * height * 4);
+
+    for (let index = 0; index < width * height; index++) {
+      data.set([0, 255, 0, 255], index * 4);
+    }
+    for (let y = 1; y <= 3; y++) {
+      for (let x = 1; x <= 3; x++) {
+        data.set([220, 30, 25, 255], (y * width + x) * 4);
+      }
+    }
+    data.set([0, 220, 20, 255], (2 * width + 2) * 4);
+
+    const result = removeGreenScreenPixels({ data, width, height } as ImageData);
+    expect(result.data[(2 * width + 2) * 4 + 3]).toBe(255);
+    expect(result.data[3]).toBe(0);
+  });
+
+  it('does not remove green hues that differ from the exact key matte', () => {
+    const width = 3;
+    const height = 3;
+    const data = new Uint8ClampedArray(width * height * 4);
+    for (let index = 0; index < width * height; index++) data.set([0, 255, 0, 255], index * 4);
+    data.set([0, 150, 0, 255], 4 * 4);
+
+    const result = removeGreenScreenPixels({ data, width, height } as ImageData);
+    expect(result.data[4 * 4 + 3]).toBe(255);
+  });
 });
 
 describe('Asset Generator & Real Test Game Verification', () => {

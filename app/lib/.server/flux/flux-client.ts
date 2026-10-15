@@ -94,7 +94,7 @@ export function formatFluxPrompt(prompt: string, isSprite = true): string {
 
   // FLUX.2-pro returns opaque images, so request a flat matte for client-side keying.
   const spriteDirectives =
-    'isolated 2D video game sprite, full object centered, clean crisp silhouette, flat uniform pure green screen background RGB 0 255 0, no scenery, no ground plane, no cast shadow outside the object';
+    'isolated 2D video game sprite, full object centered, clean crisp silhouette, flat uniform pure green screen background RGB 0 255 0. Keep every part of the subject clearly different from the green matte: do not use green or lime paint, windows, lights, reflections, glow, or green edge pixels on the object. Use a contrasting red, orange, yellow, blue, black, or white subject palette. Separate the silhouette from the matte with a thin dark outline. No scenery, ground plane, or cast shadow outside the object';
 
   return `${cleanPrompt}, ${spriteDirectives}`;
 }

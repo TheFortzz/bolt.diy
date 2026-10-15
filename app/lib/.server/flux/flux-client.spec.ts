@@ -72,6 +72,7 @@ describe('flux-client', () => {
       const prompt = 'retro spaceship';
       const formatted = formatFluxPrompt(prompt, true);
       expect(formatted).toContain('pure green screen background');
+      expect(formatted).toContain('do not use green or lime');
       expect(formatted).not.toContain('clean alpha channel');
       expect(formatted).toContain('2D video game sprite');
     });
