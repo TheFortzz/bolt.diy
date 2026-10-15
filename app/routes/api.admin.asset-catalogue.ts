@@ -31,6 +31,7 @@ const requestSchema = z
     maxPages: z.number().int().min(1).max(200).default(50),
     listNames: z.boolean().default(false),
     testCandidates: z.boolean().default(false),
+    searchAssets: z.boolean().default(false),
     query: z.string().max(500).default('car game'),
   })
   .strict();
@@ -145,9 +146,10 @@ export async function action({ request, context }: ActionFunctionArgs) {
     config: appwrite.data,
     dryRun: input.dryRun,
     maxFiles: input.maxFiles,
-    maxPages: input.maxPages,
-    offset: input.offset,
-    probe: input.probe,
+    maxPages: input.searchAssets ? 2 : input.maxPages,
+    offset: input.searchAssets ? 0 : input.offset,
+    search: input.searchAssets ? input.query : undefined,
+    probe: input.searchAssets ? false : input.probe,
     previousCatalogue: previous,
     ...(visionEnricher
       ? {

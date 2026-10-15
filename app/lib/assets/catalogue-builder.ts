@@ -50,6 +50,7 @@ export interface CatalogueBuildOptions {
    * a few thousand files.
    */
   probe?: boolean;
+  search?: string;
   fetchImpl?: typeof fetch;
 
   /** Injectable clock for deterministic records. */
@@ -183,6 +184,7 @@ export async function buildAssetCatalogue(options: CatalogueBuildOptions): Promi
     limit: 100,
     maxPages: options.maxPages ?? 10,
     offset: options.offset ?? 0,
+    search: options.search,
     fetchImpl: options.fetchImpl,
   });
 

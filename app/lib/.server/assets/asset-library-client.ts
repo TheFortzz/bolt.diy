@@ -240,6 +240,7 @@ export async function listAssetFiles(
     /** Offset for Appwrite buckets whose listing returns no cursor. */
     offset?: number;
     maxPages?: number;
+    search?: string;
     fetchImpl?: typeof fetch;
   } = {},
 ): Promise<AssetLibraryResult<{ files: RemoteAssetFile[]; nextCursor?: string; pages: number }>> {
@@ -255,6 +256,10 @@ export async function listAssetFiles(
   while (pages < maxPages) {
     const query = new URLSearchParams();
     query.set('limit', String(limit));
+
+    if (options.search?.trim()) {
+      query.set('search', options.search.trim());
+    }
 
     if (offset > 0) {
       query.set('offset', String(offset));
