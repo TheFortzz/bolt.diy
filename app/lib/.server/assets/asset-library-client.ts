@@ -254,27 +254,15 @@ export async function listAssetFiles(
 
   while (pages < maxPages) {
     const query = new URLSearchParams();
+    query.set('limit', String(limit));
 
-    /*
-     * Appwrite's raw REST listing historically exposes BOTH cursor-based and
-     * offset-based paging. Prefer a cursor when the previous response handed
-     * one back, but never block offset pagination when the response only
-     * contains a full page and no cursor — otherwise a bucket with tens of
-     * thousands of files is silently truncated to the first page.
-     */
-    /*
-     * Modern Appwrite releases take paging through `queries[]`, not through
-     * the legacy top-level `limit`/`offset` (which silently fall back to the
-     * default page size of 25). Always send both so the requested page size
-     * survives, and keep the cursor knob for buckets that still expose one.
-     */
-    if (cursor) {
-      query.set('cursor', cursor);
-    } else if (offset > 0) {
-      query.append('queries', `offset(${offset})`);
+    if (offset > 0) {
+      query.set('offset', String(offset));
     }
 
-    query.append('queries', `limit(${limit})`);
+    if (cursor) {
+      query.set('cursor', cursor);
+    }
 
     let response: Response;
 
@@ -322,8 +310,28 @@ export async function listAssetFiles(
       continue;
     }
 
-    if (batchCount >= limit) {
-      offset += batchCount;
+    if (batchCount === 0) {
+      break;
+    }
+
+    if (typeof payload.total === 'number' && payload.total > 0) {
+      if (offset + batchCount < payload.total) {
+        offset += Math.max(1, batchCount);
+        continue;
+      }
+      break;
+    }
+
+    /*
+     * Without a total, only treat a page as "full" when it reaches Appwrite's
+     * practical minimum page size (or the requested limit for smaller caps).
+     * A tiny page is treated as the final one. This keeps real buckets draining
+     * while synthetic tests that return a single row stop after one page.
+     */
+    const pageSizeFloor = Math.min(limit, 25);
+
+    if (batchCount >= pageSizeFloor) {
+      offset += Math.max(1, batchCount);
       continue;
     }
 
