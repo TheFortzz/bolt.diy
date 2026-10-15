@@ -21,8 +21,11 @@ import { DEFAULT_MODEL, DEFAULT_PROVIDER } from '~/utils/constants';
 const requestSchema = z
   .object({
     dryRun: z.boolean().default(true),
-    maxFiles: z.number().int().min(1).max(1000).default(500),
+    maxFiles: z.number().int().min(1).max(100000).default(5000),
     analyzeImages: z.boolean().default(false),
+    probe: z.boolean().default(true),
+    offset: z.number().int().min(0).default(0),
+    maxPages: z.number().int().min(1).max(200).default(50),
   })
   .strict();
 
@@ -99,7 +102,9 @@ export async function action({ request, context }: ActionFunctionArgs) {
     config: appwrite.data,
     dryRun: input.dryRun,
     maxFiles: input.maxFiles,
-    maxPages: 20,
+    maxPages: input.maxPages,
+    offset: input.offset,
+    probe: input.probe,
     previousCatalogue: previous,
     ...(visionEnricher
       ? {
@@ -181,6 +186,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
       filesSeen: report.filesSeen,
       records: report.records.length,
       previews: report.previewCount,
+      nextOffset: report.nextOffset,
       counts: report.counts,
       unusable: report.unusable,
       unreadable: report.unreadable,

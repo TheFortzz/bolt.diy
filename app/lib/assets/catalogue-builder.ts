@@ -34,9 +34,22 @@ export interface CatalogueBuildOptions {
 
   /** Report what would happen; write nothing. */
   dryRun?: boolean;
+  /** Maximum catalogue records to produce in this run. */
   maxFiles?: number;
+  /** Maximum listing pages consumed in this run. */
   maxPages?: number;
+  /** Maximum bytes downloaded per file during probing. */
   maxBytes?: number;
+  /** Starting file offset for resumable scans of very large buckets. */
+  offset?: number;
+  /**
+   * When false, classify from Appwrite listing metadata (name, mime, size) only
+   * and never download file bytes. Much faster for huge buckets, but technical
+   * metadata, checksums, embedded dependencies and image dimensions will be
+   * missing, so candidate ranking is weaker. Recommended for buckets above
+   * a few thousand files.
+   */
+  probe?: boolean;
   fetchImpl?: typeof fetch;
 
   /** Injectable clock for deterministic records. */
@@ -69,6 +82,8 @@ export interface CatalogueBuildReport {
   /** Non-fatal problems worth surfacing in a report. */
   warnings: string[];
   blockers: AssetLibraryBlocker[];
+  /** Resumable position after this run; null when the bucket scan is complete. */
+  nextOffset: number | null;
 }
 
 export interface AssetVisionEnrichment {
@@ -90,18 +105,26 @@ async function probeOne(
   const stamp = (options.now ?? (() => new Date().toISOString()))();
   const id = stableAssetId(options.config.bucketId, file.id);
 
-  const downloaded = await fetchAssetBytes(options.config, file.id, {
-    maxBytes: options.maxBytes,
-    fetchImpl: options.fetchImpl,
-  });
+  const probe = options.probe !== false;
+  let bytes: Uint8Array | undefined;
 
-  if (!downloaded.ok) {
-    return undefined;
+  if (probe) {
+    const downloaded = await fetchAssetBytes(options.config, file.id, {
+      maxBytes: options.maxBytes,
+      fetchImpl: options.fetchImpl,
+    });
+
+    if (!downloaded.ok) {
+      return undefined;
+    }
+
+    bytes = downloaded.data;
   }
 
-  const bytes = downloaded.data;
-  const technical: AssetTechnicalMetadata | undefined = extractTechnicalMetadata(bytes, file.name);
-  const model = extractModel3d(bytes, file.name);
+  const technical: AssetTechnicalMetadata | undefined = bytes
+    ? extractTechnicalMetadata(bytes, file.name)
+    : undefined;
+  const model = bytes ? extractModel3d(bytes, file.name) : undefined;
 
   const classification = classifyAsset({
     originalName: file.name,
@@ -110,7 +133,7 @@ async function probeOne(
     technical,
   });
 
-  const checksum = await checksumBytes(bytes).catch(() => undefined);
+  const checksum = bytes ? await checksumBytes(bytes).catch(() => undefined) : undefined;
 
   const base: AssetRecord = {
     id,
@@ -118,7 +141,7 @@ async function probeOne(
     originalName: file.name,
     remotePath: remotePathFor(file.name),
     mimeType: file.mimeType,
-    sizeOriginal: file.sizeOriginal || bytes.byteLength,
+    sizeOriginal: file.sizeOriginal || bytes?.byteLength || 0,
     checksum,
     role: classification.role,
     dimension: classification.dimension,
@@ -132,12 +155,12 @@ async function probeOne(
     lastVerifiedAt: stamp,
   } as AssetRecord;
 
-  if (!options.enrich) {
+  if (!options.enrich || !bytes) {
     return base;
   }
 
   try {
-    const extra = await options.enrich(base, bytes);
+    const extra = await options.enrich(base, bytes as Uint8Array);
 
     return {
       ...base,
@@ -159,6 +182,7 @@ export async function buildAssetCatalogue(options: CatalogueBuildOptions): Promi
   const listed = await listAssetFiles(options.config, {
     limit: 100,
     maxPages: options.maxPages ?? 10,
+    offset: options.offset ?? 0,
     fetchImpl: options.fetchImpl,
   });
 
@@ -173,6 +197,7 @@ export async function buildAssetCatalogue(options: CatalogueBuildOptions): Promi
       counts: {},
       warnings,
       blockers: [listed.blocker],
+      nextOffset: null,
     };
   }
 
@@ -233,7 +258,10 @@ export async function buildAssetCatalogue(options: CatalogueBuildOptions): Promi
    * scan cannot prove an unseen file was deleted, so only complete scans do
    * this.
    */
-  const scanComplete = !listed.data.nextCursor && listed.data.files.length <= maxFiles;
+  const fullScan = (options.offset ?? 0) === 0;
+  const scanComplete = fullScan && !listed.data.nextCursor && listed.data.files.length <= maxFiles;
+
+  const chunked = (options.offset ?? 0) > 0;
 
   if (scanComplete) {
     for (const previous of options.previousCatalogue || []) {
@@ -247,6 +275,19 @@ export async function buildAssetCatalogue(options: CatalogueBuildOptions): Promi
         unavailableReason: 'File was not present in the latest complete bucket listing.',
         lastVerifiedAt: (options.now ?? (() => new Date().toISOString()))(),
       });
+    }
+  } else if (chunked) {
+    /*
+     * A resumed/partial scan cannot prove that an unseen file was deleted, and
+     * must never silently drop it. Keep previous records that were not touched
+     * by this slice so large buckets can be indexed in chunks.
+     */
+    for (const previous of options.previousCatalogue || []) {
+      if (seenIds.has(previous.id)) {
+        continue;
+      }
+
+      records.push(previous);
     }
   }
 
@@ -287,6 +328,12 @@ export async function buildAssetCatalogue(options: CatalogueBuildOptions): Promi
     counts[key] = (counts[key] || 0) + 1;
   }
 
+  const nextOffset = listed.data.nextCursor && /^\d+$/.test(listed.data.nextCursor)
+    ? Number(listed.data.nextCursor)
+    : listed.data.nextCursor
+      ? (options.offset ?? 0) + listed.data.files.length
+      : null;
+
   return {
     dryRun: Boolean(options.dryRun),
     filesSeen: files.length,
@@ -297,6 +344,7 @@ export async function buildAssetCatalogue(options: CatalogueBuildOptions): Promi
     counts,
     warnings,
     blockers,
+    nextOffset,
   };
 }
 

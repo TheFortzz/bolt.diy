@@ -233,21 +233,39 @@ async function blockerFromResponse(response: Response, action: string): Promise<
  */
 export async function listAssetFiles(
   config: AssetLibraryConfig,
-  options: { limit?: number; cursor?: string; maxPages?: number; fetchImpl?: typeof fetch } = {},
+  options: {
+    limit?: number;
+    /** Cursor token returned by a previous Appwrite listing, if any. */
+    cursor?: string;
+    /** Offset for Appwrite buckets whose listing returns no cursor. */
+    offset?: number;
+    maxPages?: number;
+    fetchImpl?: typeof fetch;
+  } = {},
 ): Promise<AssetLibraryResult<{ files: RemoteAssetFile[]; nextCursor?: string; pages: number }>> {
   const limit = Math.min(100, Math.max(1, options.limit ?? 50));
-  const maxPages = Math.min(20, Math.max(1, options.maxPages ?? 4));
+  const maxPages = Math.min(200, Math.max(1, options.maxPages ?? 4));
   const doFetch = options.fetchImpl ?? fetch;
 
   const files: RemoteAssetFile[] = [];
   let cursor = options.cursor;
+  let offset = Math.max(0, options.offset ?? 0);
   let pages = 0;
 
   while (pages < maxPages) {
     const query = new URLSearchParams({ projectId: config.projectId, limit: String(limit) });
 
+    /*
+     * Appwrite's raw REST listing historically exposes BOTH cursor-based and
+     * offset-based paging. Prefer a cursor when the previous response handed
+     * one back, but never block offset pagination when the response only
+     * contains a full page and no cursor — otherwise a bucket with tens of
+     * thousands of files is silently truncated to the first page.
+     */
     if (cursor) {
       query.set('cursor', cursor);
+    } else if (offset > 0) {
+      query.set('offset', String(offset));
     }
 
     let response: Response;
@@ -282,14 +300,25 @@ export async function listAssetFiles(
     }
 
     pages += 1;
-    cursor = payload.nextCursor;
 
-    if (!cursor) {
-      break;
+    const batchCount = batch.length;
+    cursor = typeof payload.nextCursor === 'string' && payload.nextCursor.trim() ? payload.nextCursor : undefined;
+
+    if (cursor) {
+      offset = 0;
+      continue;
     }
+
+    if (batchCount >= limit) {
+      offset += batchCount;
+      continue;
+    }
+
+    break;
   }
 
-  return { ok: true, data: { files, nextCursor: cursor, pages } };
+  const nextCursor = cursor ?? (offset > 0 ? String(offset) : undefined);
+  return { ok: true, data: { files, nextCursor, pages } };
 }
 
 function normalizeRemoteFile(entry: unknown): RemoteAssetFile | undefined {
