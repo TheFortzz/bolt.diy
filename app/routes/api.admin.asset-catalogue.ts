@@ -2,7 +2,7 @@ import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { z } from 'zod';
 import { buildAssetCatalogue } from '~/lib/assets/catalogue-builder';
 import { assetCatalogueSchema } from '~/lib/assets/asset-schema';
-import { loadAssetCatalogue, writeCatalogueToKv } from '~/lib/.server/assets/catalogue-store';
+import { loadAssetCatalogue, resetCatalogueCache, writeCatalogueToKv } from '~/lib/.server/assets/catalogue-store';
 import { createVisionAssetEnricher } from '~/lib/.server/assets/vision-analysis';
 import { resolveAssetLibraryConfig } from '~/lib/.server/assets/asset-library-client';
 import { requireSameOrigin } from '~/lib/.server/harness/capabilities';
@@ -84,6 +84,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
   }
 
   if (input.listNames) {
+    resetCatalogueCache();
     const current = await loadAssetCatalogue(env);
     const names = current.catalogue.map((record) => ({
       name: record.originalName,
@@ -99,6 +100,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
   }
 
   if (input.testCandidates) {
+    resetCatalogueCache();
     const current = await loadAssetCatalogue(env);
     const found = findLibraryCandidates(current.catalogue, { text: input.query, limit: 10 });
     return json(
@@ -122,6 +124,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     return json({ ok: false, error: appwrite.blocker.message, code: appwrite.blocker.code }, { status: 503 });
   }
 
+  resetCatalogueCache();
   const previousResult = await loadAssetCatalogue(env);
   const previous = previousResult.available ? previousResult.catalogue : [];
   let visionAttempts = 0;
@@ -210,6 +213,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     }
 
     write = await writeCatalogueToKv(kv, validated.data);
+    resetCatalogueCache();
 
     if (!write.written) {
       return json({ ok: false, error: write.reason || 'Catalogue write was refused.' }, { status: 500 });
