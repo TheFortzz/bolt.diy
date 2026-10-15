@@ -70,10 +70,27 @@ export function queryTerms(query: AssetQuery): string[] {
   return Array.from(new Set(text.split(/[^a-z0-9]+/).filter((term) => term.length > 2 && !STOP_WORDS.has(term))));
 }
 
-function tokenSetMatch(terms: string[], tokens: string[]): { matched: string[] } {
-  const haystack = new Set(tokens);
+/**
+ * Soft match: a query term matches a token when one contains the other. This
+ * lets "road" find "RoadTile", "car" find "RaceCar" and so on, without forcing
+ * every asset filename to use the exact English word a creator happens to type.
+ */
+function termMatchesToken(term: string, token: string): boolean {
+  if (term === token) {
+    return true;
+  }
 
-  return { matched: terms.filter((term) => haystack.has(term)) };
+  if (term.length >= 3 && token.length >= 3) {
+    return token.includes(term) || term.includes(token);
+  }
+
+  return false;
+}
+
+function tokenSetMatch(terms: string[], tokens: string[]): { matched: string[] } {
+  const matched = terms.filter((term) => tokens.some((token) => termMatchesToken(term, token)));
+
+  return { matched: Array.from(new Set(matched)) };
 }
 
 /**
@@ -122,11 +139,8 @@ export function scoreAsset(record: AssetRecord, query: AssetQuery, catalogue: As
   // Filename match is a stronger signal than a description word.
   const nameTokens = record.originalName.toLowerCase().split(/[^a-z0-9]+/);
 
-  for (const term of terms) {
-    if (nameTokens.includes(term)) {
-      score += 1.5;
-      break;
-    }
+  if (terms.some((term) => nameTokens.some((nameToken) => termMatchesToken(term, nameToken)))) {
+    score += 1.5;
   }
 
   if (query.category && record.category === query.category) {
