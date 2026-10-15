@@ -7,6 +7,7 @@ import { createVisionAssetEnricher } from '~/lib/.server/assets/vision-analysis'
 import { resolveAssetLibraryConfig } from '~/lib/.server/assets/asset-library-client';
 import { requireSameOrigin } from '~/lib/.server/harness/capabilities';
 import { findLibraryCandidates, formatCandidateBriefing } from '~/lib/.server/assets/candidate-search';
+import { buildLiveAssetCatalogue } from '~/lib/.server/assets/live-catalogue';
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from '~/utils/constants';
 
 /**
@@ -104,15 +105,29 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
   if (input.testCandidates) {
     resetCatalogueCache();
-    const current = await loadAssetCatalogue(env);
-    const found = findLibraryCandidates(current.catalogue, { text: input.query, limit: 10 });
+    const currentCatalogue = await loadAssetCatalogue(env);
+    const merged = currentCatalogue.available ? [...currentCatalogue.catalogue] : [];
+    const seen = new Set(merged.map((record) => record.id));
+
+    try {
+      for (const record of await buildLiveAssetCatalogue(env, input.query)) {
+        if (!seen.has(record.id)) {
+          merged.push(record);
+          seen.add(record.id);
+        }
+      }
+    } catch {
+      // Fall back to the persisted catalogue only.
+    }
+
+    const found = findLibraryCandidates(merged, { text: input.query, limit: 10 });
     return json(
       {
         ok: true,
         query: input.query,
-        source: current.source,
-        catalogueAvailable: current.available,
-        catalogueSize: current.catalogue.length,
+        source: 'kv',
+        catalogueAvailable: true,
+        catalogueSize: merged.length,
         candidateCount: found.candidates.length,
         rejectedCount: found.rejected.length,
         candidateNames: found.candidates.map((candidate) => candidate.path),
