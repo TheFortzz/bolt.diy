@@ -6,6 +6,7 @@ import { loadAssetCatalogue, writeCatalogueToKv } from '~/lib/.server/assets/cat
 import { createVisionAssetEnricher } from '~/lib/.server/assets/vision-analysis';
 import { resolveAssetLibraryConfig } from '~/lib/.server/assets/asset-library-client';
 import { requireSameOrigin } from '~/lib/.server/harness/capabilities';
+import { findLibraryCandidates, formatCandidateBriefing } from '~/lib/.server/assets/candidate-search';
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from '~/utils/constants';
 
 /**
@@ -27,6 +28,8 @@ const requestSchema = z
     offset: z.number().int().min(0).default(0),
     maxPages: z.number().int().min(1).max(200).default(50),
     listNames: z.boolean().default(false),
+    testCandidates: z.boolean().default(false),
+    query: z.string().max(500).default('car game'),
   })
   .strict();
 
@@ -91,6 +94,24 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
     return json(
       { ok: true, total: names.length, available: current.available, names },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
+
+  if (input.testCandidates) {
+    const current = await loadAssetCatalogue(env);
+    const found = findLibraryCandidates(current.catalogue, { text: input.query, limit: 10 });
+    return json(
+      {
+        ok: true,
+        query: input.query,
+        catalogueAvailable: current.available,
+        catalogueSize: current.catalogue.length,
+        candidateCount: found.candidates.length,
+        rejectedCount: found.rejected.length,
+        candidateNames: found.candidates.map((candidate) => candidate.path),
+        briefing: formatCandidateBriefing(found.candidates, input.query) || 'No library candidate matched this request.',
+      },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   }
