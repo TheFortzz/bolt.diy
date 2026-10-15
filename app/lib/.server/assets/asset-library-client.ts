@@ -262,11 +262,19 @@ export async function listAssetFiles(
      * contains a full page and no cursor — otherwise a bucket with tens of
      * thousands of files is silently truncated to the first page.
      */
+    /*
+     * Modern Appwrite releases take paging through `queries[]`, not through
+     * the legacy top-level `limit`/`offset` (which silently fall back to the
+     * default page size of 25). Always send both so the requested page size
+     * survives, and keep the cursor knob for buckets that still expose one.
+     */
     if (cursor) {
       query.set('cursor', cursor);
     } else if (offset > 0) {
-      query.set('offset', String(offset));
+      query.append('queries[]', `offset(${offset})`);
     }
+
+    query.append('queries[]', `limit(${limit})`);
 
     let response: Response;
 
@@ -288,7 +296,7 @@ export async function listAssetFiles(
       return { ok: false, blocker: await blockerFromResponse(response, 'listing asset files') };
     }
 
-    const payload = (await response.json()) as { files?: unknown[]; nextCursor?: string };
+    const payload = (await response.json()) as { files?: unknown[]; nextCursor?: string; total?: number };
     const batch = Array.isArray(payload.files) ? payload.files : [];
 
     for (const entry of batch) {
@@ -306,6 +314,11 @@ export async function listAssetFiles(
 
     if (cursor) {
       offset = 0;
+      continue;
+    }
+
+    if (typeof payload.total === 'number' && payload.total > 0 && offset + batchCount < payload.total) {
+      offset += Math.max(1, batchCount);
       continue;
     }
 
