@@ -1,5 +1,6 @@
 import { assetCatalogueSchema, type AssetCatalogue, type AssetRecord } from '~/lib/assets/asset-schema';
-import { isAssetUsable, missingDependencies } from '~/lib/assets/asset-schema';
+import { isAssetUsable } from '~/lib/assets/asset-schema';
+import { checkCompatibility } from '~/lib/assets/dependencies';
 
 /**
  * Server-side catalogue store.
@@ -115,12 +116,14 @@ export async function loadAssetCatalogue(
   }
 
   /*
-   * Previews, thumbnails and unloadable records never enter the searchable
-   * pool. They stay in the file for provenance, but the generator must not be
-   * able to pick them.
+   * Keep every record in the in-memory catalogue: non-loadable .bin/texture
+   * sidecars are still required to resolve a parent model's dependency group,
+   * and previews/unavailable entries preserve provenance. Candidate search
+   * calls `checkCompatibility` and `isAssetUsable`, so none can be selected as
+   * a standalone game asset.
    */
-  const searchable = validated.data.filter(isAssetUsable);
-  const result: CatalogueLoadResult = { available: searchable.length > 0, catalogue: searchable, path };
+  const hasUsableAssets = validated.data.some(isAssetUsable);
+  const result: CatalogueLoadResult = { available: hasUsableAssets, catalogue: validated.data, path };
 
   if (!result.available) {
     result.reason = `Asset catalogue at ${path} contains no usable assets.`;
@@ -159,9 +162,7 @@ export function catalogueGaps(catalogue: AssetCatalogue): Array<{ id: string; or
       id: record.id,
       originalName: record.originalName,
       reason: record.available
-        ? `unresolved dependencies: ${missingDependencies(record)
-            .map((dependency) => dependency.uri)
-            .join(', ')}`
+        ? checkCompatibility(record, catalogue).blocking.join('; ')
         : (record.unavailableReason ?? 'remote file unavailable'),
     }));
 }

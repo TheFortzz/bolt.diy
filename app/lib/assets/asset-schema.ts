@@ -341,7 +341,7 @@ export type AssetCatalogue = z.infer<typeof assetCatalogueSchema>;
  * real file, present remotely, and every required dependency resolved.
  */
 export function isAssetUsable(record: AssetRecord): boolean {
-  if (!record.available || record.role !== 'asset') {
+  if (!record.available || record.role !== 'asset' || record.dimension === 'data') {
     return false;
   }
 

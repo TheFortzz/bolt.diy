@@ -218,6 +218,10 @@ export function checkCompatibility(record: AssetRecord, catalogue: AssetCatalogu
     blocking.push(`role is "${record.role}", not a loadable asset`);
   }
 
+  if (record.dimension === 'data') {
+    blocking.push('supporting data is not a standalone game asset');
+  }
+
   if (record.dimension === '3d') {
     if (record.format === 'fbx') {
       blocking.push('FBX loader is not available in the offline game runtime');

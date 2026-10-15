@@ -132,13 +132,21 @@ describe('loadAssetCatalogue', () => {
     expect(result.reason).toContain('failed validation');
   });
 
-  it('never puts a preview or an unloadable asset into the searchable pool', async () => {
+  it('keeps dependency records in the catalogue while candidate search filters previews', async () => {
     resetCatalogueCache();
 
     const result = await loadAssetCatalogue({}, async () => JSON.stringify(catalogue));
 
     expect(result.available).toBe(true);
-    expect(result.catalogue.map((entry) => entry.id)).toEqual(['assets:ship', 'assets:crate', 'assets:model']);
+    expect(result.catalogue.map((entry) => entry.id)).toEqual([
+      'assets:ship',
+      'assets:crate',
+      'assets:shipview',
+      'assets:model',
+    ]);
+    expect(findLibraryCandidates(result.catalogue, { text: 'ship', limit: 10 }).candidates.map((entry) => entry.id)).not.toContain(
+      'assets:shipview',
+    );
   });
 });
 

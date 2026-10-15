@@ -170,6 +170,18 @@ describe('usability', () => {
     expect(missingDependencies(record)).toHaveLength(0);
   });
 
+  it('does not offer a supporting data file as a standalone game asset', () => {
+    const data = validRecord({
+      originalName: 'crate.bin',
+      dimension: 'data',
+      category: 'other',
+      format: 'bin',
+      technical: undefined,
+    });
+
+    expect(isAssetUsable(data)).toBe(false);
+  });
+
   it('never treats a preview as usable', () => {
     const record = validRecord({
       role: 'preview',
