@@ -43,6 +43,14 @@ describe('inlineGeneratedAssetUrls', () => {
     expect(out.match(new RegExp(pngDataUrl.replace(/[+/=]/g, '\\$&'), 'g'))?.length).toBe(2);
   });
 
+  it('inlines paths that have a query string or hash in the iframe document', () => {
+    const html = '<script>image.src = \"./assets/hero.png?v=2#sprite\";</script>';
+    const out = inlineGeneratedAssetUrls(html, { 'assets/hero.png': asset('assets/hero.png', pngDataUrl) });
+
+    expect(out).toContain(pngDataUrl);
+    expect(out).not.toContain('assets/hero.png?v=2');
+  });
+
   it('rewrites CSS url() references', () => {
     const out = inlineGeneratedAssetUrls('<style>.hud{background:url(assets/hud.png)}</style>', {
       'assets/hud.png': asset('assets/hud.png', pngDataUrl),

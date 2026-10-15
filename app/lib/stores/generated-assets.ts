@@ -10,24 +10,41 @@ export interface GeneratedAsset {
 // Binary payloads stay out of agent context; the preview uses these URLs only.
 export const generatedAssets = map<Record<string, GeneratedAsset>>({});
 
+function normalizeAssetReference(value: string): string {
+  let path = value.trim();
+
+  try {
+    path = decodeURIComponent(path);
+  } catch {
+    // Keep malformed percent-encoded references as-is.
+  }
+
+  path = path
+    .replace(/[?#].*$/, '')
+    .replace(/\\/g, '/')
+    .replace(/^\.\//, '')
+    .replace(/^\/+/, '');
+  return path;
+}
+
 export function inlineGeneratedAssetUrls(html: string, assets: Record<string, GeneratedAsset>) {
   const urls = new Map<string, string>();
 
   for (const asset of Object.values(assets)) {
-    urls.set(asset.path, asset.dataUrl);
-    urls.set(`/${asset.path}`, asset.dataUrl);
-    urls.set(`./${asset.path}`, asset.dataUrl);
+    urls.set(normalizeAssetReference(asset.path), asset.dataUrl);
   }
 
-  return html
-    .replace(/(["'`])([^"'`\n]+)\1/g, (match, quote: string, path: string) => {
-      const url = urls.get(path);
+  const replacePath = (rawPath: string) => urls.get(normalizeAssetReference(rawPath));
 
-      return url ? `${quote}${url}${quote}` : match;
-    })
-    .replace(/url\(\s*([^\s"'()]+)\s*\)/g, (match, path: string) => {
-      const url = urls.get(path);
+  let output = html.replace(/([\"'`])([^\"'`\n]+)\1/g, (match, quote: string, path: string) => {
+    const url = replacePath(path);
+    return url ? `${quote}${url}${quote}` : match;
+  });
 
-      return url ? `url("${url}")` : match;
-    });
+  output = output.replace(/url\(\s*([\"']?)([^\"'()\s]+)\1\s*\)/gi, (match, _quote: string, path: string) => {
+    const url = replacePath(path);
+    return url ? `url(\"${url}\")` : match;
+  });
+
+  return output;
 }

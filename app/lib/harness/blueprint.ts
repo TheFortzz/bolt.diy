@@ -69,7 +69,7 @@ export const managerBlueprintSchema = z.object({
   engine: z.enum(['canvas2d', 'webgl']),
   systems: z.array(textSchema).min(2).max(12),
   fileOperations: z.array(fileOperationSchema).min(1).max(MAX_GAME_FILE_OPERATIONS),
-  assetOperations: z.array(assetOperationSchema).max(4),
+  assetOperations: z.array(assetOperationSchema).max(3),
   libraryAssets: z.array(libraryAssetSchema).max(24).default([]),
   scriptOrder: z.array(pathSchema).min(1).max(MAX_GAME_FILE_OPERATIONS),
   acceptanceCriteria: z.array(textSchema).min(3).max(12),

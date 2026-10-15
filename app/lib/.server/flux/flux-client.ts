@@ -83,7 +83,7 @@ export function getFluxEndpoint(env?: Record<string, any>): string {
 }
 
 /**
- * Enhances a sprite prompt to explicitly request transparent backgrounds for game assets.
+ * Enhances a sprite prompt with an opaque green key matte; the client removes it for sprites.
  */
 export function formatFluxPrompt(prompt: string, isSprite = true): string {
   const cleanPrompt = prompt.trim().replace(/\s+/g, ' ');
@@ -92,15 +92,11 @@ export function formatFluxPrompt(prompt: string, isSprite = true): string {
     return cleanPrompt;
   }
 
-  // Ensure prompt explicitly commands transparent backgrounds for 2D game sprites
-  const transparentDirectives =
-    '2D video game sprite, isolated on pure transparent background, clean alpha channel, pixel-perfect crisp borders, no background, no shadows, single asset centered, PNG transparency';
+  // FLUX.2-pro returns opaque images, so request a flat matte for client-side keying.
+  const spriteDirectives =
+    'isolated 2D video game sprite, full object centered, clean crisp silhouette, flat uniform pure green screen background RGB 0 255 0, no scenery, no ground plane, no cast shadow outside the object';
 
-  if (cleanPrompt.toLowerCase().includes('transparent background')) {
-    return `${cleanPrompt}, ${transparentDirectives}`;
-  }
-
-  return `${cleanPrompt}, isolated on transparent background, ${transparentDirectives}`;
+  return `${cleanPrompt}, ${spriteDirectives}`;
 }
 
 /**
@@ -190,7 +186,7 @@ export async function parseFluxResponse(res: Response): Promise<FluxGenerationRe
 
 /**
  * Generates an image through the FLUX.2-pro deployment.
- * Handles timeouts, network issues, and transparent background formatting.
+ * Handles timeouts, network issues, and sprite green-screen prompt formatting.
  */
 export async function generateFluxImage(
   options: FluxGenerationOptions,

@@ -180,7 +180,7 @@ Return ONLY a valid JSON array of 2 to 4 elements matching this exact schema:
 ]
 Rules:
 - fileName MUST start with "assets/" and end with ".png".
-- Set isSprite: true for any character, enemy, vehicle, projectile, or collectible so transparent background is enforced.
+- Set isSprite: true for any character, enemy, vehicle, projectile, or collectible so a green key matte is requested and removed client-side.
 - Set isSprite: false for full-screen game backgrounds, racetracks, dungeon floors, or arena backdrop textures.
 - Select at least 2 and at most 4 items.
 - Output ONLY the JSON array, no commentary or markdown code fences.`;

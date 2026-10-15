@@ -154,7 +154,7 @@ const managerPlanToolSchema = {
     },
     assetOperations: {
       type: 'array',
-      maxItems: 4,
+      maxItems: 3,
       items: {
         type: 'object',
         additionalProperties: false,

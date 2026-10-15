@@ -6,7 +6,7 @@ import { getHarnessSecret, requireSameOrigin, verifyCapability } from '~/lib/.se
 
 interface AssetResult {
   ok: boolean;
-  assets: Array<{ id: string; fileName: string; base64: string }>;
+  assets: Array<{ id: string; fileName: string; kind: 'sprite' | 'background' | 'ui'; base64: string }>;
   updatedFiles: Record<string, string>;
   error?: string;
 }
@@ -47,7 +47,7 @@ export async function action({ context, request }: ActionFunctionArgs) {
         for (const operation of blueprint.assetOperations) {
           const image = await generateFluxImage({
             prompt: operation.prompt,
-            isSprite: operation.kind === 'sprite' || operation.kind === 'ui',
+            isSprite: operation.kind === 'sprite',
             width: operation.width,
             height: operation.height,
             timeoutMs: 35000,
@@ -56,7 +56,7 @@ export async function action({ context, request }: ActionFunctionArgs) {
           if (!image.ok || !image.base64) {
             return { ok: false, assets: [], updatedFiles: {}, error: `Could not generate ${operation.path}: ${image.error || 'No image returned'}` };
           }
-          assets.push({ id: operation.id, fileName: operation.path, base64: image.base64 });
+          assets.push({ id: operation.id, fileName: operation.path, kind: operation.kind, base64: image.base64 });
         }
 
         return { ok: true, assets, updatedFiles: {} };

@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { decodeGeneratedPng, generateProjectAssets, isFluxAssetGenerationAvailable } from './asset-generator';
+import {
+  decodeGeneratedPng,
+  generateProjectAssets,
+  isFluxAssetGenerationAvailable,
+  removeGreenScreenPixels,
+} from './asset-generator';
 import { validateAssetPath } from './asset-generator';
 import { getWebContainer } from '~/lib/webcontainer';
 import { getHeuristicVisualElements } from '~/lib/.server/flux/asset-selector';
@@ -44,6 +49,24 @@ vi.mock('~/lib/webcontainer', () => {
     getWebContainer: vi.fn(async () => mockInstance),
     webcontainer: mockWebcontainer,
   };
+});
+
+describe('green-screen sprite processing', () => {
+  it('removes only border-connected green matte pixels and preserves a foreground subject', () => {
+    const width = 3;
+    const height = 3;
+    const data = new Uint8ClampedArray(width * height * 4);
+
+    for (let index = 0; index < width * height; index++) {
+      data.set([0, 255, 0, 255], index * 4);
+    }
+    data.set([240, 30, 20, 255], 4 * 4);
+
+    const result = removeGreenScreenPixels({ data, width, height } as ImageData);
+
+    expect(result.data[3]).toBe(0);
+    expect(result.data[4 * 4 + 3]).toBe(255);
+  });
 });
 
 describe('Asset Generator & Real Test Game Verification', () => {

@@ -99,6 +99,105 @@ export function decodeGeneratedPng(base64: string, path: string): Uint8Array {
   return bytes;
 }
 
+/** Remove a flat green key only where it is connected to the image border. */
+export function removeGreenScreenPixels(imageData: ImageData): ImageData {
+  const { data, width, height } = imageData;
+  const pixelCount = width * height;
+  const visited = new Uint8Array(pixelCount);
+  const queue = new Int32Array(pixelCount);
+  let head = 0;
+  let tail = 0;
+
+  const isKeyColor = (index: number) => {
+    const offset = index * 4;
+    const red = data[offset];
+    const green = data[offset + 1];
+    const blue = data[offset + 2];
+    return green > 70 && green - Math.max(red, blue) >= 12;
+  };
+
+  const enqueue = (index: number) => {
+    if (!visited[index] && isKeyColor(index)) {
+      visited[index] = 1;
+      queue[tail++] = index;
+    }
+  };
+
+  for (let x = 0; x < width; x++) {
+    enqueue(x);
+    enqueue((height - 1) * width + x);
+  }
+  for (let y = 0; y < height; y++) {
+    enqueue(y * width);
+    enqueue(y * width + width - 1);
+  }
+
+  while (head < tail) {
+    const index = queue[head++];
+    const x = index % width;
+    const y = Math.floor(index / width);
+    if (x > 0) enqueue(index - 1);
+    if (x + 1 < width) enqueue(index + 1);
+    if (y > 0) enqueue(index - width);
+    if (y + 1 < height) enqueue(index + width);
+  }
+
+  for (let index = 0; index < pixelCount; index++) {
+    if (!visited[index]) continue;
+    const offset = index * 4;
+    const red = data[offset];
+    const green = data[offset + 1];
+    const blue = data[offset + 2];
+    const dominance = green - Math.max(red, blue);
+    const alpha = Math.max(0, Math.min(255, Math.round(255 - (dominance - 8) * 6)));
+
+    if (alpha === 0) {
+      data[offset + 3] = 0;
+      continue;
+    }
+
+    // Unmix the green matte from antialiased edge pixels to avoid a green halo.
+    const foreground = alpha / 255;
+    data[offset] = Math.max(0, Math.min(255, Math.round(red / foreground)));
+    data[offset + 1] = Math.max(0, Math.min(255, Math.round((green - 255 * (1 - foreground)) / foreground)));
+    data[offset + 2] = Math.max(0, Math.min(255, Math.round(blue / foreground)));
+    data[offset + 3] = alpha;
+  }
+
+  return imageData;
+}
+
+function encodeBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  return btoa(binary);
+}
+
+async function removeGreenScreenPngBackground(bytes: Uint8Array): Promise<Uint8Array> {
+  if (typeof createImageBitmap !== 'function' || typeof document === 'undefined') return bytes;
+
+  const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+  const canvas = document.createElement('canvas');
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (!context) {
+    bitmap.close();
+    return bytes;
+  }
+
+  context.drawImage(bitmap, 0, 0);
+  bitmap.close();
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+  context.putImageData(removeGreenScreenPixels(imageData), 0, 0);
+
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+  if (!blob) return bytes;
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
 function isMissingFileError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
 
@@ -210,9 +309,8 @@ export async function generateProjectAssets(
       return { ok: false, error: data.error || 'Asset generation failed' };
     }
 
-    const assets: Array<{ id: string; fileName: string; base64: string }> = Array.isArray(data.assets)
-      ? data.assets
-      : [];
+    const assets: Array<{ id: string; fileName: string; kind?: 'sprite' | 'background' | 'ui'; base64: string }> =
+      Array.isArray(data.assets) ? data.assets : [];
     const updatedFiles: Record<string, string> =
       data.updatedFiles && typeof data.updatedFiles === 'object' ? data.updatedFiles : {};
     const expectedOperations = options.approvedBlueprint?.assetOperations;
@@ -234,30 +332,41 @@ export async function generateProjectAssets(
       }
     }
 
-    const preparedAssets = assets.map((asset) => {
-      if (
-        !asset ||
-        typeof asset.id !== 'string' ||
-        typeof asset.fileName !== 'string' ||
-        typeof asset.base64 !== 'string'
-      ) {
-        throw new Error('Image Builder returned an incomplete asset record.');
-      }
+    const preparedAssets = await Promise.all(
+      assets.map(async (asset) => {
+        if (
+          !asset ||
+          typeof asset.id !== 'string' ||
+          typeof asset.fileName !== 'string' ||
+          typeof asset.base64 !== 'string'
+        ) {
+          throw new Error('Image Builder returned an incomplete asset record.');
+        }
 
-      const path = validateAssetPath(asset.fileName);
+        const path = validateAssetPath(asset.fileName);
 
-      if (seenIds.has(asset.id) || seenPaths.has(path)) {
-        throw new Error(`Image Builder returned duplicate asset id or path: ${path}`);
-      }
+        if (seenIds.has(asset.id) || seenPaths.has(path)) {
+          throw new Error(`Image Builder returned duplicate asset id or path: ${path}`);
+        }
 
-      seenIds.add(asset.id);
-      seenPaths.add(path);
+        seenIds.add(asset.id);
+        seenPaths.add(path);
 
-      const base64 = asset.base64.replace(/^data:image\/png;base64,/i, '').replace(/\s/g, '');
-      const bytes = decodeGeneratedPng(base64, path);
+        const base64 = asset.base64.replace(/^data:image\/png;base64,/i, '').replace(/\s/g, '');
+        let bytes = decodeGeneratedPng(base64, path);
 
-      return { ...asset, path, base64, bytes };
-    });
+        if (asset.kind === 'sprite') {
+          try {
+            bytes = await removeGreenScreenPngBackground(bytes);
+          } catch (error) {
+            logger.warn(`Could not key the sprite background for ${path}:`, (error as Error).message);
+          }
+        }
+
+        // The iframe/publish data URL must use the processed bytes too, not Flux's original opaque PNG.
+        return { ...asset, path, base64: encodeBase64(bytes), bytes };
+      }),
+    );
 
     if (preparedAssets.length === 0 && Object.keys(updatedFiles).length === 0) {
       return { ok: true, skipped: true, generatedCount: 0 };

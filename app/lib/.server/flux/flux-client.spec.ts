@@ -68,11 +68,11 @@ describe('flux-client', () => {
   });
 
   describe('formatFluxPrompt', () => {
-    it('appends transparent background requirements for sprites', () => {
+    it('requests a flat keyable background rather than falsely promising alpha transparency', () => {
       const prompt = 'retro spaceship';
       const formatted = formatFluxPrompt(prompt, true);
-      expect(formatted).toContain('transparent background');
-      expect(formatted).toContain('clean alpha channel');
+      expect(formatted).toContain('pure green screen background');
+      expect(formatted).not.toContain('clean alpha channel');
       expect(formatted).toContain('2D video game sprite');
     });
 
