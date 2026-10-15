@@ -136,11 +136,11 @@ const managerPlanToolSchema = {
     title: { type: 'string', minLength: 1, maxLength: 100 },
     summary: { type: 'string', minLength: 1, maxLength: 1200 },
     engine: { type: 'string', enum: ['canvas2d', 'webgl'] },
-    systems: { type: 'array', minItems: 2, maxItems: 12, items: { type: 'string', minLength: 1, maxLength: 800 } },
+    systems: { type: 'array', minItems: 2, maxItems: 6, items: { type: 'string', minLength: 1, maxLength: 800 } },
     fileOperations: {
       type: 'array',
       minItems: 1,
-      maxItems: 24,
+      maxItems: 10,
       items: {
         type: 'object',
         additionalProperties: false,
@@ -649,7 +649,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
             const submitPlan = createTool({
               name: 'submit_plan',
               description:
-                'Submit a focused game implementation plan (10-16 files, 5-8 systems, genre-derived architecture) and finish this planning-only run. Do not claim files were changed.',
+                'Submit a focused game implementation plan (8-10 files, 4-6 systems, genre-derived architecture) and finish this planning-only run. Do not claim files were changed.',
               inputSchema: managerPlanToolSchema,
               lifecycle: { completesRun: true },
               execute: async (plan: z.infer<typeof managerBlueprintSchema>) => {
@@ -687,7 +687,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
                 body.previewErrors.length ? `Recent actual Bolt errors: ${JSON.stringify(body.previewErrors)}` : '',
                 libraryCandidateBriefing,
                 body.planningOnly
-                  ? `Plan only; do not edit files or claim edits. Use the supplied manifest, source excerpts, and context directly; do not call inspection tools. In this turn, call submit_plan with a tailored structured plan. Do not return a plan as free-form text. Plan a complete, focused game with 10-16 files and 5-8 connected systems. Do not use arbitrary line-count targets or filler; derive the architecture from this request. The game fills the entire viewport (full-window canvas, resizes with the window); no login, lobby, branding, or text-heavy screens — gameplay only, playable instantly. If LIBRARY CANDIDATES are listed, select only relevant ones in libraryAssets, copy ids, paths and dependency groups exactly, and choose webgl for 3D models; do not select previews. If none are listed, leave libraryAssets empty and use procedural visuals. Source excerpts: ${JSON.stringify(workingFiles).slice(0, 30000)}`
+                  ? `Plan only; do not edit files or claim edits. Use the supplied manifest, source excerpts, and context directly; do not call inspection tools. In this turn, call submit_plan with a tailored structured plan. Do not return a plan as free-form text. Plan a complete, focused game with 8-10 files and 4-6 connected systems. Do not use arbitrary line-count targets or filler; derive the architecture from this request. The game fills the entire viewport (full-window canvas, resizes with the window); no login, lobby, branding, or text-heavy screens — gameplay only, playable instantly. If LIBRARY CANDIDATES are listed, select only relevant ones in libraryAssets, copy ids, paths and dependency groups exactly, and choose webgl for 3D models; do not select previews. If none are listed, leave libraryAssets empty and use procedural visuals. Source excerpts: ${JSON.stringify(workingFiles).slice(0, 30000)}`
                   : body.readOnly
                     ? 'Read-only chat: answer from supplied context; do not claim file changes.'
                     : `Approved build: edit only ${Array.from(approvedPaths).join(', ')}. Do not delete files or execute shell commands. Read current files, implement the approved plan, run checks, and finish truthfully. For an approved renderer migration, replace renderer-coupled code and markup consistently while retaining the requested gameplay, controls, and HUD; do not force obsolete engine-specific function names to remain. Every visible start, pause/resume, and restart button must have a real handler that changes game state; use the diagnostic state 'paused' while paused, keep HTML IDs and selectors in sync, and wire keyboard/touch controls to the same gameplay actions. Only use 'new' on values defined with the 'class' keyword in an approved file — never 'new' a factory function, arrow function, plain object, or unverified import; call factories without 'new'. Expose window.__GAME_DIAGNOSTICS__ and update its counters only from the real game loop and handlers; preview tests do not fabricate diagnostics or missing DOM nodes. Format source readably with 2-space indentation, one statement per line, and lines near 100 characters; never minify. Use smooth delta-time animation and interpolation rather than abrupt motion. For Three.js, use the pinned 0.160.0 ES module and null-check every canvas and HUD lookup. Use the approved focused module set; this run may cover one phase — write every approved path completely, wire files as they land, and never truncate. The game fills the entire viewport at all times: full-window canvas that resizes with the window, gameplay only with no text-heavy screens, and a start overlay solely for audio unlock whose handler directly starts the real game. Before finish_task, call run_build and run_tests (they run the real module-graph, syntax, gameplay, and quality gates), repair every reported failure in the approved files, and re-check until they pass — never finish with failing checks or truncated files. Call inspect_project as well: every local stylesheet, script, and import must resolve to a real approved file — fix folder mistakes (src/ versus root) by correcting the path to the real file, never by deleting the reference. The images listed under APPROVED IMAGES already exist at exactly those paths: load them as-is and never delete or rename those references. Bolt will run actual preview validation and send repair errors in a follow-up run.`,

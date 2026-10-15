@@ -115,10 +115,18 @@ export function removeGreenScreenPixels(imageData: ImageData): ImageData {
   const isKeyColor = (index: number) => {
     const offset = index * 4;
     if (data[offset + 3] === 0) return false;
-    const red = data[offset] - keyRed;
-    const green = data[offset + 1] - keyGreen;
-    const blue = data[offset + 2] - keyBlue;
-    return Math.sqrt(red * red + green * green + blue * blue) <= keyTolerance;
+    const red = data[offset];
+    const green = data[offset + 1];
+    const blue = data[offset + 2];
+    const deltaRed = red - keyRed;
+    const deltaGreen = green - keyGreen;
+    const deltaBlue = blue - keyBlue;
+    const distance = Math.sqrt(deltaRed * deltaRed + deltaGreen * deltaGreen + deltaBlue * deltaBlue);
+    const greenDominance = green - Math.max(red, blue);
+
+    // Flux can add mild noise/shading to the matte; only edge-connected strong
+    // green is accepted outside the strict near-key range.
+    return distance <= keyTolerance || (green > 100 && greenDominance > 65);
   };
 
   const enqueue = (index: number) => {
@@ -157,7 +165,10 @@ export function removeGreenScreenPixels(imageData: ImageData): ImageData {
     const deltaGreen = green - keyGreen;
     const deltaBlue = blue - keyBlue;
     const distance = Math.sqrt(deltaRed * deltaRed + deltaGreen * deltaGreen + deltaBlue * deltaBlue);
-    const alpha = Math.max(0, Math.min(255, Math.round(((distance - 10) / (keyTolerance - 10)) * 255)));
+    const greenDominance = green - Math.max(red, blue);
+    const alpha = greenDominance > 65
+      ? 0
+      : Math.max(0, Math.min(255, Math.round(((distance - 10) / (keyTolerance - 10)) * 255)));
 
     if (alpha === 0) {
       data[offset + 3] = 0;
@@ -363,7 +374,7 @@ export async function generateProjectAssets(
         const base64 = asset.base64.replace(/^data:image\/png;base64,/i, '').replace(/\s/g, '');
         let bytes = decodeGeneratedPng(base64, path);
 
-        if (asset.kind === 'sprite') {
+        if (asset.kind === 'sprite' || /(?:^|\/)sprites?\//i.test(path)) {
           try {
             bytes = await removeGreenScreenPngBackground(bytes);
           } catch (error) {

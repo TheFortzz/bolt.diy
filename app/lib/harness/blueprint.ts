@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const MAX_GAME_FILE_OPERATIONS = 24;
+export const MAX_GAME_FILE_OPERATIONS = 10;
 export const MAX_GAME_SOURCE_BYTES = 4 * 1024 * 1024;
 export const MAX_GAME_RESPONSE_SEGMENTS = 64;
 

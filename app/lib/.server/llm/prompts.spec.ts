@@ -8,7 +8,7 @@ describe('FortzAI system prompt', () => {
     expect(prompt).toContain("The user's idea is the source of truth");
     expect(prompt).toContain('Choose the architecture that best fits the idea');
     expect(prompt).toContain('five times more complete than a bare playable demo');
-    expect(prompt).toContain('10-16 purposeful files');
+    expect(prompt).toContain('8-10 purposeful files');
     expect(prompt).not.toContain('src/player.js');
     expect(prompt).not.toContain('src/enemies.js');
     expect(prompt).not.toContain('src/bullets.js');
@@ -32,7 +32,7 @@ describe('FortzAI system prompt', () => {
     expect(prompt).not.toContain('BIG-BUILD FLOOR');
     expect(prompt).toContain('PHASED BLUEPRINT');
     expect(prompt).toContain('PHASE GATE');
-    expect(prompt).toContain('10-16 files');
+    expect(prompt).toContain('8-10 files');
   });
 
   it('forces a zero-defect self-review before emitting', () => {

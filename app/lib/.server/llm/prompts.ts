@@ -131,7 +131,7 @@ const CREATIVE_GAME_GUIDANCE = `
     - Full-Game Scope: Create several connected gameplay systems and meaningful playable content (levels, rounds, quests, opponents, puzzles, or equivalent) appropriate to the genre. Include progression and escalating challenge when they fit. Implement the interactions between systems, not just a list of features or decorative screens.
     - Complete Player Experience: Include the full play loop from first input through meaningful outcomes, restart, clear controls, HUD/menus, feedback, responsive layout, and accessibility. Add save/settings/shop/social features only when they fit the requested concept.
     - Real Content: Populate the world with enough authored or varied procedural content to demonstrate the game's depth. Avoid one-screen-only prototypes, repeated placeholder waves, empty levels, fake buttons, TODOs, and systems that only appear in the plan.
-    - COMPLETE GAME SCOPE: Build a polished, complete game with a sensible focused module set (typically 10-16 files). Do not target arbitrary line counts or create filler modules. Keep narrow repairs small and ensure each planned file contributes to a working game.
+    - COMPLETE GAME SCOPE: Build a polished, complete game with a sensible focused module set (typically 8-10 files). Do not target arbitrary line counts or create filler modules. Keep narrow repairs small and ensure each planned file contributes to a working game.
     - Modular Subsystems: Architect large games into clean, specialized modules
       (e.g., core state machines, collision & physics resolvers, particle emitters,
       procedural sound synthesizers, enemy AI controllers, level managers, HUD/menus).
@@ -160,7 +160,7 @@ const CREATIVE_GAME_GUIDANCE = `
 
   Use as many focused files as the project benefits from, but do not enforce a
   universal fixed file tree. For a full-game build, the approved budget can hold
-  10-16 purposeful files when modularity helps; do not create filler files or
+  8-10 purposeful files when modularity helps; do not create filler files or
   overcomplicate a focused request. Name modules after the actual design. Avoid a
   giant unmaintainable mega-file when modular files fit, but also do not create
   empty files just to reach a line or file count. For non-game requests and narrow
