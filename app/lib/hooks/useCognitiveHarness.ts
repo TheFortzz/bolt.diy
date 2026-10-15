@@ -571,7 +571,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                     ? `EXISTING IMAGES (already in this workspace — reuse a relevant one instead of generating a duplicate):\n${existingImagePaths.slice(0, 24).join('\n')}`
                     : 'No images were generated or already available; create polished procedural visuals.',
               approvedAssets.length > 0
-                  ? 'Actually render every approved image; listing or preloading is not enough. In the same renderer module that contains the exact image path, load it with `new Image()` and call `ctx.drawImage(image, ...)` for Canvas 2D (or use that exact image as the visible HTML/CSS layer). For a player sprite, draw the generated image as the player and remove the procedural car body; retain a procedural shape only as the load-failure fallback. For roads/backgrounds, draw the approved texture as the visible layer. Keep aspect ratio and wait for load before marking ready.'
+                  ? 'Actually render every approved image; listing or preloading is not enough. Load each exact path with `new Image()` and pass that loaded image to `ctx.drawImage(...)` in the game renderer (or use it as the visible HTML/CSS layer). A player sprite must replace the procedural car body; keep a shape only as the load-failure fallback. Draw road/background art as a visible layer, preserve aspect ratio, and wait for image loads before marking ready.'
                   : '',
                 `THIS RUN may write only these approved paths: ${paths.join(', ')}. The server rejects every other path.`,
                 writtenPaths.length
@@ -952,23 +952,24 @@ export function useCognitiveHarness(options: HarnessOptions) {
                 const finalSnapshot = await captureProject(await getWebContainer());
                 const finalSource = sourceContext(finalSnapshot, 7_500_000, 2_000_000);
                 const sourceEntries = Object.entries(finalSource);
+                const sourceText = Object.values(finalSource).join('\n');
                 const unrenderedImages = approvedAssets.filter((asset) => {
-                  return !sourceEntries.some(([path, content]) => {
-                    if (!content.includes(asset.path)) return false;
-                    if (asset.kind === 'sprite') {
-                      return /\.drawImage\s*\(|\bdrawImage\s*\(|<img\b[^>]*\bsrc\s*=/i.test(content);
-                    }
-                    if (asset.kind === 'background') {
-                      return /\.drawImage\s*\(|\bdrawImage\s*\(|url\s*\(/i.test(content);
-                    }
-                    return /\.drawImage\s*\(|\bdrawImage\s*\(|url\s*\(/i.test(content);
-                  });
+                  const isReferenced = sourceText.includes(asset.path);
+                  if (!isReferenced) return true;
+
+                  const hasCanvasDraw = sourceEntries.some(([, content]) => /\.drawImage\s*\(|\bdrawImage\s*\(/i.test(content));
+                  const hasDomOrCssDraw = sourceEntries.some(([path, content]) =>
+                    /\.(?:html|css)$/i.test(path) &&
+                    content.includes(asset.path) && (/<img\b[^>]*\bsrc\s*=/i.test(content) || /url\s*\(/i.test(content)),
+                  );
+
+                  return !hasCanvasDraw && !hasDomOrCssDraw;
                 });
 
                 if (unrenderedImages.length > 0) {
                   runFailure = `Generated images are not visibly rendered yet: ${unrenderedImages
                     .map((asset) => asset.path)
-                    .join(', ')}. In the same renderer file that contains each exact path, load it and visibly draw it with ctx.drawImage (or use it as a visible HTML/CSS image layer). The generated player sprite must replace the procedural car; only keep the procedural shape as a load-failure fallback.`;
+                    .join(', ')}. Load each exact path and draw it visibly with ctx.drawImage (or as a visible HTML/CSS image layer). The generated player sprite must replace the procedural car; only keep the procedural shape as a load-failure fallback.`;
                 }
               }
 
