@@ -15,7 +15,7 @@ interface ActivityTimelineProps {
   embedded?: boolean;
 }
 
-const VISIBLE_STEPS = 3;
+const VISIBLE_STEPS = 8;
 
 function stepLabel(step: ActivityStep) {
   switch (step.status) {
