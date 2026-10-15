@@ -4,7 +4,3 @@ compatibility_flags = ["nodejs_compat"]
 compatibility_date = "2024-09-23"
 pages_build_output_dir = "./build/client"
 send_metrics = false
-
-[[kv_namespaces]]
-binding = "ASSET_CATALOGUE_KV"
-id = "034c09270fa047e8b6fb5177ec2c82"
