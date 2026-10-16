@@ -100,6 +100,43 @@ describe('flux-client', () => {
       expect(result.buffer).toBeInstanceOf(Uint8Array);
     });
 
+    it('parses nested provider image payloads and data URLs', async () => {
+      const sampleBase64 = Buffer.from('nested-image-bytes').toString('base64');
+      const result = await parseFluxResponse(
+        new Response(JSON.stringify({ output: [{ result: { image: `data:image/webp;base64,${sampleBase64}` } }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+
+      expect(result.ok).toBe(true);
+      expect(result.base64).toBe(sampleBase64);
+      expect(result.contentType).toBe('image/webp');
+    });
+
+    it('accepts image bytes returned directly instead of JSON', async () => {
+      const imageBytes = new Uint8Array([137, 80, 78, 71]);
+      const result = await parseFluxResponse(
+        new Response(imageBytes, { status: 200, headers: { 'Content-Type': 'image/png' } }),
+      );
+
+      expect(result.ok).toBe(true);
+      expect(result.buffer).toEqual(imageBytes);
+      expect(result.contentType).toBe('image/png');
+    });
+
+    it('reports a provider error even when the HTTP status is successful', async () => {
+      const result = await parseFluxResponse(
+        new Response(JSON.stringify({ error: { message: 'unsupported image dimensions' } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+
+      expect(result.ok).toBe(false);
+      expect(result.error).toContain('unsupported image dimensions');
+    });
+
     it('handles non-200 error responses gracefully without throwing', async () => {
       const mockResponse = new Response(
         JSON.stringify({ error: { message: 'Quota exceeded' } }),

@@ -265,7 +265,6 @@ export function useCognitiveHarness(options: HarnessOptions) {
       controller: AbortController,
       sequence: number,
     ) => {
-      let lastClineMessageId: string | undefined;
       transitionHarness('preparing-assets', {
         blueprint,
         reviewToken,
@@ -639,26 +638,14 @@ export function useCognitiveHarness(options: HarnessOptions) {
           const failureStalled = (message: string) =>
             stallDetector.isStalled(`${phaseIndex}:${appliedWorkspacePaths.size}`, message);
 
-          /*
-           * A build that pauses always ends the same calm way: amber activity,
-           * no red, and the real last error written into the chat so a follow-up
-           * message can finish it.
-           */
+          /* Keep terminal diagnostics in internal validation state, not as a
+           * warning row or failure message in the conversation. */
           const abandonBuild = (detail: string) => {
             settleActiveActivities(messageId, 'failed');
-            startActivity(messageId, 'cline:failed', 'Build needs another pass', detail, 'failed');
+            startActivity(messageId, 'cline:failed', 'Final checks', detail, 'failed');
             executionPolicy.revoke();
             validationState.set({ status: 'failed', detail });
             transitionHarness('failed', { detail });
-
-            const targetId = lastClineMessageId || messageId;
-            options.setMessages((messages) =>
-              messages.map((entry) =>
-                entry.id === targetId
-                  ? { ...entry, content: `${entry.content}\n\nThe build needs another pass.\n\n${detail}` }
-                  : entry,
-              ),
-            );
           };
 
           for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -670,8 +657,6 @@ export function useCognitiveHarness(options: HarnessOptions) {
             }
 
             const agentMessageId = crypto.randomUUID();
-            lastClineMessageId = agentMessageId;
-
             if (attempt > 0) {
               executionPolicy.allowRepair(agentMessageId, true);
               transitionHarness('editing', {
@@ -1442,20 +1427,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
         executionPolicy.revoke();
         transitionHarness('failed', { detail });
         validationState.set({ status: 'failed', detail });
-        startActivity(messageId, 'approval:failed', detail, detail, 'failed');
-
-        const visibleErrorMessageId = lastClineMessageId || messageId;
-        options.setMessages((messages) =>
-          messages.map((entry) =>
-            entry.id === visibleErrorMessageId
-              ? {
-                  ...entry,
-                  content: `${entry.content}\n\nThe build needs another pass. No additional files were applied.\n\n${detail}`,
-                }
-              : entry,
-          ),
-        );
-        toast.warning(detail);
+        startActivity(messageId, 'approval:failed', 'Final checks', detail, 'failed');
       }
     },
     [options],

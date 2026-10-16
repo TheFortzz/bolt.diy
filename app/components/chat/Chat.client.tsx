@@ -451,7 +451,6 @@ export const ChatImpl = memo(
             executionPolicy.revoke();
             transitionHarness('failed', { detail });
             validationState.set({ status: 'failed', detail });
-            toast.warning(detail);
           }
 
           if (repairAttemptsRef.current > 0) {
@@ -463,7 +462,6 @@ export const ChatImpl = memo(
               'retrying',
             );
             validationState.set({ status: 'failed', detail: 'Automatic repair did not return any corrected files.' });
-            toast.warning('Automatic repair did not produce a corrected build.', { autoClose: 7000 });
           }
 
           return;
@@ -585,7 +583,6 @@ export const ChatImpl = memo(
                 }
               }
               validationState.set({ status: 'failed', detail: `Automatic repair failed: ${(error as Error).message}` });
-              toast.warning('Automatic repair could not be started. The build is not verified.');
             }
           }
 
@@ -599,30 +596,6 @@ export const ChatImpl = memo(
           }
 
           validationState.set({ status: 'failed', detail: result.error || 'Build validation failed' });
-          toast.warning(`Build needs another pass: ${result.error?.slice(0, 160)}`, { autoClose: 8000 });
-
-          // Inform directly in this chat message when auto-repairs are exhausted
-          const errorNotice = environmentFatal
-            ? `\n\n> **The Studio's game sandbox stopped working:**\n> ${result.error?.slice(-1200)}\n>\n> Your game code is not the cause — the browser ran out of memory for the in-browser runtime. **Reload the Studio page** and say \`continue\` to resume this build where it stopped.`
-            : managedBlueprint
-              ? `\n\n> **Preview check needs another pass:**\n> ${result.error?.slice(-1800)}\n>\n> Describe the repair you want; FortzAI will propose a new blueprint for your approval.`
-              : result.error?.includes('runtime verification needs')
-                ? `\n\n> **Runtime verification unavailable:**\n> ${result.error?.slice(-1800)}\n>\n> A browser verification worker or preview bridge must be configured before this build can be marked verified.`
-                : `\n\n> **Build needs another pass:**\n> ${result.error?.slice(-1800)}\n>\n> *Ask for a targeted repair to address these checks.*`;
-          setMessages((prev) =>
-            prev.map((entry) =>
-              entry.id === message.id ? { ...entry, content: `${entry.content}${errorNotice}` } : entry,
-            ),
-          );
-
-          const updatedMessage = {
-            ...message,
-            content: `${message.content}${errorNotice}`,
-          };
-          void persistMessages(
-            messages.map((entry) => (entry.id === message.id ? updatedMessage : entry)),
-            true,
-          ).catch((error) => console.warn('Verification notice save error:', error));
 
           return;
         }

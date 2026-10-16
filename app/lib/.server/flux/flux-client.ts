@@ -107,10 +107,15 @@ export async function parseFluxResponse(res: Response): Promise<FluxGenerationRe
   if (!res.ok) {
     let errorDetail = '';
     try {
-      const errJson: any = await res.json();
-      errorDetail = errJson?.error?.message || errJson?.message || JSON.stringify(errJson);
+      const body = await res.text();
+      try {
+        const errJson = JSON.parse(body);
+        errorDetail = errJson?.error?.message || errJson?.message || body;
+      } catch {
+        errorDetail = body;
+      }
     } catch {
-      errorDetail = await res.text().catch(() => '');
+      errorDetail = '';
     }
 
     return {
@@ -119,9 +124,22 @@ export async function parseFluxResponse(res: Response): Promise<FluxGenerationRe
     };
   }
 
+  const responseType = res.headers.get('Content-Type')?.split(';')[0]?.trim().toLowerCase();
+  if (responseType?.startsWith('image/')) {
+    const buffer = new Uint8Array((await res.arrayBuffer()) as ArrayBuffer);
+    if (!buffer.byteLength) return { ok: false, error: 'FLUX returned an empty image.' };
+
+    return {
+      ok: true,
+      base64: Buffer.from(buffer).toString('base64'),
+      buffer,
+      contentType: responseType,
+    };
+  }
+
   let json: any;
   try {
-    json = await res.json();
+    json = JSON.parse(await res.text());
   } catch (err: any) {
     return {
       ok: false,
@@ -129,35 +147,65 @@ export async function parseFluxResponse(res: Response): Promise<FluxGenerationRe
     };
   }
 
-  // Extract base64 image data from common Azure BFL FLUX response schemas
-  let b64: string | undefined =
-    json?.data?.[0]?.b64_json ||
-    json?.images?.[0]?.b64_json ||
-    json?.image ||
-    json?.b64_json ||
-    json?.sample;
+  const imageKeys = /image|b64|base64|output|sample|result|data|payload|binary|bytes|artifact/i;
+  const findImagePayload = (value: unknown, parentKey = '', depth = 0): { base64?: string; url?: string; contentType?: string } | undefined => {
+    if (depth > 12 || value == null) return undefined;
 
-  // Extract image URL if returned instead of base64
-  const imageUrl: string | undefined =
-    json?.data?.[0]?.url ||
-    json?.images?.[0]?.url ||
-    json?.url;
+    if (typeof value === 'string') {
+      const dataUrl = value.match(/^data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/=\s]+)$/i);
+      if (dataUrl) return { base64: dataUrl[2].replace(/\s/g, ''), contentType: dataUrl[1].toLowerCase() };
+      if (/^https?:\/\//i.test(value)) return { url: value };
 
-  if (!b64 && imageUrl && typeof imageUrl === 'string') {
-    try {
-      const imageFetchRes = await fetch(imageUrl);
-      if (imageFetchRes.ok) {
-        const arrayBuf = await imageFetchRes.arrayBuffer();
-        const buffer = new Uint8Array(arrayBuf as ArrayBuffer);
-        b64 = Buffer.from(buffer).toString('base64');
-
-        return {
-          ok: true,
-          base64: b64,
-          buffer,
-          contentType: 'image/png',
-        };
+      const compact = value.replace(/\s/g, '').replace(/-/g, '+').replace(/_/g, '/');
+      if ((imageKeys.test(parentKey) || compact.length >= 128) && /^[a-z0-9+/]+={0,2}$/i.test(compact) && compact.length > 8) {
+        return { base64: compact };
       }
+      return undefined;
+    }
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const found = findImagePayload(item, parentKey, depth + 1);
+        if (found) return found;
+      }
+      return undefined;
+    }
+
+    if (typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      const contentType = typeof record.content_type === 'string'
+        ? record.content_type
+        : typeof record.contentType === 'string'
+          ? record.contentType
+        : typeof record.mime_type === 'string'
+          ? record.mime_type
+          : typeof record.mimeType === 'string'
+            ? record.mimeType
+            : undefined;
+      const orderedKeys = Object.keys(record).sort((left, right) => Number(imageKeys.test(right)) - Number(imageKeys.test(left)));
+      for (const key of orderedKeys) {
+        const found = findImagePayload(record[key], key, depth + 1);
+        if (found) return { ...found, contentType: found.contentType || contentType };
+      }
+    }
+
+    return undefined;
+  };
+
+  const imagePayload = findImagePayload(json);
+  if (imagePayload?.url) {
+    try {
+      const imageFetchRes = await fetch(imagePayload.url, { signal: AbortSignal.timeout(20000) });
+      if (!imageFetchRes.ok) return { ok: false, error: `Could not download FLUX image (HTTP ${imageFetchRes.status}).` };
+      const buffer = new Uint8Array((await imageFetchRes.arrayBuffer()) as ArrayBuffer);
+      if (!buffer.byteLength) return { ok: false, error: 'FLUX image URL returned an empty image.' };
+
+      return {
+        ok: true,
+        base64: Buffer.from(buffer).toString('base64'),
+        buffer,
+        contentType: imageFetchRes.headers.get('Content-Type')?.split(';')[0] || 'image/png',
+      };
     } catch (fetchErr: any) {
       return {
         ok: false,
@@ -166,21 +214,28 @@ export async function parseFluxResponse(res: Response): Promise<FluxGenerationRe
     }
   }
 
-  if (b64 && typeof b64 === 'string') {
-    const cleanB64 = b64.replace(/^data:image\/\w+;base64,/, '').trim();
+  if (imagePayload?.base64) {
+    const cleanB64 = imagePayload.base64.trim();
     const buffer = Uint8Array.from(Buffer.from(cleanB64, 'base64'));
+    if (!buffer.byteLength) return { ok: false, error: 'FLUX returned an empty encoded image.' };
 
     return {
       ok: true,
       base64: cleanB64,
       buffer,
-      contentType: 'image/png',
+      contentType: imagePayload.contentType || 'image/png',
     };
   }
 
+  const providerError = json?.error?.message || json?.error || json?.message;
+  if (providerError) {
+    return { ok: false, error: `FLUX returned an error: ${String(providerError).slice(0, 240)}` };
+  }
+
+  const fields = json && typeof json === 'object' ? Object.keys(json).slice(0, 12).join(', ') : typeof json;
   return {
     ok: false,
-    error: 'No image data or URL found in FLUX API response payload',
+    error: `FLUX response contained no image payload (top-level fields: ${fields || 'none'}).`,
   };
 }
 

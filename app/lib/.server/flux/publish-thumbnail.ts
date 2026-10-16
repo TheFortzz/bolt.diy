@@ -5,9 +5,10 @@ export const publishThumbnailInputSchema = z.object({
   title: z.string().trim().min(1).max(100),
   genre: z.string().trim().max(40).default('ACTION'),
   description: z.string().trim().max(1200).default(''),
+  gameContext: z.string().trim().max(4000).default(''),
 }).strict();
 
-export type PublishThumbnailInput = z.infer<typeof publishThumbnailInputSchema>;
+export type PublishThumbnailInput = z.input<typeof publishThumbnailInputSchema>;
 
 export function safePublishThumbnailError(error: unknown, apiKey?: string) {
   const raw = error instanceof Error ? error.message : String(error || 'Image provider failed.');
@@ -34,11 +35,12 @@ export async function generatePublishThumbnail(
     'Create polished, cinematic 16:9 key art for a browser video game cover.',
     `Game concept: ${input.title}. Genre: ${input.genre || 'ACTION'}.`,
     input.description ? `Gameplay and visual mood: ${input.description}` : '',
-    'Show a recognizable central subject and environment that clearly match this specific game, with layered depth, rich lighting, and professional composition.',
+    input.gameContext ? `Actual game mechanics, setting, and visual assets from its source: ${input.gameContext}` : '',
+    'Create original key art that clearly depicts this specific game and its actual characters, setting, and gameplay; use the provided source context rather than generic genre imagery. Use a strong central subject, layered depth, rich lighting, and professional composition.',
     'No text, letters, logos, watermarks, interface panels, borders, or device mockups.',
   ].filter(Boolean).join(' ');
   const generated = await generateFluxImage(
-    { prompt, isSprite: false, width: 1024, height: 576, timeoutMs: 25000 },
+    { prompt, isSprite: false, width: 1024, height: 576, timeoutMs: 50000 },
     apiKey,
     endpoint,
   );

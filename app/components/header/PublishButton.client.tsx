@@ -1,122 +1,54 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from '@nanostores/react';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { generatedAssets } from '~/lib/stores/generated-assets';
 import { chatId } from '~/lib/persistence';
 import { toast } from 'react-toastify';
 
-function generateAutoThumbnail(gameTitle: string, gameGenre: string): string {
-  if (typeof document === 'undefined') {
-    return '';
-  }
+function buildGameVisualContext(files: Record<string, unknown>, assetPaths: string[]) {
+  const assetNames = assetPaths
+    .map((path) => path.replace(/\\/g, '/').split('/').pop())
+    .filter(Boolean)
+    .slice(0, 16);
+  const sourceFiles = Object.entries(files)
+    .filter(([path, content]) =>
+      typeof content === 'string' &&
+      /\.(?:html?|(?:m|c)?js|tsx?|css|md)$/i.test(path) &&
+      !/(?:node_modules|\.min\.|\.env|dist\/|build\/|vendor\/)/i.test(path),
+    )
+    .sort(([left], [right]) => Number(/(?:index|main|game|scene|readme)/i.test(right)) - Number(/(?:index|main|game|scene|readme)/i.test(left)))
+    .slice(0, 5)
+    .map(([path, content]) => {
+      const excerpt = String(content)
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith('//') && !line.startsWith('*') && line.length < 260)
+        .slice(0, 12)
+        .join(' ')
+        .replace(/((?:api[_-]?key|secret|token|password)\s*[:=]\s*)["'][^"']+["']/gi, '$1"[redacted]"')
+        .slice(0, 650);
+      return excerpt ? `${path}: ${excerpt}` : '';
+    })
+    .filter(Boolean);
 
-  try {
-    const canvas = document.createElement('canvas');
-    canvas.width = 640;
-    canvas.height = 360;
-
-    const ctx = canvas.getContext('2d');
-
-    if (!ctx) {
-      return '';
-    }
-
-    const colors: Record<string, [string, string]> = {
-      ACTION: ['#dc2626', '#f97316'],
-      ADVENTURE: ['#059669', '#10b981'],
-      PUZZLE: ['#7c3aed', '#06b6d4'],
-      RPG: ['#4f46e5', '#9333ea'],
-      RACING: ['#eab308', '#ef4444'],
-    };
-
-    const [c1, c2] = colors[(gameGenre || 'ACTION').toUpperCase()] || ['#06b6d4', '#3b82f6'];
-
-    // Background gradient
-    const grad = ctx.createLinearGradient(0, 0, 640, 360);
-    grad.addColorStop(0, '#0a0f1d');
-    grad.addColorStop(0.5, c1);
-    grad.addColorStop(1, '#050811');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 640, 360);
-
-    // Decorative grid
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-    ctx.lineWidth = 1.5;
-
-    for (let x = 0; x < 640; x += 40) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, 360);
-      ctx.stroke();
-    }
-
-    for (let y = 0; y < 360; y += 40) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(640, y);
-      ctx.stroke();
-    }
-
-    // Glowing circle accent
-    const radGrad = ctx.createRadialGradient(320, 180, 20, 320, 180, 220);
-    radGrad.addColorStop(0, `${c2}55`);
-    radGrad.addColorStop(1, 'transparent');
-    ctx.fillStyle = radGrad;
-    ctx.fillRect(0, 0, 640, 360);
-
-    // Genre pill
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-    ctx.beginPath();
-
-    if (typeof (ctx as any).roundRect === 'function') {
-      (ctx as any).roundRect(40, 35, 120, 32, 16);
-    } else {
-      ctx.rect(40, 35, 120, 32);
-    }
-
-    ctx.fill();
-    ctx.strokeStyle = c2;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 13px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText((gameGenre || 'ACTION').toUpperCase(), 100, 51);
-
-    // Title
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '900 36px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
-    ctx.shadowBlur = 12;
-
-    const displayTitle = (gameTitle || 'NEW GAME').toUpperCase();
-    ctx.fillText(displayTitle.length > 24 ? displayTitle.slice(0, 22) + '...' : displayTitle, 320, 180);
-    ctx.shadowBlur = 0;
-
-    // Brand tag
-    ctx.font = 'bold 12px sans-serif';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-    ctx.fillText('THEFORTZ.ME • STUDIO BUILT', 320, 325);
-
-    return canvas.toDataURL('image/png');
-  } catch (e) {
-    return '';
-  }
+  return [
+    assetNames.length ? `Generated game art/assets: ${assetNames.join(', ')}.` : '',
+    sourceFiles.length ? `Game code context: ${sourceFiles.join(' ')}` : '',
+  ].filter(Boolean).join('\n').slice(0, 3800);
 }
 
 export function PublishButton() {
   const [isOpen, setIsOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(false);
+  const [publishStep, setPublishStep] = useState<'details' | 'cover'>('details');
+  const [coverStatus, setCoverStatus] = useState<'idle' | 'generating' | 'ready' | 'error'>('idle');
+  const [coverError, setCoverError] = useState('');
   const [title, setTitle] = useState('');
   const [genre, setGenre] = useState('ACTION');
   const [description, setDescription] = useState('');
-  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [previewThumb, setPreviewThumb] = useState<string>('');
+  const thumbnailRequestRef = useRef<AbortController | null>(null);
   const files = useStore(workbenchStore.files);
   const currentChatId = useStore(chatId);
   const projectIdentity = currentChatId || workbenchStore.firstArtifact?.id || 'default-project';
@@ -125,6 +57,24 @@ export function PublishButton() {
   const isPublished = publishedStorageKey === publishStorageKey;
 
   const hasFiles = Object.keys(files || {}).length > 0;
+
+  useEffect(() => {
+    if (!isOpen) {
+      thumbnailRequestRef.current?.abort();
+      thumbnailRequestRef.current = null;
+      setIsGeneratingThumbnail(false);
+      return;
+    }
+    setPublishStep('details');
+    setCoverStatus('idle');
+    setCoverError('');
+    setPreviewThumb('');
+
+    return () => {
+      thumbnailRequestRef.current?.abort();
+      thumbnailRequestRef.current = null;
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     const refreshPublishedState = () => {
@@ -159,39 +109,89 @@ export function PublishButton() {
     } catch (e) {}
   }, [isOpen, files]);
 
-  // Update auto-generated thumbnail preview
-  useEffect(() => {
-    if (thumbnailFile) {
-      const url = URL.createObjectURL(thumbnailFile);
-      setPreviewThumb(url);
+  const generateThumbnail = async () => {
+    const finalTitle = title.trim();
+    if (!finalTitle) return;
 
-      return () => URL.revokeObjectURL(url);
-    } else {
-      const autoUrl = generateAutoThumbnail(title || 'My Game', genre || 'ACTION');
-      setPreviewThumb(autoUrl);
+    setPublishStep('cover');
+    setCoverStatus('generating');
+    setCoverError('');
+    setPreviewThumb('');
+    setIsGeneratingThumbnail(true);
+    thumbnailRequestRef.current?.abort();
+    const controller = new AbortController();
+    thumbnailRequestRef.current = controller;
+    const timeout = window.setTimeout(() => controller.abort(), 65_000);
+
+    try {
+      const projectFiles = (workbenchStore as any).files?.get?.() ?? files ?? {};
+      const visualContext = buildGameVisualContext(
+        projectFiles,
+        Object.values(generatedAssets.get()).map((asset) => asset.path),
+      );
+      const response = await fetch('/api/generate-thumbnail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: finalTitle,
+          genre,
+          description: description.trim(),
+          gameContext: visualContext,
+        }),
+        signal: controller.signal,
+      });
+      let result: { dataUrl?: string; error?: string } = {};
+      try {
+        result = (await response.json()) as { dataUrl?: string; error?: string };
+      } catch {
+        // The status below is more useful than a JSON parsing exception.
+      }
+
+      if (!response.ok || !result.dataUrl?.startsWith('data:image/')) {
+        throw new Error(result.error || `AI cover generation returned HTTP ${response.status}.`);
+      }
+
+      setPreviewThumb(result.dataUrl);
+      setCoverStatus('ready');
+    } catch (error) {
+      setCoverStatus('error');
+      setCoverError(error instanceof Error ? error.message : 'The AI cover could not be generated.');
+    } finally {
+      window.clearTimeout(timeout);
+      if (thumbnailRequestRef.current === controller) {
+        thumbnailRequestRef.current = null;
+        setIsGeneratingThumbnail(false);
+      }
     }
-  }, [title, genre, thumbnailFile]);
+  };
 
   const handleExportZip = async () => {
     try {
       setIsExporting(true);
       await workbenchStore.downloadZip();
-      toast.success('Game package downloaded! Ready to publish.', {
-        autoClose: 6000,
-      });
-    } catch (err: any) {
-      toast.error('Failed to package game files: ' + (err?.message || 'Unknown error'));
+      toast.success('Game package downloaded! Ready to publish.', { autoClose: 6000 });
+    } catch (error) {
+      toast.error(`Failed to package game files: ${(error as Error)?.message || 'Unknown error'}`);
     } finally {
       setIsExporting(false);
     }
   };
 
   const executePublish = async () => {
-    const finalTitle = title.trim() || 'My Game';
+    const finalTitle = title.trim();
     const finalGenre = genre || 'ACTION';
 
     if (!hasFiles) {
       toast.error('Build a game before publishing it.');
+      return;
+    }
+    if (!finalTitle) {
+      setPublishStep('details');
+      toast.info('Enter a game name before continuing.');
+      return;
+    }
+    if (coverStatus !== 'ready' || !previewThumb) {
+      toast.info('Generate the game cover before publishing.');
       return;
     }
 
@@ -211,81 +211,7 @@ export function PublishButton() {
 
     try {
       setIsExporting(true);
-
-      // Convert thumbnail or use auto-generated thumbnail
-      let thumbDataUrl = '';
-
-      if (thumbnailFile) {
-        thumbDataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(thumbnailFile);
-        });
-      } else {
-        setIsGeneratingThumbnail(true);
-
-        try {
-          let lastError: unknown;
-
-          for (let attempt = 0; attempt < 2; attempt++) {
-            try {
-              const response = await fetch('/api/generate-thumbnail', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  title: finalTitle,
-                  genre: finalGenre,
-                  description: description.trim(),
-                }),
-                signal: AbortSignal.timeout(28_000),
-              });
-              let generated: { dataUrl?: string; error?: string } = {};
-              try {
-                generated = (await response.json()) as { dataUrl?: string; error?: string };
-              } catch {
-                /* Keep the HTTP status as the retryable diagnostic. */
-              }
-
-              if (!response.ok || !generated.dataUrl) {
-                const error = new Error(generated.error || `The AI cover service returned HTTP ${response.status}.`);
-                (error as Error & { status?: number }).status = response.status;
-                throw error;
-              }
-
-              thumbDataUrl = generated.dataUrl;
-              break;
-            } catch (error) {
-              lastError = error;
-              const status = Number((error as Error & { status?: number })?.status || 0);
-              const message = error instanceof Error ? error.message : String(error);
-              const retryable =
-                [429, 500, 502, 503, 504].includes(status) ||
-                /network|fetch|timed out|abort|temporar/i.test(message);
-
-              if (attempt > 0 || !retryable) throw error;
-
-              toast.info('AI cover service hiccup. Retrying in 3 seconds…', { autoClose: 3000 });
-              await new Promise((resolve) => setTimeout(resolve, 3000));
-            }
-          }
-
-          if (!thumbDataUrl) throw lastError || new Error('The AI cover could not be generated.');
-          setPreviewThumb(thumbDataUrl);
-        } catch (error) {
-          thumbDataUrl = generateAutoThumbnail(finalTitle, finalGenre);
-
-          const detail = error instanceof Error ? error.message : '';
-          toast.info(
-            detail
-              ? `AI cover unavailable: ${detail} Publishing with a local fallback cover.`
-              : 'AI cover unavailable; publishing with a local fallback cover.',
-            { autoClose: 6500 },
-          );
-        } finally {
-          setIsGeneratingThumbnail(false);
-        }
-      }
+      const thumbDataUrl = previewThumb;
 
       // Collect project files from the workbench store
       const projectFiles = (workbenchStore as any).files?.get?.() ?? files ?? {};
@@ -445,21 +371,24 @@ export function PublishButton() {
               </button>
             </div>
 
-            <p className="text-xs text-slate-200 mb-4 leading-relaxed font-medium">
-              Publish directly to <strong className="text-orange-300">thefortz.me</strong>. AI cover art is generated
-              automatically unless you upload a custom thumbnail.
-            </p>
+            <div className="mb-4 flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.18em] text-sky-100/65">
+              <span className={publishStep === 'details' ? 'text-orange-300' : ''}>1 · Game details</span>
+              <span className="text-white/25">—</span>
+              <span className={publishStep === 'cover' ? 'text-orange-300' : ''}>2 · AI cover</span>
+            </div>
 
-            <div className="flex flex-col gap-3">
+            {publishStep === 'details' ? (
+            <div className="flex flex-col gap-4">
               <div>
                 <label className="text-[11px] font-bold text-sky-100/80 uppercase tracking-wide mb-1 block">
-                  Game Name
+                  Game name <span className="text-orange-300">*</span>
                 </label>
                 <input
                   type="text"
                   placeholder="e.g. Cyber Runner"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
+                  maxLength={100}
                   className="w-full p-2 bg-[#0b1c35] border border-orange-300/35 focus:border-orange-300 focus:outline-none rounded-lg text-white text-sm"
                 />
               </div>
@@ -489,56 +418,87 @@ export function PublishButton() {
                   placeholder="Tell players about your game..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
+                  maxLength={1200}
                   className="w-full p-2 bg-[#0b1c35] border border-orange-300/35 focus:border-orange-300 focus:outline-none rounded-lg text-white text-sm"
                   rows={2}
                 />
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[11px] font-bold text-sky-100/80 uppercase tracking-wide">Thumbnail</label>
-                  <span className="text-[10px] text-sky-200">AI-generated or custom</span>
+              <div className="mt-1 flex flex-col items-stretch gap-2">
+                <span className="text-[10px] text-sky-100/55">The cover will be based on your game files and generated art.</span>
+                <button
+                  onClick={() => void generateThumbnail()}
+                  disabled={isGeneratingThumbnail || isExporting || !title.trim() || !hasFiles || isPublished}
+                  className="w-full flex items-center justify-center gap-2 rounded-lg border border-orange-200/60 bg-gradient-to-r from-orange-500 to-amber-400 px-4 py-2.5 text-xs font-extrabold uppercase tracking-wider text-[#1c2230] transition-colors hover:from-orange-400 hover:to-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span>Continue · Create cover</span>
+                  <span aria-hidden="true">→</span>
+                </button>
+                <button
+                  onClick={() => void handleExportZip()}
+                  disabled={isExporting || !hasFiles}
+                  className="self-end rounded-lg border border-sky-300/25 bg-[#12315b]/80 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-sky-100/75 transition-colors hover:bg-[#19447a] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Export ZIP backup
+                </button>
+              </div>
+              {!hasFiles && <div className="text-[11px] text-sky-200/70">Add a game to this workspace before publishing.</div>}
+            </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl border border-orange-200/30 bg-[#06152b] shadow-[0_18px_50px_rgba(0,0,0,0.35)]">
+                  {previewThumb ? (
+                    <img src={previewThumb} alt={`${title} AI-generated game cover`} className="absolute inset-0 h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex flex-col items-center gap-3 px-6 text-center">
+                      <span className={isGeneratingThumbnail ? 'i-svg-spinners:90-ring-with-bg text-3xl text-orange-300' : 'i-ph:image-square text-4xl text-sky-200/50'} />
+                      <span className="text-sm font-bold text-white/90">
+                        {isGeneratingThumbnail ? 'Creating cover art for your game…' : 'Your generated cover will appear here'}
+                      </span>
+                      {isGeneratingThumbnail && <span className="text-[11px] text-sky-100/60">Using your game description, source files, and generated assets.</span>}
+                    </div>
+                  )}
                 </div>
 
-                {previewThumb && (
-                  <div className="mb-2 w-full h-24 overflow-hidden rounded-lg border border-sky-200/30 bg-[#071a35] flex items-center justify-center">
-                    <img src={previewThumb} alt="Game Thumbnail Preview" className="w-full h-full object-cover" />
+                {coverError && (
+                  <div className="rounded-lg border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-xs leading-relaxed text-amber-100">
+                    Cover generation needs another try: {coverError}
                   </div>
                 )}
 
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setThumbnailFile(e.target.files?.[0] || null)}
-                  className="w-full text-xs text-sky-100 file:mr-2 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-orange-500 file:text-white hover:file:bg-orange-400 cursor-pointer"
-                />
-              </div>
-
-              <div className="flex flex-col gap-2 mt-2">
                 <button
                   onClick={executePublish}
-                  disabled={isExporting || !hasFiles || isPublished}
-                  className="w-full flex items-center justify-center gap-2 rounded-lg border border-orange-200/60 bg-gradient-to-r from-orange-500 to-amber-400 px-4 py-2.5 text-xs font-extrabold uppercase tracking-wider text-[#1c2230] transition-colors hover:from-orange-400 hover:to-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={isExporting || isGeneratingThumbnail || coverStatus !== 'ready' || !hasFiles || isPublished}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl border border-orange-100/70 bg-gradient-to-r from-orange-500 via-amber-400 to-yellow-300 px-4 py-3.5 text-sm font-black uppercase tracking-wider text-[#1c2230] shadow-[0_8px_24px_rgba(249,115,22,0.25)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span>{isExporting ? '⏳' : '🚀'}</span>
-                  <span>{isGeneratingThumbnail ? 'Creating cover…' : isExporting ? 'Publishing…' : 'Publish'}</span>
+                  <span>{isExporting ? 'Publishing game and cover…' : 'Publish game'}</span>
                 </button>
 
-                <button
-                  onClick={handleExportZip}
-                  disabled={isExporting || !hasFiles}
-                  className="w-full flex items-center justify-center gap-2 rounded-lg border border-sky-300/30 bg-[#12315b] px-4 py-2 text-xs font-bold uppercase tracking-wider text-sky-50 transition-colors hover:bg-[#19447a] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <span>📥</span>
-                  <span>Export ZIP Backup</span>
-                </button>
+                {coverStatus === 'error' && !isExporting && (
+                  <button
+                    onClick={() => void generateThumbnail()}
+                    className="self-center rounded-lg border border-orange-200/40 bg-orange-400/15 px-4 py-2 text-xs font-extrabold text-orange-100 hover:bg-orange-400/25"
+                  >
+                    Try cover again
+                  </button>
+                )}
+
+                {isExporting && (
+                  <div className="flex items-center justify-center gap-2 text-[11px] font-semibold text-sky-100/75" role="status" aria-live="polite">
+                    <span className="i-svg-spinners:90-ring-with-bg text-sky-200" />
+                    Uploading the cover and game files to the Games tab…
+                  </div>
+                )}
               </div>
-            </div>
+            )}
 
-            <div className="mt-4 flex items-start gap-1.5 border-t border-sky-200/15 pt-3 text-[11px] leading-normal text-sky-100/75">
-              <span>💡</span>
-              <span>Hosting is 100% free! Published games appear live on thefortz.me instantly.</span>
-            </div>
+            {publishStep === 'details' && (
+              <div className="mt-4 flex items-start gap-1.5 border-t border-sky-200/15 pt-3 text-[11px] leading-normal text-sky-100/75">
+                <span>💡</span>
+                <span>Your generated game cover and game files are published together to thefortz.me.</span>
+              </div>
+            )}
           </div>
         </div>
       )}

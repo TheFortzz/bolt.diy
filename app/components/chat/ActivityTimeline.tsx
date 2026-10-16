@@ -24,8 +24,7 @@ function stepLabel(step: ActivityStep) {
     case 'complete':
       return step.doneLabel;
     case 'failed':
-      // Calm terminal wording: a build that needs another pass, not an alarm.
-      return `Paused: ${step.label}`;
+      return step.doneLabel;
     case 'aborted':
       return `Stopped: ${step.label}`;
     case 'retrying':
@@ -62,8 +61,15 @@ export const ActivityTimeline = memo(({ messageId, isStreaming = false, embedded
     previousState.current = summary.state;
   }, [summary.state]);
 
-  const important = steps.filter((step) => step.status === 'running' || step.status === 'failed');
-  const displayed = embedded ? steps : showAll ? steps : important.length ? important : steps.slice(-VISIBLE_STEPS);
+  const visibleSteps = steps.filter((step) => step.status !== 'failed');
+  const important = visibleSteps.filter((step) => step.status === 'running');
+  const displayed = embedded
+    ? visibleSteps
+    : showAll
+      ? visibleSteps
+      : important.length
+        ? important
+        : visibleSteps.slice(-VISIBLE_STEPS);
 
   /*
    * Generated art is the part of a build users most want to *see*, so the real
@@ -90,7 +96,7 @@ export const ActivityTimeline = memo(({ messageId, isStreaming = false, embedded
         <div className={styles.ActivityEmbeddedHeading}>
           <span>Build checks</span>
           <span>
-            {summary.completedCount}/{steps.length} steps
+            {summary.completedCount}/{visibleSteps.length} steps
           </span>
         </div>
       ) : (
@@ -148,7 +154,7 @@ export const ActivityTimeline = memo(({ messageId, isStreaming = false, embedded
           </span>
           <span>
             <span className="i-ph:check-circle" aria-hidden="true" />
-            {summary.completedCount}/{steps.length} steps
+            {summary.completedCount}/{visibleSteps.length} steps
           </span>
           {summary.state === 'running' && <span className="text-violet-300">Live activity</span>}
         </div>
@@ -157,7 +163,6 @@ export const ActivityTimeline = memo(({ messageId, isStreaming = false, embedded
         {displayed.map((step) => {
           const isComplete = step.status === 'complete';
           const isRunning = step.status === 'running';
-          const isFailed = step.status === 'failed';
           const isRetrying = step.status === 'retrying';
 
           return (
@@ -183,8 +188,6 @@ export const ActivityTimeline = memo(({ messageId, isStreaming = false, embedded
                   <div className="i-svg-spinners:90-ring-with-bg text-emerald-400 text-xs shrink-0 drop-shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
                 ) : isComplete ? (
                   <div className="i-ph:check-circle-fill text-emerald-400 text-xs shrink-0 drop-shadow-[0_0_6px_rgba(52,211,153,0.5)]" />
-                ) : isFailed ? (
-                  <div className="i-ph:warning-circle text-amber-300 text-xs shrink-0" />
                 ) : isRetrying ? (
                   <div className="i-ph:arrow-clockwise text-amber-300 text-xs shrink-0" />
                 ) : (

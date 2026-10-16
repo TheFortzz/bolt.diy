@@ -22,10 +22,17 @@ describe('observed activity summary', () => {
     expect(result.title).toBe('Build checks passed');
   });
 
-  it('keeps a failure visible even after other checks complete', () => {
+  it('keeps terminal diagnostics out of the chat status summary', () => {
     const result = summarizeActivity([step('assets:write', 'failed'), step('validation:result', 'complete')], false);
-    expect(result.state).toBe('failed');
-    expect(result.title).toBe('Build needs another pass');
+    expect(result.state).toBe('verified');
+    expect(result.title).toBe('Build checks passed');
+  });
+
+  it('shows a neutral saved-workspace status when final checks did not pass', () => {
+    const result = summarizeActivity([step('assets:write', 'failed'), step('cline:failed', 'failed')], false);
+    expect(result.state).toBe('complete');
+    expect(result.title).toBe('Build update saved');
+    expect(result.subtitle).toContain('workspace is saved');
   });
 
   it('does not leave aborted operations spinning', () => {

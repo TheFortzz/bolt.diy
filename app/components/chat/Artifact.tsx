@@ -64,6 +64,7 @@ interface ActionListProps {
 
 const ActionList = memo(({ actions, messageId }: ActionListProps) => {
   const steps = useStore(activitySteps)[messageId] ?? [];
+  const visibleActions = actions.filter((action) => action.status !== 'failed' && action.status !== 'aborted');
 
   const checkIsEdit = (action: ActionState): boolean => {
     if (action.type !== 'file') return false;
@@ -78,7 +79,7 @@ const ActionList = memo(({ actions, messageId }: ActionListProps) => {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
       <ul className="list-none space-y-2">
-        {actions.map((action, index) => {
+        {visibleActions.map((action, index) => {
           const { status, type, content } = action;
           const isFile = type === 'file';
           const isEdit = isFile ? checkIsEdit(action) : false;
@@ -272,12 +273,12 @@ export const Artifact = memo(({ messageId }: ArtifactProps) => {
         {/* Left Side: Beacon Icon, Title, and Live Subtitle */}
         <div className="flex items-center gap-3.5 min-w-0 flex-1">
           <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(16,185,129,0.2)]">
-            {hasFailure ? (
-              <div className="i-ph:warning-circle-fill text-rose-400 text-xl" />
-            ) : isRunning ? (
+            {isRunning ? (
               <div className="i-svg-spinners:90-ring-with-bg text-emerald-400 text-xl" />
-            ) : (
+            ) : verified ? (
               <div className="i-ph:check-circle-fill text-emerald-400 text-xl drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
+            ) : (
+              <div className="i-ph:files text-slate-300 text-xl" />
             )}
           </div>
 
@@ -286,9 +287,7 @@ export const Artifact = memo(({ messageId }: ArtifactProps) => {
               {artifact?.title || 'Interactive Project'}
             </div>
             <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-300">
-              {hasFailure ? (
-                <span className="text-rose-300 font-medium">Build needs attention</span>
-              ) : isRunning ? (
+              {isRunning ? (
                 <>
                   <span className="inline-flex items-center gap-1 text-emerald-400 font-medium">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
@@ -301,7 +300,7 @@ export const Artifact = memo(({ messageId }: ArtifactProps) => {
                 </>
               ) : (
                 <>
-                  <span className={verified ? 'text-emerald-400 font-medium' : 'text-slate-300 font-medium'}>{verified ? 'Build checks passed' : 'Files applied · verification pending'}</span>
+                  <span className={verified ? 'text-emerald-400 font-medium' : 'text-slate-300 font-medium'}>{verified ? 'Build checks passed' : 'Game files saved'}</span>
                   <span className="text-slate-400">•</span>
                   <span className="text-slate-300">{fileActions.length} files generated</span>
                 </>

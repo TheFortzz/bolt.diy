@@ -18,12 +18,19 @@ describe('publish cover art', () => {
         'tunbnailmaker-url': 'https://thumbnail.example.test/flux',
         'tunbnailmaker-key': 'test-only-secret',
       },
-      { title: 'Neon Drift', genre: 'Racing', description: 'A neon highway game about drifting.' },
+      {
+        title: 'Neon Drift',
+        genre: 'Racing',
+        description: 'A neon highway game about drifting.',
+        gameContext: 'low-poly hovercar, night city track, drifting controls',
+      },
     );
 
     expect(fetchMock.mock.calls[0][0]).toBe('https://thumbnail.example.test/flux');
     expect((fetchMock.mock.calls[0][1]?.headers as Record<string, string>).Authorization).toBe('Bearer test-only-secret');
-    expect(JSON.parse(fetchMock.mock.calls[0][1]?.body as string).prompt).toContain('Neon Drift');
+    const prompt = JSON.parse(fetchMock.mock.calls[0][1]?.body as string).prompt as string;
+    expect(prompt).toContain('Neon Drift');
+    expect(prompt).toContain('low-poly hovercar');
     expect(result).toBe(`data:image/png;base64,${base64}`);
     expect(result).not.toContain('test-only-secret');
   });
