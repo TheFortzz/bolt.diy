@@ -29,6 +29,7 @@ import {
   describeClineToolStep,
 } from '~/lib/stores/activity';
 import { runClineAgent } from '~/lib/runtime/cline-bridge';
+import { createStallDetector, isEnvironmentFatalRuntimeError } from '~/lib/runtime/build-retry-guards';
 import { probeHtmlInlineScripts, probeModuleSyntax } from '~/lib/runtime/js-syntax';
 
 interface HarnessOptions {
@@ -290,6 +291,9 @@ export function useCognitiveHarness(options: HarnessOptions) {
         );
 
         if (sequence !== requestSequence.current || controller.signal.aborted) {
+          // A stopped/superseded plan must never leave a spinner behind.
+          settleActiveActivities(messageId, 'aborted');
+
           return;
         }
 
@@ -374,6 +378,8 @@ export function useCognitiveHarness(options: HarnessOptions) {
         }
 
         if (sequence !== requestSequence.current || controller.signal.aborted) {
+          settleActiveActivities(messageId, 'aborted');
+
           return;
         }
 
@@ -605,17 +611,60 @@ export function useCognitiveHarness(options: HarnessOptions) {
           let lastError = '';
           const seenErrorKeys: string[] = [];
           /*
-           * Keep fixing until the game actually builds. Twelve attempts of
-           * real repair work beat stopping early and handing back a broken
-           * project; a genuinely unfixable error still terminates here.
+           * Keep fixing real errors, but never grind forever: identical repeats
+           * and dead-sandbox failures stop early (see failureStalled /
+           * isEnvironmentFatal below), so these attempts are spent on errors
+           * that actually change as the AI repairs the game.
            */
-          const maxAttempts = 12;
+          const maxAttempts = 8;
           const appliedWorkspacePaths = new Set<string>();
           let improvePassDone = false;
           let polishPassActive = false;
 
+          /*
+           * Runtime failures retrying cannot fix: the preview/WebContainer
+           * sandbox itself died (out of WASM memory, isolation lost). Grinding
+           * attempts against a dead sandbox is what made the build look like an
+           * infinite loop, so these stop immediately with a clear message.
+           */
+          const isEnvironmentFatal = isEnvironmentFatalRuntimeError;
+
+          /*
+           * Convergence guard: if the same phase fails with the same error and
+           * no new files land, the next attempt would repeat it verbatim. Treat
+           * that as a dead end instead of burning the whole attempt budget.
+           */
+          const stallDetector = createStallDetector();
+          const failureStalled = (message: string) =>
+            stallDetector.isStalled(`${phaseIndex}:${appliedWorkspacePaths.size}`, message);
+
+          /*
+           * A build that pauses always ends the same calm way: amber activity,
+           * no red, and the real last error written into the chat so a follow-up
+           * message can finish it.
+           */
+          const abandonBuild = (detail: string) => {
+            settleActiveActivities(messageId, 'failed');
+            startActivity(messageId, 'cline:failed', 'Build needs another pass', detail, 'failed');
+            executionPolicy.revoke();
+            validationState.set({ status: 'failed', detail });
+            transitionHarness('failed', { detail });
+
+            const targetId = lastClineMessageId || messageId;
+            options.setMessages((messages) =>
+              messages.map((entry) =>
+                entry.id === targetId
+                  ? { ...entry, content: `${entry.content}\n\nThe build needs another pass.\n\n${detail}` }
+                  : entry,
+              ),
+            );
+          };
+
           for (let attempt = 0; attempt < maxAttempts; attempt++) {
             if (sequence !== requestSequence.current || controller.signal.aborted) {
+              // A stopped/superseded build must never leave a spinner behind.
+              settleActiveActivities(messageId, 'aborted');
+
               return;
             }
 
@@ -1159,6 +1208,26 @@ export function useCognitiveHarness(options: HarnessOptions) {
                 previewErrors = [{ message: runFailure }];
                 updateActivity(messageId, 'cline:inspect', 'complete');
 
+                /*
+                 * Dead-sandbox errors and identical repeats never converge —
+                 * stop immediately instead of looping, and say why.
+                 */
+                if (isEnvironmentFatal(runFailure)) {
+                  abandonBuild(
+                    `The Studio's own game sandbox stopped working: ${runFailure.slice(0, 240)}\n\nYour game code is not the cause. Reload the Studio page, then send the request again (or say "continue") and the build will resume.`,
+                  );
+
+                  return;
+                }
+
+                if (attempt > 0 && failureStalled(runFailure)) {
+                  abandonBuild(
+                    `The same error kept returning with no new progress, so I stopped repeating it.\n\nLast real error:\n${runFailure.slice(0, 400)}\n\nSay "continue" to try a different approach.`,
+                  );
+
+                  return;
+                }
+
                 if (attempt === maxAttempts - 1) {
                   const progress =
                     phaseIndex > 0
@@ -1166,20 +1235,9 @@ export function useCognitiveHarness(options: HarnessOptions) {
                       : appliedWorkspacePaths.size
                         ? ` Files already written: ${Array.from(appliedWorkspacePaths).join(', ')}.`
                         : '';
-                  const detail = `The build paused before verification passed after ${maxAttempts} attempts. ${lastError}${progress}`;
-                  settleActiveActivities(messageId, 'failed');
-
-                  updateAgentMessage(`The build needs another pass.\n\n${detail}`);
-                  startActivity(
-                    messageId,
-                    'cline:failed',
-                    `Build needs another pass: ${lastError.slice(0, 150)}`,
-                    detail,
-                    'failed',
+                  abandonBuild(
+                    `The build paused before verification passed after ${maxAttempts} attempts. ${lastError}${progress}`,
                   );
-                  executionPolicy.revoke();
-                  validationState.set({ status: 'failed', detail });
-                  transitionHarness('failed', { detail });
 
                   return;
                 }
@@ -1271,27 +1329,25 @@ export function useCognitiveHarness(options: HarnessOptions) {
               );
               previewErrors = [{ message: lastError }];
 
-              if (attempt === maxAttempts - 1) {
-                settleActiveActivities(messageId, 'failed');
-                startActivity(
-                  messageId,
-                  'cline:failed',
-                  'Build needs another pass',
-                  'Build needs another pass',
-                  'failed',
+              if (isEnvironmentFatal(lastError)) {
+                abandonBuild(
+                  `The Studio's own preview sandbox stopped working: ${lastError.slice(0, 240)}\n\nYour game code is not the cause. Reload the Studio page, then say "continue" and the build will resume where it stopped.`,
                 );
-                executionPolicy.revoke();
-                validationState.set({ status: 'failed', detail: lastError });
-                transitionHarness('failed', { detail: `Build paused after ${maxAttempts} attempts: ${lastError}` });
-                options.setMessages((messages) =>
-                  messages.map((entry) =>
-                    entry.id === agentMessageId
-                      ? {
-                          ...entry,
-                          content: `${entry.content}\n\nThe build paused after ${maxAttempts} automatic repair attempts. Here is the last real error so the next message can finish it:\n\n${lastError}`,
-                        }
-                      : entry,
-                  ),
+
+                return;
+              }
+
+              if (attempt > 0 && failureStalled(lastError)) {
+                abandonBuild(
+                  `The same verification error kept returning with no new progress, so I stopped repeating it.\n\nLast real error:\n${lastError.slice(0, 400)}\n\nSay "continue" to try a different approach.`,
+                );
+
+                return;
+              }
+
+              if (attempt === maxAttempts - 1) {
+                abandonBuild(
+                  `The build paused after ${maxAttempts} automatic repair attempts. Here is the last real error so the next message can finish it:\n\n${lastError}`,
                 );
 
                 return;
@@ -1304,6 +1360,9 @@ export function useCognitiveHarness(options: HarnessOptions) {
               executionPolicy.allowRepair();
             } catch (error) {
               if (sequence !== requestSequence.current || controller.signal.aborted) {
+                // A stopped/superseded build must never leave a spinner behind.
+                settleActiveActivities(messageId, 'aborted');
+
                 return;
               }
 
@@ -1315,6 +1374,14 @@ export function useCognitiveHarness(options: HarnessOptions) {
                * after the same short pause — only a truly dead provider or an
                * exhausted budget ends the build.
                */
+              if (isEnvironmentFatal(message)) {
+                abandonBuild(
+                  `The Studio's own game sandbox stopped working: ${message.slice(0, 240)}\n\nYour game code is not the cause. Reload the Studio page, then say "continue" and the build will resume where it stopped.`,
+                );
+
+                return;
+              }
+
               if (attempt < maxAttempts - 1) {
                 lastError = `Studio run error: ${message}`;
                 runHistory.push({
@@ -1329,7 +1396,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                 continue;
               }
 
-              assistantContent += `${assistantContent ? '\n\n' : ''}Build stopped after ${maxAttempts} attempts: ${message}`;
+              assistantContent += `${assistantContent ? '\n\n' : ''}Build paused after ${maxAttempts} attempts: ${message}`;
               updateAgentMessage(assistantContent);
               throw error;
             }
@@ -1630,6 +1697,8 @@ export function useCognitiveHarness(options: HarnessOptions) {
         );
 
         if (sequence !== requestSequence.current || controller.signal.aborted) {
+          settleActiveActivities(messageId, 'aborted');
+
           return;
         }
 
@@ -1657,6 +1726,8 @@ export function useCognitiveHarness(options: HarnessOptions) {
         await executeApprovedPlan(blueprint, result.reviewToken, messageId, effectiveRequest, controller, sequence);
       } catch (error) {
         if (sequence !== requestSequence.current || controller.signal.aborted) {
+          settleActiveActivities(messageId, 'aborted');
+
           return;
         }
 

@@ -71,6 +71,27 @@ export function describeClineToolStep(
   };
 }
 
+/*
+ * The timeline is a live progress feed, so it must stay bounded: a long
+ * multi-phase build with many retries used to append rows forever, which both
+ * swelled the tab's memory and made the build look like an endless loop. Live
+ * rows are always kept.
+ */
+const MAX_ACTIVITY_STEPS = 160;
+
+function trimActivitySteps(steps: ActivityStep[]): ActivityStep[] {
+  if (steps.length <= MAX_ACTIVITY_STEPS) {
+    return steps;
+  }
+
+  const live = steps.filter((step) => step.status === 'running' || step.status === 'pending');
+  const settled = steps.filter((step) => step.status !== 'running' && step.status !== 'pending');
+  const keepSettled = Math.max(0, MAX_ACTIVITY_STEPS - live.length);
+  const kept = new Set([...settled.slice(-keepSettled), ...live].map((step) => step.id));
+
+  return steps.filter((step) => kept.has(step.id));
+}
+
 export function startActivity(
   messageId: string,
   id: string,
@@ -86,10 +107,13 @@ export function startActivity(
   }
 
   const startedAt = Date.now();
-  activitySteps.setKey(messageId, [
-    ...steps,
-    { id, label, doneLabel, status, startedAt, finishedAt: status === 'complete' ? startedAt : undefined, filePath },
-  ]);
+  activitySteps.setKey(
+    messageId,
+    trimActivitySteps([
+      ...steps,
+      { id, label, doneLabel, status, startedAt, finishedAt: status === 'complete' ? startedAt : undefined, filePath },
+    ]),
+  );
 }
 
 /** Settle every live row so a terminal build never leaves a spinner behind. */

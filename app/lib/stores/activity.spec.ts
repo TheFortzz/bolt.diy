@@ -81,6 +81,23 @@ describe('build activity events', () => {
     expect(summarizeActivity(steps, false, true).title).toBe('Working on your game');
   });
 
+  it('bounds the timeline so a long build cannot grow it forever', () => {
+    startActivity('long', 'live', 'Phase 9/9 · writing modules');
+
+    for (let index = 0; index < 400; index++) {
+      startActivity('long', `step:${index}`, `Step ${index}`);
+      updateActivity('long', `step:${index}`, 'complete');
+    }
+
+    const steps = activitySteps.get().long;
+    expect(steps.length).toBeLessThanOrEqual(160);
+    // The still-running row must survive trimming.
+    expect(steps.some((step) => step.id === 'live')).toBe(true);
+    // The newest rows are kept; the oldest are dropped.
+    expect(steps.some((step) => step.id === 'step:399')).toBe(true);
+    expect(steps.some((step) => step.id === 'step:0')).toBe(false);
+  });
+
   it('marks a real validation failure without claiming success', async () => {
     await expect(
       runActivityStep(
