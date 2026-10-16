@@ -27,6 +27,9 @@ function stepLabel(step: ActivityStep) {
       return `Failed: ${step.label}`;
     case 'aborted':
       return `Stopped: ${step.label}`;
+    case 'retrying':
+      // A soft, recovered failure: never surfaces as a failure in chat.
+      return step.label;
     default:
       return step.label;
   }
@@ -127,6 +130,7 @@ export const ActivityTimeline = memo(({ messageId, isStreaming = false, embedded
           const isComplete = step.status === 'complete';
           const isRunning = step.status === 'running';
           const isFailed = step.status === 'failed';
+          const isRetrying = step.status === 'retrying';
 
           return (
             <li key={step.id}>
@@ -153,6 +157,8 @@ export const ActivityTimeline = memo(({ messageId, isStreaming = false, embedded
                   <div className="i-ph:check-circle-fill text-emerald-400 text-xs shrink-0 drop-shadow-[0_0_6px_rgba(52,211,153,0.5)]" />
                 ) : isFailed ? (
                   <div className="i-ph:x-circle-fill text-rose-400 text-xs shrink-0 drop-shadow-[0_0_6px_rgba(244,63,94,0.5)]" />
+                ) : isRetrying ? (
+                  <div className="i-ph:arrow-clockwise text-amber-300 text-xs shrink-0" />
                 ) : (
                   <div className="i-ph:circle text-slate-500 text-xs shrink-0" />
                 )}

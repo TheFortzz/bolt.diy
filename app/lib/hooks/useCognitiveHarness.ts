@@ -558,6 +558,17 @@ export function useCognitiveHarness(options: HarnessOptions) {
             return issues;
           };
 
+          /*
+           * A recoverable phase failure must never read as a failure in chat:
+           * settle the attempt's leftover rows and leave the phase row in a
+           * calm "retrying" state until the next attempt reopens it.
+           */
+          const markPhaseRetrying = (phaseNumber: number) => {
+            const phaseStepId = `cline:phase:${phaseNumber}`;
+            settleActiveActivities(messageId, 'complete', [phaseStepId]);
+            updateActivity(messageId, phaseStepId, 'retrying');
+          };
+
           const runHistory: Array<{ role: 'user' | 'assistant'; content: string }> = (options.conversationHistory || [])
             .filter((message) => message.content.trim().length > 0)
             .slice(-12)
@@ -827,7 +838,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                       const stepId = activeToolSteps.get(callId) || Array.from(activeToolSteps.values()).at(-1);
 
                       if (stepId) {
-                        updateActivity(messageId, stepId, call.status === 'error' ? 'failed' : 'complete');
+                        updateActivity(messageId, stepId, call.status === 'error' ? 'retrying' : 'complete');
                         if (callId) activeToolSteps.delete(callId);
                       }
                     } else if (event.type === 'file_write') {
@@ -842,7 +853,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                           `cline:write:${path}`,
                           `Rejected write · ${path}`,
                           writeViolation,
-                          'failed',
+                          'retrying',
                           path,
                         );
 
@@ -888,7 +899,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                           updateActivity(messageId, `cline:write:${path}`, 'complete');
                         } catch (error) {
                           writeViolation = `Bolt could not write ${path} into the workspace: ${(error as Error).message}`;
-                          updateActivity(messageId, `cline:write:${path}`, 'failed');
+                          updateActivity(messageId, `cline:write:${path}`, 'retrying');
                         }
                       });
                     } else if (event.type === 'task_complete') {
@@ -1012,6 +1023,8 @@ export function useCognitiveHarness(options: HarnessOptions) {
                     `Phase ${phaseNumber}/${phases.length} complete`,
                     'running',
                   );
+                  // Re-open the row for a retried phase (soft failures stay quiet).
+                  updateActivity(messageId, `cline:phase:${phaseNumber}`, 'running');
 
                   const result = await runWithRetry(buildPhasePrompt(phaseNumber, runPaths), runPaths);
 
@@ -1026,8 +1039,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
 
                   if (missing.length > 0) {
                     phaseRetryPaths.set(phaseIndex, missing);
-                    updateActivity(messageId, `cline:phase:${phaseNumber}`, 'failed');
-                    settleActiveActivities(messageId, 'failed');
+                    markPhaseRetrying(phaseNumber);
                     runFailure = `Phase ${phaseNumber} finished without writing ${missing.length} of its approved files: ${missing.join(', ')}. Write each one completely with its full implementation.`;
                     break;
                   }
@@ -1037,8 +1049,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                   if (gateIssues.length > 0) {
                     const repairPaths = phase.paths.filter((path) => gateIssues.some((issue) => issue.includes(path)));
                     if (repairPaths.length > 0) phaseRetryPaths.set(phaseIndex, repairPaths);
-                    updateActivity(messageId, `cline:phase:${phaseNumber}`, 'failed');
-                    settleActiveActivities(messageId, 'failed');
+                    markPhaseRetrying(phaseNumber);
                     runFailure = `Phase ${phaseNumber} wrote incomplete or broken code:\n${gateIssues.join('\n')}`;
                     break;
                   }

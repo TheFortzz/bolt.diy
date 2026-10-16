@@ -166,9 +166,8 @@ export function removeGreenScreenPixels(imageData: ImageData): ImageData {
     const deltaBlue = blue - keyBlue;
     const distance = Math.sqrt(deltaRed * deltaRed + deltaGreen * deltaGreen + deltaBlue * deltaBlue);
     const greenDominance = green - Math.max(red, blue);
-    const alpha = greenDominance > 65
-      ? 0
-      : Math.max(0, Math.min(255, Math.round(((distance - 10) / (keyTolerance - 10)) * 255)));
+    const alpha =
+      greenDominance > 65 ? 0 : Math.max(0, Math.min(255, Math.round(((distance - 10) / (keyTolerance - 10)) * 255)));
 
     if (alpha === 0) {
       data[offset + 3] = 0;
@@ -294,7 +293,8 @@ export async function generateProjectAssets(
     // 3. Call server pipeline endpoint to select elements, invoke FLUX.2-pro, and update code
     const res = await fetch('/api/generate-assets', {
       method: 'POST',
-      signal: AbortSignal.timeout(180000),
+      // Up to four images generate sequentially on the server; allow for it.
+      signal: AbortSignal.timeout(300000),
       headers: {
         'Content-Type': 'application/json',
       },

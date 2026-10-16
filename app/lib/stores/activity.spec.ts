@@ -8,6 +8,7 @@ import {
   startActivity,
   updateActivity,
 } from './activity';
+import { summarizeActivity } from '~/components/chat/activity-summary';
 
 describe('cline tool step labels', () => {
   it('describes reads and writes as workspace actions with clickable paths', () => {
@@ -59,6 +60,25 @@ describe('build activity events', () => {
 
     expect(activitySteps.get().build.map((step) => step.status)).toEqual(['complete', 'complete']);
     expect(activitySteps.get().build.every((step) => typeof step.finishedAt === 'number')).toBe(true);
+  });
+
+  it('can settle every live row except the one being retried', () => {
+    startActivity('build', 'phase', 'Phase 1/2 · writing 3 modules');
+    startActivity('build', 'inspect', 'Inspecting files');
+    settleActiveActivities('build', 'complete', ['phase']);
+    updateActivity('build', 'phase', 'retrying');
+
+    expect(activitySteps.get().build.map((step) => step.status)).toEqual(['retrying', 'complete']);
+  });
+
+  it('keeps a retried step out of the failure state so chat stays calm', () => {
+    startActivity('build', 'phase', 'Phase 1/2 · writing 3 modules');
+    updateActivity('build', 'phase', 'retrying');
+
+    const steps = activitySteps.get().build;
+    expect(steps[0].status).toBe('retrying');
+    expect(summarizeActivity(steps, false, true).state).not.toBe('failed');
+    expect(summarizeActivity(steps, false, true).title).toBe('Working on your game');
   });
 
   it('marks a real validation failure without claiming success', async () => {

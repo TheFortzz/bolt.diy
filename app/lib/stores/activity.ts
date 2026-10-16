@@ -2,7 +2,12 @@ import { map } from 'nanostores';
 import type { BoltAction } from '~/types/actions';
 import { cleanWorkDirRelativePath } from '~/utils/diff';
 
-export type ActivityStatus = 'pending' | 'running' | 'complete' | 'failed' | 'aborted';
+/*
+ * `retrying` is a soft failure: a step that did not land but is being redone
+ * automatically. It never shows as a failure in chat and never leaves a
+ * spinner — only a terminal failure uses `failed`.
+ */
+export type ActivityStatus = 'pending' | 'running' | 'complete' | 'failed' | 'aborted' | 'retrying';
 
 export interface ActivityStep {
   id: string;
@@ -88,7 +93,11 @@ export function startActivity(
 }
 
 /** Settle every live row so a terminal build never leaves a spinner behind. */
-export function settleActiveActivities(messageId: string, status: 'complete' | 'failed' | 'aborted') {
+export function settleActiveActivities(
+  messageId: string,
+  status: 'complete' | 'failed' | 'aborted',
+  excludeIds: string[] = [],
+) {
   const steps = activitySteps.get()[messageId];
   if (!steps?.length) return;
 
@@ -96,6 +105,7 @@ export function settleActiveActivities(messageId: string, status: 'complete' | '
   let changed = false;
   const settled = steps.map((step) => {
     if (step.status !== 'running' && step.status !== 'pending') return step;
+    if (excludeIds.includes(step.id)) return step;
     changed = true;
     return { ...step, status, finishedAt };
   });

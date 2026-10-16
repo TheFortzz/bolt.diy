@@ -4,7 +4,12 @@ import { z, ZodError } from 'zod';
 import { getModel } from '~/lib/.server/llm/model';
 import { CLINE_TURN_MAX_TOKENS, createBoltAgentModel } from '~/lib/.server/bolt-agent-model';
 import { getHarnessSecret, requireSameOrigin, verifyCapability } from '~/lib/.server/harness/capabilities';
-import { blueprintSchema, isWorkspacePath, managerBlueprintSchema } from '~/lib/harness/blueprint';
+import {
+  blueprintSchema,
+  isWorkspacePath,
+  managerBlueprintSchema,
+  MAX_GAME_ASSET_OPERATIONS,
+} from '~/lib/harness/blueprint';
 import { runAgentBuildCheck, runAgentGameplayCheck, runAgentQualityCheck } from '~/lib/runtime/agent-project-checks';
 import { resolveStaticPreviewFileLoose } from '~/lib/runtime/static-preview';
 import type { IProviderSetting } from '~/types/model';
@@ -156,7 +161,7 @@ const managerPlanToolSchema = {
     },
     assetOperations: {
       type: 'array',
-      maxItems: 3,
+      maxItems: MAX_GAME_ASSET_OPERATIONS,
       items: {
         type: 'object',
         additionalProperties: false,

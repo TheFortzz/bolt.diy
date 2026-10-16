@@ -179,5 +179,56 @@ Let me know if you would like any changes!
       });
       expect(parsed120.verification.minimumSimulationSteps).toBe(120);
     });
+
+    it('allows up to four generated images and rejects a fifth', () => {
+      const asset = (index: number) => ({
+        id: `layer.${index}`,
+        path: `assets/layer-${index}.png`,
+        kind: index === 0 ? ('sprite' as const) : ('background' as const),
+        prompt: `Layer ${index} art for the game`,
+        width: 512,
+        height: 512,
+      });
+      const plan = {
+        title: 'Neon Sprint',
+        summary: 'A top-down racer with real art layers.',
+        engine: 'canvas2d' as const,
+        systems: ['Driving', 'Traffic'],
+        fileOperations: [
+          { path: 'index.html', operation: 'edit' as const, purpose: 'Load the game.', expectedHash: fileHash },
+          { path: 'game.js', operation: 'create' as const, purpose: 'Implement gameplay.', expectedHash: null },
+        ],
+        scriptOrder: ['game.js'],
+        acceptanceCriteria: ['The game starts.', 'Controls respond.', 'Restart works.'],
+        schemaVersion: '1.0' as const,
+        id: '00000000-0000-4000-8000-000000000002',
+        workspaceId: 'workspace-test',
+        baseRevision: fileHash,
+        manifest: [{ path: 'index.html', hash: fileHash, bytes: 10 }],
+        verification: {
+          scenarios: ['startup', 'controls', 'restart', 'resize'] as const,
+          minimumSimulationSteps: 45,
+          requireDiagnostics: true as const,
+        },
+        budgets: {
+          assetAttempts: 1 as const,
+          maximumSourceBytes: MAX_GAME_SOURCE_BYTES,
+          maximumResponseSegments: MAX_GAME_RESPONSE_SEGMENTS,
+        },
+      };
+
+      const four = blueprintSchema.parse({
+        ...plan,
+        assetOperations: [0, 1, 2, 3].map(asset),
+      });
+      expect(four.assetOperations).toHaveLength(4);
+
+      expect(() =>
+        blueprintSchema.parse({
+          ...plan,
+          assetOperations: [0, 1, 2, 3, 4].map(asset),
+        }),
+      ).toThrow();
+    });
   });
 });
