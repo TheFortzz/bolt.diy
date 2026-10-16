@@ -20,39 +20,49 @@ const ANIMATED_SENTENCES = [
 
 const STARTER_GAMES = [
   {
-    id: 'neon-racer',
-    title: 'Neon Rush',
-    genre: '3D RACING',
-    description: 'Thread through neon traffic, drift around highway bends, and spend boost at the perfect moment.',
-    prompt: `Create a complete, polished browser game called Neon Rush: a fast 3D arcade highway racer with a night-city neon atmosphere. Build real Three.js 0.160 geometry and lighting, not a flat image pretending to be 3D. The player drives from a clear chase camera, steers responsively, accelerates and brakes, drifts with readable traction, and earns boost by clean near-misses. Create looping road scenery, lane markings, varied traffic with fair collision avoidance, glowing boost pickups, checkpoint gates, a lap/time score HUD, and a satisfying crash/recovery state. Include a title/start screen, pause/resume, restart, keyboard and touch controls, resize support, and a visible tutorial hint. Tune handling so it is fun immediately, keep the camera stable, clamp frame delta, prevent repeated crashes, and use concise synthesized audio that safely falls back to silence. Provide complete working index.html, CSS, and JavaScript modules, load each module once in order, and verify that the game starts, renders, accepts steering, and restarts without console errors.`,
+    id: 'motorcycle-rush', image: 'motergame.png', title: 'Motorcycle Rush', genre: 'RACING',
+    description: 'Race a superbike through neon streets, drift past traffic, and hit every checkpoint.',
+    prompt: `Create a substantial, polished HTML5 motorcycle racing game inspired by the supplied motorcycle artwork. The player rides a blue superbike through a neon city at night. Build responsive acceleration, braking, steering, readable drift traction, near-miss boost, fair traffic patterns, road hazards, collectible boost cells, checkpoint gates, and several difficulty stages with a finish and replay loop. Use a convincing side/rear chase perspective or a polished pseudo-3D road that clearly communicates speed; the bike must remain the recognizable player vehicle. Add animated city lights, wheel effects, sparks, tire smoke, a speedometer, distance, boost and stage HUD, a brief controls overlay, start/pause/resume/crash/restart states, and satisfying safe synthesized engine audio. Support keyboard and touch, resize cleanly, clamp frame delta, prevent NaN audio values, and avoid unfair unavoidable collisions. Build and wire complete HTML, CSS, and JavaScript files; test starting, steering, drifting, boosts, collisions, checkpoints, game over, and restart in the preview.`,
   },
   {
-    id: 'starfall',
-    title: 'Starfall Arena',
-    genre: 'SPACE ACTION',
-    description: 'Pilot a nimble starfighter through escalating enemy formations and asteroid fields.',
-    prompt: `Build Starfall Arena as a complete, polished 2D space-survival arcade game. The player pilots a responsive ship with smooth acceleration, mouse/touch aim, and satisfying primary fire; survive escalating waves of distinct enemies and drifting asteroids, collect energy shards, and spend charge on a short dash or screen-clearing pulse. Add readable enemy telegraphs, fair hitboxes, bright projectile trails, impact sparks, controlled screen shake, and a boss with at least two clearly signaled attack patterns. Include a title screen, concise control hints, score/high score, health/energy HUD, pause/resume, game-over and one-click restart. Scale the canvas to the full viewport, clamp frame delta, make keyboard and touch play usable, and add safe procedural synth effects that degrade to silence. Write complete, connected HTML/CSS/JS files with no missing imports or duplicate script tags; test startup, movement, firing, collecting, pause, defeat, and restart in the live preview.`,
+    id: 'football-fire', image: 'footballgame.png', title: 'Football Fire', genre: 'SPORTS',
+    description: 'Bend a blazing ball past defenders, score from the spot, and win the tournament.',
+    prompt: `Build Football Fire, a complete arcade soccer challenge based on the supplied flaming-football image. Create a playable striker-versus-goalkeeper loop: aim with mouse or touch, set shot power, curve the kick, and score past a goalkeeper whose position and reactions vary fairly. Progress through a tournament of increasingly tricky shot scenarios with moving walls/defenders, target zones, limited attempts, bonus streaks, and a clear final result. Make ball flight, spin, net impact, fire trail, and goalkeeper saves visually satisfying and readable. Include an opening screen with controls, score/attempts/stage HUD, pause/resume, restart, victory and game-over states, responsive full-window canvas, keyboard/touch input, clamped delta time, and safe synthesized kick/crowd audio. Implement actual aiming, trajectory, collision, scoring, and progression—no decorative-only goals. Wire complete HTML/CSS/JS modules and verify scoring, misses, saves, progression, resize, and restart.`,
   },
   {
-    id: 'skybound',
-    title: 'Skybound Sprint',
-    genre: 'PLATFORMER',
-    description: 'Leap across a sunset skyline, dash past hazards, and race for every energy shard.',
-    prompt: `Create Skybound Sprint, a polished side-scrolling 2D platform adventure with a vivid sunset-skyline world. Give the hero precise acceleration, variable-height jumping, coyote time, a responsive midair dash, and forgiving landings. Build several connected screen-length sections with distinct moving platforms, gaps, readable hazards, collectible energy shards, one checkpoint, and a finish gate; difficulty should ramp fairly and never require pixel-perfect jumps. Add layered parallax scenery, squash-and-stretch, dust trails, landing sparks, a clean progress/energy HUD, and clear controls shown briefly at the start. Provide a title/start state, pause/resume, checkpoint respawn, finish state, and reliable restart. Use a full-window responsive canvas, clamp frame delta, support keyboard and touch input, and guard synthesized audio so it can never interrupt gameplay. Deliver complete runnable HTML, CSS, and JavaScript, wire every module exactly once, and test jumping, dashing, collectibles, hazards, checkpoint, resize, and restart.`,
+    id: 'neon-car-rally', image: 'cargame.png', title: 'Neon Car Rally', genre: 'RACING',
+    description: 'Throw a blue supercar into city-circuit corners, chase boost, and beat the clock.',
+    prompt: `Create a polished, complete browser game called Neon Car Rally, taking its blue futuristic race car and glowing night-city palette from the supplied image. Make the player car the actual controllable vehicle, with smooth steering, acceleration/braking, readable grip and drift, a short boost with cooldown, and forgiving wall collisions. Build a looping neon circuit with lane markings, barriers, traffic or rival cars, boost pickups, timed checkpoints, lap timing, and escalating race goals. Add a stable chase or clean top-down camera, reflections/glow, tire smoke and sparks, a clear speed/lap/boost HUD, start instructions, pause/resume, race-finish, crash recovery, and restart. Use a cohesive visual style, full-viewport responsive rendering, keyboard and touch controls, capped frame delta, and safe synthesized engine/impact audio with finite AudioParam values. Implement real track boundaries, collision, checkpoint order, and lap logic. Write complete HTML/CSS/JS with valid module wiring and verify the whole race loop in the preview.`,
   },
   {
-    id: 'prism-lab',
-    title: 'Prism Lab',
-    genre: 'PUZZLE',
-    description: 'Rotate mirrors to route a beam through prisms, activate the exit, and solve each room.',
-    prompt: `Build Prism Lab as a complete, elegant 2D light-routing puzzle game. Each room has a light emitter, an exit receiver, walls, and a small set of rotatable or movable mirrors/prisms. Let players rotate selected mirrors with click/tap or keyboard, trace the beam visibly with animated glow, and win only when the intended receiver is energized. Include at least six handcrafted levels that introduce one rule at a time, then combine them into clever solutions; avoid random levels or unwinnable layouts. Add a readable objective panel, level selector/progress, undo, reset, next-room transition, satisfying solved animation, pause, and restart. Use a refined dark laboratory visual style, color-safe beam effects, responsive full-screen layout, and short safe synthesized feedback. Implement real collision/reflection logic rather than decorative lines. Deliver complete HTML/CSS/JS with correct wiring, no missing files, and verify mirror interaction, beam reflection, receiver activation, undo/reset, level progression, and resize.`,
+    id: 'space-odyssey', image: 'spacegame.png', title: 'Space Odyssey', genre: 'SPACE ACTION',
+    description: 'Pilot a starship between worlds, dodge asteroids, and outfly an alien squadron.',
+    prompt: `Build Space Odyssey as a polished 2D space-action game inspired by the supplied starship, ringed planet, and alien artwork. Let the player steer a nimble ship, aim and fire, dodge asteroids, collect energy, and survive increasingly dense enemy waves. Create distinct alien attack patterns with clear telegraphs, several planets/sector backgrounds, weapon upgrades, a charged special ability, and a multi-phase boss with fair openings. Include responsive movement, readable hitboxes, projectile and thruster trails, explosion particles, tasteful impact shake, health/energy/score HUD, short control hints, title/start, pause/resume, game over, and instant restart. Support keyboard, mouse and touch, scale to the viewport, cap dt, guard audio against non-finite values, and degrade to silence if Web Audio fails. Implement actual health, collisions, waves, pickups, and boss progression. Deliver connected HTML/CSS/JavaScript and verify movement, firing, enemy hits, upgrades, defeat, and restart.`,
   },
   {
-    id: 'ember-crypt',
-    title: 'Ember Crypt',
-    genre: 'DUNGEON ACTION',
-    description: 'Explore a torchlit crypt, fight skeleton guards, find the key, and escape with the relic.',
-    prompt: `Create Ember Crypt, a complete top-down action-adventure in a torchlit ancient dungeon. Give the player smooth eight-direction movement, a short dodge with cooldown, and a responsive sword combo with clear attack timing. Build several connected rooms with readable walls and doors, patrol skeletons with telegraphed attacks, health pickups, one locked door with a key, a treasure relic, and a final guardian encounter. The player must be able to explore, fight, collect the key, unlock the route, and reach a clear victory. Add room transitions, torchlight and ember particles, hit flashes, restrained camera shake, health/key HUD, brief controls, title/start, pause/resume, game-over, and restart. Use a coherent high-contrast pixel-fantasy palette, full-window responsive canvas, clamped delta time, and audio that safely degrades to silence. Implement actual collision, damage, enemy state, key/door progression, and victory checks; do not substitute decorative objects for mechanics. Write complete connected HTML/CSS/JS and verify movement, combat, damage, pickup, unlock, boss, pause, and restart.`,
+    id: 'sky-runner', image: 'rungame.png', title: 'Sky Runner', genre: 'PLATFORMER',
+    description: 'Sprint, double-jump, and dash across floating cloud platforms to gather golden coins.',
+    prompt: `Create Sky Runner, a complete joyful side-scrolling platform game inspired by the supplied blue-sky runner image. The hero must run smoothly, jump with variable height, double-jump, and dash; build a long scrolling course of cloud platforms, safe gaps, moving platforms, gentle hazards, and collectible gold coins. Add coyote time and forgiving collision so the course feels responsive, checkpoints, a finish portal, and a scoring/streak reward for collecting coin trails. Use layered clouds, clear silhouettes, landing dust, bright pickup effects, a compact coin/progress HUD, a quick control hint, start/pause/resume, fall recovery, victory, and restart. Support keyboard and touch, resize the canvas, cap frame delta, and keep sound optional and safely guarded. Implement real platform collision, scrolling, collectibles, checkpoints, and restart rather than a static mockup. Deliver full connected HTML/CSS/JavaScript and verify jumping, dash, coin collection, hazards, checkpoint, completion, and restart.`,
+  },
+  {
+    id: 'tank-assault', image: 'tankgame.png', title: 'Tank Assault', genre: 'ACTION',
+    description: 'Drive an armored tank across a burning battlefield, destroy targets, and survive waves.',
+    prompt: `Build Tank Assault, a complete top-down armored combat game inspired by the supplied olive tank, battlefield, and explosive arrows. Give the tank independent hull movement and turret aiming, satisfying but controlled shell fire, reload timing, and readable damage. Create several battlefield arenas with cover, destructible obstacles, enemy tanks with distinct behaviors, incoming-fire warnings, ammo/repair pickups, and a final heavy boss. Let players learn controls immediately; include WASD/arrows drive, mouse/touch aim, fire, a dodge/boost, health/ammo/wave HUD, title/start, pause/resume, defeat and restart. Add dust tracks, muzzle flash, sparks and explosions while keeping projectiles and danger zones clear. Implement collision, line-of-fire, enemy AI, damage, pickups and wave progression. Scale the canvas to the window, cap dt, ensure all audio values are finite, and provide complete connected files that pass live preview checks.`,
+  },
+  {
+    id: 'funhouse', image: 'fungame.png', title: 'Funhouse Frenzy', genre: 'ARCADE',
+    description: 'Play a colorful mini-game mashup: dodge, aim, collect, and beat the high score.',
+    prompt: `Create Funhouse Frenzy, a polished colorful arcade game inspired by the supplied mix of playful characters, ducks, stars, and bowling pins. Build a cohesive round-based mini-game mashup with three short skill challenges: dodge moving obstacles, aim and launch a ball at targets, and collect falling stars before time runs out. Give each round distinct controls, an escalating but fair pattern, clear instructions, readable scoring, a combo/streak system, and a final medal/high-score screen. Add cheerful animated characters, juicy hit/pickup effects, accessible color contrast, a shared score/lives HUD, title/start, pause/resume, retry, and a way to choose a round. Support touch and keyboard, full-screen responsive canvas, clamped dt, and safe optional synthesized sounds. Implement real hit detection and round transitions; do not make the challenges decorative. Deliver complete HTML/CSS/JS modules and verify each mini-game, scoring, transitions, and restart.`,
+  },
+  {
+    id: 'castle-quest', image: 'castlegame.png', title: 'Castle Quest', genre: 'ADVENTURE',
+    description: 'Swing through a jungle-temple world, find the relic, and reach the castle sanctuary.',
+    prompt: `Build Castle Quest as a substantial side-scrolling adventure inspired by the supplied explorer, jungle ruins, birds, and castle sanctuary artwork. The player explores a vivid jungle-temple route with precise run/jump controls, a short rope-swing or climb mechanic, collectible relic fragments, hidden treasure, safe checkpoints, and a final castle goal. Add layered forest scenery, friendly wildlife, readable hazards, a small number of clever environmental puzzles, and a guardian encounter with telegraphed moves. Include a clear map/progress and health/relic HUD, concise controls, title/start, pause/resume, checkpoint recovery, victory and restart. Keep movement forgiving and responsive, support touch, scale to the viewport, clamp dt, and make audio fail silently. Implement actual platform collisions, pickups, checkpoint/door progression, and a reachable ending. Write complete wired HTML/CSS/JS and verify the full path from start to finish.`,
+  },
+  {
+    id: 'treasure-claim', image: 'claimgame.png', title: 'Treasure Claim', genre: 'EXPLORATION',
+    description: 'Explore the island, uncover treasure caches, and claim the lost jungle temple.',
+    prompt: `Create Treasure Claim, a complete top-down island exploration and treasure-hunt game based on the supplied explorer and tropical temple image. Guide the player through a readable island map with dense but traversable jungle paths, landmarks, bridges, hidden caches, clue markers, and a central ancient temple. Core loop: explore, find clues, solve a few simple environmental puzzles, collect keys/relic pieces, avoid patrolling wildlife, unlock the temple, and claim the treasure. Add a compact map/compass, inventory and clue log, health, pickup feedback, a short opening tutorial, title/start, pause/resume, discovery/victory, and restart. Use warm lush pixel/illustrated scenery and distinguish interactive objects clearly. Implement actual path boundaries, item state, clue gating and temple unlock. Support keyboard/touch, responsive viewport, capped dt, and safe audio fallback. Deliver complete connected web files and verify exploration, clue collection, puzzle gates, temple access, and the ending.`,
   },
 ];
 
@@ -88,7 +98,7 @@ export function StudioLandingSection({ onSelectTemplate, isWorkbenchActive }: St
   const [isDeleting, setIsDeleting] = useState(false);
   const [loadingGameId, setLoadingGameId] = useState<string | null>(null);
   const [orderedGames, setOrderedGames] = useState(STARTER_GAMES);
-  const [hoveredGameId, setHoveredGameId] = useState<string | null>(null);
+  const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
 
   useEffect(() => {
     const orderKey = 'fortz-game-world-order';
@@ -121,7 +131,6 @@ export function StudioLandingSection({ onSelectTemplate, isWorkbenchActive }: St
       // The card order remains randomized when storage is unavailable.
     }
     setOrderedGames(shuffled);
-    setHoveredGameId(shuffled[0]?.id ?? null);
   }, []);
 
   useEffect(() => {
@@ -153,9 +162,13 @@ export function StudioLandingSection({ onSelectTemplate, isWorkbenchActive }: St
 
   const selectStarterGame = async (game: (typeof STARTER_GAMES)[number]) => {
     if (!onSelectTemplate || loadingGameId) return;
+    setSelectedGameId(game.id);
     setLoadingGameId(game.id);
     try {
-      const reference = await rasterizeStarterImage(`/images/game-worlds/${game.id}.svg`, `${game.id}-reference.png`);
+      const reference = await rasterizeStarterImage(
+        `/images/game-worlds/${game.image}`,
+        `${game.id}-reference.png`,
+      );
       onSelectTemplate(game.prompt, reference);
     } catch {
       onSelectTemplate(game.prompt);
@@ -188,58 +201,51 @@ export function StudioLandingSection({ onSelectTemplate, isWorkbenchActive }: St
         </h1>
       </div>
 
-      {/* ── Image-only game starters; hover/focus reveals the description outside the art. ── */}
+      {/* Five real loading-screen game images per row. Hover shows a gray prompt preview on the image. */}
       {!isWorkbenchActive && (
         <div className="w-full max-w-4xl px-2">
-          <div className="grid w-full grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
-            {orderedGames.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => void selectStarterGame(item)}
-                onMouseEnter={() => setHoveredGameId(item.id)}
-                onFocus={() => setHoveredGameId(item.id)}
-                disabled={Boolean(loadingGameId)}
-                aria-label={`Choose ${item.title}: ${item.description}`}
-                className="group relative aspect-[16/10] min-w-0 overflow-hidden border border-purple-300/20 bg-[#10132d] shadow-lg shadow-black/25 transition duration-300 hover:-translate-y-1 hover:border-cyan-200/70 hover:shadow-[0_12px_34px_rgba(56,189,248,0.22)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-200 disabled:cursor-wait disabled:opacity-70"
-              >
-                <img
-                  src={`/images/game-worlds/${item.id}.svg`}
-                  alt={item.title}
-                  className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                  loading="eager"
-                />
-                {loadingGameId === item.id && (
-                  <span className="absolute inset-0 grid place-items-center bg-black/35">
-                    <span
-                      className="i-svg-spinners:90-ring-with-bg text-2xl text-cyan-100"
-                      aria-label="Preparing game prompt"
-                    />
+          <div className="grid w-full grid-cols-5 gap-2 sm:gap-2.5">
+            {orderedGames.map((item) => {
+              const selected = selectedGameId === item.id;
+
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => void selectStarterGame(item)}
+                  disabled={Boolean(loadingGameId)}
+                  aria-label={`Choose ${item.title}. ${item.description}`}
+                  aria-pressed={selected}
+                  className={`group relative aspect-[4/3] min-w-0 overflow-hidden border bg-[#10132d] shadow-lg shadow-black/25 transition duration-200 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-200 disabled:cursor-wait disabled:opacity-70 ${
+                    selected
+                      ? 'border-cyan-100 ring-2 ring-cyan-300 shadow-[0_0_28px_rgba(34,211,238,0.55)]'
+                      : 'border-white/20 hover:border-cyan-200/80'
+                  }`}
+                >
+                  <img
+                    src={`/images/game-worlds/${item.image}`}
+                    alt={item.title}
+                    className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                    loading="eager"
+                  />
+                  <span className="pointer-events-none absolute inset-x-1 bottom-1 rounded-sm bg-gray-900/90 px-2 py-1.5 text-left text-[9px] leading-tight text-gray-200 opacity-0 shadow-lg backdrop-blur-sm transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
+                    <span className="block truncate font-bold text-gray-100">{item.title}</span>
+                    <span className="mt-0.5 block line-clamp-2 text-gray-300">{item.description}</span>
                   </span>
-                )}
-              </button>
-            ))}
+                  {selected && (
+                    <span className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-cyan-200 text-slate-950 shadow-md">
+                      <span className="i-ph:check-bold text-xs" aria-hidden="true" />
+                    </span>
+                  )}
+                  {loadingGameId === item.id && (
+                    <span className="absolute inset-0 grid place-items-center bg-black/35">
+                      <span className="i-svg-spinners:90-ring-with-bg text-2xl text-cyan-100" aria-label="Preparing game prompt" />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
-          {orderedGames.map((item) =>
-            item.id === hoveredGameId ? (
-              <div
-                key={`description-${item.id}`}
-                className="mt-3 border border-cyan-100/15 bg-[linear-gradient(110deg,rgba(15,27,48,.9),rgba(25,15,43,.94))] px-4 py-3 text-left shadow-[0_8px_30px_rgba(0,0,0,.22)] animate-in fade-in slide-in-from-bottom-1"
-                aria-live="polite"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-black uppercase tracking-[0.15em] text-white">{item.title}</span>
-                  <span className="h-px flex-1 bg-gradient-to-r from-cyan-200/35 to-transparent" />
-                  <span className="text-[9px] font-bold tracking-[0.14em] text-cyan-200/75">{item.genre}</span>
-                </div>
-                <p className="mt-1.5 text-xs leading-5 text-slate-300">{item.description}</p>
-                <div className="mt-2 flex items-center gap-1.5 text-[10px] font-semibold text-violet-200/80">
-                  <span className="i-ph:cursor-click text-sm" aria-hidden="true" />
-                  Select image to load the full Grok 4.7 game prompt
-                </div>
-              </div>
-            ) : null,
-          )}
         </div>
       )}
     </div>

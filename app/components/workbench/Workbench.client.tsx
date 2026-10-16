@@ -29,7 +29,6 @@ import {
 import { chatId, dbPromise, getMessages, setMessages } from '~/lib/persistence';
 import { getWebContainer } from '~/lib/webcontainer';
 import { startActivity, updateActivity } from '~/lib/stores/activity';
-import { GAME_WORLD_ART } from '~/utils/game-world-art';
 
 const EditorPanel = lazy(() => import('./EditorPanel').then((module) => ({ default: module.EditorPanel })));
 const Preview = lazy(() => import('./Preview').then((module) => ({ default: module.Preview })));
@@ -51,19 +50,12 @@ const sliderOptions: SliderOptions<WorkbenchViewType> = {
 };
 
 function WorkspacePanelLoader({ label }: { label: string }) {
-  const [art, setArt] = useState<string>(GAME_WORLD_ART[0]);
-
-  useEffect(() => {
-    setArt(GAME_WORLD_ART[Math.floor(Math.random() * GAME_WORLD_ART.length)]);
-  }, []);
-
   return (
     <div
       className="grid h-full w-full place-content-center justify-items-center gap-3 bg-gradient-to-br from-blue-50 via-white to-violet-50 text-sm font-medium text-slate-600"
       role="status"
       aria-live="polite"
     >
-      <img src={art} alt="" className="h-20 w-36 rounded-lg border border-violet-200/15 object-cover shadow-lg" />
       <span className="i-svg-spinners:90-ring-with-bg text-2xl text-blue-600" aria-hidden="true" />
       {label}
     </div>
@@ -355,7 +347,7 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
       >
         <div
           className={classNames(
-            'fixed top-[60px] bottom-3 w-[var(--workbench-inner-width)] z-0 transition-[left,width] duration-200 bolt-ease-cubic-bezier',
+            'fixed top-3 bottom-3 w-[var(--workbench-inner-width)] z-0 transition-[left,width] duration-200 bolt-ease-cubic-bezier',
             {
               'w-full': isSmallViewport,
               'left-0': showWorkbench && isSmallViewport,

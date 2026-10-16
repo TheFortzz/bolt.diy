@@ -159,9 +159,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       const unsubWorkbench = workbenchStore.showWorkbench.subscribe((v) => setShowWorkbench(v));
       const unsubAuth = authStore.subscribe((v) => setAuth(v));
 
-      const openGameImport = () => setGameImportOpen(true);
-      window.addEventListener('thefortz:open-game-import', openGameImport);
-
       // Kick off auth session check (client-only)
       checkAuthSession();
 
@@ -170,7 +167,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         unsubGallery();
         unsubWorkbench();
         unsubAuth();
-        window.removeEventListener('thefortz:open-game-import', openGameImport);
       };
     }, []);
 
@@ -728,6 +724,18 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                             : model || DEFAULT_MODEL_LABEL}
                         </span>
                       </div>
+                      <IconButton
+                        title="Import an HTML5 game"
+                        className="transition-all text-sky-100/85 hover:text-white hover:bg-white/10"
+                        onClick={() => setGameImportOpen(true)}
+                      >
+                        <img
+                          src="/images/upload-cloud-icon.png"
+                          alt=""
+                          className="h-5 w-5 object-contain"
+                        />
+                        <span className="sr-only">Import an HTML5 game</span>
+                      </IconButton>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-sky-100/85 select-none">
                       <span

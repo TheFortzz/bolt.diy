@@ -1,30 +1,23 @@
-import { memo, useEffect, useState } from 'react';
+import { memo, useState } from 'react';
 import { classNames } from '~/utils/classNames';
-import { GAME_WORLD_ART } from '~/utils/game-world-art';
 import { MatrixRain } from './MatrixRain';
 
-/** Named, text-free game art used both in the starter gallery and while building. */
+/** Drop the "AI working" animation here: public/ai-working.gif (exact name, no spaces). */
+export const AI_WORKING_GIF_SRC = '/ai-working.gif';
+
 interface AiWorkingGifProps {
   visible: boolean;
   className?: string;
 }
 
 /**
- * Text-free game artwork shown while the agent builds. Chooses a different
- * named local game-world image for each build, so the illustration is not a
- * stale screenshot from the old font-generation GIF.
+ * "AI working" banner shown between the chat and the composer while the agent
+ * builds (after planning, until the run settles). Uses the uploaded gif when
+ * present, otherwise the built-in Matrix rain animation — so it always
+ * appears and renders nothing only when hidden.
  */
 export const AiWorkingGif = memo(({ visible, className }: AiWorkingGifProps) => {
   const [gifMissing, setGifMissing] = useState(false);
-  const [artSrc, setArtSrc] = useState<string>(GAME_WORLD_ART[0]);
-
-  useEffect(() => {
-    if (!visible) return;
-
-    const choices = GAME_WORLD_ART.filter((image) => image !== artSrc);
-    setArtSrc(choices[Math.floor(Math.random() * choices.length)] || GAME_WORLD_ART[0]);
-    setGifMissing(false);
-  }, [visible]);
 
   if (!visible) {
     return null;
@@ -39,7 +32,7 @@ export const AiWorkingGif = memo(({ visible, className }: AiWorkingGifProps) => 
         <MatrixRain />
       ) : (
         <img
-          src={artSrc}
+          src={AI_WORKING_GIF_SRC}
           alt=""
           draggable={false}
           className="block h-auto max-h-44 w-full object-cover"

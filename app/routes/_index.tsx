@@ -16,9 +16,7 @@ export default function Index() {
     <div className="flex flex-col h-full w-full bg-bolt-elements-background-depth-1">
       <BackgroundRays />
       <Header />
-      <div className="min-h-0 flex-1 overflow-hidden">
-        <ClientOnly fallback={<BaseChat />}>{() => <Chat />}</ClientOnly>
-      </div>
+      <ClientOnly fallback={<BaseChat />}>{() => <Chat />}</ClientOnly>
     </div>
   );
 }
