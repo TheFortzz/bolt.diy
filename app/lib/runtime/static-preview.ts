@@ -1746,6 +1746,22 @@ export const normalizeServerPreviewHtml: (html: string) => string = function (ht
     }
   }
 
+  // 5b. Relay runtime exceptions from uploaded/static games to the Studio
+  // repair loop. The blob fallback already has this listener; the WebContainer
+  // HTTP preview needs the same bridge or errors like road.bounds stay local.
+  if (out.indexOf('data-studio-runtime-errors') === -1) {
+    const runtimeErrors =
+      '<script data-studio-runtime-errors>(function(){if(window.__fortzRuntimeErrorsSent)return;window.__fortzRuntimeErrorsSent=true;function send(message){try{var text=String(message||"Unknown game runtime error").slice(0,2000);window.parent.postMessage({type:"thefortz-game-error",message:text},"*");}catch(e){}}window.addEventListener("error",function(e){send(e&&e.message);});window.addEventListener("unhandledrejection",function(e){var r=e&&e.reason;send(r&&r.message||r||"Unhandled Promise Rejection");});})();</script>';
+
+    if (/<head[\s>]/i.test(out)) {
+      out = out.replace(/<head[\s>]/i, (m) => m + '\n' + runtimeErrors);
+    } else if (/<body[\s>]/i.test(out)) {
+      out = out.replace(/<body[\s>]/i, (m) => m + '\n' + runtimeErrors);
+    } else {
+      out = runtimeErrors + '\n' + out;
+    }
+  }
+
   /*
    * 6. Silent-failure watchdog (plain-JS twin of previewWatchdogScript: no
    * backticks, no ${}, no annotations — this source is embedded verbatim).

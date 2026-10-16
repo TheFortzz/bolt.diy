@@ -1,4 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('ai', () => ({
+  generateText: vi.fn().mockResolvedValue({ text: 'low-poly hovercar, night city track, drifting controls' }),
+}));
+vi.mock('~/lib/.server/llm/model', () => ({ getModel: vi.fn(() => ({})) }));
+
 import { generatePublishThumbnail, safePublishThumbnailError } from './publish-thumbnail';
 
 describe('publish cover art', () => {
@@ -31,6 +37,7 @@ describe('publish cover art', () => {
     const prompt = JSON.parse(fetchMock.mock.calls[0][1]?.body as string).prompt as string;
     expect(prompt).toContain('Neon Drift');
     expect(prompt).toContain('low-poly hovercar');
+    expect(JSON.parse(fetchMock.mock.calls[0][1]?.body as string).width).toBe(512);
     expect(result).toBe(`data:image/png;base64,${base64}`);
     expect(result).not.toContain('test-only-secret');
   });

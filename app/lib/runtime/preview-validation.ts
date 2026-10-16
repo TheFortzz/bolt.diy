@@ -16,13 +16,13 @@ const gameErrorInbox: Array<{ message: string; at: number }> = [];
 const MAX_INBOX_ERRORS = 20;
 const INBOX_TTL_MS = 10 * 60 * 1000;
 
-export function reportPreviewGameError(message: string) {
+export function reportPreviewGameError(message: string): boolean {
   const text = String(message || '')
     .slice(0, 2000)
     .trim();
 
   if (!text) {
-    return;
+    return false;
   }
 
   const now = Date.now();
@@ -32,7 +32,7 @@ export function reportPreviewGameError(message: string) {
   }
 
   if (gameErrorInbox.some((entry) => entry.message === text)) {
-    return;
+    return false;
   }
 
   gameErrorInbox.push({ message: text, at: now });
@@ -40,6 +40,8 @@ export function reportPreviewGameError(message: string) {
   while (gameErrorInbox.length > MAX_INBOX_ERRORS) {
     gameErrorInbox.shift();
   }
+
+  return true;
 }
 
 export function takePreviewGameErrors(): string[] {

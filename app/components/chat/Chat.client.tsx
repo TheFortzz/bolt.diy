@@ -81,6 +81,13 @@ function snapshotTextWorkspace(maxCharacters = 7_500_000) {
   return files;
 }
 
+function safeRuntimeDiagnostic(value: string) {
+  return value
+    .replace(/\b(?:sk-[A-Za-z0-9_-]{12,}|Bearer\s+[A-Za-z0-9._-]{12,})\b/gi, '[redacted]')
+    .replace(/([?&](?:api[_-]?key|token|secret)=)[^&\s]+/gi, '$1[redacted]')
+    .slice(0, 1600);
+}
+
 export function Chat() {
   renderLogger.trace('Chat');
 
@@ -193,6 +200,7 @@ export const ChatImpl = memo(
     });
 
     const { showChat } = useStore(chatStore);
+    const currentChatId = useStore(chatId);
     const harness = useStore(harnessState);
     const harnessBusy = harnessIsBusy(harness.phase);
 
@@ -711,6 +719,62 @@ export const ChatImpl = memo(
       append,
       onAgentProgress: () => scrollToBottomRef.current?.(false),
     });
+
+    const runtimeRepairCountRef = useRef(0);
+    const runtimeRepairInFlightRef = useRef(false);
+    const runtimeRepairTimerRef = useRef<number | undefined>(undefined);
+
+    useEffect(() => {
+      runtimeRepairCountRef.current = 0;
+      runtimeRepairInFlightRef.current = false;
+      if (runtimeRepairTimerRef.current !== undefined) {
+        window.clearTimeout(runtimeRepairTimerRef.current);
+        runtimeRepairTimerRef.current = undefined;
+      }
+    }, [currentChatId]);
+
+    useEffect(() => {
+      const handleRuntimeError = (event: Event) => {
+        const message = String((event as CustomEvent<{ message?: string }>).detail?.message || '').trim();
+        if (
+          !message ||
+          runtimeRepairInFlightRef.current ||
+          runtimeRepairCountRef.current >= 2 ||
+          harnessIsBusy(harnessState.get().phase) ||
+          !Object.keys(workbenchStore.files.get()).length
+        ) {
+          return;
+        }
+
+        runtimeRepairCountRef.current++;
+        runtimeRepairInFlightRef.current = true;
+        toast.info('Grok found a game runtime error and is repairing the current game…', { autoClose: 5000 });
+        runtimeRepairTimerRef.current = window.setTimeout(() => {
+          runtimeRepairTimerRef.current = undefined;
+          if (harnessIsBusy(harnessState.get().phase)) {
+            runtimeRepairInFlightRef.current = false;
+            return;
+          }
+
+          void requestPlan(
+            `Automatically repair this game's actual browser runtime error without replacing or redesigning the game. Keep the uploaded project and its entry point. Inspect the reported file and surrounding code, fix the root cause, and verify the game starts and remains playable. Runtime error: ${safeRuntimeDiagnostic(message)}`,
+          )
+            .catch((error) => console.warn('[runtime repair] Could not start Grok repair:', error))
+            .finally(() => {
+              runtimeRepairInFlightRef.current = false;
+            });
+        }, 3000);
+      };
+
+      window.addEventListener('fortz-runtime-game-error', handleRuntimeError);
+      return () => {
+        window.removeEventListener('fortz-runtime-game-error', handleRuntimeError);
+        if (runtimeRepairTimerRef.current !== undefined) {
+          window.clearTimeout(runtimeRepairTimerRef.current);
+          runtimeRepairTimerRef.current = undefined;
+        }
+      };
+    }, [requestPlan]);
 
     const { enhancingPrompt, promptEnhanced, enhancePrompt, resetEnhancer } = usePromptEnhancer();
     const { parsedMessages, parseMessages } = useMessageParser();

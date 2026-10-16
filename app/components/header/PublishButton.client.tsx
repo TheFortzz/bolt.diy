@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from '@nanostores/react';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { generatedAssets } from '~/lib/stores/generated-assets';
+import { bytesToDataUrl } from '~/lib/runtime/html5-game-import';
+import { getWebContainer } from '~/lib/webcontainer';
 import { chatId } from '~/lib/persistence';
 import { toast } from 'react-toastify';
 
@@ -11,8 +13,16 @@ function buildGameVisualContext(files: Record<string, unknown>, assetPaths: stri
     .filter(Boolean)
     .slice(0, 16);
   const sourceFiles = Object.entries(files)
+    .map(([path, entry]) => {
+      const content = typeof entry === 'string'
+        ? entry
+        : entry && typeof entry === 'object' && 'content' in entry && typeof entry.content === 'string'
+          ? entry.content
+          : '';
+      return [path, content] as const;
+    })
     .filter(([path, content]) =>
-      typeof content === 'string' &&
+      Boolean(content) &&
       /\.(?:html?|(?:m|c)?js|tsx?|css|md)$/i.test(path) &&
       !/(?:node_modules|\.min\.|\.env|dist\/|build\/|vendor\/)/i.test(path),
     )
@@ -127,9 +137,16 @@ export function PublishButton() {
 
     try {
       const projectFiles = (workbenchStore as any).files?.get?.() ?? files ?? {};
+      const binaryAssetPaths = Object.entries(
+        projectFiles as Record<string, unknown>,
+      )
+        .filter(([, entry]) =>
+          Boolean(entry && typeof entry === 'object' && (entry as any).type === 'file' && (entry as any).isBinary),
+        )
+        .map(([path]) => path.replace(/^(?:\/home\/project\/|\/project\/|home\/project\/|project\/|\/|\.\/)+/, ''));
       const visualContext = buildGameVisualContext(
         projectFiles,
-        Object.values(generatedAssets.get()).map((asset) => asset.path),
+        [...Object.values(generatedAssets.get()).map((asset) => asset.path), ...binaryAssetPaths],
       );
       const response = await fetch('/api/generate-thumbnail', {
         method: 'POST',
@@ -234,6 +251,26 @@ export function PublishButton() {
           .filter((asset) => activeAssetPaths.has(asset.path))
           .map((asset) => [asset.path, asset.dataUrl]),
       );
+      if (workbenchStore.isImportedHtml5Game.get()) {
+        const webcontainer = await getWebContainer();
+        const mimeByExtension: Record<string, string> = {
+          avif: 'image/avif', bin: 'application/octet-stream', fbx: 'application/octet-stream',
+          gif: 'image/gif', glb: 'model/gltf-binary', gltf: 'model/gltf+json',
+          ico: 'image/x-icon', jpeg: 'image/jpeg', jpg: 'image/jpeg', m4a: 'audio/mp4', mp3: 'audio/mpeg',
+          mtl: 'text/plain', obj: 'model/obj', ogg: 'audio/ogg', otf: 'font/otf',
+          png: 'image/png', svg: 'image/svg+xml', ttf: 'font/ttf', wav: 'audio/wav', wasm: 'application/wasm', webm: 'video/webm',
+          webp: 'image/webp', woff: 'font/woff', woff2: 'font/woff2',
+        };
+        for (const [rawPath, rawEntry] of Object.entries(projectFiles as Record<string, unknown>)) {
+          const entry = rawEntry as { type?: string; isBinary?: boolean } | undefined;
+          if (entry?.type !== 'file' || !entry.isBinary) continue;
+          const assetPath = rawPath.replace(/^(?:\/home\/project\/|\/project\/|home\/project\/|project\/|\/|\.\/)+/, '');
+          if (!assetPath || assetPayloads[assetPath]) continue;
+          const bytes = await webcontainer.fs.readFile(assetPath);
+          const extension = assetPath.split('.').pop()?.toLowerCase() || '';
+          assetPayloads[assetPath] = bytesToDataUrl(bytes, mimeByExtension[extension] || 'application/octet-stream');
+        }
+      }
       let publicationStatus = 'live';
 
       if (window.parent !== window) {

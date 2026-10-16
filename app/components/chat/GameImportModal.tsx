@@ -58,8 +58,8 @@ export function GameImportModal({ open, onClose }: GameImportModalProps) {
 
     try {
       await workbenchStore.importHtml5Game(selection.files);
-      validationState.set({ status: 'idle', detail: 'Imported HTML5 game. Open Game to play it.' });
-      toast.success('HTML5 game imported. Open Game to play it.');
+      validationState.set({ status: 'idle', detail: 'Uploaded game is running in the Game preview.' });
+      toast.success('HTML5 game imported and opened in Game preview.');
       setSelection(undefined);
       onClose();
     } catch (error) {

@@ -118,6 +118,32 @@ function stripEntryFolder(files: Html5GameFile[]): Html5GameFile[] {
     .map((file) => ({ ...file, path: file.path.slice(prefix.length) }));
 }
 
+/** Every imported project is normalized to the entry path the preview/publisher serves. */
+function normalizeEntryPoint(files: Html5GameFile[]): Html5GameFile[] {
+  const rootIndex = files.find((file) => file.path.toLowerCase() === 'index.html');
+  if (rootIndex) {
+    return rootIndex.path === 'index.html'
+      ? files
+      : files.map((file) => file === rootIndex ? { ...file, path: 'index.html' } : file);
+  }
+
+  const htmlFiles = files.filter((file) => /\.html?$/i.test(file.path));
+  const entry = htmlFiles.find((file) => /(?:^|\/)index\.html$/i.test(file.path)) ||
+    htmlFiles.find((file) => /(?:^|\/)(?:game|play|main|start)\.html?$/i.test(file.path)) ||
+    htmlFiles[0];
+  if (!entry) return files;
+
+  const slash = entry.path.lastIndexOf('/');
+  const prefix = slash >= 0 ? entry.path.slice(0, slash + 1) : '';
+  const scoped = prefix ? files.filter((file) => file.path.startsWith(prefix)) : files;
+  return scoped.map((file) => {
+    const relativePath = prefix ? file.path.slice(prefix.length) : file.path;
+    return relativePath === (prefix ? entry.path.slice(prefix.length) : entry.path)
+      ? { ...file, path: 'index.html' }
+      : { ...file, path: relativePath };
+  });
+}
+
 async function readSelectedFiles(input: File[]): Promise<Html5GameFile[]> {
   const zipFiles = input.filter((file) => /\.zip$/i.test(file.name));
 
@@ -252,7 +278,7 @@ export async function prepareHtml5GameImport(input: File[]): Promise<Html5GameIm
     throw new Error('Choose a ZIP or the files from an HTML5 game.');
   }
 
-  let files = stripEntryFolder(stripOneCommonRoot(await readSelectedFiles(input)));
+  let files = normalizeEntryPoint(stripEntryFolder(stripOneCommonRoot(await readSelectedFiles(input))));
 
   if (!files.length) {
     throw new Error('The selection does not contain any game files.');
@@ -263,8 +289,7 @@ export async function prepareHtml5GameImport(input: File[]): Promise<Html5GameIm
   }
 
   const paths = new Map(files.map((file) => [file.path.toLowerCase(), file]));
-  const htmlFiles = files.filter((file) => /\.html?$/i.test(file.path));
-  const entry = htmlFiles.find((file) => file.path.toLowerCase() === 'index.html') || htmlFiles[0];
+  const entry = files.find((file) => file.path.toLowerCase() === 'index.html');
 
   if (!entry) {
     throw new Error('No index.html was found. Upload a built HTML5 game with an index.html entry point.');

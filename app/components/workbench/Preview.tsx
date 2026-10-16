@@ -29,7 +29,18 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
   const previews = useStore(workbenchStore.previews);
   const files = useStore(workbenchStore.files);
   const imageAssets = useStore(generatedAssets);
+  const isImportedHtml5Game = useStore(workbenchStore.isImportedHtml5Game);
   const activePreview = previews[activePreviewIndex] ?? previews.find((preview) => preview.ready) ?? previews[0];
+
+  useEffect(() => {
+    if (isImportedHtml5Game && previews.length > 0) {
+      let readyIndex = -1;
+      previews.forEach((preview, index) => {
+        if (preview.ready) readyIndex = index;
+      });
+      setActivePreviewIndex(readyIndex >= 0 ? readyIndex : previews.length - 1);
+    }
+  }, [isImportedHtml5Game, previews]);
 
   /*
    * Rehydrate binary URLs after a saved checkpoint or a page reload. Binary
@@ -39,6 +50,11 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
    * disappear after a refresh.
    */
   useEffect(() => {
+    // Imported assets are served directly from the WebContainer static server;
+    // copying every image/WASM into a base64 data URL doubles memory and caused
+    // uploaded games to exhaust the preview iframe's WASM heap.
+    if (isImportedHtml5Game || activePreview) return undefined;
+
     let cancelled = false;
     const missing = Object.entries(files).filter(
       ([path, file]) =>
@@ -117,7 +133,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     return () => {
       cancelled = true;
     };
-  }, [files]);
+  }, [files, isImportedHtml5Game, activePreview]);
 
   const fallbackHtml = useMemo(() => buildFallbackHtml(files, imageAssets), [files, imageAssets]);
 
@@ -524,7 +540,10 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
         return;
       }
 
-      reportPreviewGameError(String(event.data.message || 'Unknown game runtime error'));
+      const message = String(event.data.message || 'Unknown game runtime error');
+      if (reportPreviewGameError(message)) {
+        window.dispatchEvent(new CustomEvent('fortz-runtime-game-error', { detail: { message } }));
+      }
     };
 
     window.addEventListener('message', handleGameError);

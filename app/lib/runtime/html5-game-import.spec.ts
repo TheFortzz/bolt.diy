@@ -49,6 +49,16 @@ describe('HTML5 game import validator', () => {
     expect(result.files.map((file) => file.path)).toContain('src/game.mjs');
   });
 
+  it('renames a valid non-index HTML entry point to index.html', async () => {
+    const result = await prepareHtml5GameImport([
+      namedFile('racer.html', '<html><body><canvas></canvas><script src="main.js"></script></body></html>'),
+      namedFile('main.js', 'requestAnimationFrame(() => {});'),
+    ]);
+
+    expect(result.entryPoint).toBe('index.html');
+    expect(result.files.map((file) => file.path)).toEqual(['index.html', 'main.js']);
+  });
+
   it('rejects TypeScript files in the archive', async () => {
     const archive = await zipFile({
       'index.html': '<html><body><script src="src/main.ts"></script></body></html>',

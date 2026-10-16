@@ -21,7 +21,7 @@ import { actionStepId, startActionActivity, updateActivity } from '~/lib/stores/
 import { normalizeServerPreviewHtml } from '~/lib/runtime/static-preview';
 import { executionPolicy } from '~/lib/harness/execution-policy';
 import { formatWorkspaceSource } from '~/lib/runtime/source-format';
-import { bytesToDataUrl, type Html5GameFile } from '~/lib/runtime/html5-game-import';
+import type { Html5GameFile } from '~/lib/runtime/html5-game-import';
 import { generatedAssets } from '~/lib/stores/generated-assets';
 
 export interface ArtifactState {
@@ -74,6 +74,7 @@ export class WorkbenchStore {
 
   showWorkbench: WritableAtom<boolean> = import.meta.hot?.data.showWorkbench ?? atom(false);
   currentView: WritableAtom<WorkbenchViewType> = import.meta.hot?.data.currentView ?? atom('preview');
+  isImportedHtml5Game: WritableAtom<boolean> = import.meta.hot?.data.isImportedHtml5Game ?? atom(false);
 
   /** File currently receiving streamed content, if any. */
   streamingFile: WritableAtom<string | undefined> = import.meta.hot?.data.streamingFile ?? atom(undefined);
@@ -93,6 +94,7 @@ export class WorkbenchStore {
       import.meta.hot.data.completedFiles = this.completedFiles;
       import.meta.hot.data.showWorkbench = this.showWorkbench;
       import.meta.hot.data.currentView = this.currentView;
+      import.meta.hot.data.isImportedHtml5Game = this.isImportedHtml5Game;
       import.meta.hot.data.streamingFile = this.streamingFile;
       import.meta.hot.data.preferPlayView = this.preferPlayView;
     }
@@ -509,10 +511,34 @@ http.createServer((req, res) => {
     }
   }
 
+  async waitForPreviewReady(timeoutMs = 12_000) {
+    if (this.previews.get().some((preview) => preview.ready)) return;
+
+    await new Promise<void>((resolve) => {
+      let settled = false;
+      let unsubscribe = () => {};
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        unsubscribe();
+        resolve();
+      };
+      const timeout = setTimeout(finish, timeoutMs);
+      unsubscribe = this.previews.subscribe((previews) => {
+        if (previews.some((preview) => preview.ready)) finish();
+      });
+      if (settled) unsubscribe();
+      else if (this.previews.get().some((preview) => preview.ready)) finish();
+    });
+  }
+
   async clearProjectFiles() {
     this.#editorStore.documents.set({});
     this.#editorStore.selectedFile.set(undefined);
     this.#filesStore.files.set({});
+    this.isImportedHtml5Game.set(false);
+    generatedAssets.set({});
     this.unsavedFiles.set(new Set());
     this.completedFiles.set(new Set());
     this.streamingFile.set(undefined);
@@ -523,12 +549,7 @@ http.createServer((req, res) => {
       const entries = await wc.fs.readdir('.', { withFileTypes: true });
 
       for (const entry of entries) {
-        if (
-          entry.name === 'node_modules' ||
-          entry.name === '.git' ||
-          entry.name === '.static_server.cjs' ||
-          entry.name.startsWith('.')
-        ) {
+        if (entry.name === '.static_server.cjs') {
           continue;
         }
 
@@ -552,7 +573,6 @@ http.createServer((req, res) => {
 
     const wc = await getWebContainer();
     const snapshot: Record<string, Uint8Array> = {};
-    const inlineAssets: Record<string, { id: string; path: string; dataUrl: string; byteLength: number }> = {};
 
     for (const file of files) {
       const path = cleanWorkDirRelativePath(file.path);
@@ -569,24 +589,17 @@ http.createServer((req, res) => {
 
       await wc.fs.writeFile(path, file.bytes);
       snapshot[path] = file.bytes;
-
-      if (file.mimeType.startsWith('image/')) {
-        inlineAssets[path] = {
-          id: `imported:${path}`,
-          path,
-          dataUrl: bytesToDataUrl(file.bytes, file.mimeType),
-          byteLength: file.bytes.byteLength,
-        };
-      }
     }
 
     this.#filesStore.replaceFromCheckpoint(snapshot);
     this.setDocuments(this.files.get());
-    this.previews.set([]);
-    generatedAssets.set(inlineAssets);
-    this.currentView.set('code');
-    this.preferPlayView.set(false);
+    generatedAssets.set({});
+    this.isImportedHtml5Game.set(true);
+    this.currentView.set('preview');
+    this.preferPlayView.set(true);
     this.showWorkbench.set(true);
+    await this.startStaticPreviewServer();
+    await this.waitForPreviewReady();
   }
 
   addArtifact({ messageId, title, id, type }: ArtifactCallbackData) {
