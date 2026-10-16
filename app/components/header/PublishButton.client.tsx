@@ -44,6 +44,7 @@ export function PublishButton() {
   const [publishStep, setPublishStep] = useState<'details' | 'cover'>('details');
   const [coverStatus, setCoverStatus] = useState<'idle' | 'generating' | 'ready' | 'error'>('idle');
   const [coverError, setCoverError] = useState('');
+  const [publishProgress, setPublishProgress] = useState('');
   const [title, setTitle] = useState('');
   const [genre, setGenre] = useState('ACTION');
   const [description, setDescription] = useState('');
@@ -69,6 +70,7 @@ export function PublishButton() {
     setCoverStatus('idle');
     setCoverError('');
     setPreviewThumb('');
+    setPublishProgress('');
 
     return () => {
       thumbnailRequestRef.current?.abort();
@@ -211,6 +213,7 @@ export function PublishButton() {
 
     try {
       setIsExporting(true);
+      setPublishProgress('Sending your game to thefortz.me…');
       const thumbDataUrl = previewThumb;
 
       // Collect project files from the workbench store
@@ -250,17 +253,22 @@ export function PublishButton() {
         publicationStatus = await new Promise<string>((resolve, reject) => {
           const timeout = window.setTimeout(() => {
             window.removeEventListener('message', onResult);
-            reject(new Error('The site did not confirm the publish. Please try again.'));
-          }, 120_000);
+            reject(new Error('Publishing is taking longer than expected. Check the Games tab before retrying to avoid a duplicate.'));
+          }, 600_000);
           const onResult = (event: MessageEvent) => {
             if (
               event.source !== window.parent ||
               event.origin !== parentOrigin ||
-              event.data?.type !== 'thefortz-publish-result' ||
               event.data?.requestId !== requestId
             ) {
               return;
             }
+
+            if (event.data?.type === 'thefortz-publish-progress') {
+              if (typeof event.data.status === 'string') setPublishProgress(event.data.status.slice(0, 180));
+              return;
+            }
+            if (event.data?.type !== 'thefortz-publish-result') return;
 
             window.clearTimeout(timeout);
             window.removeEventListener('message', onResult);
@@ -290,6 +298,7 @@ export function PublishButton() {
           );
         });
       } else {
+        setPublishProgress('Uploading the cover and game files…');
         const res = await fetch('/api/publish', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -323,6 +332,7 @@ export function PublishButton() {
       toast.error('Publish failed: ' + (err?.message || 'Unknown error'));
     } finally {
       setIsExporting(false);
+      setPublishProgress('');
     }
   };
 
@@ -350,7 +360,9 @@ export function PublishButton() {
       {isOpen && (
         <div
           className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
-          onClick={() => setIsOpen(false)}
+          onClick={() => {
+            if (!isExporting) setIsOpen(false);
+          }}
         >
           <div
             className="w-full max-w-md rounded-2xl border border-orange-400/60 bg-gradient-to-br from-[#123b72] via-[#102746] to-[#17213a] p-6 text-white relative shadow-[0_24px_90px_rgba(4,13,32,0.72)]"
@@ -365,6 +377,7 @@ export function PublishButton() {
               </div>
               <button
                 onClick={() => setIsOpen(false)}
+                disabled={isExporting}
                 className="text-white/70 hover:text-white px-2 py-1 text-sm rounded-none border border-transparent hover:border-white/20 transition-all cursor-pointer"
               >
                 ✕
@@ -487,7 +500,7 @@ export function PublishButton() {
                 {isExporting && (
                   <div className="flex items-center justify-center gap-2 text-[11px] font-semibold text-sky-100/75" role="status" aria-live="polite">
                     <span className="i-svg-spinners:90-ring-with-bg text-sky-200" />
-                    Uploading the cover and game files to the Games tab…
+                    {publishProgress || 'Publishing your game…'}
                   </div>
                 )}
               </div>
