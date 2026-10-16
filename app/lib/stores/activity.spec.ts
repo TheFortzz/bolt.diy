@@ -3,6 +3,7 @@ import {
   activitySteps,
   describeClineToolStep,
   runActivityStep,
+  setActivityImage,
   settleActiveActivities,
   startActionActivity,
   startActivity,
@@ -79,6 +80,18 @@ describe('build activity events', () => {
     expect(steps[0].status).toBe('retrying');
     expect(summarizeActivity(steps, false, true).state).not.toBe('failed');
     expect(summarizeActivity(steps, false, true).title).toBe('Working on your game');
+  });
+
+  it('attaches the real generated image to its activity row', () => {
+    startActivity('art', 'assets:write:assets/car.png', 'Adding assets/car.png', 'Added assets/car.png');
+
+    setActivityImage('art', 'assets:write:assets/car.png', 'data:image/png;base64,QUJD');
+
+    const steps = activitySteps.get().art;
+    expect(steps[0].imageUrl).toBe('data:image/png;base64,QUJD');
+    // Unknown rows are ignored rather than creating phantom entries.
+    setActivityImage('art', 'missing', 'data:image/png;base64,AAAA');
+    expect(activitySteps.get().art).toHaveLength(1);
   });
 
   it('bounds the timeline so a long build cannot grow it forever', () => {

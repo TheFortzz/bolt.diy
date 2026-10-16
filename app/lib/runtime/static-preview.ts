@@ -1,5 +1,6 @@
 import { cleanWorkDirRelativePath } from '~/utils/diff';
 import { inlineGeneratedAssetUrls, type GeneratedAsset } from '~/lib/stores/generated-assets';
+import { buildGeneratedAssetRuntimeScript } from '~/lib/runtime/generated-asset-runtime';
 import { looksLikeEsm, probeHtmlInlineScripts, probeModuleSyntax } from '~/lib/runtime/js-syntax';
 
 /*
@@ -496,6 +497,75 @@ export const mathUtilsScript = `<script id="bolt-game-math-utils">
               }
             } catch(e) {}
           },
+          configurable: true,
+          enumerable: true,
+        });
+      }
+    }
+  } catch(e) {}
+
+  /*
+   * WebAudio scheduling methods throw a hard TypeError on a non-finite value
+   * ("Failed to execute 'setTargetAtTime' on 'AudioParam': The provided float
+   * value is non-finite"), and games routinely feed them a NaN speed/volume
+   * from an uninitialised runtime value. Left alone, that single throw kills
+   * the render loop every frame and the whole game looks broken. Coerce every
+   * value, clamp invalid ramps, and above all never throw.
+   */
+  try {
+    if (typeof AudioParam !== 'undefined' && AudioParam.prototype) {
+      var finiteOr = function(value, fallback) {
+        var number = typeof value === 'number' ? value : Number(value);
+        return isFinite(number) ? number : fallback;
+      };
+      var safeTime = function(value) { return Math.max(0, finiteOr(value, 0)); };
+      var guardParam = function(name, positiveOnly) {
+        var native = AudioParam.prototype[name];
+        if (typeof native !== 'function') return;
+        AudioParam.prototype[name] = function(value, startTime) {
+          var safeValue = finiteOr(value, 0);
+          if (positiveOnly && safeValue <= 0) safeValue = 0.0001;
+          try {
+            return native.call(this, safeValue, safeTime(startTime));
+          } catch (e) {
+            return undefined;
+          }
+        };
+      };
+      guardParam('setValueAtTime', false);
+      guardParam('linearRampToValueAtTime', false);
+      guardParam('exponentialRampToValueAtTime', true);
+
+      var nativeSetTarget = AudioParam.prototype.setTargetAtTime;
+      if (typeof nativeSetTarget === 'function') {
+        AudioParam.prototype.setTargetAtTime = function(target, startTime, timeConstant) {
+          var constant = finiteOr(timeConstant, 0.02);
+          try {
+            return nativeSetTarget.call(this, finiteOr(target, 0), safeTime(startTime), constant > 0 ? constant : 0.02);
+          } catch (e) {
+            return undefined;
+          }
+        };
+      }
+
+      var nativeCurve = AudioParam.prototype.setValueCurveAtTime;
+      if (typeof nativeCurve === 'function') {
+        AudioParam.prototype.setValueCurveAtTime = function(values, startTime, duration) {
+          var length = finiteOr(duration, 0);
+          if (length <= 0) return undefined;
+          try {
+            return nativeCurve.call(this, values, safeTime(startTime), length);
+          } catch (e) {
+            return undefined;
+          }
+        };
+      }
+
+      var valueDescriptor = Object.getOwnPropertyDescriptor(AudioParam.prototype, 'value');
+      if (valueDescriptor && valueDescriptor.set) {
+        Object.defineProperty(AudioParam.prototype, 'value', {
+          get: function() { return valueDescriptor.get.call(this); },
+          set: function(value) { valueDescriptor.set.call(this, finiteOr(value, 0)); },
           configurable: true,
           enumerable: true,
         });
@@ -2060,14 +2130,30 @@ export function buildFallbackHtml(
     bundled = '<!DOCTYPE html>\n' + bundled;
   }
 
+  /*
+   * Generated images present in the workspace (paths are relative to WORK_DIR).
+   * Computed before script injection because the asset resolver must be
+   * installed in <head>, ahead of every line of game code.
+   */
+  const livePaths = new Set(
+    Object.entries(files)
+      .filter(([, file]) => file?.type === 'file')
+      .map(([path]) => cleanWorkDirRelativePath(path)),
+  );
+  const liveAssets = Object.fromEntries(Object.entries(imageAssets).filter(([path]) => livePaths.has(path)));
+  const assetRuntime = buildGeneratedAssetRuntimeScript(liveAssets);
+
   if (bundled.includes('<head>')) {
-    bundled = bundled.replace('<head>', `<head>\n  <meta charset="UTF-8" />\n${mathUtilsScript}`);
+    bundled = bundled.replace('<head>', `<head>\n  <meta charset="UTF-8" />\n${mathUtilsScript}\n${assetRuntime}`);
   } else if (bundled.includes('<head ')) {
-    bundled = bundled.replace(/(<head[^>]*>)/i, `$1\n  <meta charset="UTF-8" />\n${mathUtilsScript}`);
+    bundled = bundled.replace(/(<head[^>]*>)/i, `$1\n  <meta charset="UTF-8" />\n${mathUtilsScript}\n${assetRuntime}`);
   } else if (bundled.includes('<html')) {
-    bundled = bundled.replace(/(<html[^>]*>)/i, `$1\n<head>\n  <meta charset="UTF-8" />\n${mathUtilsScript}\n</head>`);
+    bundled = bundled.replace(
+      /(<html[^>]*>)/i,
+      `$1\n<head>\n  <meta charset="UTF-8" />\n${mathUtilsScript}\n${assetRuntime}\n</head>`,
+    );
   } else {
-    bundled = mathUtilsScript + '\n' + bundled;
+    bundled = mathUtilsScript + '\n' + assetRuntime + '\n' + bundled;
   }
 
   /*
@@ -2148,13 +2234,6 @@ export function buildFallbackHtml(
       '\n' +
       previewWatchdogScript;
   }
-
-  const livePaths = new Set(
-    Object.entries(files)
-      .filter(([, file]) => file?.type === 'file')
-      .map(([path]) => cleanWorkDirRelativePath(path)),
-  );
-  const liveAssets = Object.fromEntries(Object.entries(imageAssets).filter(([path]) => livePaths.has(path)));
 
   /*
    * Publish parity: run the same normalization the published build receives

@@ -11,7 +11,7 @@ import { WORK_DIR } from '~/utils/constants';
 import * as nodePath from 'node:path';
 import { createScopedLogger } from '~/utils/logger';
 import { generatedAssets } from '~/lib/stores/generated-assets';
-import { startActivity, updateActivity } from '~/lib/stores/activity';
+import { startActivity, updateActivity, setActivityImage } from '~/lib/stores/activity';
 import type { Blueprint } from '~/lib/harness/blueprint';
 
 const logger = createScopedLogger('AssetGenerator');
@@ -470,15 +470,19 @@ export async function generateProjectAssets(
     }
 
     for (const asset of preparedAssets) {
+      const dataUrl = `data:image/png;base64,${asset.base64}`;
+
       generatedAssets.setKey(asset.path, {
         id: asset.id,
         path: asset.path,
-        dataUrl: `data:image/png;base64,${asset.base64}`,
+        dataUrl,
         byteLength: asset.bytes.length,
       });
 
       if (options.messageId) {
         updateActivity(options.messageId, `assets:write:${asset.path}`, 'complete');
+        // Show the actual image in the activity feed, not just the file name.
+        setActivityImage(options.messageId, `assets:write:${asset.path}`, dataUrl);
       }
 
       const absolutePath = nodePath.posix.join(WORK_DIR, asset.path);

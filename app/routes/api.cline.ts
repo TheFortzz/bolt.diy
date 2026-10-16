@@ -775,7 +775,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
                   : '',
                 'Module wiring (MANDATORY): shared ES-module symbols use top-level named exports. Load modules through one entry point; never include the same module as an extra classic script tag, and never redeclare a top-level binding. Cross-check imports against real exports. No external packages or network backends — the game must run fully offline.',
                 !body.planningOnly && !body.readOnly
-                  ? 'Audio (SAFE): Prefer procedural Web Audio (AudioContext oscillators + gain envelopes) unlocked on a user gesture. Never fetch remote audio files. Wrap AudioContext creation in try/catch and degrade silently if unavailable. Do not let audio throw and break gameplay.'
+                  ? 'Audio (SAFE): Prefer procedural Web Audio (AudioContext oscillators + gain envelopes) unlocked on a user gesture. Never fetch remote audio files. Wrap AudioContext creation in try/catch and degrade silently if unavailable — audio must never throw and break gameplay. Guard every AudioParam call with Number.isFinite and fall back to a safe constant, because a NaN frequency/volume throws "The provided float value is non-finite" and kills the render loop.'
                   : '',
               ]
                 .filter(Boolean)

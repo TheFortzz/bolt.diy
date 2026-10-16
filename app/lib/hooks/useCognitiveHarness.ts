@@ -504,7 +504,8 @@ export function useCognitiveHarness(options: HarnessOptions) {
             'Wire every visible start, pause/resume, and restart button to a real state-changing handler; use diagnostic gameState "paused" while paused, keep HTML IDs/selectors in sync, and wire keyboard/touch input to gameplay. Only use `new` on values defined with the `class` keyword — never `new` a factory, arrow function, or plain object. Write readable source with 2-space indentation, one statement per line, and lines near 100 characters; never minify. Use smooth delta-time animation and easing/interpolation for motion and camera follow. Null-check canvas and HUD lookups.',
             'Expose window.__GAME_DIAGNOSTICS__ with ready, simulationSteps, inputsHandled, restartCount, resizeCount, and truthful gameState. Update these only in the real game loop and actual button/input/restart/resize handlers; preview validation does not fake these counters.',
             'Run the available build and gameplay checks. If a check fails, diagnose from its actual output, repair approved files, and test again before finish_task. Verify every local stylesheet, script, and import resolves to a real approved file and fix folder mistakes by correcting the path. The images listed under APPROVED IMAGES are real files that already exist at exactly those paths — load them as-is and never delete or rename those references. If a preview diagnostic says a name is missing from a file, add the missing export in that exact file — never change importers to work around it. The game must fill the entire viewport (full-window canvas, resize handler) with gameplay only — no text-heavy screens — and every approved file must load and run in the preview.',
-            'ASSET URLs: reference approved images with plain relative string paths exactly as written (for example image.src = "assets/car.png"). Never wrap a relative path in `new URL(...)` without a base — `new URL("assets/car.png")` throws "Invalid URL" and kills the whole game. If you truly need URL parsing, pass a base: `new URL("assets/car.png", location.href)`. Always keep the procedural drawing as a fallback that runs when the image has not loaded yet (use the image `onload` flag), so a slow or failed image never leaves an empty screen.',
+            'ASSET URLs: reference approved images with plain relative string paths exactly as written (for example image.src = "assets/car.png"). Never build the path from variables or concatenated fragments — write the full literal path so the preview resolver can find the file. Never wrap a relative path in `new URL(...)` without a base — `new URL("assets/car.png")` throws "Invalid URL" and kills the whole game. If you truly need URL parsing, pass a base: `new URL("assets/car.png", location.href)`. Always keep the procedural drawing as a fallback that runs when the image has not loaded yet (use the image `onload` flag), so a slow or failed image never leaves an empty screen.',
+            'AUDIO SAFETY: every Web Audio scheduling call must be given a finite number. Guard setTargetAtTime / setValueAtTime / linearRampToValueAtTime / exponentialRampToValueAtTime / gain.value with Number.isFinite and fall back to a safe constant (440 for frequency, 0.05 for gain). A NaN or undefined value throws "The provided float value is non-finite" from the render loop every frame and makes the whole game look broken. Wrap AudioContext creation in try/catch and degrade to silence.',
           ];
 
           /*
@@ -1160,7 +1161,10 @@ export function useCognitiveHarness(options: HarnessOptions) {
                 const finalSource = sourceContext(finalSnapshot, 7_500_000, 2_000_000);
                 const sourceEntries = Object.entries(finalSource);
                 const unrenderedImages = approvedAssets.filter((asset) => {
-                  const referencing = sourceEntries.filter(([, content]) => content.includes(asset.path));
+                  const baseName = asset.path.split('/').pop() || asset.path;
+                  const referencing = sourceEntries.filter(
+                    ([, content]) => content.includes(asset.path) || content.includes(baseName),
+                  );
 
                   if (referencing.length === 0) {
                     return true;
@@ -1199,7 +1203,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                     .map((asset) => describe(asset.path))
                     .join(
                       '; ',
-                    )}. These files already exist at exactly those paths — load each one (new Image() or createImageBitmap), attach an onload handler, and draw it with the real ctx.drawImage calls inside the render loop after it loads; a bare path in a constant or unused variable does not count.`;
+                    )}. These files already exist at exactly those paths — load each one (new Image() or createImageBitmap) using its exact literal path string, attach an onload handler, and pass the loaded image itself to real ctx.drawImage (or WebGL texture) calls inside the render loop after it loads. A bare path in a constant or unused variable does not count, and neither does a procedural shape drawn in the image's place.`;
                 }
               }
 

@@ -127,6 +127,53 @@ describe('static preview file resolution', () => {
     expect(html).toContain('bolt-game-syntax-issues');
     expect(html).toContain('index.html inline script #1');
   });
+
+  it('installs the generated-asset resolver before the game code', () => {
+    const html = buildFallbackHtml(
+      {
+        'index.html': {
+          type: 'file',
+          content:
+            '<!doctype html><html><head></head><body><canvas></canvas><script src="game.js"></script></body></html>',
+        },
+        'game.js': {
+          type: 'file',
+          content:
+            'const car = new Image();\ncar.src = "assets/car.png";\nfunction frame(){ ctx.drawImage(car, 0, 0); requestAnimationFrame(frame); }\nframe();\n',
+        },
+        'assets/car.png': { type: 'file', content: '' },
+      },
+      {
+        'assets/car.png': {
+          id: 'assets/car.png',
+          path: 'assets/car.png',
+          dataUrl: 'data:image/png;base64,QUJD',
+          byteLength: 3,
+        },
+      },
+    );
+
+    expect(html).toBeDefined();
+    expect(html).toContain('data-studio-asset-runtime');
+    expect(html).toContain('__STUDIO_ASSETS__');
+    // The resolver must exist before any game source so it can patch Image.src.
+    expect(html!.indexOf('data-studio-asset-runtime')).toBeLessThan(html!.indexOf('const car = new Image()'));
+  });
+
+  it('guards WebAudio params so a non-finite value cannot kill the render loop', () => {
+    const html = buildFallbackHtml({
+      'index.html': {
+        type: 'file',
+        content:
+          '<!doctype html><html><head></head><body><canvas></canvas><script src="game.js"></script></body></html>',
+      },
+      'game.js': { type: 'file', content: 'setTimeout(() => {}, 0);\n' },
+    });
+
+    expect(html).toBeDefined();
+    expect(html).toContain('AudioParam');
+    expect(html).toContain('setTargetAtTime');
+  });
 });
 
 describe('static preview script assembly', () => {

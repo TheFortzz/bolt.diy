@@ -26,7 +26,9 @@ export function installPreviewProbe(
   try {
     Object.defineProperty(win, 'GAME_DIAGNOSTICS', {
       get: () => win.__GAME_DIAGNOSTICS__,
-      set: (val) => { win.__GAME_DIAGNOSTICS__ = val; },
+      set: (val) => {
+        win.__GAME_DIAGNOSTICS__ = val;
+      },
       configurable: true,
       enumerable: true,
     });
@@ -141,6 +143,32 @@ export function installPreviewProbe(
       failed = true;
       report('preview-error', error);
     }
+  };
+
+  /**
+   * Generated art must not merely load — it must be painted. The asset runtime
+   * injected ahead of the game records what was requested, loaded, and drawn.
+   */
+  const generatedAssetError = () => {
+    const usage = (window as any).__STUDIO_ASSETS__;
+    if (!usage || !Array.isArray(usage.expected) || usage.expected.length === 0) {
+      return undefined;
+    }
+
+    const broken = usage.expected.find((path: string) => usage.failed?.[path]);
+    if (broken) {
+      return `Generated image failed to load: ${broken}`;
+    }
+
+    const undrawn = usage.expected.filter(
+      (path: string) => (usage.requested?.[path] || 0) > 0 && usage.loaded?.[path] && !(usage.drawn?.[path] || 0),
+    );
+
+    if (undrawn.length > 0) {
+      return `Generated images were loaded but never drawn onto the game: ${undrawn.join(', ')}`;
+    }
+
+    return undefined;
   };
 
   window.addEventListener(
@@ -390,6 +418,7 @@ export function installPreviewProbe(
     const imagesReady = tracked.every((image) => image.complete && image.naturalWidth > 0);
     const canvas = document.querySelector('canvas') as HTMLCanvasElement | null;
     const diagnosticsError = diagnosticsFailure();
+    const generatedAssetFailure = generatedAssetError();
     const canvasLivenessError = (() => {
       if (!canvas?.width || !canvas.height) {
         return 'No game canvas found';
@@ -445,6 +474,7 @@ export function installPreviewProbe(
       canvas?.width &&
       canvas.height &&
       !diagnosticsError &&
+      !generatedAssetFailure &&
       !canvasLivenessError
     ) {
       report('preview-loaded');
@@ -455,11 +485,13 @@ export function installPreviewProbe(
       fail(
         !imagesReady
           ? 'Images did not finish loading'
-          : !canvas
-            ? 'No game canvas found'
-            : diagnosticsError ||
-              canvasLivenessError ||
-              `Game loop or rendering did not advance (${applicationFrames} callbacks, ${renderFrames} rendered frames)`,
+          : generatedAssetFailure
+            ? generatedAssetFailure
+            : !canvas
+              ? 'No game canvas found'
+              : diagnosticsError ||
+                canvasLivenessError ||
+                `Game loop or rendering did not advance (${applicationFrames} callbacks, ${renderFrames} rendered frames)`,
       );
       return;
     }

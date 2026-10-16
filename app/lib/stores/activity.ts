@@ -17,6 +17,8 @@ export interface ActivityStep {
   startedAt: number;
   finishedAt?: number;
   filePath?: string;
+  /** Inline preview of a generated image so the feed shows the real art. */
+  imageUrl?: string;
 }
 
 export const activitySteps = map<Record<string, ActivityStep[]>>({});
@@ -117,6 +119,25 @@ export function startActivity(
 }
 
 /** Settle every live row so a terminal build never leaves a spinner behind. */
+/** Attach the real generated image to its activity row so chat shows the art. */
+export function setActivityImage(messageId: string, id: string, imageUrl: string) {
+  const steps = activitySteps.get()[messageId];
+
+  if (!steps || !imageUrl) {
+    return;
+  }
+
+  const index = steps.findIndex((step) => step.id === id);
+
+  if (index === -1 || steps[index].imageUrl === imageUrl) {
+    return;
+  }
+
+  const next = [...steps];
+  next[index] = { ...steps[index], imageUrl };
+  activitySteps.setKey(messageId, next);
+}
+
 export function settleActiveActivities(
   messageId: string,
   status: 'complete' | 'failed' | 'aborted',

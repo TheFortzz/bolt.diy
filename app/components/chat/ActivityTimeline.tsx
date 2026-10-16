@@ -65,6 +65,17 @@ export const ActivityTimeline = memo(({ messageId, isStreaming = false, embedded
   const important = steps.filter((step) => step.status === 'running' || step.status === 'failed');
   const displayed = embedded ? steps : showAll ? steps : important.length ? important : steps.slice(-VISIBLE_STEPS);
 
+  /*
+   * Generated art is the part of a build users most want to *see*, so the real
+   * images get a small always-visible strip in the collapsed feed instead of
+   * hiding behind an expand click.
+   */
+  const imageSteps = useMemo(() => steps.filter((step) => step.imageUrl).slice(-4), [steps]);
+  const imageName = (step: ActivityStep) =>
+    cleanWorkDirRelativePath(step.filePath || '')
+      .split('/')
+      .pop() || step.label;
+
   if (steps.length === 0 && !isStreaming) {
     return null;
   }
@@ -112,6 +123,22 @@ export const ActivityTimeline = memo(({ messageId, isStreaming = false, embedded
             <span className={showAll ? 'i-ph:caret-up' : 'i-ph:caret-down'} aria-hidden="true" />
           </span>
         </button>
+      )}
+      {!embedded && imageSteps.length > 0 && (
+        <div className={styles.AssetStrip}>
+          {imageSteps.map((step) => (
+            <button
+              key={`asset-${step.id}`}
+              type="button"
+              className={styles.AssetThumb}
+              onClick={() => setShowAll(true)}
+              title={`${step.label} — open all build steps`}
+            >
+              <img src={step.imageUrl} alt={imageName(step)} loading="lazy" />
+              <span>{imageName(step)}</span>
+            </button>
+          ))}
+        </div>
       )}
       {!embedded && steps.length > 0 && (
         <div className={styles.ActivityMetrics}>
@@ -163,10 +190,11 @@ export const ActivityTimeline = memo(({ messageId, isStreaming = false, embedded
                 ) : (
                   <div className="i-ph:circle text-slate-500 text-xs shrink-0" />
                 )}
+                {step.imageUrl && <img className={styles.StepThumb} src={step.imageUrl} alt="" loading="lazy" />}
                 <span className={styles.StepCopy}>
                   <span className={styles.StepLabel}>{stepLabel(step)}</span>
                   {step.filePath && <span className={styles.StepPath}>{cleanWorkDirRelativePath(step.filePath)}</span>}
-                </span>
+                </span>{' '}
                 {step.finishedAt !== undefined && (
                   <span className={styles.StepDuration}>
                     {Math.max(0, (step.finishedAt - step.startedAt) / 1000).toFixed(1)}s

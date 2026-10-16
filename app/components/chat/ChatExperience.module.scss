@@ -270,6 +270,61 @@
     monospace;
   color: #64748b;
 }
+
+/* Generated art preview: the feed shows the actual image, not just a path. */
+.AssetStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 12px 10px;
+}
+
+.AssetThumb {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 76px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+
+  img {
+    width: 76px;
+    height: 76px;
+    object-fit: contain;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 7px;
+    background: repeating-conic-gradient(rgba(148, 163, 184, 0.14) 0% 25%, transparent 0% 50%) 50% / 12px 12px;
+  }
+
+  span {
+    max-width: 76px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #94a3b8;
+    font:
+      9px ui-monospace,
+      monospace;
+  }
+
+  &:hover img {
+    border-color: rgba(167, 139, 250, 0.5);
+  }
+}
+
+.StepThumb {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 5px;
+  background: repeating-conic-gradient(rgba(148, 163, 184, 0.14) 0% 25%, transparent 0% 50%) 50% / 8px 8px;
+}
 .ActivityFootnote {
   padding: 10px 12px;
   border-top: 1px solid rgba(148, 163, 184, 0.1);
