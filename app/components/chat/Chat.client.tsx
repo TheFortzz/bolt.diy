@@ -698,7 +698,7 @@ export const ChatImpl = memo(
         chatId.get() || workbenchStore.firstArtifact?.id || `workspace-${crypto.randomUUID()}`;
     }
 
-    const { requestPlan, approvePlan, cancelPlan } = useCognitiveHarness({
+    const { requestPlan, approvePlan, cancelPlan, hasPendingClarification } = useCognitiveHarness({
       model,
       provider: provider.name,
       apiKeys,
@@ -848,7 +848,7 @@ export const ChatImpl = memo(
       lastUserPromptRef.current = _input;
       repairAttemptsRef.current = 0;
       const hasExistingProject = Object.keys(workbenchStore.files.get()).length > 0;
-      const shouldPlan = shouldUseBuildPlanner(_input, agentMode, hasExistingProject);
+      const shouldPlan = hasPendingClarification() || shouldUseBuildPlanner(_input, agentMode, hasExistingProject);
       lastAgentModeRef.current = shouldPlan ? agentMode : 'chat';
 
       const auth = authStore.get();

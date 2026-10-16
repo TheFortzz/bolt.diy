@@ -3,6 +3,7 @@ export interface ClineAgentRequest {
   files: Record<string, string>;
   readOnly?: boolean;
   planningOnly?: boolean;
+  clarificationRounds?: number;
   approvedBlueprint?: unknown;
 
   /**
