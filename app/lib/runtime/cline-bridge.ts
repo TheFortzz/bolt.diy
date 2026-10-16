@@ -4,6 +4,7 @@ export interface ClineAgentRequest {
   readOnly?: boolean;
   planningOnly?: boolean;
   clarificationRounds?: number;
+  askedQuestions?: string[];
   approvedBlueprint?: unknown;
 
   /**

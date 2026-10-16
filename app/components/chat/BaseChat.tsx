@@ -71,6 +71,7 @@ interface BaseChatProps {
   setAgentMode?: (mode: StudioAgentMode) => void;
   onApprovePlan?: () => void;
   onCancelPlan?: () => void;
+  onClarificationSubmit?: (answer: string) => void;
 }
 
 export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
@@ -105,6 +106,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       setAgentMode,
       onApprovePlan,
       onCancelPlan,
+      onClarificationSubmit,
     },
     ref,
   ) => {
@@ -510,6 +512,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       isStreaming={isStreaming}
                       onApprovePlan={onApprovePlan}
                       onCancelPlan={onCancelPlan}
+                      onClarificationSubmit={onClarificationSubmit}
                     />
                   ) : null;
                 }}

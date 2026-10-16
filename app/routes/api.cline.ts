@@ -27,6 +27,7 @@ const requestSchema = z.object({
   readOnly: z.boolean().default(false),
   planningOnly: z.boolean().default(false),
   clarificationRounds: z.number().int().min(0).max(3).default(0),
+  askedQuestions: z.array(z.string().max(240)).max(6).default([]),
   approvedBlueprint: blueprintSchema.optional(),
 
   /*
@@ -375,9 +376,9 @@ export async function action({ request, context }: ActionFunctionArgs) {
     const agentModel = createBoltAgentModel(boltModel, turnCap);
     const workingFiles = { ...body.files };
     const encoder = new TextEncoder();
-            let activeAgent: Agent | undefined;
-            let requestAbortHandler: (() => void) | undefined;
-            let keepAliveTimer: ReturnType<typeof setInterval> | undefined;
+    let activeAgent: Agent | undefined;
+    let requestAbortHandler: (() => void) | undefined;
+    let keepAliveTimer: ReturnType<typeof setInterval> | undefined;
 
     const responseStream = new ReadableStream<Uint8Array>({
       start(controller) {
@@ -401,11 +402,11 @@ export async function action({ request, context }: ActionFunctionArgs) {
         request.signal.addEventListener('abort', requestAbortHandler, { once: true });
 
         void (async () => {
-            let unsubscribe: (() => void) | undefined;
-            let submittedPlan: z.infer<typeof managerBlueprintSchema> | undefined;
-            let submittedQuestions:
-              | Array<{ question: string; options: Array<{ label: string; description?: string }> }>
-              | undefined;
+          let unsubscribe: (() => void) | undefined;
+          let submittedPlan: z.infer<typeof managerBlueprintSchema> | undefined;
+          let submittedQuestions:
+            | Array<{ question: string; options: Array<{ label: string; description?: string }> }>
+            | undefined;
 
           try {
             const readFile = createTool({
@@ -703,7 +704,9 @@ export async function action({ request, context }: ActionFunctionArgs) {
                 required: ['questions'],
               },
               lifecycle: { completesRun: true },
-              execute: async (value: { questions: Array<{ question: string; options: Array<{ label: string; description?: string }> }> }) => {
+              execute: async (value: {
+                questions: Array<{ question: string; options: Array<{ label: string; description?: string }> }>;
+              }) => {
                 submittedQuestions = value.questions.slice(0, 3).map((entry) => ({
                   question: String(entry.question).slice(0, 220),
                   options: entry.options.slice(0, 4).map((option) => ({
@@ -720,7 +723,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
             const existingProject = Object.entries(workingFiles).some(
               ([path, content]) => /\.(?:m?js)$/i.test(path) && content.trim().length > 80,
             );
-            const clarificationAvailable = body.planningOnly && !existingProject && body.clarificationRounds < 3;
+            const clarificationAvailable = body.planningOnly && !existingProject && body.clarificationRounds < 1;
             const tools = body.planningOnly
               ? clarificationAvailable
                 ? [askQuestions, submitPlan]
@@ -750,7 +753,15 @@ export async function action({ request, context }: ActionFunctionArgs) {
                 body.previewErrors.length ? `Recent actual Bolt errors: ${JSON.stringify(body.previewErrors)}` : '',
                 libraryCandidateBriefing,
                 body.planningOnly
-                  ? `Plan only; do not edit files or claim edits. Use the supplied manifest, source excerpts, and context directly; do not call inspection tools. Clarification answers already received: ${body.clarificationRounds}/3. If this is a new game and an important choice remains unclear, ask 2-3 short, choice-based questions with ask_questions only when that tool is available; detailed prompts need no questions. After three answers, submit a plan without asking more. Otherwise submit a tailored plan immediately. Plan a complete game in 8-10 files and 4-6 systems, without filler or arbitrary line counts. The game fills the viewport and starts directly in gameplay. Select no Appwrite assets. Source excerpts: ${JSON.stringify(workingFiles).slice(0, 30000)}`
+                  ? `Plan only; do not edit files or claim edits. Use the supplied manifest, source excerpts, and context directly; do not call inspection tools. ${
+                      body.clarificationRounds > 0
+                        ? 'The user already answered the clarifying questions — do not ask again; submit the plan now.'
+                        : 'If this is a new game and an important choice remains unclear, ask 2-3 short, choice-based questions with ask_questions only when that tool is available; detailed prompts need no questions.'
+                    }${
+                      body.askedQuestions.length
+                        ? ` Never repeat or reword questions already asked: ${body.askedQuestions.join(' | ')}.`
+                        : ''
+                    } Otherwise submit a tailored plan immediately. Plan a complete game in 8-10 files and 4-6 systems, without filler or arbitrary line counts. The game fills the viewport and starts directly in gameplay. Select no Appwrite assets. Source excerpts: ${JSON.stringify(workingFiles).slice(0, 30000)}`
                   : body.readOnly
                     ? 'Read-only chat: answer from supplied context; do not claim file changes.'
                     : `Approved build: edit only ${Array.from(approvedPaths).join(', ')}. Do not delete files or execute shell commands. Read current files, implement the approved plan, run checks, and finish truthfully. For an approved renderer migration, replace renderer-coupled code and markup consistently while retaining the requested gameplay, controls, and HUD; do not force obsolete engine-specific function names to remain. Every visible start, pause/resume, and restart button must have a real handler that changes game state; use the diagnostic state 'paused' while paused, keep HTML IDs and selectors in sync, and wire keyboard/touch controls to the same gameplay actions. Only use 'new' on values defined with the 'class' keyword in an approved file — never 'new' a factory function, arrow function, plain object, or unverified import; call factories without 'new'. Expose window.__GAME_DIAGNOSTICS__ and update its counters only from the real game loop and handlers; preview tests do not fabricate diagnostics or missing DOM nodes. Format source readably with 2-space indentation, one statement per line, and lines near 100 characters; never minify. Use smooth delta-time animation and interpolation rather than abrupt motion. For Three.js, use the pinned 0.160.0 ES module and null-check every canvas and HUD lookup. Use the approved focused module set; this run may cover one phase — write every approved path completely, wire files as they land, and never truncate. The game fills the entire viewport at all times: full-window canvas that resizes with the window, gameplay only with no text-heavy screens, and a start overlay solely for audio unlock whose handler directly starts the real game. Before finish_task, call run_build and run_tests (they run the real module-graph, syntax, gameplay, and quality gates), repair every reported failure in the approved files, and re-check until they pass — never finish with failing checks or truncated files. Call inspect_project as well: every local stylesheet, script, and import must resolve to a real approved file — fix folder mistakes (src/ versus root) by correcting the path to the real file, never by deleting the reference. The images listed under APPROVED IMAGES already exist at exactly those paths: load them as-is and never delete or rename those references. Bolt will run actual preview validation and send repair errors in a follow-up run.`,

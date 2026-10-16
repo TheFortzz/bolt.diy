@@ -1135,6 +1135,7 @@ export const ChatImpl = memo(
         setAgentMode={setAgentMode}
         onApprovePlan={approvePlan}
         onCancelPlan={cancelPlan}
+        onClarificationSubmit={(answer) => void sendMessage({} as React.UIEvent, answer)}
       />
     );
   },

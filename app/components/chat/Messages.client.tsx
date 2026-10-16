@@ -15,6 +15,7 @@ import { ActivityTimeline } from './ActivityTimeline';
 import { CookingStatus } from './CookingStatus';
 import styles from '~/components/chat/ChatExperience.module.scss';
 import { BlueprintCard } from '~/components/chat/BlueprintCard';
+import { ClarificationCard } from '~/components/chat/ClarificationCard';
 import { blueprintSchema } from '~/lib/harness/blueprint';
 import { harnessIsBusy, harnessState } from '~/lib/stores/harness';
 import { workbenchStore } from '~/lib/stores/workbench';
@@ -26,6 +27,7 @@ interface MessagesProps {
   messages?: Message[];
   onApprovePlan?: () => void;
   onCancelPlan?: () => void;
+  onClarificationSubmit?: (answer: string) => void;
 }
 
 interface ParsedBlueprintCardProps {
@@ -67,6 +69,7 @@ interface MessageRowProps {
   isApprovingPlan: boolean;
   onApprovePlan?: () => void;
   onCancelPlan?: () => void;
+  onClarificationSubmit?: (answer: string) => void;
   onRewind: (messageId: string) => void;
   onFork: (messageId: string) => void;
 }
@@ -83,6 +86,7 @@ const MessageRow = React.memo((props: MessageRowProps) => {
     isApprovingPlan,
     onApprovePlan,
     onCancelPlan,
+    onClarificationSubmit,
     onRewind,
     onFork,
   } = props;
@@ -123,6 +127,19 @@ const MessageRow = React.memo((props: MessageRowProps) => {
   );
   const planBlueprint =
     rawPlan && typeof rawPlan === 'object' && 'blueprint' in rawPlan ? rawPlan.blueprint : undefined;
+  const rawClarification = message.annotations?.find(
+    (annotation) =>
+      typeof annotation === 'object' &&
+      annotation !== null &&
+      'type' in annotation &&
+      annotation.type === 'studio-clarification',
+  );
+  const clarificationQuestions =
+    rawClarification && typeof rawClarification === 'object' && 'questions' in rawClarification
+      ? (rawClarification.questions as
+          | Array<{ question: string; options: Array<{ label: string; description?: string }> }>
+          | undefined)
+      : undefined;
 
   if (isInternalBuild) {
     return null;
@@ -183,6 +200,13 @@ const MessageRow = React.memo((props: MessageRowProps) => {
               FortzAI {isStreaming && isLast && <span className={styles.Badge}>Cooking</span>}
             </div>
             <AssistantMessage content={content} isStreaming={isStreaming && isLast} messageId={messageId} />
+            {clarificationQuestions?.length ? (
+              <ClarificationCard
+                questions={clarificationQuestions}
+                isInteractive={isLast && !isStreaming && harness.phase === 'idle'}
+                onSubmit={onClarificationSubmit}
+              />
+            ) : null}
             {planBlueprint !== undefined && (
               <ParsedBlueprintCard
                 blueprint={planBlueprint}
@@ -385,6 +409,7 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
                   isApprovingPlan={harness.phase === 'preparing-assets' && harness.blueprintMessageId === messageId}
                   onApprovePlan={props.onApprovePlan}
                   onCancelPlan={props.onCancelPlan}
+                  onClarificationSubmit={props.onClarificationSubmit}
                   onRewind={handleRewind}
                   onFork={handleFork}
                 />
