@@ -30,6 +30,7 @@ export interface AssetGenerationStatus {
   ok: boolean;
   skipped?: boolean;
   generatedCount?: number;
+  generatedPaths?: string[];
   error?: string;
   updatedPaths?: string[];
 }
@@ -294,7 +295,7 @@ export async function generateProjectAssets(
     const res = await fetch('/api/generate-assets', {
       method: 'POST',
       // Up to four images generate sequentially on the server; allow for it.
-      signal: AbortSignal.timeout(300000),
+       signal: AbortSignal.timeout(90_000),
       headers: {
         'Content-Type': 'application/json',
       },
@@ -322,7 +323,7 @@ export async function generateProjectAssets(
 
     if (!data.ok) {
       if (data.skipped) {
-        return { ok: true, skipped: true };
+        return { ok: true, skipped: true, error: data.error };
       }
 
       return { ok: false, error: data.error || 'Asset generation failed' };
@@ -337,12 +338,9 @@ export async function generateProjectAssets(
     const seenPaths = new Set<string>();
 
     if (expectedOperations) {
-      if (
-        assets.length !== expectedOperations.length ||
-        expectedOperations.some(
-          (operation) => !assets.some((asset) => asset.id === operation.id && asset.fileName === operation.path),
-        )
-      ) {
+      if (assets.some((asset) => !expectedOperations.some(
+        (operation) => operation.id === asset.id && operation.path === asset.fileName,
+      ))) {
         throw new Error('Image Builder returned assets outside the approved blueprint.');
       }
 
@@ -387,8 +385,18 @@ export async function generateProjectAssets(
       }),
     );
 
+    const missingAssetPaths = expectedOperations
+      ?.filter((operation) => !preparedAssets.some((asset) => asset.id === operation.id && asset.path === operation.path))
+      .map((operation) => operation.path) || [];
+    const generationWarning = [
+      typeof data.error === 'string' ? data.error : '',
+      missingAssetPaths.length ? `Unavailable generated art: ${missingAssetPaths.join(', ')}.` : '',
+    ].filter(Boolean).join(' ').slice(0, 1600);
+
     if (preparedAssets.length === 0 && Object.keys(updatedFiles).length === 0) {
-      return { ok: true, skipped: true, generatedCount: 0 };
+      return expectedOperations?.length
+        ? { ok: false, skipped: true, generatedCount: 0, error: generationWarning || 'No approved game images were returned.' }
+        : { ok: true, skipped: true, generatedCount: 0, error: generationWarning || undefined };
     }
 
     /*
@@ -544,8 +552,10 @@ export async function generateProjectAssets(
 
     return {
       ok: true,
-      generatedCount: assets.length,
+      generatedCount: preparedAssets.length,
+      generatedPaths: preparedAssets.map((asset) => asset.path),
       updatedPaths: Object.keys(updatedFiles),
+      error: generationWarning || undefined,
     };
   } catch (error: any) {
     logger.warn('Asset generation failed:', error?.message);

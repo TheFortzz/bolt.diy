@@ -9,6 +9,7 @@ import { validateAssetPath } from './asset-generator';
 import { getWebContainer } from '~/lib/webcontainer';
 import { getHeuristicVisualElements } from '~/lib/.server/flux/asset-selector';
 import { generateAssetLoaderSnippet } from '~/lib/.server/flux/code-updater';
+import { generatedAssets } from '~/lib/stores/generated-assets';
 
 vi.mock('~/lib/webcontainer', () => {
   const fileStore = new Map<string, string | Uint8Array>();
@@ -193,6 +194,41 @@ describe('Asset Generator & Real Test Game Verification', () => {
     // Verify existing game code is completely preserved
     const finalCode = await container.fs.readFile('game.js');
     expect(finalCode).toBe(gameJsContent);
+  });
+
+  it('keeps successful approved images and reports missing art without treating the whole pass as failed', async () => {
+    const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=';
+    const blueprint = {
+      assetOperations: [
+        { id: 'car', path: 'assets/car.png', kind: 'background', prompt: 'overhead car', width: 512, height: 512 },
+        { id: 'road', path: 'assets/road.png', kind: 'background', prompt: 'racing road', width: 512, height: 512 },
+      ],
+    } as any;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn()
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ available: true }) })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            ok: true,
+            assets: [{ id: 'car', fileName: 'assets/car.png', kind: 'background', base64: png }],
+            error: 'Could not generate assets/road.png: temporary provider failure',
+          }),
+        }),
+    );
+
+    const result = await generateProjectAssets({
+      messageId: 'partial-image-pass',
+      approvedBlueprint: blueprint,
+      executionToken: 'test-token',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.generatedCount).toBe(1);
+    expect(result.error).toContain('assets/road.png');
+    expect(generatedAssets.get()['assets/car.png']?.path).toBe('assets/car.png');
+    generatedAssets.set({});
   });
 
   it('verifies complete end-to-end flow with real test game: asset generation, /assets/ storage, code update, and shape fallback', async () => {

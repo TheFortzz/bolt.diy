@@ -57,7 +57,7 @@ export async function action({ context, request }: ActionFunctionArgs) {
       }
       const result = (async (): Promise<AssetResult> => {
         const assets: Array<AssetResult['assets'][number] | undefined> = new Array(blueprint.assetOperations.length);
-        let failure: string | undefined;
+        const failures: string[] = [];
 
         /*
          * Up to four images must finish inside one edge request, so generate
@@ -70,10 +70,6 @@ export async function action({ context, request }: ActionFunctionArgs) {
 
         const worker = async () => {
           while (cursor < blueprint.assetOperations.length) {
-            if (failure) {
-              return;
-            }
-
             const index = cursor++;
             const operation = blueprint.assetOperations[index];
             const image = await generateFluxImage(
@@ -89,9 +85,8 @@ export async function action({ context, request }: ActionFunctionArgs) {
             );
 
             if (!image.ok || !image.base64) {
-              failure = `Could not generate ${operation.path}: ${image.error || 'No image returned'}`;
-
-              return;
+              failures.push(`Could not generate ${operation.path}: ${image.error || 'No image returned'}`);
+              continue;
             }
 
             assets[index] = { id: operation.id, fileName: operation.path, kind: operation.kind, base64: image.base64 };
@@ -100,18 +95,23 @@ export async function action({ context, request }: ActionFunctionArgs) {
 
         await Promise.all(Array.from({ length: poolSize }, () => worker()));
 
-        if (failure) {
-          return { ok: false, assets: [], updatedFiles: {}, error: failure };
-        }
-
-        return { ok: true, assets: assets.filter(Boolean) as AssetResult['assets'], updatedFiles: {} };
+        const completed = assets.filter(Boolean) as AssetResult['assets'];
+        return {
+          ok: completed.length > 0 || blueprint.assetOperations.length === 0,
+          assets: completed,
+          updatedFiles: {},
+          error: failures.length ? failures.join(' ').slice(0, 1200) : undefined,
+        };
       })().catch(
         (error: unknown): AssetResult => ({ ok: false, assets: [], updatedFiles: {}, error: (error as Error).message }),
       );
       jobs.set(blueprint.id, { expiresAt: Date.now() + 35 * 60 * 1000, result });
     }
 
-    return json(await jobs.get(blueprint.id)!.result, { headers: { 'Cache-Control': 'no-store' } });
+    const job = jobs.get(blueprint.id)!;
+    const result = await job.result;
+    if (!result.ok) jobs.delete(blueprint.id);
+    return json(result, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     return json({ ok: false, error: `Approved asset request required: ${(error as Error).message}` }, { status: 409 });
   }

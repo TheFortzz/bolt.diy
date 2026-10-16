@@ -308,6 +308,8 @@ export function useCognitiveHarness(options: HarnessOptions) {
                 : 'Using existing assets and procedural visuals…',
         });
         validationState.set({ status: 'checking', detail: 'Preparing approved game assets…' });
+        let assetGenerationWarning = '';
+        const generatedAssetPaths = new Set<string>();
         await runActivityStep(
           messageId,
           'assets:approved',
@@ -320,10 +322,18 @@ export function useCognitiveHarness(options: HarnessOptions) {
             });
 
             if (!result.ok) {
-              throw new Error(result.error || 'Image Builder failed');
+              assetGenerationWarning = result.error || 'The image service did not return the planned art.';
+              console.warn('[assets] Continuing the approved build without all planned images:', assetGenerationWarning);
+              return;
+            }
+
+            for (const path of result.generatedPaths || []) generatedAssetPaths.add(path);
+            assetGenerationWarning = result.error || '';
+            if (assetGenerationWarning) {
+              console.warn('[assets] Some planned images are unavailable; continuing with generated assets:', assetGenerationWarning);
             }
           },
-          blueprint.assetOperations.length ? 'Approved images ready' : 'No new images requested',
+          blueprint.assetOperations.length ? 'Image pass complete' : 'No new images requested',
         );
 
         /*
@@ -389,7 +399,9 @@ export function useCognitiveHarness(options: HarnessOptions) {
           blueprintMessageId: messageId,
           request: userRequest,
           executionToken: approval.executionToken,
-          detail: 'Writing the approved game modules and playable content…',
+          detail: assetGenerationWarning
+            ? 'Writing the game modules and continuing with available visuals…'
+            : 'Writing the approved game modules and playable content…',
         });
 
         /*
@@ -425,7 +437,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
           const approvedPaths = [...blueprint.fileOperations.map((operation) => operation.path)].sort(
             (a, b) => entryRank(a) - entryRank(b),
           );
-          const approvedAssets = blueprint.assetOperations || [];
+          const approvedAssets = (blueprint.assetOperations || []).filter((asset) => generatedAssetPaths.has(asset.path));
           const existingImagePaths = blueprint.manifest
             .map((file) => file.path)
             .filter((path) => /\.(?:png|jpe?g|webp|gif|svg)$/i.test(path));
@@ -433,7 +445,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
           /* Keep generated and existing game art explicit in the compact build context. */
           const blueprintForPrompt = (plan: typeof blueprint) =>
             JSON.stringify({
-              assetOperations: plan.assetOperations || [],
+              assetOperations: (plan.assetOperations || []).filter((asset) => generatedAssetPaths.has(asset.path)),
               engine: plan.engine,
               systems: plan.systems,
               title: plan.title,
@@ -502,7 +514,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
             'MODULE WIRING (MANDATORY): shared ES-module symbols must use top-level named exports. Import modules through one entry point; do not also load the same module via a separate classic script tag. Never redeclare the same top-level binding or load a classic script twice. If the browser reports `Identifier <name> has already been declared`, inspect index.html and all declarations/imports of that exact name, then remove the duplicate. Cross-check imports against real exports. No external packages or network backends — the game must run offline in the browser.',
             'Wire every visible start, pause/resume, and restart button to a real state-changing handler; use diagnostic gameState "paused" while paused, keep HTML IDs/selectors in sync, and wire keyboard/touch input to gameplay. Only use `new` on values defined with the `class` keyword — never `new` a factory, arrow function, or plain object. Write readable source with 2-space indentation, one statement per line, and lines near 100 characters; never minify. Use smooth delta-time animation and easing/interpolation for motion and camera follow. Null-check canvas and HUD lookups.',
             'Expose window.__GAME_DIAGNOSTICS__ with ready, simulationSteps, inputsHandled, restartCount, resizeCount, and truthful gameState. Update these only in the real game loop and actual button/input/restart/resize handlers; preview validation does not fake these counters.',
-            'Run the available build and gameplay checks. If a check fails, diagnose from its actual output, repair approved files, and test again before finish_task. Verify every local stylesheet, script, and import resolves to a real approved file and fix folder mistakes by correcting the path. The images listed under APPROVED IMAGES are real files that already exist at exactly those paths — load them as-is and never delete or rename those references. If a preview diagnostic says a name is missing from a file, add the missing export in that exact file — never change importers to work around it. The game must fill the entire viewport (full-window canvas, resize handler) with gameplay only — no text-heavy screens — and every approved file must load and run in the preview.',
+            'Run the available build and gameplay checks. If a check fails, diagnose from its actual output, repair approved files, and test again before finish_task. Verify every local stylesheet, script, and import resolves to a real approved file and fix folder mistakes by correcting the path. Every generated image file that exists in the workspace must be loaded and visibly rendered as-is; never substitute procedural lookalikes for available images or delete/rename those references. If a planned image is unavailable, do not reference a missing path; keep the game playable with a local fallback only for that missing image. If a preview diagnostic says a name is missing from a file, add the missing export in that exact file — never change importers to work around it. The game must fill the entire viewport (full-window canvas, resize handler) with gameplay only — no text-heavy screens — and every approved file must load and run in the preview.',
             'ASSET URLs: reference approved images with plain relative string paths exactly as written (for example image.src = "assets/car.png"). Never build the path from variables or concatenated fragments — write the full literal path so the preview resolver can find the file. Never wrap a relative path in `new URL(...)` without a base — `new URL("assets/car.png")` throws "Invalid URL" and kills the whole game. If you truly need URL parsing, pass a base: `new URL("assets/car.png", location.href)`. Always keep the procedural drawing as a fallback that runs when the image has not loaded yet (use the image `onload` flag), so a slow or failed image never leaves an empty screen.',
             'AUDIO SAFETY: every Web Audio scheduling call must be given a finite number. Guard setTargetAtTime / setValueAtTime / linearRampToValueAtTime / exponentialRampToValueAtTime / gain.value with Number.isFinite and fall back to a safe constant (440 for frequency, 0.05 for gain). A NaN or undefined value throws "The provided float value is non-finite" from the render loop every frame and makes the whole game look broken. Wrap AudioContext creation in try/catch and degrade to silence.',
           ];
@@ -718,7 +730,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
 
             const initialPrompt = [
               `Implement this user request using Cline tools: ${userRequest}`,
-              `Approved blueprint (authoritative file allowlist): ${JSON.stringify(blueprint).slice(0, 45_000)}`,
+              `Approved blueprint (authoritative file allowlist): ${blueprintForPrompt(blueprint)}`,
               `You may write only these approved paths: ${approvedPaths.join(', ')}.`,
               approvedAssets.length > 0
                 ? `APPROVED IMAGES (must be visibly integrated, not replaced with procedural lookalikes):\n${approvedAssets
@@ -1398,7 +1410,16 @@ export function useCognitiveHarness(options: HarnessOptions) {
         await options.append(
           {
             role: 'user',
-            content: `[Model: ${options.model}]\n\n[Provider: ${options.provider}]\n\n[Studio Mode: BUILD]\n\nImplement the approved blueprint for this request: ${userRequest}\nUse artifact id="${artifactId}". All approved image files are now available.`,
+            content: [
+              `[Model: ${options.model}]`,
+              `[Provider: ${options.provider}]`,
+              '[Studio Mode: BUILD]',
+              `Implement the approved blueprint for this request: ${userRequest}`,
+              `Use artifact id="${artifactId}". Use every approved image file that exists in the workspace.`,
+              assetGenerationWarning
+                ? `Some planned images were unavailable: ${safeClineDiagnostic(assetGenerationWarning)}. Do not stop the game build or wait for another image request. Use the approved images actually listed above and keep the game playable with a local-drawn fallback only for missing images.`
+                : '',
+            ].filter(Boolean).join('\n\n'),
             annotations: [{ type: 'harness-execution', planId: blueprint.id }],
           },
           {
@@ -1428,6 +1449,14 @@ export function useCognitiveHarness(options: HarnessOptions) {
         transitionHarness('failed', { detail });
         validationState.set({ status: 'failed', detail });
         startActivity(messageId, 'approval:failed', 'Final checks', detail, 'failed');
+        options.setMessages((messages) => [
+          ...messages,
+          {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `Your approved game plan is saved, but file generation did not start: ${safeClineDiagnostic(detail)}. Send “continue” and I’ll try again.`,
+          },
+        ]);
       }
     },
     [options],
