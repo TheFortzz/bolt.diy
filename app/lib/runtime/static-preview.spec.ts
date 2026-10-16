@@ -5,6 +5,7 @@ import {
   buildFallbackHtml,
   ensurePreviewAudioUnlock,
   ensurePreviewStorageShim,
+  ensurePreviewUrlShim,
   ensureThreeImportMap,
   inlineLocalModuleBlobImports,
   injectStaticScripts,
@@ -272,6 +273,42 @@ describe('studio preview publish parity', () => {
     expect(normalizeStudioGameHtml(once)).toBe(once);
     expect(ensurePreviewStorageShim(once)).toBe(once);
     expect(ensurePreviewAudioUnlock(once)).toBe(once);
+  });
+
+  it('injects the URL base shim so a relative new URL() cannot kill the game', () => {
+    const html = '<html><head></head><body><canvas id="game"></canvas></body></html>';
+    const once = normalizeStudioGameHtml(html);
+    const embedded = new Function(`return (${normalizeServerPreviewHtml.toString()});`)() as (html: string) => string;
+
+    expect(once).toContain('data-studio-url-shim');
+    expect(ensurePreviewUrlShim(once)).toBe(once);
+    expect(embedded(html)).toContain('data-studio-url-shim');
+
+    /*
+     * The emitted shim must be real JavaScript that resolves a base-less
+     * relative URL instead of throwing "Failed to construct 'URL': Invalid
+     * URL".
+     */
+    const script = /<script data-studio-url-shim>([\s\S]*?)<\/script>/.exec(once)?.[1];
+    expect(script).toBeTruthy();
+
+    const documentStub = {
+      baseURI: 'https://bolt-di.pages.dev/',
+      referrer: 'https://bolt-di.pages.dev/',
+    };
+    const locationStub = { href: 'https://bolt-di.pages.dev/' };
+    const runShim = new Function('window', 'document', `${script}`) as (
+      window: Record<string, unknown>,
+      document: unknown,
+    ) => void;
+
+    const fakeWindow: Record<string, unknown> = { URL, location: locationStub };
+    runShim(fakeWindow, documentStub);
+
+    const ShimmedUrl = fakeWindow.URL as typeof URL;
+    expect(new ShimmedUrl('assets/car.png').href).toBe('https://bolt-di.pages.dev/assets/car.png');
+    expect(typeof ShimmedUrl.createObjectURL).toBe('function');
+    expect(ShimmedUrl.prototype).toBe(URL.prototype);
   });
 
   it('removes duplicate local script inclusions that can redeclare top-level bindings', () => {

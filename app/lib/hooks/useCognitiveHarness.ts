@@ -498,6 +498,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
             'Wire every visible start, pause/resume, and restart button to a real state-changing handler; use diagnostic gameState "paused" while paused, keep HTML IDs/selectors in sync, and wire keyboard/touch input to gameplay. Only use `new` on values defined with the `class` keyword — never `new` a factory, arrow function, or plain object. Write readable source with 2-space indentation, one statement per line, and lines near 100 characters; never minify. Use smooth delta-time animation and easing/interpolation for motion and camera follow. Null-check canvas and HUD lookups.',
             'Expose window.__GAME_DIAGNOSTICS__ with ready, simulationSteps, inputsHandled, restartCount, resizeCount, and truthful gameState. Update these only in the real game loop and actual button/input/restart/resize handlers; preview validation does not fake these counters.',
             'Run the available build and gameplay checks. If a check fails, diagnose from its actual output, repair approved files, and test again before finish_task. Verify every local stylesheet, script, and import resolves to a real approved file and fix folder mistakes by correcting the path. The images listed under APPROVED IMAGES are real files that already exist at exactly those paths — load them as-is and never delete or rename those references. If a preview diagnostic says a name is missing from a file, add the missing export in that exact file — never change importers to work around it. The game must fill the entire viewport (full-window canvas, resize handler) with gameplay only — no text-heavy screens — and every approved file must load and run in the preview.',
+            'ASSET URLs: reference approved images with plain relative string paths exactly as written (for example image.src = "assets/car.png"). Never wrap a relative path in `new URL(...)` without a base — `new URL("assets/car.png")` throws "Invalid URL" and kills the whole game. If you truly need URL parsing, pass a base: `new URL("assets/car.png", location.href)`. Always keep the procedural drawing as a fallback that runs when the image has not loaded yet (use the image `onload` flag), so a slow or failed image never leaves an empty screen.',
           ];
 
           /*
@@ -506,14 +507,38 @@ export function useCognitiveHarness(options: HarnessOptions) {
            * bundler use, and fail the phase immediately (with file names) if
            * anything is missing, empty, or structurally broken — long before
            * the expensive full verification runs.
+           *
+           * Content is read from the real WebContainer filesystem, not the
+           * in-memory store: the store is refreshed by an async watcher and can
+           * lag behind a just-finished phase, which used to fail finished
+           * builds with a false "index.html is missing or empty after this
+           * phase".
            */
-          const gatePhase = (required: string[], shared: string[]): string[] => {
+          const gatePhase = async (required: string[], shared: string[]): Promise<string[]> => {
             const workspace = workbenchStore.files.get();
             const issues: string[] = [];
+            const container = await getWebContainer().catch(() => undefined);
 
-            const probePath = (path: string, requireContent: boolean) => {
+            const readContent = async (path: string): Promise<string> => {
+              if (container) {
+                try {
+                  const fromDisk = await container.fs.readFile(path, 'utf-8');
+
+                  if (typeof fromDisk === 'string' && fromDisk.length > 0) {
+                    return fromDisk;
+                  }
+                } catch {
+                  // Fall through to the in-memory snapshot below.
+                }
+              }
+
               const entry = workspace[path];
-              const content = entry?.type === 'file' && typeof entry.content === 'string' ? entry.content : '';
+
+              return entry?.type === 'file' && typeof entry.content === 'string' ? entry.content : '';
+            };
+
+            const probePath = async (path: string, requireContent: boolean) => {
+              const content = await readContent(path);
 
               if (!content) {
                 if (requireContent) {
@@ -543,7 +568,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
             };
 
             for (const path of required) {
-              probePath(path, true);
+              await probePath(path, true);
             }
 
             /*
@@ -552,7 +577,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
              * that does not exist yet is not this phase's failure.
              */
             for (const path of shared) {
-              probePath(path, false);
+              await probePath(path, false);
             }
 
             return issues;
@@ -579,7 +604,12 @@ export function useCognitiveHarness(options: HarnessOptions) {
           let previewErrors: Array<{ message: string }> = [];
           let lastError = '';
           const seenErrorKeys: string[] = [];
-          const maxAttempts = 6;
+          /*
+           * Keep fixing until the game actually builds. Twelve attempts of
+           * real repair work beat stopping early and handing back a broken
+           * project; a genuinely unfixable error still terminates here.
+           */
+          const maxAttempts = 12;
           const appliedWorkspacePaths = new Set<string>();
           let improvePassDone = false;
           let polishPassActive = false;
@@ -1044,7 +1074,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                     break;
                   }
 
-                  const gateIssues = gatePhase(phase.paths, phase.sharedPaths);
+                  const gateIssues = await gatePhase(phase.paths, phase.sharedPaths);
 
                   if (gateIssues.length > 0) {
                     const repairPaths = phase.paths.filter((path) => gateIssues.some((issue) => issue.includes(path)));
@@ -1111,11 +1141,16 @@ export function useCognitiveHarness(options: HarnessOptions) {
                 });
 
                 if (unrenderedImages.length > 0) {
+                  const describe = (path: string) =>
+                    approvedAssets.find((asset) => asset.path === path)?.kind === 'sprite'
+                      ? `${path} (player/subject sprite — it must replace the procedural placeholder; keep the drawn shape only as a load-failure fallback)`
+                      : `${path} (environment layer — draw it visibly as a tiling/full-frame background behind gameplay)`;
+
                   runFailure = `Generated images are not visibly rendered yet: ${unrenderedImages
-                    .map((asset) => asset.path)
+                    .map((asset) => describe(asset.path))
                     .join(
-                      ', ',
-                    )}. Load each exact path and draw it visibly with ctx.drawImage (or as a visible HTML/CSS image layer). The generated player sprite must replace the procedural car; only keep the procedural shape as a load-failure fallback.`;
+                      '; ',
+                    )}. These files already exist at exactly those paths — load each one (new Image() or createImageBitmap), attach an onload handler, and draw it with the real ctx.drawImage calls inside the render loop after it loads; a bare path in a constant or unused variable does not count.`;
                 }
               }
 
@@ -1131,11 +1166,17 @@ export function useCognitiveHarness(options: HarnessOptions) {
                       : appliedWorkspacePaths.size
                         ? ` Files already written: ${Array.from(appliedWorkspacePaths).join(', ')}.`
                         : '';
-                  const detail = `The build could not safely complete after ${maxAttempts} attempts. ${lastError}${progress}`;
+                  const detail = `The build paused before verification passed after ${maxAttempts} attempts. ${lastError}${progress}`;
                   settleActiveActivities(messageId, 'failed');
 
-                  updateAgentMessage(`⚠️ The build stopped before verification passed.\n\n${detail}`);
-                  startActivity(messageId, 'cline:failed', `Build failed: ${detail.slice(0, 180)}`, detail, 'failed');
+                  updateAgentMessage(`The build needs another pass.\n\n${detail}`);
+                  startActivity(
+                    messageId,
+                    'cline:failed',
+                    `Build needs another pass: ${lastError.slice(0, 150)}`,
+                    detail,
+                    'failed',
+                  );
                   executionPolicy.revoke();
                   validationState.set({ status: 'failed', detail });
                   transitionHarness('failed', { detail });
@@ -1235,19 +1276,19 @@ export function useCognitiveHarness(options: HarnessOptions) {
                 startActivity(
                   messageId,
                   'cline:failed',
-                  'Build or preview needs attention',
-                  'Build or preview needs attention',
+                  'Build needs another pass',
+                  'Build needs another pass',
                   'failed',
                 );
                 executionPolicy.revoke();
                 validationState.set({ status: 'failed', detail: lastError });
-                transitionHarness('failed', { detail: `Build stopped after ${maxAttempts} attempts: ${lastError}` });
+                transitionHarness('failed', { detail: `Build paused after ${maxAttempts} attempts: ${lastError}` });
                 options.setMessages((messages) =>
                   messages.map((entry) =>
                     entry.id === agentMessageId
                       ? {
                           ...entry,
-                          content: `${entry.content}\n\n⚠️ Preview/build verification failed after ${maxAttempts} attempts.\n\n${lastError}`,
+                          content: `${entry.content}\n\nThe build paused after ${maxAttempts} automatic repair attempts. Here is the last real error so the next message can finish it:\n\n${lastError}`,
                         }
                       : entry,
                   ),
@@ -1338,12 +1379,12 @@ export function useCognitiveHarness(options: HarnessOptions) {
             entry.id === visibleErrorMessageId
               ? {
                   ...entry,
-                  content: `${entry.content}\n\n⚠️ The build could not continue. No additional files were applied.\n\n${detail}`,
+                  content: `${entry.content}\n\nThe build needs another pass. No additional files were applied.\n\n${detail}`,
                 }
               : entry,
           ),
         );
-        toast.error(detail);
+        toast.warning(detail);
       }
     },
     [options],
@@ -1630,7 +1671,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
             content: `I could not prepare a valid build plan. No files were changed.\n\n${detail}`,
           },
         ]);
-        toast.error(detail);
+        toast.warning(detail);
       }
     },
     [options, executeApprovedPlan],

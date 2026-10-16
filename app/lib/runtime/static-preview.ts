@@ -708,6 +708,32 @@ export function ensurePreviewAudioUnlock(html: string): string {
   return `${audioUnlockScript}\n${html}`;
 }
 
+/**
+ * Relative `new URL("assets/x.png")` (no base) throws "Failed to construct
+ * 'URL': Invalid URL", and a blob:/srcdoc preview document has no hierarchical
+ * base URL to resolve against. Generated games commonly do exactly this in
+ * their asset loader, which kills the whole game on boot. Wrap the URL
+ * constructor with a base fallback so the call always returns a usable URL and
+ * the game can fall back to its procedural shape instead of dying.
+ */
+const urlShimScript = `<script data-studio-url-shim>(function(){if(window.__studioUrlShim)return;window.__studioUrlShim=true;var NativeURL=window.URL;if(!NativeURL)return;function baseUrl(){var candidates=[];try{candidates.push(document.baseURI);}catch(e){}try{candidates.push(window.location&&window.location.href);}catch(e){}try{candidates.push(document.referrer);}catch(e){}for(var i=0;i<candidates.length;i++){var v=candidates[i];if(typeof v==="string"&&/^[a-z][a-z0-9+.-]*:\\/\\//i.test(v))return v;}return "https://studio.preview.local/";}function StudioURL(url,base){if(arguments.length<2||base===undefined||base===null||base===""){base=baseUrl();}return new NativeURL(url,base);}StudioURL.prototype=NativeURL.prototype;try{StudioURL.createObjectURL=function(blob){return NativeURL.createObjectURL(blob);};}catch(e){}try{StudioURL.revokeObjectURL=function(url){return NativeURL.revokeObjectURL(url);};}catch(e){}try{StudioURL.canParse=function(url,base){if(typeof NativeURL.canParse!=="function")return true;return NativeURL.canParse(url,base===undefined?baseUrl():base);};}catch(e){}try{StudioURL.parse=function(url,base){var b=base===undefined?baseUrl():base;return typeof NativeURL.parse==="function"?NativeURL.parse(url,b):new NativeURL(url,b);};}catch(e){}try{window.URL=StudioURL;}catch(e){}})();</script>`;
+
+export function ensurePreviewUrlShim(html: string): string {
+  if (!html || html.includes('data-studio-url-shim')) {
+    return html;
+  }
+
+  if (/<head[\s>]/i.test(html)) {
+    return html.replace(/<head[\s>]/i, (m) => `${m}\n${urlShimScript}`);
+  }
+
+  if (/<body[\s>]/i.test(html)) {
+    return html.replace(/<body[\s>]/i, (m) => `${m}\n${urlShimScript}`);
+  }
+
+  return `${urlShimScript}\n${html}`;
+}
+
 function dedupeScriptSources(html: string): string {
   const seen = new Set<string>();
 
@@ -738,6 +764,7 @@ export function normalizeStudioGameHtml(html: string): string {
   out = rewriteUnpkgThreeToJsdelivr(out);
   out = ensureThreeImportMap(out);
   out = ensurePreviewStorageShim(out);
+  out = ensurePreviewUrlShim(out);
   out = ensurePreviewAudioUnlock(out);
 
   return out;
@@ -1557,7 +1584,12 @@ export const normalizeServerPreviewHtml: (html: string) => string = function (ht
   out = out.replace(/<script\b([^>]*)>[\s\S]*?<\/script\s*>/gi, (tag, attributes) => {
     const source = /\b(?:src|data-inlined)\s*=\s*(["'])(.*?)\1/i.exec(attributes);
     if (!source) return tag;
-    const key = source[2].replace(/&amp;/g, '&').split(/[?#]/, 1)[0].replace(/\\/g, '/').replace(/^(?:\.\/|\/)+/, '').toLowerCase();
+    const key = source[2]
+      .replace(/&amp;/g, '&')
+      .split(/[?#]/, 1)[0]
+      .replace(/\\/g, '/')
+      .replace(/^(?:\.\/|\/)+/, '')
+      .toLowerCase();
     if (!key || !seenScriptSources.has(key)) {
       if (key) seenScriptSources.add(key);
       return tag;
@@ -1605,6 +1637,24 @@ export const normalizeServerPreviewHtml: (html: string) => string = function (ht
       });
     } else {
       out = storageShim + out;
+    }
+  }
+
+  // 4b. URL base shim: a relative new URL(...) must never kill the game.
+  if (out.indexOf('data-studio-url-shim') === -1) {
+    const urlShim =
+      '<script data-studio-url-shim>(function(){if(window.__studioUrlShim)return;window.__studioUrlShim=true;var NativeURL=window.URL;if(!NativeURL)return;function baseUrl(){var candidates=[];try{candidates.push(document.baseURI);}catch(e){}try{candidates.push(window.location&&window.location.href);}catch(e){}try{candidates.push(document.referrer);}catch(e){}for(var i=0;i<candidates.length;i++){var v=candidates[i];if(typeof v==="string"&&/^[a-z][a-z0-9+.-]*:\\/\\//i.test(v))return v;}return "https://studio.preview.local/";}function StudioURL(url,base){if(arguments.length<2||base===undefined||base===null||base===""){base=baseUrl();}return new NativeURL(url,base);}StudioURL.prototype=NativeURL.prototype;try{StudioURL.createObjectURL=function(blob){return NativeURL.createObjectURL(blob);};}catch(e){}try{StudioURL.revokeObjectURL=function(url){return NativeURL.revokeObjectURL(url);};}catch(e){}try{StudioURL.canParse=function(url,base){if(typeof NativeURL.canParse!=="function")return true;return NativeURL.canParse(url,base===undefined?baseUrl():base);};}catch(e){}try{StudioURL.parse=function(url,base){var b=base===undefined?baseUrl():base;return typeof NativeURL.parse==="function"?NativeURL.parse(url,b):new NativeURL(url,b);};}catch(e){}try{window.URL=StudioURL;}catch(e){}})();</script>';
+
+    if (/<head[\s>]/i.test(out)) {
+      out = out.replace(/<head[\s>]/i, (m) => {
+        return m + urlShim;
+      });
+    } else if (/<html[\s>]/i.test(out)) {
+      out = out.replace(/<html[\s>]/i, (m) => {
+        return m + '<head>' + urlShim + '</head>';
+      });
+    } else {
+      out = urlShim + out;
     }
   }
 

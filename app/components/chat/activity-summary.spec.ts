@@ -25,7 +25,7 @@ describe('observed activity summary', () => {
   it('keeps a failure visible even after other checks complete', () => {
     const result = summarizeActivity([step('assets:write', 'failed'), step('validation:result', 'complete')], false);
     expect(result.state).toBe('failed');
-    expect(result.title).toBe('Needs attention');
+    expect(result.title).toBe('Build needs another pass');
   });
 
   it('does not leave aborted operations spinning', () => {

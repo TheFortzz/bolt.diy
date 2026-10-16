@@ -561,20 +561,43 @@ export class ActionRunner {
           contentToWrite,
         );
 
+        /*
+         * An approved blueprint write is the Studio's own build writing a file
+         * it is allowed to own. Rewriting such a file is legitimate (a later
+         * phase or a repair pass replaces an earlier version), so the guards
+         * below only reject a catastrophic truncation — never a smaller, valid
+         * rewrite. Blocking those used to fail whole builds with
+         * "Refused to overwrite src/main.js".
+         */
+        const isApprovedBlueprintWrite = Boolean(approvedOperation);
+        const shrinkFloor = isApprovedBlueprintWrite ? 0.3 : 0.85;
+
         if (previous.trim().length > 0 && contentToWrite.trim().length === 0) {
           throw new Error(`Refused to overwrite ${action.filePath} with empty content; the original file was kept.`);
         }
 
-        if (!isIntentionalEngineMigration && previous.length > 3000 && contentToWrite.length < previous.length * 0.85) {
+        if (
+          !isIntentionalEngineMigration &&
+          previous.length > 3000 &&
+          contentToWrite.length < previous.length * shrinkFloor
+        ) {
           throw new Error(
-            `Refused to overwrite ${action.filePath}: the new version (${contentToWrite.length} chars) is much smaller than the existing file (${previous.length} chars), so existing features would be lost. The original file was kept; output the COMPLETE file with ALL existing code kept and the new features added on top. For small changes, call edit_file on the existing file instead of rewriting it.`,
+            isApprovedBlueprintWrite
+              ? `Refused to overwrite ${action.filePath}: the approved build returned only ${contentToWrite.length} chars where the file already has ${previous.length} chars, which looks like a truncated response. Write the complete file for this phase.`
+              : `Refused to overwrite ${action.filePath}: the new version (${contentToWrite.length} chars) is much smaller than the existing file (${previous.length} chars), so existing features would be lost. The original file was kept; output the COMPLETE file with ALL existing code kept and the new features added on top. For small changes, call edit_file on the existing file instead of rewriting it.`,
           );
         }
 
-        if (!isIntentionalEngineMigration && /\.m?js$/i.test(action.filePath) && previous.length > 3000) {
+        if (
+          !isApprovedBlueprintWrite &&
+          !isIntentionalEngineMigration &&
+          /\.m?js$/i.test(action.filePath) &&
+          previous.length > 3000
+        ) {
           const symbols = (source: string) => {
             const found = new Set<string>();
-            const pattern = /(?:^|[\n;}])[ \t]*(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(|(?:^|\n)(?:const|let|var|class)\s+([A-Za-z_$][\w$]*)/g;
+            const pattern =
+              /(?:^|[\n;}])[ \t]*(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(|(?:^|\n)(?:const|let|var|class)\s+([A-Za-z_$][\w$]*)/g;
             let match: RegExpExecArray | null;
 
             while ((match = pattern.exec(source))) {

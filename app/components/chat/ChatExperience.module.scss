@@ -134,7 +134,7 @@
     border-color: rgba(167, 139, 250, 0.32);
   }
   &[data-state='failed'] {
-    border-color: rgba(251, 113, 133, 0.35);
+    border-color: rgba(252, 211, 77, 0.32);
   }
   &[data-state='verified'] {
     border-color: rgba(52, 211, 153, 0.3);
@@ -233,8 +233,8 @@
     background: rgba(139, 92, 246, 0.08);
   }
   &[data-status='failed'] {
-    color: #fda4af;
-    background: rgba(244, 63, 94, 0.05);
+    color: #fcd34d;
+    background: rgba(252, 211, 77, 0.06);
   }
   &[data-status='pending'],
   &[data-status='aborted'] {
@@ -652,8 +652,8 @@
   }
 
   &[data-status='failed'] {
-    background: rgba(225, 29, 72, 0.25);
-    color: #fda4af;
+    background: rgba(252, 211, 77, 0.18);
+    color: #fde68a;
   }
 
   &[data-status='pending'],

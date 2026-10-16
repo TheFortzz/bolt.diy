@@ -24,7 +24,8 @@ function stepLabel(step: ActivityStep) {
     case 'complete':
       return step.doneLabel;
     case 'failed':
-      return `Failed: ${step.label}`;
+      // Calm terminal wording: a build that needs another pass, not an alarm.
+      return `Paused: ${step.label}`;
     case 'aborted':
       return `Stopped: ${step.label}`;
     case 'retrying':
@@ -156,7 +157,7 @@ export const ActivityTimeline = memo(({ messageId, isStreaming = false, embedded
                 ) : isComplete ? (
                   <div className="i-ph:check-circle-fill text-emerald-400 text-xs shrink-0 drop-shadow-[0_0_6px_rgba(52,211,153,0.5)]" />
                 ) : isFailed ? (
-                  <div className="i-ph:x-circle-fill text-rose-400 text-xs shrink-0 drop-shadow-[0_0_6px_rgba(244,63,94,0.5)]" />
+                  <div className="i-ph:warning-circle text-amber-300 text-xs shrink-0" />
                 ) : isRetrying ? (
                   <div className="i-ph:arrow-clockwise text-amber-300 text-xs shrink-0" />
                 ) : (

@@ -21,7 +21,7 @@ export function summarizeActivity(steps: ActivityStep[], isStreaming: boolean, b
   return {
     state,
     title: failed
-      ? 'Needs attention'
+      ? 'Build needs another pass'
       : busy
         ? steps.length
           ? 'Working on your game'

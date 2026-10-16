@@ -450,7 +450,7 @@ export const ChatImpl = memo(
             executionPolicy.revoke();
             transitionHarness('failed', { detail });
             validationState.set({ status: 'failed', detail });
-            toast.error(detail);
+            toast.warning(detail);
           }
 
           if (repairAttemptsRef.current > 0) {
@@ -459,10 +459,10 @@ export const ChatImpl = memo(
               'repair:missing',
               'No corrected files returned',
               'No corrected files returned',
-              'failed',
+              'retrying',
             );
             validationState.set({ status: 'failed', detail: 'Automatic repair did not return any corrected files.' });
-            toast.error('Automatic repair did not produce a corrected build.', { autoClose: false });
+            toast.warning('Automatic repair did not produce a corrected build.', { autoClose: 7000 });
           }
 
           return;
@@ -479,13 +479,13 @@ export const ChatImpl = memo(
         workbenchStore.finishPendingActions();
 
         if (!result.ok) {
-          if (repairAttemptsRef.current < 5 && !result.error?.includes('runtime verification needs')) {
+          if (repairAttemptsRef.current < 10 && !result.error?.includes('runtime verification needs')) {
             repairAttemptsRef.current++;
             executionPolicy.allowRepair();
             if (managedBlueprint) {
               try {
                 transitionHarness('editing', {
-                  detail: `Auto-repairing build (${repairAttemptsRef.current}/5)…`,
+                  detail: `Auto-repairing build (${repairAttemptsRef.current}/10)…`,
                 });
               } catch (e) {
                 console.warn('transitionHarness to editing failed:', e);
@@ -493,10 +493,10 @@ export const ChatImpl = memo(
             }
             validationState.set({
               status: 'checking',
-              detail: `Auto-repairing build (${repairAttemptsRef.current}/5)…`,
+              detail: `Auto-repairing build (${repairAttemptsRef.current}/10)…`,
             });
             toast.info(
-              `⚠️ Build issue detected — diagnosing and repairing approved files (${repairAttemptsRef.current}/5)…`,
+              `Build issue detected — diagnosing and repairing approved files (${repairAttemptsRef.current}/10)…`,
               {
                 autoClose: 5000,
               },
@@ -546,7 +546,7 @@ export const ChatImpl = memo(
               await append(
                 {
                   role: 'user',
-                  content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n[Studio Mode: BUILD]\n\n[Internal Repair Prompt - Attempt ${repairAttemptsRef.current}/5]\n\nAutomatic build verification found this issue:\n${result.error?.slice(-1800)}\n\nCRITICAL REPAIR INSTRUCTIONS:\n1. Diagnose the reported file, line, and root cause using the supplied current workspace sources; do not guess or default to game.js.\n2. Repair every affected approved module, preserving working files and existing gameplay. If a file is truncated, output its complete repaired contents. Only use paths already approved by the blueprint.\n3. YOUR RESPONSE MUST START IMMEDIATELY ON LINE 1 WITH:\n<boltArtifact id="${artifactId}" title="Repair">\n<boltAction type="file" filePath="exact-file-path">\n<complete repaired file code>\n</boltAction>\n</boltArtifact>\nNEVER output any text, markdown code blocks, thoughts, design plans, or code outside <boltAction>. Do not replace the multi-file architecture with a smaller demo.\n4. Preserve the diagnostics contract in its existing module and verify the actual game initialization/render loop. Output file actions directly without an explanatory preamble.`,
+                  content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n[Studio Mode: BUILD]\n\n[Internal Repair Prompt - Attempt ${repairAttemptsRef.current}/10]\n\nAutomatic build verification found this issue:\n${result.error?.slice(-1800)}\n\nCRITICAL REPAIR INSTRUCTIONS:\n1. Diagnose the reported file, line, and root cause using the supplied current workspace sources; do not guess or default to game.js.\n2. Repair every affected approved module, preserving working files and existing gameplay. If a file is truncated, output its complete repaired contents. Only use paths already approved by the blueprint.\n3. YOUR RESPONSE MUST START IMMEDIATELY ON LINE 1 WITH:\n<boltArtifact id="${artifactId}" title="Repair">\n<boltAction type="file" filePath="exact-file-path">\n<complete repaired file code>\n</boltAction>\n</boltArtifact>\nNEVER output any text, markdown code blocks, thoughts, design plans, or code outside <boltAction>. Do not replace the multi-file architecture with a smaller demo. A smaller rewrite is allowed only when it keeps every existing feature.\n4. Preserve the diagnostics contract in its existing module and verify the actual game initialization/render loop. Output file actions directly without an explanatory preamble.`,
                   annotations: managedBlueprint
                     ? [{ type: 'harness-execution', planId: managedBlueprint.id }]
                     : undefined,
@@ -572,7 +572,7 @@ export const ChatImpl = memo(
                 }
               }
               validationState.set({ status: 'failed', detail: `Automatic repair failed: ${(error as Error).message}` });
-              toast.error('Automatic repair could not be started. The build is not verified.');
+              toast.warning('Automatic repair could not be started. The build is not verified.');
             }
           }
 
@@ -586,14 +586,14 @@ export const ChatImpl = memo(
           }
 
           validationState.set({ status: 'failed', detail: result.error || 'Build validation failed' });
-          toast.error(`Build validation issue: ${result.error?.slice(0, 160)}`, { autoClose: 8000 });
+          toast.warning(`Build needs another pass: ${result.error?.slice(0, 160)}`, { autoClose: 8000 });
 
           // Inform directly in this chat message when auto-repairs are exhausted
           const errorNotice = managedBlueprint
-            ? `\n\n> ⚠️ **Preview check needs attention:**\n> ${result.error?.slice(-1800)}\n>\n> Describe the repair you want; FortzAI will propose a new blueprint for your approval.`
+            ? `\n\n> **Preview check needs another pass:**\n> ${result.error?.slice(-1800)}\n>\n> Describe the repair you want; FortzAI will propose a new blueprint for your approval.`
             : result.error?.includes('runtime verification needs')
-              ? `\n\n> ⚠️ **Runtime verification unavailable:**\n> ${result.error?.slice(-1800)}\n>\n> A browser verification worker or preview bridge must be configured before this build can be marked verified.`
-              : `\n\n> ⚠️ **Build Issue Detected:**\n> ${result.error?.slice(-1800)}\n>\n> *Ask for a targeted repair to address these checks.*`;
+              ? `\n\n> **Runtime verification unavailable:**\n> ${result.error?.slice(-1800)}\n>\n> A browser verification worker or preview bridge must be configured before this build can be marked verified.`
+              : `\n\n> **Build needs another pass:**\n> ${result.error?.slice(-1800)}\n>\n> *Ask for a targeted repair to address these checks.*`;
           setMessages((prev) =>
             prev.map((entry) =>
               entry.id === message.id ? { ...entry, content: `${entry.content}${errorNotice}` } : entry,
