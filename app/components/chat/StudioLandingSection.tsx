@@ -97,7 +97,7 @@ export function StudioLandingSection({ onSelectTemplate, isWorkbenchActive }: St
   const [charIndex, setCharIndex] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
   const [loadingGameId, setLoadingGameId] = useState<string | null>(null);
-  const [orderedGames, setOrderedGames] = useState(STARTER_GAMES);
+  const [orderedGames, setOrderedGames] = useState(STARTER_GAMES.slice(0, 5));
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -121,7 +121,7 @@ export function StudioLandingSection({ onSelectTemplate, isWorkbenchActive }: St
         [shuffled[index], shuffled[other]] = [shuffled[other], shuffled[index]];
       }
 
-      nextOrder = shuffled.map((game) => game.id).join(',');
+      nextOrder = shuffled.slice(0, 5).map((game) => game.id).join(',');
       if (nextOrder !== previousOrder) break;
     }
 
@@ -130,7 +130,7 @@ export function StudioLandingSection({ onSelectTemplate, isWorkbenchActive }: St
     } catch {
       // The card order remains randomized when storage is unavailable.
     }
-    setOrderedGames(shuffled);
+    setOrderedGames(shuffled.slice(0, 5));
   }, []);
 
   useEffect(() => {
