@@ -235,7 +235,7 @@ export function createBoltAgentModel(boltModel: unknown, maxTurnTokens: number =
         }
 
         if (retryTurn) {
-          const delayMs = 450 * (attempt + 1);
+          const delayMs = 3000;
           const note =
             retryNote ??
             `The model returned an empty turn. Retrying in ${(delayMs / 1000).toFixed(1)}s (${emptyRetries}/${MAX_EMPTY_TURN_RETRIES})…\n`;

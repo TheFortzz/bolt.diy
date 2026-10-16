@@ -360,7 +360,7 @@ export const ChatImpl = memo(
                 },
               ).catch((resumeError) => logger.error('Automatic build stream recovery failed:', resumeError));
             },
-            Math.min(750 * attempt, 3000),
+            3000,
           );
 
           return;

@@ -195,7 +195,7 @@ async function postHarness<T>(payload: unknown, signal: AbortSignal): Promise<T>
         const isTransient = [429, 502, 503, 504, 520, 521, 522, 524].includes(response.status);
 
         if (attempt < 3 && !signal.aborted && isTransient) {
-          await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+          await new Promise((resolve) => setTimeout(resolve, 3000));
           continue;
         }
 
@@ -208,7 +208,7 @@ async function postHarness<T>(payload: unknown, signal: AbortSignal): Promise<T>
         error?.name === 'TypeError' || /network|failed to fetch|quic|load failed|protocol/i.test(error?.message || '');
 
       if (attempt < 3 && !signal.aborted && isNetworkError) {
-        await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+        await new Promise((resolve) => setTimeout(resolve, 3000));
         continue;
       }
 
@@ -1051,7 +1051,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                     throw new Error(`The run kept failing after ${MAX_RUN_RETRIES + 1} tries. Last error: ${message}`);
                   }
 
-                  const delay = Math.min(5000 * (runTry + 1), 30_000);
+                  const delay = 3000;
 
                   runHistory.push({
                     role: 'user',
@@ -1393,9 +1393,9 @@ export function useCognitiveHarness(options: HarnessOptions) {
                   content: `The previous run died with an unexpected error (${message}). Continue the approved build exactly where it stopped; do not restart. If it was a provider/network hiccup, simply resume; if it was a real build error, fix it first.`,
                 });
                 updateAgentMessage(
-                  `Run stopped: ${message.slice(0, 220)}\nRetrying in 5s (${attempt + 1}/${maxAttempts})…`,
+                  `Run stopped: ${message.slice(0, 220)}\nRetrying in 3s (${attempt + 1}/${maxAttempts})…`,
                 );
-                await new Promise((resolve) => setTimeout(resolve, 5000));
+                await new Promise((resolve) => setTimeout(resolve, 3000));
 
                 continue;
               }

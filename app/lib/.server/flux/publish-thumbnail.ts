@@ -38,7 +38,7 @@ export async function generatePublishThumbnail(
     'No text, letters, logos, watermarks, interface panels, borders, or device mockups.',
   ].filter(Boolean).join(' ');
   const generated = await generateFluxImage(
-    { prompt, isSprite: false, width: 1024, height: 576, timeoutMs: 50000 },
+    { prompt, isSprite: false, width: 1024, height: 576, timeoutMs: 25000 },
     apiKey,
     endpoint,
   );

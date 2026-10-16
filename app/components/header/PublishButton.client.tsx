@@ -226,22 +226,51 @@ export function PublishButton() {
         setIsGeneratingThumbnail(true);
 
         try {
-          const response = await fetch('/api/generate-thumbnail', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              title: finalTitle,
-              genre: finalGenre,
-              description: description.trim(),
-            }),
-          });
-          const generated = (await response.json()) as { dataUrl?: string; error?: string };
+          let lastError: unknown;
 
-          if (!response.ok || !generated.dataUrl) {
-            throw new Error(generated.error || 'The AI cover could not be generated.');
+          for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+              const response = await fetch('/api/generate-thumbnail', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  title: finalTitle,
+                  genre: finalGenre,
+                  description: description.trim(),
+                }),
+                signal: AbortSignal.timeout(28_000),
+              });
+              let generated: { dataUrl?: string; error?: string } = {};
+              try {
+                generated = (await response.json()) as { dataUrl?: string; error?: string };
+              } catch {
+                /* Keep the HTTP status as the retryable diagnostic. */
+              }
+
+              if (!response.ok || !generated.dataUrl) {
+                const error = new Error(generated.error || `The AI cover service returned HTTP ${response.status}.`);
+                (error as Error & { status?: number }).status = response.status;
+                throw error;
+              }
+
+              thumbDataUrl = generated.dataUrl;
+              break;
+            } catch (error) {
+              lastError = error;
+              const status = Number((error as Error & { status?: number })?.status || 0);
+              const message = error instanceof Error ? error.message : String(error);
+              const retryable =
+                [429, 500, 502, 503, 504].includes(status) ||
+                /network|fetch|timed out|abort|temporar/i.test(message);
+
+              if (attempt > 0 || !retryable) throw error;
+
+              toast.info('AI cover service hiccup. Retrying in 3 seconds…', { autoClose: 3000 });
+              await new Promise((resolve) => setTimeout(resolve, 3000));
+            }
           }
 
-          thumbDataUrl = generated.dataUrl;
+          if (!thumbDataUrl) throw lastError || new Error('The AI cover could not be generated.');
           setPreviewThumb(thumbDataUrl);
         } catch (error) {
           thumbDataUrl = generateAutoThumbnail(finalTitle, finalGenre);
