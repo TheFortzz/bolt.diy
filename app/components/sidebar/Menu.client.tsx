@@ -209,14 +209,14 @@ export const Menu = () => {
             {open && <span className="text-[#4c1d95] font-black text-xs tracking-wide uppercase">New Game</span>}
           </a>
 
-          {/* Workspace (Code & Preview) Button */}
+          {/* Workspace (Code & Game) Button */}
           <button
             type="button"
             role="button"
             onClick={() => {
               workbenchStore.showWorkbench.set(!showWorkbench);
             }}
-            title={showWorkbench ? 'Close Workspace' : 'Open Workspace (Code & Preview)'}
+            title={showWorkbench ? 'Close Workspace' : 'Open Workspace (Code & Game)'}
             className={`button-53 button-53-orange ${!open ? 'button-53-rail' : 'gap-2'}`}
             style={{
               background: 'linear-gradient(180deg, rgba(255, 154, 0, 0.9), rgba(234, 88, 12, 0.92))',

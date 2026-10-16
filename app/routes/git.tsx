@@ -17,7 +17,9 @@ export default function Index() {
   return (
     <div className="flex flex-col h-full w-full">
       <Header />
-      <ClientOnly fallback={<BaseChat />}>{() => <GitUrlImport />}</ClientOnly>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <ClientOnly fallback={<BaseChat />}>{() => <GitUrlImport />}</ClientOnly>
+      </div>
     </div>
   );
 }

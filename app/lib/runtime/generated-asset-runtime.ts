@@ -117,6 +117,46 @@ export function generatedAssetRuntimeSource(records: AssetRuntimeRecord[]): stri
     state[bucket][path] = (state[bucket][path] || 0) + 1;
   }
 
+  function visibleHtmlImage(element) {
+    try {
+      if (!element.isConnected) return false;
+      var box = element.getBoundingClientRect();
+      var style = window.getComputedStyle(element);
+      return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0;
+    } catch (e) { return false; }
+  }
+
+  function trackImage(element, record) {
+    if (!element || !record) return;
+    if (element.__studioAssetPath === record.path) return;
+    element.__studioAssetPath = record.path;
+    bump('requested', record.path);
+    element.addEventListener('load', function() {
+      state.loaded[record.path] = true;
+      if (visibleHtmlImage(element)) bump('drawn', record.path);
+    });
+    element.addEventListener('error', function() {
+      state.failed[record.path] = String(element.getAttribute('src') || '').slice(0, 120);
+    });
+    if (element.complete && element.naturalWidth > 0) {
+      state.loaded[record.path] = true;
+      if (visibleHtmlImage(element)) bump('drawn', record.path);
+    }
+  }
+
+  function scanHtmlImages(root) {
+    try {
+      var list = [];
+      if (root && root.tagName === 'IMG') list.push(root);
+      if (root && root.querySelectorAll) list = list.concat(Array.prototype.slice.call(root.querySelectorAll('img')));
+      for (var n = 0; n < list.length; n++) {
+        var image = list[n];
+        var record = resolve(image.currentSrc || image.getAttribute('src') || image.src);
+        if (record) trackImage(image, record);
+      }
+    } catch (e) {}
+  }
+
   window.__STUDIO_ASSETS__ = state;
 
   // 1. Image src assignment: resolve constructed paths and track load state.
@@ -128,17 +168,7 @@ export function generatedAssetRuntimeSource(records: AssetRuntimeRecord[]): stri
         set: function(value) {
           var record = resolve(value);
           if (!record) { descriptor.set.call(this, value); return; }
-          bump('requested', record.path);
-          var element = this;
-          try {
-            if (!element.__studioAssetPath) {
-              element.__studioAssetPath = record.path;
-              element.addEventListener('load', function() { state.loaded[record.path] = true; });
-              element.addEventListener('error', function() {
-                state.failed[record.path] = String(element.getAttribute('src') || '').slice(0, 120);
-              });
-            }
-          } catch (e) {}
+          trackImage(this, record);
           descriptor.set.call(this, record.dataUrl);
         },
         configurable: true,
@@ -153,10 +183,29 @@ export function generatedAssetRuntimeSource(records: AssetRuntimeRecord[]): stri
     Element.prototype.setAttribute = function(name, value) {
       if (typeof value === 'string' && (name === 'src' || name === 'href' || name === 'poster')) {
         var record = resolve(value);
-        if (record) { bump('requested', record.path); value = record.dataUrl; }
+        if (record) {
+          if (typeof HTMLImageElement !== 'undefined' && this instanceof HTMLImageElement) trackImage(this, record);
+          value = record.dataUrl;
+        }
       }
       return nativeSetAttribute.call(this, name, value);
     };
+  } catch (e) {}
+
+  // The HTML parser creates <img> elements without calling the patched setter.
+  // Watch DOM insertion/attributes so visible HTML/CSS image layers count too.
+  try {
+    scanHtmlImages(document);
+    document.addEventListener('DOMContentLoaded', function() { scanHtmlImages(document); });
+    if (typeof MutationObserver !== 'undefined') {
+      new MutationObserver(function(mutations) {
+        for (var mutationIndex = 0; mutationIndex < mutations.length; mutationIndex++) {
+          var mutation = mutations[mutationIndex];
+          if (mutation.type === 'attributes') scanHtmlImages(mutation.target);
+          for (var nodeIndex = 0; nodeIndex < mutation.addedNodes.length; nodeIndex++) scanHtmlImages(mutation.addedNodes[nodeIndex]);
+        }
+      }).observe(document.documentElement || document, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
+    }
   } catch (e) {}
 
   // 3. "Drawn" evidence: canvas 2D, WebGL texture upload, ImageBitmap.

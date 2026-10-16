@@ -177,7 +177,12 @@ describe('generated asset runtime execution', () => {
     const stubs = buildStubs();
     run(generatedAssetRuntimeSource([{ path: 'assets/car.png', base: 'car.png', dataUrl: png('QUJD') }]), stubs);
 
-    const image = Object.create(stubs.imageProto) as unknown as { src: string; _src?: string };
+    const image = Object.assign(Object.create(stubs.imageProto), {
+      addEventListener() {},
+      getAttribute() {
+        return '';
+      },
+    }) as { src: string; _src?: string; addEventListener: () => void; getAttribute: () => string };
     image.src = 'car.png';
 
     expect(image._src).toBe(png('QUJD'));

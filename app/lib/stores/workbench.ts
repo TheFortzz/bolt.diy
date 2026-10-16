@@ -21,6 +21,8 @@ import { actionStepId, startActionActivity, updateActivity } from '~/lib/stores/
 import { normalizeServerPreviewHtml } from '~/lib/runtime/static-preview';
 import { executionPolicy } from '~/lib/harness/execution-policy';
 import { formatWorkspaceSource } from '~/lib/runtime/source-format';
+import { bytesToDataUrl, type Html5GameFile } from '~/lib/runtime/html5-game-import';
+import { generatedAssets } from '~/lib/stores/generated-assets';
 
 export interface ArtifactState {
   id: string;
@@ -537,6 +539,54 @@ http.createServer((req, res) => {
     } catch (e) {
       console.warn('Could not clear WebContainer files for new project:', e);
     }
+  }
+
+  /** Replace the workspace with a validated, browser-ready HTML5 game. */
+  async importHtml5Game(files: Html5GameFile[]) {
+    if (!files.length) {
+      throw new Error('There are no validated game files to import.');
+    }
+
+    await this.waitForExecutionQueue();
+    await this.clearProjectFiles();
+
+    const wc = await getWebContainer();
+    const snapshot: Record<string, Uint8Array> = {};
+    const inlineAssets: Record<string, { id: string; path: string; dataUrl: string; byteLength: number }> = {};
+
+    for (const file of files) {
+      const path = cleanWorkDirRelativePath(file.path);
+
+      if (!path || path.startsWith('../') || path.includes('/../')) {
+        throw new Error(`Unsafe imported game path: ${file.path}`);
+      }
+
+      const parent = nodePath.posix.dirname(path);
+
+      if (parent !== '.') {
+        await wc.fs.mkdir(parent, { recursive: true });
+      }
+
+      await wc.fs.writeFile(path, file.bytes);
+      snapshot[path] = file.bytes;
+
+      if (file.mimeType.startsWith('image/')) {
+        inlineAssets[path] = {
+          id: `imported:${path}`,
+          path,
+          dataUrl: bytesToDataUrl(file.bytes, file.mimeType),
+          byteLength: file.bytes.byteLength,
+        };
+      }
+    }
+
+    this.#filesStore.replaceFromCheckpoint(snapshot);
+    this.setDocuments(this.files.get());
+    this.previews.set([]);
+    generatedAssets.set(inlineAssets);
+    this.currentView.set('code');
+    this.preferPlayView.set(false);
+    this.showWorkbench.set(true);
   }
 
   addArtifact({ messageId, title, id, type }: ArtifactCallbackData) {

@@ -55,7 +55,7 @@ export const MAX_GAME_ASSET_SIDE = 512;
  */
 const MANAGER_TOKEN_BUDGETS = [10000, 6000, 3000];
 
-const MANAGER_SYSTEM = `You are the Manager Agent in Fortz Studio, powered by GPT 6 Luna.
+const MANAGER_SYSTEM = `You are the Manager Agent in Fortz Studio, powered by Grok 4.7.
 You may plan only. You have no filesystem, shell, asset generation, or publication permission.
 Return exactly one JSON object, without code, Markdown fences, tool tags, or private reasoning.
 Schema:

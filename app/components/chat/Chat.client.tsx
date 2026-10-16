@@ -681,7 +681,7 @@ export const ChatImpl = memo(
         workbenchStore.currentView.set('preview');
         window.dispatchEvent(new CustomEvent('fortz-play-while-building'));
 
-        toast.success('🎮 Build verified — open Preview to try your game!', {
+        toast.success('🎮 Build verified — open Game to play!', {
           autoClose: 6000,
           position: 'top-right',
         });

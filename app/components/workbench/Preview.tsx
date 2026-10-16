@@ -416,7 +416,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       setUrl(baseUrl);
       setIframeUrl(baseUrl);
     } else if (fallbackBlobUrl) {
-      setUrl('http://localhost:5173/ (Live Game Preview)');
+      setUrl('http://localhost:5173/ (Live Game)');
       setIframeUrl(fallbackBlobUrl);
     } else {
       setUrl('');
@@ -775,7 +775,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
                 <CookingStatus variant="headline" />
               </div>
               <div className="text-xs text-slate-400 max-w-sm">
-                Preview will appear here as soon as the first playable files are ready.
+                Your game will appear here as soon as the first playable files are ready.
               </div>
             </div>
           ) : (
@@ -784,7 +784,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
                 <div className="i-ph:play-circle text-3xl text-[#38bdf8]" />
               </div>
               <div className="space-y-1.5">
-                <div className="text-sm font-semibold text-white">Preview ready</div>
+                <div className="text-sm font-semibold text-white">Game ready</div>
                 <div className="text-xs text-slate-400 max-w-sm leading-relaxed">
                   Describe a game in chat and Fortz AI will build it here. No loading until generation starts.
                 </div>

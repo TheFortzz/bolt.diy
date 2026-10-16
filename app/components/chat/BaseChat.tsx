@@ -33,6 +33,7 @@ import type { IProviderSetting, ProviderInfo } from '~/types/model';
 import { validationState } from '~/lib/runtime/build-validator';
 import { harnessState, harnessIsBusy } from '~/lib/stores/harness';
 import { DEFAULT_MODEL_LABEL } from '~/utils/constants';
+import { GameImportModal } from './GameImportModal';
 
 const Workbench = lazy(() =>
   import('~/components/workbench/Workbench.client').then((module) => ({ default: module.Workbench })),
@@ -141,6 +142,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     // Use safe SSR defaults; real values are hydrated client-side via useEffect
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [galleryOpen, setGalleryOpen] = useState(false);
+    const [gameImportOpen, setGameImportOpen] = useState(false);
     const [showWorkbench, setShowWorkbench] = useState(false);
     const [auth, setAuth] = useState<{ user: any }>({ user: null });
     const isSmallViewport = useViewport(768);
@@ -157,6 +159,9 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       const unsubWorkbench = workbenchStore.showWorkbench.subscribe((v) => setShowWorkbench(v));
       const unsubAuth = authStore.subscribe((v) => setAuth(v));
 
+      const openGameImport = () => setGameImportOpen(true);
+      window.addEventListener('thefortz:open-game-import', openGameImport);
+
       // Kick off auth session check (client-only)
       checkAuthSession();
 
@@ -165,6 +170,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         unsubGallery();
         unsubWorkbench();
         unsubAuth();
+        window.removeEventListener('thefortz:open-game-import', openGameImport);
       };
     }, []);
 
@@ -633,7 +639,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     placeholder={
                       chatStarted
                         ? 'Ask for a change, a new level, or a fix…'
-                        : 'Describe your game: genre, world, controls, and art style…'
+                        : 'Tell Grok 4.7 what game you want to play…'
                     }
                     aria-label="Message the game agent"
                     translate="no"
@@ -711,7 +717,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         <div className="i-ph:gear-six text-xl text-sky-100/85 group-hover:text-white" />
                       </IconButton>
 
-                      <div className={styles.ModelBadge} title={`Configured model: ${model || 'gpt-6-luna'}`}>
+                      <div
+                        className={styles.ModelBadge}
+                        title={`Active model: ${model === 'gpt-6-luna' || model === 'fortz-ai' ? 'Grok 4.7' : model || 'Grok 4.7'}`}
+                      >
                         <span className="i-ph:cpu" aria-hidden="true" />
                         <span>
                           {model === 'gpt-6-luna' || model === 'fortz-ai'
@@ -794,6 +803,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
             handleSelectTemplate(prompt);
           }}
         />
+        <GameImportModal open={gameImportOpen} onClose={() => setGameImportOpen(false)} />
       </div>
     );
 

@@ -10,7 +10,7 @@ export const MODEL_REGEX = /^\[Model: (.*?)\]\n\n/;
 export const PROVIDER_REGEX = /\[Provider: (.*?)\]\n\n/;
 export const STUDIO_MODE_REGEX = /\[Studio Mode: (PLAN|BUILD|AUTO|CHAT)\]\n?/i;
 export const DEFAULT_MODEL = 'gpt-6-luna';
-export const DEFAULT_MODEL_LABEL = 'GPT 6 Luna';
+export const DEFAULT_MODEL_LABEL = 'Grok 4.7';
 export const PROMPT_COOKIE_KEY = 'cachedPrompt';
 
 export type StudioAgentMode = 'plan' | 'build' | 'auto' | 'chat';
@@ -87,13 +87,13 @@ const PROVIDER_LIST: ProviderInfo[] = [
     staticModels: [
       {
         name: 'fortz-ai',
-        label: 'Fortz AI (GPT 6 Luna)',
+        label: 'Fortz AI (Grok 4.7)',
         provider: 'OpenAILike',
         maxTokenAllowed: 32768,
       },
       {
         name: 'gpt-6-luna',
-        label: 'GPT 6 Luna',
+        label: 'Grok 4.7',
         provider: 'OpenAILike',
         maxTokenAllowed: 32768,
       },

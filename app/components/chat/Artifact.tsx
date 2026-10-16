@@ -155,10 +155,10 @@ const ActionList = memo(({ actions, messageId }: ActionListProps) => {
                   <div className="flex items-center gap-2 min-w-0 flex-1">
                     <div className="i-ph:play-circle-fill text-emerald-400 text-base shrink-0" />
                     <span className="font-sans font-medium text-slate-100 text-xs sm:text-[13px]">
-                      Start Application Preview
+                      Start Game
                     </span>
                     <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/35 shrink-0">
-                      Preview
+                      Game
                     </span>
                   </div>
                 ) : null}
@@ -196,7 +196,7 @@ const ActionList = memo(({ actions, messageId }: ActionListProps) => {
                       workbenchStore.showWorkbench.set(true);
                     }}
                     className="flex items-center gap-1 px-2.5 py-1 rounded text-xs font-sans font-medium text-slate-300 hover:text-emerald-300 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/50 transition-colors"
-                    title="Open Preview in Studio Workbench"
+                    title="Open Game in Studio Workbench"
                   >
                     <div className="i-ph:play-circle text-xs text-emerald-400" />
                     <span>View</span>
