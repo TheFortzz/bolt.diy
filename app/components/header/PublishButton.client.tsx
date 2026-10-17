@@ -251,7 +251,15 @@ export function PublishButton() {
           .filter((asset) => activeAssetPaths.has(asset.path))
           .map((asset) => [asset.path, asset.dataUrl]),
       );
-      if (workbenchStore.isImportedHtml5Game.get()) {
+      /*
+       * Collect the ACTUAL bytes for every binary file — regardless of how the
+       * game arrived. Restored checkpoints keep binary Dirent entries with an
+       * empty string content, so only the WebContainer filesystem (or an
+       * in-memory Uint8Array payload) can supply the real data. Without this a
+       * published game keeps its assets/hero.png reference with nothing behind
+       * it and the Play tab renders a black screen.
+       */
+      {
         const webcontainer = await getWebContainer();
         const mimeByExtension: Record<string, string> = {
           avif: 'image/avif', bin: 'application/octet-stream', fbx: 'application/octet-stream',
@@ -262,11 +270,25 @@ export function PublishButton() {
           webp: 'image/webp', woff: 'font/woff', woff2: 'font/woff2',
         };
         for (const [rawPath, rawEntry] of Object.entries(projectFiles as Record<string, unknown>)) {
-          const entry = rawEntry as { type?: string; isBinary?: boolean } | undefined;
+          const entry = rawEntry as { type?: string; isBinary?: boolean; content?: unknown } | undefined;
           if (entry?.type !== 'file' || !entry.isBinary) continue;
           const assetPath = rawPath.replace(/^(?:\/home\/project\/|\/project\/|home\/project\/|project\/|\/|\.\/)+/, '');
-          if (!assetPath || assetPayloads[assetPath]) continue;
+          if (!assetPath) continue;
+          // The Studio's own static-server scripts are engine plumbing, not game assets.
+          if (assetPath.split('/').some((part) => part.startsWith('.static_server'))) continue;
+          if (assetPayloads[assetPath]) continue;
+
+          if (entry.content instanceof Uint8Array) {
+            const bytes = entry.content as Uint8Array;
+            if (bytes.length > 0) {
+              const extension = assetPath.split('.').pop()?.toLowerCase() || '';
+              assetPayloads[assetPath] = bytesToDataUrl(bytes, mimeByExtension[extension] || 'application/octet-stream');
+            }
+            continue;
+          }
+
           const bytes = await webcontainer.fs.readFile(assetPath);
+          if (!bytes || bytes.length === 0) continue;
           const extension = assetPath.split('.').pop()?.toLowerCase() || '';
           assetPayloads[assetPath] = bytesToDataUrl(bytes, mimeByExtension[extension] || 'application/octet-stream');
         }
