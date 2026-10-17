@@ -609,8 +609,27 @@ listenOn(0);
 
       for (const [bindIndex, bind] of bindStrategies.entries()) {
         const attemptCode = serveCode.split('__FORTZ_BIND__').join(JSON.stringify(bind));
-        const attemptPath = `/.static_server_${bindIndex}.cjs`;
+        /*
+         * WebContainer fs paths resolve relative to the project directory, so
+         * an absolute-looking "/.static_server" path silently lands inside
+         * /home/project while `node /…` looks at the real filesystem root and
+         * fails with MODULE_NOT_FOUND. Write and spawn BOTH relative to the
+         * workdir so they always agree.
+         */
+        const attemptPath = `.static_server_${bindIndex}.cjs`;
         await wc.fs.writeFile(attemptPath, attemptCode);
+
+        let probe: Uint8Array | undefined;
+
+        try {
+          probe = await wc.fs.readFile(attemptPath);
+        } catch {
+          probe = undefined;
+        }
+
+        if (!probe?.length) {
+          throw new Error(`Static server script missing after write: ${attemptPath}`);
+        }
 
         const serverProcess = await wc.spawn('node', [attemptPath]);
         const attempt = { bind, process: serverProcess, port: undefined as number | undefined, dead: false };

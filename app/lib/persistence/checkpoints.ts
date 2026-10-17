@@ -23,7 +23,7 @@ export const latestCheckpoint = atom<CheckpointInfo | undefined>();
 export const checkpointBusy = atom<'idle' | 'saving' | 'restoring'>('idle');
 
 function includeFile(name: string): boolean {
-  return name !== '.env' && !name.startsWith('.env.') && name !== '.static_server.cjs';
+  return name !== '.env' && !name.startsWith('.env.') && !name.startsWith('.static_server');
 }
 
 async function resolveProjectBase(wc: WebContainer): Promise<string> {

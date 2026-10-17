@@ -226,9 +226,16 @@ export class ActionRunner {
         return;
       }
 
-      await wc.fs.writeFile('/.static_server.cjs', STATIC_SERVER_SCRIPT);
+      /*
+       * WebContainer fs paths resolve relative to the project directory while
+       * `node /…` treats the leading slash as the real filesystem root — the
+       * mismatch used to fail with MODULE_NOT_FOUND. Write and spawn BOTH
+       * relative to the workdir so they always agree.
+       */
+      const serverPath = '.static_server.cjs';
+      await wc.fs.writeFile(serverPath, STATIC_SERVER_SCRIPT);
 
-      const process = await wc.spawn('node', ['/.static_server.cjs']);
+      const process = await wc.spawn('node', [serverPath]);
       logger.info('Started .static_server.cjs for static project');
 
       void process.exit.then(
