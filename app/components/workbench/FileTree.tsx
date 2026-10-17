@@ -19,6 +19,7 @@ interface Props {
   hiddenFiles?: Array<string | RegExp>;
   unsavedFiles?: Set<string>;
   completedFiles?: Set<string>;
+  onFileAction?: (action: 'duplicate' | 'delete' | 'copy-path', filePath: string) => void;
   className?: string;
 }
 
@@ -35,6 +36,7 @@ export const FileTree = memo(
     className,
     unsavedFiles,
     completedFiles,
+    onFileAction,
   }: Props) => {
     renderLogger.trace('FileTree');
 
@@ -124,6 +126,7 @@ export const FileTree = memo(
                   file={fileOrFolder}
                   unsavedChanges={unsavedFiles?.has(fileOrFolder.fullPath)}
                   completed={completedFiles?.has(fileOrFolder.fullPath)}
+                  onFileAction={onFileAction}
                   onClick={() => {
                     onFileSelect?.(fileOrFolder.fullPath);
                   }}
@@ -188,31 +191,77 @@ interface FileProps {
   unsavedChanges?: boolean;
   completed?: boolean;
   onClick: () => void;
+  onFileAction?: (action: 'duplicate' | 'delete' | 'copy-path', filePath: string) => void;
 }
 
-function File({ file: { depth, name }, onClick, selected, unsavedChanges = false, completed = false }: FileProps) {
+function File({ file: { depth, name, fullPath }, onClick, onFileAction, selected, unsavedChanges = false, completed = false }: FileProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const runAction = (event: React.MouseEvent, action: 'duplicate' | 'delete' | 'copy-path') => {
+    event.preventDefault();
+    event.stopPropagation();
+    setMenuOpen(false);
+    onFileAction?.(action, fullPath);
+  };
+
   return (
-    <NodeButton
-      className={classNames('group', {
-        'bg-transparent hover:bg-bolt-elements-item-backgroundActive text-bolt-elements-item-contentDefault': !selected,
-        'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent': selected,
-      })}
-      depth={depth}
-      iconClasses={classNames('i-ph:file-duotone scale-98', {
-        'group-hover:text-bolt-elements-item-contentActive': !selected,
-      })}
-      onClick={onClick}
+    <div
+      className="group/file relative flex w-full items-center pr-1"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as unknown as globalThis.Node | null)) setMenuOpen(false);
+      }}
     >
-      <div
-        className={classNames('flex items-center', {
+      <NodeButton
+        className={classNames('group min-w-0 flex-1', {
+          'bg-transparent hover:bg-bolt-elements-item-backgroundActive text-bolt-elements-item-contentDefault': !selected,
+          'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent': selected,
+        })}
+        depth={depth}
+        iconClasses={classNames('i-ph:file-duotone scale-98', {
           'group-hover:text-bolt-elements-item-contentActive': !selected,
         })}
+        onClick={onClick}
       >
-        <div className="flex-1 truncate pr-2">{name}</div>
-        {unsavedChanges && <span className="i-ph:circle-fill scale-68 shrink-0 text-orange-500" />}
-        {completed && !unsavedChanges && <span className="i-ph:check-circle-fill shrink-0 text-emerald-400" title="AI edit complete" />}
-      </div>
-    </NodeButton>
+        <div
+          className={classNames('flex min-w-0 items-center', {
+            'group-hover:text-bolt-elements-item-contentActive': !selected,
+          })}
+        >
+          <div className="flex-1 truncate pr-2">{name}</div>
+          {unsavedChanges && <span className="i-ph:circle-fill scale-68 shrink-0 text-orange-500" />}
+          {completed && !unsavedChanges && <span className="i-ph:check-circle-fill shrink-0 text-emerald-400" title="AI edit complete" />}
+        </div>
+      </NodeButton>
+      {onFileAction && (
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            title={`Actions for ${name}`}
+            aria-label={`Actions for ${name}`}
+            aria-expanded={menuOpen}
+            onClick={(event) => {
+              event.stopPropagation();
+              setMenuOpen((open) => !open);
+            }}
+            className="grid h-6 w-6 place-items-center rounded text-slate-400 opacity-0 transition hover:bg-white/10 hover:text-white focus:opacity-100 group-hover/file:opacity-100"
+          >
+            <span className="i-ph:dots-three-outline-vertical text-base" />
+          </button>
+          {menuOpen && (
+            <div className="absolute right-0 top-full z-[100] mt-1 min-w-40 overflow-hidden rounded-lg border border-white/10 bg-[#111827] p-1 shadow-xl">
+              <button type="button" onClick={(event) => runAction(event, 'duplicate')} className="flex w-full items-center gap-2 rounded px-2.5 py-2 text-left text-xs text-slate-200 hover:bg-white/10">
+                <span className="i-ph:copy text-sm" /> Duplicate
+              </button>
+              <button type="button" onClick={(event) => runAction(event, 'copy-path')} className="flex w-full items-center gap-2 rounded px-2.5 py-2 text-left text-xs text-slate-200 hover:bg-white/10">
+                <span className="i-ph:link-simple text-sm" /> Copy path
+              </button>
+              <button type="button" onClick={(event) => runAction(event, 'delete')} className="flex w-full items-center gap-2 rounded px-2.5 py-2 text-left text-xs text-rose-300 hover:bg-rose-500/15">
+                <span className="i-ph:trash text-sm" /> Delete
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

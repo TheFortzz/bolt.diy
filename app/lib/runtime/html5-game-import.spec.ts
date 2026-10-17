@@ -59,36 +59,32 @@ describe('HTML5 game import validator', () => {
     expect(result.files.map((file) => file.path)).toEqual(['index.html', 'main.js']);
   });
 
-  it('rejects TypeScript files in the archive', async () => {
+  it('accepts an upload whenever it contains HTML, without pre-screening its other files', async () => {
     const archive = await zipFile({
-      'index.html': '<html><body><script src="src/main.ts"></script></body></html>',
+      'play.html': '<html><body><script src="src/main.ts"></script></body></html>',
       'src/main.ts': 'const game: string = "no";',
+      'native/game.cpp': 'int main() { return 0; }',
     });
 
-    await expect(prepareHtml5GameImport([archive])).rejects.toThrow(/not a browser-ready HTML5 game file|TypeScript/i);
-  });
-
-  it('rejects native C++ projects instead of claiming they will run in the browser', async () => {
-    const archive = await zipFile({
-      'index.html': '<html><body><canvas></canvas></body></html>',
-      'src/game.cpp': 'int main() { return 0; }',
-    });
-
-    await expect(prepareHtml5GameImport([archive])).rejects.toThrow(/not a browser-ready HTML5 game file/);
+    const result = await prepareHtml5GameImport([archive]);
+    expect(result.entryPoint).toBe('index.html');
+    expect(result.files.some((file) => file.path === 'index.html')).toBe(true);
   });
 
   it('rejects a missing entry document', async () => {
     const archive = await zipFile({ 'game.js': 'requestAnimationFrame(() => {});' });
 
-    await expect(prepareHtml5GameImport([archive])).rejects.toThrow(/No index.html/);
+    await expect(prepareHtml5GameImport([archive])).rejects.toThrow(/No \.html file/);
   });
 
-  it('rejects a missing local entry script before importing', async () => {
+  it('accepts an HTML page even when a referenced local script is missing', async () => {
     const archive = await zipFile({
-      'index.html': '<html><body><script src="game.js"></script></body></html>',
+      'game.html': '<html><body><script src="game.js"></script></body></html>',
     });
 
-    await expect(prepareHtml5GameImport([archive])).rejects.toThrow(/game.js.*missing/);
+    const result = await prepareHtml5GameImport([archive]);
+    expect(result.entryPoint).toBe('index.html');
+    expect(result.files).toHaveLength(1);
   });
 
   it('rejects unsafe paths and traversal entries', async () => {

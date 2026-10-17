@@ -260,16 +260,14 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
     const streaming = Boolean(isStreaming);
     const wasStreaming = wasStreamingRef.current;
 
-    // While the AI is actively streaming, always stay on the code tab so the
-    // user can watch the code being written — never yank them to preview.
+    // Keep Game visible during edits so the running iframe never disappears.
     if (streaming) {
-      // Reset Play pin when a new AI build starts so Code is the default again.
       if (!wasStreaming) {
-        setPinPlayView(false);
-        workbenchStore.preferPlayView.set(false);
+        setPinPlayView(true);
+        workbenchStore.preferPlayView.set(true);
       }
-      if (showWorkbench && !pinPlayView) {
-        setSelectedView('code');
+      if (showWorkbench && selectedView !== 'preview') {
+        setSelectedView('preview');
       }
     } else if (wasStreaming) {
       // Streaming just stopped — switch to preview exactly once.
@@ -284,7 +282,7 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
     }
 
     wasStreamingRef.current = streaming;
-  }, [isStreaming, showWorkbench, pinPlayView, setSelectedView]);
+  }, [isStreaming, showWorkbench, pinPlayView, selectedView, setSelectedView]);
 
   useEffect(() => {
     setMountedViews((previous) => (previous[selectedView] ? previous : { ...previous, [selectedView]: true }));

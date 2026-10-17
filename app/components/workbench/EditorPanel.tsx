@@ -338,6 +338,33 @@ export const EditorPanel = memo(
       }
     };
 
+    const handleFileAction = async (action: 'duplicate' | 'delete' | 'copy-path', filePath: string) => {
+      const relativePath = cleanWorkDirRelativePath(filePath);
+      if (action === 'copy-path') {
+        try {
+          await navigator.clipboard.writeText(relativePath);
+          toast.success('File path copied');
+        } catch {
+          toast.error('Could not copy the file path');
+        }
+        return;
+      }
+
+      if (action === 'delete' && !window.confirm(`Delete ${relativePath}? This cannot be undone.`)) return;
+      try {
+        if (action === 'duplicate') {
+          const duplicatePath = await workbenchStore.duplicateWorkspaceFile(filePath);
+          onFileSelect?.(duplicatePath);
+          toast.success(`Duplicated ${relativePath}`);
+        } else {
+          await workbenchStore.deleteWorkspaceFile(filePath);
+          toast.success(`Deleted ${relativePath}`);
+        }
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : `Could not ${action} this file`);
+      }
+    };
+
     return (
       <PanelGroup direction="horizontal" className="h-full">
         {/* Files: full height down the left of the workspace */}
@@ -392,6 +419,7 @@ export const EditorPanel = memo(
                 rootFolder={WORK_DIR}
                 selectedFile={selectedFile}
                 onFileSelect={onFileSelect}
+                onFileAction={(action, path) => void handleFileAction(action, path)}
               />
             </div>
           </div>

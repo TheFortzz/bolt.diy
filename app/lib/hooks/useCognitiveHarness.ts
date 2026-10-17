@@ -1321,6 +1321,8 @@ export function useCognitiveHarness(options: HarnessOptions) {
                     '*',
                   );
                 }
+                window.dispatchEvent(new Event('thefortz-build-finished'));
+                window.dispatchEvent(new Event('fortz-play-while-building'));
 
                 return;
               }

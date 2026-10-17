@@ -140,6 +140,42 @@ export class FilesStore {
     return absolutePath;
   }
 
+  async createBinaryFile(filePath: string, bytes: Uint8Array) {
+    const webcontainer = await this.#webcontainer;
+    const absolutePath = this.#toAbsolutePath(filePath);
+    const relativePath = nodePath.relative(webcontainer.workdir, absolutePath);
+    if (!relativePath || relativePath.startsWith('..')) throw new Error(`EINVAL: invalid file path, write '${filePath}'`);
+    const folder = nodePath.dirname(relativePath);
+    if (folder && folder !== '.') await webcontainer.fs.mkdir(folder, { recursive: true });
+    await webcontainer.fs.writeFile(relativePath, bytes);
+    if (this.files.get()[absolutePath]?.type !== 'file') this.#size++;
+    this.files.setKey(absolutePath, { type: 'file', content: '', isBinary: true });
+    return absolutePath;
+  }
+
+  async deleteFile(filePath: string) {
+    const webcontainer = await this.#webcontainer;
+    const absolutePath = this.#toAbsolutePath(filePath);
+    const relativePath = nodePath.relative(webcontainer.workdir, absolutePath);
+    const current = this.files.get();
+    if (current[absolutePath]?.type !== 'file') throw new Error(`File not found: ${filePath}`);
+    await webcontainer.fs.rm(relativePath);
+    this.#size = Math.max(0, this.#size - 1);
+    this.#modifiedFiles.delete(absolutePath);
+
+    const next = { ...current };
+    delete next[absolutePath];
+    let parent = nodePath.posix.dirname(absolutePath);
+    while (parent.startsWith(`${WORK_DIR}/`)) {
+      const hasChild = Object.keys(next).some((path) => path.startsWith(`${parent}/`));
+      if (hasChild) break;
+      delete next[parent];
+      parent = nodePath.posix.dirname(parent);
+    }
+    this.files.set(next);
+    return absolutePath;
+  }
+
   async createFolder(folderPath: string) {
     const webcontainer = await this.#webcontainer;
     const absolutePath = this.#toAbsolutePath(folderPath);

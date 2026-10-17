@@ -14,8 +14,6 @@ export interface Html5GameImport {
 
 const MAX_GAME_FILES = 250;
 const MAX_GAME_BYTES = 24 * 1024 * 1024;
-const MAX_INLINE_IMAGE_BYTES = 8 * 1024 * 1024;
-const BLOCKED_SOURCE = /\.(?:ts|tsx|mts|cts|jsx|cpp|cxx|cc|c|h|hpp|hh|java|py|pyc|cs|go|rs|rb|swift|kt|php)$/i;
 const MIME_BY_EXTENSION: Record<string, string> = {
   '.html': 'text/html',
   '.htm': 'text/html',
@@ -80,6 +78,9 @@ function detectMimeType(path: string, declaredType = ''): string {
 
 function stripOneCommonRoot(files: Html5GameFile[]): Html5GameFile[] {
   if (files.some((file) => file.path.toLowerCase() === 'index.html')) {
+    return files;
+  }
+  if (!files.length || files.some((file) => !file.path.includes('/'))) {
     return files;
   }
 
@@ -156,7 +157,7 @@ async function readSelectedFiles(input: File[]): Promise<Html5GameFile[]> {
 
     try {
       archive = await JSZip.loadAsync(await zipFiles[0].arrayBuffer(), {
-        checkCRC32: true,
+        checkCRC32: false,
         createFolders: false,
       });
     } catch {
@@ -171,19 +172,11 @@ async function readSelectedFiles(input: File[]): Promise<Html5GameFile[]> {
 
     const result: Html5GameFile[] = [];
     let totalBytes = 0;
-    let imageBytes = 0;
-
     for (const entry of entries) {
       const path = safeRelativePath(entry.name);
 
       if (path.startsWith('__MACOSX/') || path.endsWith('/.DS_Store') || path === '.DS_Store') {
         continue;
-      }
-
-      if (BLOCKED_SOURCE.test(path)) {
-        throw new Error(
-          `${path} is not a browser-ready HTML5 game file. Import built HTML, JavaScript, CSS, and game assets—not TypeScript or native C/C++ source.`,
-        );
       }
 
       const estimatedBytes = Number((entry as any)._data?.uncompressedSize || 0);
@@ -194,14 +187,8 @@ async function readSelectedFiles(input: File[]): Promise<Html5GameFile[]> {
 
       const bytes = new Uint8Array(await entry.async('uint8array'));
       totalBytes += bytes.byteLength;
-      if (detectMimeType(path).startsWith('image/')) imageBytes += bytes.byteLength;
-
       if (totalBytes > MAX_GAME_BYTES) {
         throw new Error('The uncompressed game is too large. Keep the complete game under 24 MB.');
-      }
-
-      if (imageBytes > MAX_INLINE_IMAGE_BYTES) {
-        throw new Error('Game images exceed the safe preview limit. Keep total image files under 8 MB.');
       }
 
       result.push({ path, bytes, mimeType: detectMimeType(path) });
@@ -216,28 +203,15 @@ async function readSelectedFiles(input: File[]): Promise<Html5GameFile[]> {
 
   const result: Html5GameFile[] = [];
   let totalBytes = 0;
-  let imageBytes = 0;
-
   for (const file of input) {
     const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
     const path = safeRelativePath(relativePath || file.name);
 
-    if (BLOCKED_SOURCE.test(path)) {
-      throw new Error(
-        `${path} is not a browser-ready HTML5 game file. Import built HTML, JavaScript, CSS, and game assets—not TypeScript or native C/C++ source.`,
-      );
-    }
-
     const bytes = new Uint8Array(await file.arrayBuffer());
     totalBytes += bytes.byteLength;
-    if (detectMimeType(path, file.type).startsWith('image/')) imageBytes += bytes.byteLength;
 
     if (totalBytes > MAX_GAME_BYTES) {
       throw new Error('The game is too large. Keep all selected files under 24 MB.');
-    }
-
-    if (imageBytes > MAX_INLINE_IMAGE_BYTES) {
-      throw new Error('Game images exceed the safe preview limit. Keep total image files under 8 MB.');
     }
 
     result.push({ path, bytes, mimeType: detectMimeType(path, file.type) });
@@ -246,33 +220,7 @@ async function readSelectedFiles(input: File[]): Promise<Html5GameFile[]> {
   return result;
 }
 
-function decodeHtml(bytes: Uint8Array, path: string): string {
-  try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-  } catch {
-    throw new Error(`${path} is not valid UTF-8 HTML.`);
-  }
-}
-
-function referencedLocalScripts(html: string): string[] {
-  const references: string[] = [];
-  const matcher = /<script\b[^>]*\bsrc\s*=\s*(["'])(.*?)\1[^>]*>/gi;
-  let match: RegExpExecArray | null;
-
-  while ((match = matcher.exec(html))) {
-    const reference = match[2].trim();
-
-    if (!reference || /^(?:[a-z]+:|\/\/|#|data:|blob:)/i.test(reference)) {
-      continue;
-    }
-
-    references.push(decodeURIComponent(reference.split(/[?#]/, 1)[0]).replace(/^\.\//, ''));
-  }
-
-  return references;
-}
-
-/** Read ZIP/files, reject non-web source, and require a runnable HTML5 entry. */
+/** Accept a safe ZIP/files selection whenever it contains at least one HTML page. */
 export async function prepareHtml5GameImport(input: File[]): Promise<Html5GameImport> {
   if (!input.length) {
     throw new Error('Choose a ZIP or the files from an HTML5 game.');
@@ -288,39 +236,10 @@ export async function prepareHtml5GameImport(input: File[]): Promise<Html5GameIm
     throw new Error(`The game has too many files. Keep it under ${MAX_GAME_FILES} files.`);
   }
 
-  const paths = new Map(files.map((file) => [file.path.toLowerCase(), file]));
   const entry = files.find((file) => file.path.toLowerCase() === 'index.html');
 
   if (!entry) {
-    throw new Error('No index.html was found. Upload a built HTML5 game with an index.html entry point.');
-  }
-
-  const html = decodeHtml(entry.bytes, entry.path);
-
-  if (!/<html\b/i.test(html) && !/<canvas\b/i.test(html)) {
-    throw new Error(`${entry.path} does not look like an HTML5 game page.`);
-  }
-
-  if (!/<script\b/i.test(html) && !/<canvas\b/i.test(html)) {
-    throw new Error(`${entry.path} has no game script or canvas to run.`);
-  }
-
-  if (/<script\b[^>]*\btype\s*=\s*(["'])(?:text|application)\/(?:typescript|tsx)\1/i.test(html)) {
-    throw new Error(`${entry.path} uses a TypeScript browser script. Upload a built HTML5 export with JavaScript files.`);
-  }
-
-  const localScripts = referencedLocalScripts(html);
-
-  for (const reference of localScripts) {
-    if (/\.(?:ts|tsx|mts|cts)$/i.test(reference)) {
-      throw new Error(`${reference} is TypeScript. Upload a built HTML5 export with browser-ready JavaScript.`);
-    }
-
-    const normalized = safeRelativePath(reference);
-
-    if (/\.(?:js|mjs|cjs)$/i.test(normalized) && !paths.has(normalized.toLowerCase())) {
-      throw new Error(`${entry.path} references ${normalized}, but that file is missing from the upload.`);
-    }
+    throw new Error('No .html file was found in this upload.');
   }
 
   files = files.sort((left, right) => left.path.localeCompare(right.path));

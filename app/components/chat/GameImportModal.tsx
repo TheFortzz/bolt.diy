@@ -14,7 +14,6 @@ interface GameImportModalProps {
 export function GameImportModal({ open, onClose }: GameImportModalProps) {
   const zipInput = useRef<HTMLInputElement>(null);
   const filesInput = useRef<HTMLInputElement>(null);
-  const folderInput = useRef<HTMLInputElement>(null);
   const [selection, setSelection] = useState<Html5GameImport>();
   const [validationError, setValidationError] = useState('');
   const [validating, setValidating] = useState(false);
@@ -47,7 +46,6 @@ export function GameImportModal({ open, onClose }: GameImportModalProps) {
       setValidating(false);
       if (zipInput.current) zipInput.current.value = '';
       if (filesInput.current) filesInput.current.value = '';
-      if (folderInput.current) folderInput.current.value = '';
     }
   };
 
@@ -58,6 +56,17 @@ export function GameImportModal({ open, onClose }: GameImportModalProps) {
 
     try {
       await workbenchStore.importHtml5Game(selection.files);
+      await new Promise<void>((resolve) => {
+        let finished = false;
+        const finish = () => {
+          if (finished) return;
+          finished = true;
+          window.clearTimeout(timeout);
+          resolve();
+        };
+        const timeout = window.setTimeout(finish, 10_000);
+        window.dispatchEvent(new CustomEvent('thefortz-html5-game-imported', { detail: { onCheckpointed: finish } }));
+      });
       validationState.set({ status: 'idle', detail: 'Uploaded game is running in the Game preview.' });
       toast.success('HTML5 game imported and opened in Game preview.');
       setSelection(undefined);
@@ -87,16 +96,19 @@ export function GameImportModal({ open, onClose }: GameImportModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="game-import-title"
-        className="w-full max-w-xl overflow-hidden border border-cyan-200/20 bg-[linear-gradient(145deg,#121a32_0%,#101020_58%,#1c1030_100%)] text-white shadow-[0_28px_100px_rgba(0,0,0,.6)]"
+        className="w-full max-w-2xl overflow-hidden rounded-2xl border border-cyan-200/25 bg-[linear-gradient(145deg,#111b36_0%,#111226_54%,#24123c_100%)] text-white shadow-[0_32px_110px_rgba(0,0,0,.72),0_0_45px_rgba(34,211,238,.08)]"
       >
-        <div className="flex items-start gap-4 border-b border-white/10 px-5 py-5 sm:px-7">
-          <img src="/thefortzicon.png" alt="" className="mt-0.5 h-10 w-10 object-contain" />
+        <div className="flex items-start gap-4 border-b border-white/10 bg-white/[0.025] px-5 py-5 sm:px-7">
+          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-cyan-200/25 bg-cyan-300/10 shadow-[0_0_24px_rgba(34,211,238,.12)]">
+            <img src="/thefortzicon.png" alt="" className="h-9 w-9 object-contain" />
+          </div>
           <div className="min-w-0 flex-1">
-            <h2 id="game-import-title" className="text-lg font-black tracking-wide text-white">
+            <div className="mb-1 text-[10px] font-black uppercase tracking-[.22em] text-cyan-200/70">HTML5 · Ready to play</div>
+            <h2 id="game-import-title" className="text-xl font-black tracking-wide text-white">
               Import an HTML5 game
             </h2>
             <p className="mt-1 text-sm leading-5 text-slate-300">
-              Choose a ZIP or the built game files. We’ll check that it can run in a browser before importing it.
+              Choose a ZIP or game files. Any <code className="rounded bg-white/10 px-1 text-cyan-100">.html</code> page works—we’ll make it <code className="rounded bg-white/10 px-1 text-cyan-100">index.html</code> for the Game iframe.
             </p>
           </div>
           <button
@@ -116,33 +128,23 @@ export function GameImportModal({ open, onClose }: GameImportModalProps) {
               type="button"
               onClick={() => zipInput.current?.click()}
               disabled={validating || importing}
-              className="group flex min-h-28 flex-col items-center justify-center gap-2 border border-white/10 bg-white/[0.035] px-4 text-sm font-semibold text-slate-100 transition hover:border-cyan-300/50 hover:bg-cyan-300/[0.07] disabled:opacity-50"
+              className="group flex min-h-32 flex-col items-center justify-center gap-2 rounded-xl border border-cyan-200/20 bg-gradient-to-br from-cyan-300/[0.08] to-white/[0.02] px-4 text-sm font-bold text-slate-100 transition hover:border-cyan-200/55 hover:from-cyan-300/[0.14] hover:shadow-[0_0_25px_rgba(34,211,238,.1)] disabled:opacity-50"
             >
               <span className="i-ph:file-zip text-2xl text-cyan-200" />
               <span>Choose a ZIP</span>
-              <span className="text-xs font-normal text-slate-400">One archive, up to 24 MB unpacked</span>
+              <span className="text-xs font-normal text-slate-400">Finds the first HTML page inside</span>
             </button>
             <button
               type="button"
               onClick={() => filesInput.current?.click()}
               disabled={validating || importing}
-              className="group flex min-h-28 flex-col items-center justify-center gap-2 border border-white/10 bg-white/[0.035] px-4 text-sm font-semibold text-slate-100 transition hover:border-violet-300/50 hover:bg-violet-300/[0.07] disabled:opacity-50"
+              className="group flex min-h-32 flex-col items-center justify-center gap-2 rounded-xl border border-violet-200/20 bg-gradient-to-br from-violet-300/[0.08] to-white/[0.02] px-4 text-sm font-bold text-slate-100 transition hover:border-violet-200/55 hover:from-violet-300/[0.14] hover:shadow-[0_0_25px_rgba(167,139,250,.12)] disabled:opacity-50"
             >
               <span className="i-ph:files text-2xl text-violet-200" />
               <span>Choose game files</span>
-              <span className="text-xs font-normal text-slate-400">Select index.html and its files</span>
+              <span className="text-xs font-normal text-slate-400">Select any .html page and its assets</span>
             </button>
           </div>
-
-          <button
-            type="button"
-            onClick={() => folderInput.current?.click()}
-            disabled={validating || importing}
-            className="flex w-full items-center justify-center gap-2 border border-white/10 px-3 py-2.5 text-sm text-slate-300 transition hover:border-white/25 hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
-          >
-            <span className="i-ph:folder-open text-lg text-amber-200" />
-            Select a game folder instead
-          </button>
 
           <input
             ref={zipInput}
@@ -155,20 +157,9 @@ export function GameImportModal({ open, onClose }: GameImportModalProps) {
             ref={filesInput}
             type="file"
             multiple
-            accept=".html,.htm,.js,.mjs,.cjs,.css,.json,.png,.jpg,.jpeg,.webp,.gif,.svg,.avif,.ico,.mp3,.wav,.ogg,.m4a,.mp4,.webm,.wasm,.gltf,.glb,.bin,.woff,.woff2,.ttf,.otf"
             className="hidden"
             onChange={(event) => void handleSelection(Array.from(event.target.files || []))}
           />
-          <input
-            ref={folderInput}
-            type="file"
-            multiple
-            accept=".html,.htm,.js,.mjs,.cjs,.css,.json,.png,.jpg,.jpeg,.webp,.gif,.svg,.avif,.ico,.mp3,.wav,.ogg,.m4a,.mp4,.webm,.wasm,.gltf,.glb,.bin,.woff,.woff2,.ttf,.otf"
-            className="hidden"
-            onChange={(event) => void handleSelection(Array.from(event.target.files || []))}
-            {...({ webkitdirectory: '', directory: '' } as any)}
-          />
-
           {validating && (
             <div
               className="flex items-center gap-2 border border-cyan-300/20 bg-cyan-300/[0.05] px-3 py-3 text-sm text-cyan-100"
@@ -209,8 +200,7 @@ export function GameImportModal({ open, onClose }: GameImportModalProps) {
           )}
 
           <div className="border-t border-white/10 pt-3 text-[11px] leading-5 text-slate-400">
-            Supports built HTML, JavaScript, CSS and game assets. TypeScript and native C/C++ projects must be compiled
-            to browser-ready HTML5 first.
+            The archive or selection must contain at least one .html file. We keep its neighboring game files and run them in the Game iframe.
           </div>
         </div>
 
@@ -234,7 +224,7 @@ export function GameImportModal({ open, onClose }: GameImportModalProps) {
             ) : (
               <span className="i-ph:arrow-right-bold" />
             )}
-            {importing ? 'Importing…' : 'Continue'}
+            {importing ? 'Opening Game…' : 'Import & run game'}
           </button>
         </div>
       </section>

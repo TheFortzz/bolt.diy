@@ -37,6 +37,15 @@ export type ArtifactUpdateState = Pick<ArtifactState, 'title' | 'closed'>;
 type Artifacts = MapStore<Record<string, ArtifactState>>;
 
 export type WorkbenchViewType = 'code' | 'preview';
+const IMPORTED_HTML5_MODE_KEY = 'fortz_imported_html5_game';
+
+function readImportedHtml5Mode() {
+  try {
+    return typeof localStorage !== 'undefined' && localStorage.getItem(IMPORTED_HTML5_MODE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 function resolveWorkDirPath(filePath: string) {
   const relativePath = cleanWorkDirRelativePath(filePath);
@@ -74,7 +83,7 @@ export class WorkbenchStore {
 
   showWorkbench: WritableAtom<boolean> = import.meta.hot?.data.showWorkbench ?? atom(false);
   currentView: WritableAtom<WorkbenchViewType> = import.meta.hot?.data.currentView ?? atom('preview');
-  isImportedHtml5Game: WritableAtom<boolean> = import.meta.hot?.data.isImportedHtml5Game ?? atom(false);
+  isImportedHtml5Game: WritableAtom<boolean> = import.meta.hot?.data.isImportedHtml5Game ?? atom(readImportedHtml5Mode());
 
   /** File currently receiving streamed content, if any. */
   streamingFile: WritableAtom<string | undefined> = import.meta.hot?.data.streamingFile ?? atom(undefined);
@@ -258,6 +267,56 @@ export class WorkbenchStore {
     }
 
     return created;
+  }
+
+  async duplicateWorkspaceFile(filePath: string): Promise<string> {
+    const relativePath = cleanWorkDirRelativePath(filePath);
+    const absolutePath = nodePath.posix.join(WORK_DIR, relativePath);
+    const source = this.files.get()[absolutePath];
+    if (!relativePath || source?.type !== 'file') throw new Error('Select a file to duplicate.');
+
+    const directory = nodePath.posix.dirname(relativePath);
+    const filename = nodePath.posix.basename(relativePath);
+    const extension = nodePath.posix.extname(filename);
+    const stem = extension ? filename.slice(0, -extension.length) : filename;
+    const existing = new Set(Object.keys(this.files.get()));
+    let suffix = 1;
+    let targetRelative = '';
+    do {
+      const copyName = suffix === 1 ? `${stem} copy${extension}` : `${stem} copy ${suffix}${extension}`;
+      targetRelative = directory === '.' ? copyName : nodePath.posix.join(directory, copyName);
+      suffix++;
+    } while (existing.has(nodePath.posix.join(WORK_DIR, targetRelative)));
+
+    const container = await getWebContainer();
+    if (source.isBinary) {
+      const bytes = await container.fs.readFile(relativePath);
+      await this.#filesStore.createBinaryFile(targetRelative, bytes);
+    } else {
+      const content = await container.fs.readFile(relativePath, 'utf-8');
+      await this.#filesStore.createFile(targetRelative, content);
+    }
+
+    this.setDocuments(this.files.get());
+    const duplicatedPath = nodePath.posix.join(WORK_DIR, targetRelative);
+    this.setSelectedFile(duplicatedPath);
+    this.currentView.set('code');
+    this.preferPlayView.set(false);
+    return duplicatedPath;
+  }
+
+  async deleteWorkspaceFile(filePath: string): Promise<void> {
+    const deletedPath = await this.#filesStore.deleteFile(filePath);
+    this.unsavedFiles.set(new Set([...this.unsavedFiles.get()].filter((path) => path !== deletedPath)));
+    this.completedFiles.set(new Set([...this.completedFiles.get()].filter((path) => path !== deletedPath)));
+    this.setDocuments(this.files.get());
+    if (this.selectedFile.get() === deletedPath) {
+      const nextFile = Object.entries(this.files.get()).find(([, entry]) => entry?.type === 'file')?.[0];
+      this.setSelectedFile(nextFile);
+    }
+    this.currentView.set('code');
+    this.preferPlayView.set(false);
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('thefortz-build-finished'));
   }
 
   async saveFile(filePath: string) {
@@ -538,6 +597,9 @@ http.createServer((req, res) => {
     this.#editorStore.selectedFile.set(undefined);
     this.#filesStore.files.set({});
     this.isImportedHtml5Game.set(false);
+    try {
+      localStorage.removeItem(IMPORTED_HTML5_MODE_KEY);
+    } catch {}
     generatedAssets.set({});
     this.unsavedFiles.set(new Set());
     this.completedFiles.set(new Set());
@@ -595,6 +657,9 @@ http.createServer((req, res) => {
     this.setDocuments(this.files.get());
     generatedAssets.set({});
     this.isImportedHtml5Game.set(true);
+    try {
+      localStorage.setItem(IMPORTED_HTML5_MODE_KEY, '1');
+    } catch {}
     this.currentView.set('preview');
     this.preferPlayView.set(true);
     this.showWorkbench.set(true);

@@ -720,6 +720,31 @@ export const ChatImpl = memo(
       onAgentProgress: () => scrollToBottomRef.current?.(false),
     });
 
+    useEffect(() => {
+      const handleImportedGame = (event: Event) => {
+        const onCheckpointed = (event as CustomEvent<{ onCheckpointed?: () => void }>).detail?.onCheckpointed;
+        const importedMessage: Message = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: 'Uploaded HTML5 game opened in the Game iframe.',
+        };
+        const nextMessages = [...latestMessagesRef.current, importedMessage];
+        latestMessagesRef.current = nextMessages;
+        setMessages(nextMessages);
+        void persistMessages(nextMessages, true).then(async () => {
+          await workbenchStore.saveAllFiles();
+          const database = await dbPromise;
+          const projectId = currentChatId || workbenchStore.firstArtifact?.id || 'default_project';
+          await saveCheckpoint(database, await getWebContainer(), projectId, importedMessage.id);
+        }).catch((error) => console.warn('Could not checkpoint the imported game:', error)).finally(() => {
+          onCheckpointed?.();
+        });
+      };
+
+      window.addEventListener('thefortz-html5-game-imported', handleImportedGame);
+      return () => window.removeEventListener('thefortz-html5-game-imported', handleImportedGame);
+    }, [currentChatId, persistMessages, setMessages]);
+
     const runtimeRepairCountRef = useRef(0);
     const runtimeRepairInFlightRef = useRef(false);
     const runtimeRepairTimerRef = useRef<number | undefined>(undefined);
