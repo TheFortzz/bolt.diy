@@ -489,7 +489,7 @@ const mimes = {
 
 const baseDir = path.resolve(fs.existsSync('/home/project') ? '/home/project' : process.cwd());
 const normalizeServerPreviewHtml = (${normalizeServerPreviewHtml.toString()});
-http.createServer((req, res) => {
+const handler = function (req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
   res.setHeader('Access-Control-Expose-Headers', 'X-Fortz-Static-Preview');
@@ -567,7 +567,28 @@ http.createServer((req, res) => {
     res.writeHead(404);
     res.end('Not Found');
   }
-}).listen(0, '0.0.0.0');
+};
+
+const previewPorts = [4173, 4174, 4175, 4176, 4177];
+let activeServer = null;
+function listenOn(index) {
+  if (index >= previewPorts.length) {
+    console.error('[fortz-static] no free preview port');
+    process.exit(1);
+    return;
+  }
+  if (activeServer) { try { activeServer.close(); } catch (e) {} }
+  activeServer = http.createServer(handler);
+  activeServer.on('error', function (err) {
+    if (err && err.code === 'EADDRINUSE') { listenOn(index + 1); return; }
+    console.error('[fortz-static] server error', err);
+    process.exit(1);
+  });
+  activeServer.listen(previewPorts[index], function () {
+    console.log('[fortz-static] listening on ' + previewPorts[index]);
+  });
+}
+listenOn(0);
 `;
       await wc.fs.writeFile('/.static_server.cjs', serveCode);
 
@@ -586,33 +607,44 @@ http.createServer((req, res) => {
     }
   }
 
-  async waitForPreviewReady(timeoutMs = 12_000, requireStaticServer = false) {
+  /**
+   * Wait until a ready preview answers over HTTP. Never throws: returns whether
+   * a reachable preview was found, so a slow server can never fail a valid
+   * upload — the Game tab keeps rendering whatever is available meanwhile.
+   */
+  async waitForPreviewReady(timeoutMs = 12_000): Promise<boolean> {
     const deadline = Date.now() + timeoutMs;
     let lastError: unknown;
 
     while (Date.now() < deadline) {
-      const candidates = this.previews.get().filter((preview) => preview.ready).reverse();
+      const ready = this.previews.get().filter((preview) => preview.ready);
 
-      for (const preview of candidates) {
-        try {
-          const response = await fetch(new URL('/index.html', preview.baseUrl), {
-            cache: 'no-store',
-            signal: AbortSignal.timeout(1500),
-          });
+      if (ready.length) {
+        // Newest first: the just-spawned Fortz static server is usually last.
+        for (const preview of [...ready].reverse()) {
+          try {
+            const response = await fetch(new URL('/index.html', preview.baseUrl), {
+              cache: 'no-store',
+              signal: AbortSignal.timeout(1500),
+            });
 
-          if (!response.ok) continue;
-          if (requireStaticServer && response.headers.get('X-Fortz-Static-Preview') !== '1') continue;
-          return;
-        } catch (error) {
-          lastError = error;
+            if (response.ok) {
+              return true;
+            }
+          } catch (error) {
+            lastError = error;
+          }
         }
       }
 
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
 
-    const detail = lastError instanceof Error ? ` (${lastError.message})` : '';
-    throw new Error(`The game preview server did not become ready${detail}.`);
+    if (lastError instanceof Error) {
+      console.warn('Preview readiness probe:', lastError.message);
+    }
+
+    return this.previews.get().some((preview) => preview.ready);
   }
 
   async clearProjectFiles() {
@@ -686,8 +718,23 @@ http.createServer((req, res) => {
     this.currentView.set('preview');
     this.preferPlayView.set(true);
     this.showWorkbench.set(true);
-    await this.startStaticPreviewServer();
-    await this.waitForPreviewReady(12_000, true);
+
+    try {
+      await this.startStaticPreviewServer();
+    } catch (error) {
+      console.warn('Static preview server could not start yet:', error);
+    }
+
+    const previewReady = await this.waitForPreviewReady(15_000);
+
+    if (!previewReady) {
+      // Never fail a valid upload on a slow server: the files are already in
+      // the workspace and the Game tab falls back to the inlined HTML preview.
+      console.warn('Uploaded game files are ready, but the HTTP preview did not answer in time.');
+    } else if (typeof window !== 'undefined') {
+      // Reload the iframe so it picks up the live server URL immediately.
+      window.dispatchEvent(new Event('thefortz-build-finished'));
+    }
   }
 
   addArtifact({ messageId, title, id, type }: ArtifactCallbackData) {

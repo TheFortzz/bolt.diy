@@ -214,6 +214,13 @@ const ERROR_FIXING_AND_ITERATION_RULES = `
      - Never stop mid-function. Never use "// rest of code", "// ... existing code ...", or any similar shorthand.
      - If a file is large, emit the ENTIRE file in full — never cut it off at any point.
      - A truncated file silently breaks the game and is NEVER acceptable.
+  8. NEVER DELETE OR REPLACE THE EXISTING GAME — ESPECIALLY AN UPLOADED ONE:
+     - The workspace may already hold a user-uploaded HTML5 game (single HTML file or a multi-file ZIP export: entry page plus its scripts, styles, images, audio, WASM). Its files may be renamed to index.html, but every other file keeps its original name and relative path so the entry page's script/asset links keep working.
+     - BEFORE changing anything, read and understand the existing files. The current project — not a fresh concept — is the source of truth.
+     - When the user asks to improve, fix, or add features to the current game: emit ONLY the file(s) that need the change. Keep every other existing file and every asset exactly as it is.
+     - NEVER clear the workspace, NEVER emit shell commands that delete files (rm, rm -rf, mv over existing files), NEVER replace the entry page with a different game, and NEVER rebuild the project from scratch.
+     - NEVER regenerate an uploaded game as an AI-made imitation. Preserve its architecture, file names, asset paths, and behavior; change only what the user asked for.
+     - ONLY an explicit user request such as "make a new game", "start over", or "replace this game" allows replacing the current project. A request to "improve", "fix", "add", "change", or "polish" always means edit in place.
 </error_fixing_and_iteration_rules>
 `;
 

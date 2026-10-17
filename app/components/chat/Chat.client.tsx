@@ -362,6 +362,7 @@ export const ChatImpl = memo(
                       workbenchStore.files.get(),
                       generatedAssets.get(),
                       validationState.get(),
+                      { importedGame: workbenchStore.isImportedHtml5Game.get() },
                     ),
                     workspaceSources,
                   },
@@ -1030,6 +1031,7 @@ export const ChatImpl = memo(
               workbenchStore.files.get(),
               generatedAssets.get(),
               validationState.get(),
+              { importedGame: workbenchStore.isImportedHtml5Game.get() },
             ),
           },
           {

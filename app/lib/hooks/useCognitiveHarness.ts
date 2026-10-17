@@ -882,6 +882,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                     workbenchStore.files.get(),
                     generatedAssets.get(),
                     validationState.get(),
+                    { importedGame: workbenchStore.isImportedHtml5Game.get() },
                   ),
                 },
                 {
@@ -1432,6 +1433,7 @@ export function useCognitiveHarness(options: HarnessOptions) {
                 workbenchStore.files.get(),
                 generatedAssets.get(),
                 validationState.get(),
+                { importedGame: workbenchStore.isImportedHtml5Game.get() },
               ),
               workspaceSources: sourceContext(snapshot, 300000, 200000, [
                 ...blueprint.fileOperations.map((file) => file.path),

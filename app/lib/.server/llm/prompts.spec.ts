@@ -42,4 +42,14 @@ describe('FortzAI system prompt', () => {
     expect(prompt).toContain('Buttons are real');
     expect(prompt).toContain('no phantom helpers');
   });
+
+  it('forbids deleting or rebuilding an existing uploaded game on follow-ups', () => {
+    for (const model of ['fortz-ai', undefined]) {
+      const prompt = getSystemPrompt('/home/project', model);
+
+      expect(prompt).toContain('NEVER DELETE OR REPLACE THE EXISTING GAME');
+      expect(prompt).toContain('read and understand the existing files');
+      expect(prompt).toContain('ONLY an explicit user request such as "make a new game"');
+    }
+  });
 });

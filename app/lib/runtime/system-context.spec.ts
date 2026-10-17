@@ -49,4 +49,18 @@ describe('SYSTEM_CONTEXT projection', () => {
     expect(context.length).toBeLessThanOrEqual(MAX_SYSTEM_CONTEXT_LENGTH);
     expect(context).toContain('omitted for token budget');
   });
+
+  it('marks an uploaded game as preserved ground truth for the editor', () => {
+    const files = {
+      'index.html': { type: 'file' as const, isBinary: false, content: '<script src="game.js"></script>' },
+      'game.js': { type: 'file' as const, isBinary: false, content: 'window.Game = {};' },
+    };
+
+    const uploaded = compileSystemContext(files, {}, { status: 'passed', detail: '' }, { importedGame: true });
+    expect(uploaded).toContain('UPLOADED GAME (PRESERVE IT)');
+    expect(uploaded).toContain('NEVER delete, clear, replace wholesale, or rebuild');
+
+    const generated = compileSystemContext(files, {}, { status: 'passed', detail: '' });
+    expect(generated).not.toContain('UPLOADED GAME');
+  });
 });

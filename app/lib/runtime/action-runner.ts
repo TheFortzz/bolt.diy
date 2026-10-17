@@ -63,9 +63,11 @@ const mimes = {
 
 const baseDir = path.resolve(fs.existsSync('/home/project') ? '/home/project' : process.cwd());
 
-http.createServer((req, res) => {
+const handler = function (req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  res.setHeader('Access-Control-Expose-Headers', 'X-Fortz-Static-Preview');
+  res.setHeader('X-Fortz-Static-Preview', '1');
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
@@ -104,7 +106,28 @@ http.createServer((req, res) => {
     res.writeHead(404);
     res.end('Not Found');
   }
-}).listen(0, '0.0.0.0');
+};
+
+const previewPorts = [4280, 4281, 4282, 4283, 4284];
+let activeServer = null;
+function listenOn(index) {
+  if (index >= previewPorts.length) {
+    console.error('[fortz-static] no free preview port');
+    process.exit(1);
+    return;
+  }
+  if (activeServer) { try { activeServer.close(); } catch (e) {} }
+  activeServer = http.createServer(handler);
+  activeServer.on('error', function (err) {
+    if (err && err.code === 'EADDRINUSE') { listenOn(index + 1); return; }
+    console.error('[fortz-static] server error', err);
+    process.exit(1);
+  });
+  activeServer.listen(previewPorts[index], function () {
+    console.log('[fortz-static] listening on ' + previewPorts[index]);
+  });
+}
+listenOn(0);
 `;
 
 export type ActionStateUpdate =

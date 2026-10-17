@@ -14,6 +14,7 @@ export function compileSystemContext(
   files: FileMap,
   assets: Record<string, GeneratedAsset>,
   validation: ValidationState,
+  options?: { importedGame?: boolean },
 ) {
   const entries = Object.entries(files)
     .map(([path, file]) => [cleanWorkDirRelativePath(path), file] as const)
@@ -57,6 +58,16 @@ export function compileSystemContext(
     `- File count: ${fileEntries.length}`,
     `- Validation state: ${validation.status}`,
     '',
+    ...(options?.importedGame
+      ? [
+          '## Workspace Origin — UPLOADED GAME (PRESERVE IT)',
+          '- The user UPLOADED this HTML5 game (single page or multi-file export). Its files and assets are the source of truth.',
+          '- Edit in place: read the existing files first and change only what the user asked for. Keep every other file and asset untouched.',
+          '- NEVER delete, clear, replace wholesale, or rebuild this game from scratch. NEVER regenerate it as an AI-made imitation.',
+          '- Only an explicit user request for a new game / start over allows replacing the project.',
+          '',
+        ]
+      : []),
     '## Active File Tree',
     ...entries
       .slice(0, MAX_FILES)
