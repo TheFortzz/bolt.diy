@@ -16,6 +16,7 @@ import { buildFallbackHtml } from '~/lib/runtime/static-preview';
 import { getWebContainer } from '~/lib/webcontainer';
 
 type ResizeSide = 'left' | 'right' | null;
+const EMPTY_GAME_DOCUMENT = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{width:100%;height:100%;margin:0;background:#0b1020}</style></head><body></body></html>`;
 
 export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -308,7 +309,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
    * occupying port 5173 while the model's start action is still pending.
    */
   useEffect(() => {
-    if (isStreaming || activePreview) {
+    if (isStreaming || (activePreview && !isImportedHtml5Game)) {
       return;
     }
 
@@ -344,7 +345,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     return () => {
       cancelled = true;
     };
-  }, [isStreaming, activePreview, files]);
+  }, [isStreaming, activePreview, isImportedHtml5Game, files]);
 
   // Forward keyboard events to iframe so user can play immediately without hunting for iframe focus
   useEffect(() => {
@@ -749,65 +750,40 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
         />
       </div>
 
-      <div className="flex-1 border-t border-bolt-elements-borderColor flex justify-center items-center overflow-auto">
+      <div className="flex-1 border-t border-bolt-elements-borderColor flex justify-center items-center overflow-auto bg-[#0b1020]">
         <div
           style={{
             width: isDeviceModeOn ? `${widthPercent}%` : '100%',
             height: '100%', // Always full height
             overflow: 'visible',
-            background: '#fff',
+            background: '#0b1020',
             position: 'relative',
             display: 'flex',
           }}
         >
-          {activePreview || fallbackBlobUrl || displayFallbackHtml ? (
-            <>
-              <iframe
-                ref={iframeRef}
-                className="border-none w-full h-full bg-white"
-                src={activePreview ? iframeUrl : fallbackBlobUrl}
-                srcDoc={!activePreview && !fallbackBlobUrl ? displayFallbackHtml : undefined}
-                sandbox={
-                  !activePreview && !fallbackBlobUrl
-                    ? 'allow-scripts allow-forms allow-modals allow-popups allow-pointer-lock'
-                    : 'allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-pointer-lock'
-                }
-                allow="cross-origin-isolated; autoplay; camera; microphone; clipboard-write; clipboard-read; fullscreen; encrypted-media; display-capture; geolocation"
-                onLoad={() => {
-                  try {
-                    iframeRef.current?.focus();
-                    iframeRef.current?.contentWindow?.focus();
-                  } catch (e) {}
-                }}
-              />
-              {isStreaming && (
-                <div className="absolute top-3 right-3 z-10 flex items-center gap-2 px-3 py-1.5 bg-[#0c1f36]/95 border border-[#38bdf8]/40 text-sky-200 text-xs font-semibold shadow-lg select-none">
-                  <span className="w-3.5 h-3.5 border-2 border-sky-300 border-t-transparent rounded-full animate-spin" />
-                  <CookingStatus variant="compact" intervalMs={2400} />
-                </div>
-              )}
-            </>
-          ) : isStreaming ? (
-            <div className="flex flex-col w-full h-full justify-center items-center bg-[#0d1527] text-slate-300 gap-3 p-6 text-center select-none">
-              <div className="w-10 h-10 border-2 border-[#38bdf8] border-t-transparent animate-spin rounded-full" />
-              <div className="text-sm font-semibold text-white">
-                <CookingStatus variant="headline" />
-              </div>
-              <div className="text-xs text-slate-400 max-w-sm">
-                Your game will appear here as soon as the first playable files are ready.
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col w-full h-full justify-center items-center bg-[#0d1527] text-slate-300 gap-4 p-6 text-center select-none">
-              <div className="w-14 h-14 border border-[#38bdf8]/35 bg-[#0c1f36] flex items-center justify-center">
-                <div className="i-ph:play-circle text-3xl text-[#38bdf8]" />
-              </div>
-              <div className="space-y-1.5">
-                <div className="text-sm font-semibold text-white">Game ready</div>
-                <div className="text-xs text-slate-400 max-w-sm leading-relaxed">
-                  Describe a game in chat and Fortz AI will build it here. No loading until generation starts.
-                </div>
-              </div>
+          <iframe
+            ref={iframeRef}
+            title="Live game preview"
+            className="border-none w-full h-full bg-[#0b1020]"
+            src={activePreview ? iframeUrl : fallbackBlobUrl}
+            srcDoc={!activePreview && !fallbackBlobUrl ? displayFallbackHtml || EMPTY_GAME_DOCUMENT : undefined}
+            sandbox={
+              !activePreview && !fallbackBlobUrl
+                ? 'allow-scripts allow-forms allow-modals allow-popups allow-pointer-lock'
+                : 'allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-pointer-lock'
+            }
+            allow="cross-origin-isolated; autoplay; camera; microphone; clipboard-write; clipboard-read; fullscreen; encrypted-media; display-capture; geolocation"
+            onLoad={() => {
+              try {
+                iframeRef.current?.focus();
+                iframeRef.current?.contentWindow?.focus();
+              } catch (e) {}
+            }}
+          />
+          {isStreaming && (
+            <div className="absolute top-3 right-3 z-10 flex items-center gap-2 px-3 py-1.5 bg-[#0c1f36]/95 border border-[#38bdf8]/40 text-sky-200 text-xs font-semibold shadow-lg select-none">
+              <span className="w-3.5 h-3.5 border-2 border-sky-300 border-t-transparent rounded-full animate-spin" />
+              <CookingStatus variant="compact" intervalMs={2400} />
             </div>
           )}
 

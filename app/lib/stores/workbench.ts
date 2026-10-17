@@ -458,6 +458,7 @@ const fs = require('fs');
 const path = require('path');
 const mimes = {
   '.html': 'text/html; charset=utf-8',
+  '.htm': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -469,9 +470,21 @@ const mimes = {
   '.webp': 'image/webp',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
+  '.avif': 'image/avif',
+  '.mp3': 'audio/mpeg',
+  '.m4a': 'audio/mp4',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.glb': 'model/gltf-binary',
+  '.gltf': 'model/gltf+json',
+  '.bin': 'application/octet-stream',
   '.wasm': 'application/wasm',
   '.woff': 'font/woff',
-  '.woff2': 'font/woff2'
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.otf': 'font/otf'
 };
 
 const baseDir = path.resolve(fs.existsSync('/home/project') ? '/home/project' : process.cwd());
@@ -479,6 +492,8 @@ const normalizeServerPreviewHtml = (${normalizeServerPreviewHtml.toString()});
 http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  res.setHeader('Access-Control-Expose-Headers', 'X-Fortz-Static-Preview');
+  res.setHeader('X-Fortz-Static-Preview', '1');
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
@@ -567,29 +582,37 @@ http.createServer((req, res) => {
       );
     } catch (e) {
       this.#staticServerStarted = false;
+      throw e;
     }
   }
 
-  async waitForPreviewReady(timeoutMs = 12_000) {
-    if (this.previews.get().some((preview) => preview.ready)) return;
+  async waitForPreviewReady(timeoutMs = 12_000, requireStaticServer = false) {
+    const deadline = Date.now() + timeoutMs;
+    let lastError: unknown;
 
-    await new Promise<void>((resolve) => {
-      let settled = false;
-      let unsubscribe = () => {};
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timeout);
-        unsubscribe();
-        resolve();
-      };
-      const timeout = setTimeout(finish, timeoutMs);
-      unsubscribe = this.previews.subscribe((previews) => {
-        if (previews.some((preview) => preview.ready)) finish();
-      });
-      if (settled) unsubscribe();
-      else if (this.previews.get().some((preview) => preview.ready)) finish();
-    });
+    while (Date.now() < deadline) {
+      const candidates = this.previews.get().filter((preview) => preview.ready).reverse();
+
+      for (const preview of candidates) {
+        try {
+          const response = await fetch(new URL('/index.html', preview.baseUrl), {
+            cache: 'no-store',
+            signal: AbortSignal.timeout(1500),
+          });
+
+          if (!response.ok) continue;
+          if (requireStaticServer && response.headers.get('X-Fortz-Static-Preview') !== '1') continue;
+          return;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+
+    const detail = lastError instanceof Error ? ` (${lastError.message})` : '';
+    throw new Error(`The game preview server did not become ready${detail}.`);
   }
 
   async clearProjectFiles() {
@@ -664,7 +687,7 @@ http.createServer((req, res) => {
     this.preferPlayView.set(true);
     this.showWorkbench.set(true);
     await this.startStaticPreviewServer();
-    await this.waitForPreviewReady();
+    await this.waitForPreviewReady(12_000, true);
   }
 
   addArtifact({ messageId, title, id, type }: ArtifactCallbackData) {
