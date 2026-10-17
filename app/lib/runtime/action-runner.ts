@@ -123,7 +123,7 @@ function listenOn(index) {
     console.error('[fortz-static] server error', err);
     process.exit(1);
   });
-  activeServer.listen(previewPorts[index], function () {
+  activeServer.listen(previewPorts[index], '127.0.0.1', function () {
     console.log('[fortz-static] listening on ' + previewPorts[index]);
   });
 }
@@ -604,10 +604,20 @@ export class ActionRunner {
           previous.length > 3000 &&
           contentToWrite.length < previous.length * shrinkFloor
         ) {
+          /*
+           * A huge existing file (an uploaded single-file game can be
+           * hundreds of KB) can never be re-emitted in one model response —
+           * demanding "the complete file" guarantees a stuck loop. Send the
+           * agent to the surgical tool instead.
+           */
+          const tooLargeToRewrite = previous.length > 120_000;
+
           throw new Error(
-            isApprovedBlueprintWrite
-              ? `Refused to overwrite ${action.filePath}: the approved build returned only ${contentToWrite.length} chars where the file already has ${previous.length} chars, which looks like a truncated response. Write the complete file for this phase.`
-              : `Refused to overwrite ${action.filePath}: the new version (${contentToWrite.length} chars) is much smaller than the existing file (${previous.length} chars), so existing features would be lost. The original file was kept; output the COMPLETE file with ALL existing code kept and the new features added on top. For small changes, call edit_file on the existing file instead of rewriting it.`,
+            tooLargeToRewrite
+              ? `Refused to overwrite ${action.filePath}: the existing file is ${previous.length} chars — far too large to re-emit in one response, so a full rewrite is impossible here. Do NOT try to rewrite this file again. Apply the requested change with edit_file on ${action.filePath} using small, targeted replacements that keep every existing line around them.`
+              : isApprovedBlueprintWrite
+                ? `Refused to overwrite ${action.filePath}: the approved build returned only ${contentToWrite.length} chars where the file already has ${previous.length} chars, which looks like a truncated response. Write the complete file for this phase.`
+                : `Refused to overwrite ${action.filePath}: the new version (${contentToWrite.length} chars) is much smaller than the existing file (${previous.length} chars), so existing features would be lost. The original file was kept; output the COMPLETE file with ALL existing code kept and the new features added on top. For small changes, call edit_file on the existing file instead of rewriting it.`,
           );
         }
 

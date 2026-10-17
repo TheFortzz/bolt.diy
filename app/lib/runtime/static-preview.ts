@@ -4,6 +4,23 @@ import { buildGeneratedAssetRuntimeScript } from '~/lib/runtime/generated-asset-
 import { looksLikeEsm, probeHtmlInlineScripts, probeModuleSyntax } from '~/lib/runtime/js-syntax';
 
 /*
+ * Port ranges served by the Studio's own embedded static servers. The ranges
+ * are baked into the server scripts: workbench.ts listens on 4173-4177 and
+ * action-runner.ts on 4280-4284. Keep this helper in sync with both
+ * templates — the preview UI prefers these ports over a stale leftover
+ * dev-server from a previous project so an uploaded game always loads its
+ * own files.
+ */
+const FORTZ_STATIC_PREVIEW_PORT_RANGES: Array<[number, number]> = [
+  [4173, 4177],
+  [4280, 4284],
+];
+
+export function isFortzStaticPreviewPort(port: number): boolean {
+  return FORTZ_STATIC_PREVIEW_PORT_RANGES.some(([from, to]) => port >= from && port <= to);
+}
+
+/*
  * A literal "</script" inside emitted script content terminates the tag at
  * HTML level even when it sits inside a JS string — the browser then parses
  * a truncated script ("Invalid or unexpected token") that every JS-level

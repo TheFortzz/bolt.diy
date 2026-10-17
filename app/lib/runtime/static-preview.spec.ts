@@ -9,6 +9,7 @@ import {
   ensureThreeImportMap,
   inlineLocalModuleBlobImports,
   injectStaticScripts,
+  isFortzStaticPreviewPort,
   looksLikeEsm,
   normalizeServerPreviewHtml,
   normalizeStudioGameHtml,
@@ -879,5 +880,18 @@ describe('auditGameModuleGraph', () => {
 
     expect(findings).toHaveLength(1);
     expect(findings[0].detail).toContain('no default export');
+  });
+});
+
+describe('isFortzStaticPreviewPort', () => {
+  it('recognizes the embedded static server ranges and rejects foreign ports', () => {
+    expect(isFortzStaticPreviewPort(4173)).toBe(true);
+    expect(isFortzStaticPreviewPort(4177)).toBe(true);
+    expect(isFortzStaticPreviewPort(4280)).toBe(true);
+    expect(isFortzStaticPreviewPort(4284)).toBe(true);
+    expect(isFortzStaticPreviewPort(4172)).toBe(false);
+    expect(isFortzStaticPreviewPort(4178)).toBe(false);
+    expect(isFortzStaticPreviewPort(5173)).toBe(false);
+    expect(isFortzStaticPreviewPort(3000)).toBe(false);
   });
 });

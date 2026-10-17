@@ -1,4 +1,5 @@
 import { atom, map, type MapStore, type ReadableAtom, type WritableAtom } from 'nanostores';
+import type { WebContainerProcess } from '@webcontainer/api';
 import type { EditorDocument, ScrollPosition } from '~/components/editor/codemirror/CodeMirrorEditor';
 import { ActionRunner } from '~/lib/runtime/action-runner';
 import type { ActionCallbackData, ArtifactCallbackData } from '~/lib/runtime/message-parser';
@@ -18,7 +19,7 @@ import { WORK_DIR } from '~/utils/constants';
 import { description } from '~/lib/persistence';
 import Cookies from 'js-cookie';
 import { actionStepId, startActionActivity, updateActivity } from '~/lib/stores/activity';
-import { normalizeServerPreviewHtml } from '~/lib/runtime/static-preview';
+import { isFortzStaticPreviewPort, normalizeServerPreviewHtml } from '~/lib/runtime/static-preview';
 import { executionPolicy } from '~/lib/harness/execution-policy';
 import { formatWorkspaceSource } from '~/lib/runtime/source-format';
 import type { Html5GameFile } from '~/lib/runtime/html5-game-import';
@@ -584,27 +585,157 @@ function listenOn(index) {
     console.error('[fortz-static] server error', err);
     process.exit(1);
   });
-  activeServer.listen(previewPorts[index], function () {
+  activeServer.listen(previewPorts[index], __FORTZ_BIND__, function () {
     console.log('[fortz-static] listening on ' + previewPorts[index]);
   });
 }
 listenOn(0);
 `;
-      await wc.fs.writeFile('/.static_server.cjs', serveCode);
+      /*
+       * WebContainer only hands out a preview URL for ports its runtime
+       * actually observes. A bind the runtime misses (some wildcard binds
+       * never surface) produces NO `port` event at all: the server runs, yet
+       * the game looks dead. Run all three bind styles at once, each on its
+       * own port file, mirror their stdout into the browser console, and keep
+       * only the bind the runtime acknowledges — killing the losers.
+       */
+      const bindStrategies = ['127.0.0.1', '0.0.0.0', '::'];
+      const attempts: Array<{
+        bind: string;
+        process: WebContainerProcess;
+        port: number | undefined;
+        dead: boolean;
+      }> = [];
 
-      const process = await wc.spawn('node', ['/.static_server.cjs']);
-      void process.exit.then(
-        () => {
-          this.#staticServerStarted = false;
-        },
-        () => {
-          this.#staticServerStarted = false;
-        },
-      );
+      for (const [bindIndex, bind] of bindStrategies.entries()) {
+        const attemptCode = serveCode.split('__FORTZ_BIND__').join(JSON.stringify(bind));
+        const attemptPath = `/.static_server_${bindIndex}.cjs`;
+        await wc.fs.writeFile(attemptPath, attemptCode);
+
+        const serverProcess = await wc.spawn('node', [attemptPath]);
+        const attempt = { bind, process: serverProcess, port: undefined as number | undefined, dead: false };
+        attempts.push(attempt);
+
+        void serverProcess.exit.then(
+          () => {
+            attempt.dead = true;
+          },
+          () => {
+            attempt.dead = true;
+          },
+        );
+        void this.#awaitStaticServerListenPort(serverProcess).then((port) => {
+          attempt.port = port;
+        });
+      }
+
+      const deadline = Date.now() + 7000;
+      let exposedPort: number | undefined;
+
+      while (Date.now() < deadline && exposedPort === undefined) {
+        for (const attempt of attempts) {
+          if (
+            attempt.port !== undefined &&
+            this.previews.get().some((preview) => preview.port === attempt.port && preview.ready)
+          ) {
+            exposedPort = attempt.port;
+            break;
+          }
+        }
+
+        if (exposedPort === undefined && attempts.every((attempt) => attempt.dead)) {
+          break;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+
+      for (const attempt of attempts) {
+        if (exposedPort === undefined || attempt.port !== exposedPort) {
+          try {
+            attempt.process.kill();
+          } catch {
+            // Process already gone.
+          }
+
+          continue;
+        }
+
+        console.log(`[fortz-static] serving game previews on port ${exposedPort} (bind ${attempt.bind})`);
+
+        void attempt.process.exit.then(
+          () => {
+            this.#staticServerStarted = false;
+          },
+          () => {
+            this.#staticServerStarted = false;
+          },
+        );
+      }
+
+      if (exposedPort === undefined) {
+        throw new Error(
+          'Static preview server started but WebContainer never exposed a preview URL for any bind address.',
+        );
+      }
     } catch (e) {
       this.#staticServerStarted = false;
       throw e;
     }
+  }
+
+  /**
+   * Mirror the in-container server's stdout into the browser console so a
+   * crashed or blocked preview server is diagnosable instead of failing
+   * silently. Resolves with the listen port once the server confirms it, or
+   * undefined when the process dies or never answers.
+   */
+  async #awaitStaticServerListenPort(serverProcess: WebContainerProcess): Promise<number | undefined> {
+    return new Promise<number | undefined>((resolve) => {
+      let settled = false;
+      const settle = (value: number | undefined) => {
+        if (!settled) {
+          settled = true;
+          resolve(value);
+        }
+      };
+
+      void (async () => {
+        try {
+          const reader = serverProcess.output.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+
+          for (;;) {
+            const { done, value } = await reader.read();
+
+            if (done) {
+              break;
+            }
+
+            const text = typeof value === 'string' ? value : decoder.decode(value as Uint8Array, { stream: true });
+            console.log('[fortz-static]', text.trimEnd());
+            buffer += text;
+
+            const match = /listening on (\d+)/.exec(buffer);
+
+            if (match?.[1]) {
+              settle(Number(match[1]));
+            }
+          }
+        } catch {
+          // Output stream closes together with the process.
+        }
+
+        settle(undefined);
+      })();
+
+      void serverProcess.exit.then(
+        () => settle(undefined),
+        () => settle(undefined),
+      );
+      setTimeout(() => settle(undefined), 8000);
+    });
   }
 
   /**
@@ -620,8 +751,14 @@ listenOn(0);
       const ready = this.previews.get().filter((preview) => preview.ready);
 
       if (ready.length) {
-        // Newest first: the just-spawned Fortz static server is usually last.
-        for (const preview of [...ready].reverse()) {
+        // Prefer the Studio's own static servers over a stale dev server left
+        // running from a previous project, then check the rest.
+        const ordered = [
+          ...ready.filter((preview) => isFortzStaticPreviewPort(preview.port)),
+          ...ready.filter((preview) => !isFortzStaticPreviewPort(preview.port)),
+        ];
+
+        for (const preview of ordered) {
           try {
             const response = await fetch(new URL('/index.html', preview.baseUrl), {
               cache: 'no-store',
@@ -666,7 +803,7 @@ listenOn(0);
       const entries = await wc.fs.readdir('.', { withFileTypes: true });
 
       for (const entry of entries) {
-        if (entry.name === '.static_server.cjs') {
+        if (entry.name === '.static_server.cjs' || entry.name.startsWith('.static_server_')) {
           continue;
         }
 

@@ -12,7 +12,7 @@ import { PortDropdown } from './PortDropdown';
 import { generatedAssets } from '~/lib/stores/generated-assets';
 import { CookingStatus } from '~/components/chat/CookingStatus';
 import { runStaticPreviewProbe } from '~/lib/runtime/preview-probe';
-import { buildFallbackHtml } from '~/lib/runtime/static-preview';
+import { buildFallbackHtml, isFortzStaticPreviewPort } from '~/lib/runtime/static-preview';
 import { getWebContainer } from '~/lib/webcontainer';
 
 type ResizeSide = 'left' | 'right' | null;
@@ -31,15 +31,25 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
   const files = useStore(workbenchStore.files);
   const imageAssets = useStore(generatedAssets);
   const isImportedHtml5Game = useStore(workbenchStore.isImportedHtml5Game);
-  const activePreview = previews[activePreviewIndex] ?? previews.find((preview) => preview.ready) ?? previews[0];
+  const activePreview =
+    previews[activePreviewIndex] ??
+    previews.find((preview) => preview.ready && (!isImportedHtml5Game || isFortzStaticPreviewPort(preview.port))) ??
+    previews.find((preview) => preview.ready) ??
+    previews[0];
 
   useEffect(() => {
     if (isImportedHtml5Game && previews.length > 0) {
+      // Prefer the Studio's own static server (it serves the imported files)
+      // over any stale dev server left running from a previous project.
+      const fortzIndex = previews.findIndex(
+        (preview) => preview.ready && isFortzStaticPreviewPort(preview.port),
+      );
       let readyIndex = -1;
       previews.forEach((preview, index) => {
         if (preview.ready) readyIndex = index;
       });
-      setActivePreviewIndex(readyIndex >= 0 ? readyIndex : previews.length - 1);
+      const chosen = fortzIndex >= 0 ? fortzIndex : readyIndex;
+      setActivePreviewIndex(chosen >= 0 ? chosen : previews.length - 1);
     }
   }, [isImportedHtml5Game, previews]);
 
@@ -51,10 +61,21 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
    * disappear after a refresh.
    */
   useEffect(() => {
-    // Imported assets are served directly from the WebContainer static server;
-    // copying every image/WASM into a base64 data URL doubles memory and caused
-    // uploaded games to exhaust the preview iframe's WASM heap.
-    if (isImportedHtml5Game || activePreview) return undefined;
+    /*
+     * Imported games are normally served by the WebContainer static server, so
+     * nothing needs inlining. Only when no server preview is available (the
+     * static server failed or is still starting) fall back to data-URL
+     * restoration — under tight caps for imported games so the inlined preview
+     * can still draw its textures without ever risking the WASM-heap
+     * exhaustion an uncapped restore caused.
+     */
+    if (activePreview || (isImportedHtml5Game && previews.some((preview) => preview.ready))) {
+      return undefined;
+    }
+
+    const maxFiles = isImportedHtml5Game ? 24 : 64;
+    const maxFileBytes = isImportedHtml5Game ? 8 * 1024 * 1024 : 20 * 1024 * 1024;
+    const maxTotalBytes = isImportedHtml5Game ? 32 * 1024 * 1024 : 64 * 1024 * 1024;
 
     let cancelled = false;
     const missing = Object.entries(files).filter(
@@ -74,7 +95,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
 
       let restoredBytes = 0;
 
-      for (const [rawPath] of missing.slice(0, 64)) {
+      for (const [rawPath] of missing.slice(0, maxFiles)) {
         try {
           const path = cleanWorkDirRelativePath(rawPath);
           const bytes = await container.fs.readFile(path);
@@ -83,7 +104,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
             return;
           }
 
-          if (bytes.length > 20 * 1024 * 1024 || restoredBytes + bytes.length > 64 * 1024 * 1024) {
+          if (bytes.length > maxFileBytes || restoredBytes + bytes.length > maxTotalBytes) {
             continue;
           }
 
@@ -134,7 +155,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     return () => {
       cancelled = true;
     };
-  }, [files, isImportedHtml5Game, activePreview]);
+  }, [files, isImportedHtml5Game, activePreview, previews]);
 
   const fallbackHtml = useMemo(() => buildFallbackHtml(files, imageAssets), [files, imageAssets]);
 
@@ -217,7 +238,16 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
         return { ok: false, error: 'Preview is still incomplete.' };
       }
 
-      let serverUrl = workbenchStore.previews.get().find((preview) => preview.ready)?.baseUrl;
+      // Prefer the Studio's own static server over any stale dev server so the
+      // validator probes the preview that actually serves the current files.
+      const pickServerUrl = () => {
+        const ready = workbenchStore.previews.get().filter((preview) => preview.ready);
+
+        return (
+          ready.find((preview) => isFortzStaticPreviewPort(preview.port))?.baseUrl ?? ready[0]?.baseUrl
+        );
+      };
+      let serverUrl = pickServerUrl();
       const projectHasPackage = Object.entries(workbenchStore.files.get()).some(
         ([path, file]) => path.endsWith('/package.json') && file?.type === 'file',
       );
@@ -225,7 +255,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       if (!serverUrl && !fallbackHtml) {
         for (let attempt = 0; attempt < 20 && !serverUrl; attempt++) {
           await new Promise((resolve) => setTimeout(resolve, 500));
-          serverUrl = workbenchStore.previews.get().find((preview) => preview.ready)?.baseUrl;
+          serverUrl = pickServerUrl();
         }
       }
 

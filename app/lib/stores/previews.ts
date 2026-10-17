@@ -49,5 +49,27 @@ export class PreviewsStore {
 
       this.previews.set([...previews]);
     });
+
+    /*
+     * `server-ready` is a second notification channel for the same runtime
+     * event (a server began listening). Some WebContainer builds emit it when
+     * the granular `port` stream misses an exotic bind, so listen to both —
+     * a duplicate registration for an existing port is idempotent above.
+     */
+    webcontainer.on('server-ready', (port, url) => {
+      const previews = this.previews.get();
+      let previewInfo = this.#availablePreviews.get(port);
+
+      if (!previewInfo) {
+        previewInfo = { port, ready: true, baseUrl: url };
+        this.#availablePreviews.set(port, previewInfo);
+        previews.push(previewInfo);
+      } else {
+        previewInfo.ready = true;
+        previewInfo.baseUrl = url;
+      }
+
+      this.previews.set([...previews]);
+    });
   }
 }
