@@ -47,6 +47,107 @@ function buildGameVisualContext(files: Record<string, unknown>, assetPaths: stri
   ].filter(Boolean).join('\n').slice(0, 3800);
 }
 
+/** A quick PNG fallback so an upstream image-provider outage never blocks publishing. */
+function createLocalFallbackCover(title: string, genre: string): string {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1280;
+  canvas.height = 720;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('This browser could not create the fallback cover image.');
+
+  const genreKey = genre.toLowerCase();
+  const accent = /horror|dark|halloween/.test(genreKey) ? '#fb4668'
+    : /race|car|sport/.test(genreKey) ? '#ff9d35'
+      : /space|sci|flight/.test(genreKey) ? '#49c9ff'
+        : /puzzle|strategy|knowledge/.test(genreKey) ? '#52e0c0' : '#a78bfa';
+  const secondary = /race|car|sport/.test(genreKey) ? '#4ddcff' : '#fb5b90';
+
+  const background = ctx.createLinearGradient(0, 0, 1280, 720);
+  background.addColorStop(0, '#080d24');
+  background.addColorStop(0.52, '#17204a');
+  background.addColorStop(1, '#080b1c');
+  ctx.fillStyle = background;
+  ctx.fillRect(0, 0, 1280, 720);
+
+  const glow = ctx.createRadialGradient(850, 310, 20, 850, 310, 510);
+  glow.addColorStop(0, `${accent}99`);
+  glow.addColorStop(0.42, `${secondary}36`);
+  glow.addColorStop(1, 'transparent');
+  ctx.fillStyle = glow;
+  ctx.fillRect(280, 0, 1000, 680);
+
+  // Add depth and motion without depending on any remote artwork or fonts.
+  ctx.save();
+  ctx.translate(850, 305);
+  ctx.rotate(-0.24);
+  for (let i = 0; i < 9; i++) {
+    ctx.strokeStyle = i % 2 ? `${secondary}35` : `${accent}48`;
+    ctx.lineWidth = i % 3 === 0 ? 5 : 2;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 190 + i * 24, 112 + i * 15, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = 0.28;
+  ctx.strokeStyle = '#dbeafe';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < 1280; x += 56) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x - 260, 720); ctx.stroke();
+  }
+  ctx.restore();
+
+  const lowerShade = ctx.createLinearGradient(0, 300, 0, 720);
+  lowerShade.addColorStop(0, 'transparent');
+  lowerShade.addColorStop(1, 'rgba(3,6,18,0.96)');
+  ctx.fillStyle = lowerShade;
+  ctx.fillRect(0, 290, 1280, 430);
+
+  ctx.fillStyle = accent;
+  ctx.fillRect(74, 84, 9, 44);
+  ctx.font = '800 22px Arial, sans-serif';
+  ctx.fillText('THEFORTZ  /  GAME COVER', 102, 115);
+
+  const cleanTitle = title.trim().slice(0, 100) || 'YOUR NEXT GAME';
+  const words = cleanTitle.split(/\s+/);
+  const titleLines: string[] = [];
+  let line = '';
+  ctx.font = '900 76px Arial, sans-serif';
+  for (const word of words) {
+    const candidate = line ? `${line} ${word}` : word;
+    if (line && ctx.measureText(candidate).width > 1040) {
+      titleLines.push(line);
+      line = word;
+    } else line = candidate;
+  }
+  if (line) titleLines.push(line);
+  const shownLines = titleLines.slice(0, 2);
+  const titleSize = shownLines.some((row) => ctx.measureText(row).width > 1080) ? 58 : 76;
+  ctx.font = `900 ${titleSize}px Arial, sans-serif`;
+  shownLines.forEach((row, index) => {
+    const y = 540 + index * (titleSize + 6);
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = 'rgba(3,6,18,0.9)';
+    ctx.strokeText(row, 78, y, 1100);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(row, 78, y, 1100);
+  });
+
+  const badge = (genre || 'ACTION').toUpperCase().slice(0, 22);
+  ctx.font = '700 20px Arial, sans-serif';
+  const badgeWidth = Math.max(130, ctx.measureText(badge).width + 42);
+  ctx.fillStyle = `${accent}dd`;
+  ctx.beginPath();
+  if (typeof ctx.roundRect === 'function') ctx.roundRect(80, 618, badgeWidth, 46, 18);
+  else ctx.rect(80, 618, badgeWidth, 46);
+  ctx.fill();
+  ctx.fillStyle = '#07101e';
+  ctx.fillText(badge, 101, 648);
+
+  return canvas.toDataURL('image/png');
+}
+
 export function PublishButton() {
   const [isOpen, setIsOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -133,9 +234,19 @@ export function PublishButton() {
     thumbnailRequestRef.current?.abort();
     const controller = new AbortController();
     thumbnailRequestRef.current = controller;
-    // Server budget: Grok brief (≤9s) + 3 retrying FLUX attempts within a 55s
-    // deadline, plus network overhead — 80s keeps us safely inside it.
-    const timeout = window.setTimeout(() => controller.abort(), 80_000);
+    // The server now has a 5s art brief and two FLUX attempts under a 36s cap.
+    // Keep a small transport margin before switching to the local PNG fallback.
+    const timeout = window.setTimeout(() => controller.abort(), 50_000);
+    const fallBackToLocalCover = (reason: string) => {
+      if (thumbnailRequestRef.current !== controller) return;
+      const localCover = createLocalFallbackCover(finalTitle, genre);
+      const detail = reason.replace(/\s+/g, ' ').slice(0, 180);
+      setPreviewThumb(localCover);
+      setCoverStatus('ready');
+      setCoverError(
+        `AI cover service is temporarily unavailable${detail ? ` (${detail})` : ''}. A local cover is ready, so you can still publish.`,
+      );
+    };
 
     try {
       const projectFiles = (workbenchStore as any).files?.get?.() ?? files ?? {};
@@ -169,14 +280,20 @@ export function PublishButton() {
       }
 
       if (!response.ok || !result.dataUrl?.startsWith('data:image/')) {
-        throw new Error(result.error || `AI cover generation returned HTTP ${response.status}.`);
+        fallBackToLocalCover(result.error || `HTTP ${response.status}`);
+        return;
       }
 
       setPreviewThumb(result.dataUrl);
       setCoverStatus('ready');
     } catch (error) {
-      setCoverStatus('error');
-      setCoverError(error instanceof Error ? error.message : 'The AI cover could not be generated.');
+      if (thumbnailRequestRef.current !== controller) return;
+      try {
+        fallBackToLocalCover(error instanceof Error ? error.message : 'AI image generation failed');
+      } catch (fallbackError) {
+        setCoverStatus('error');
+        setCoverError(fallbackError instanceof Error ? fallbackError.message : 'Could not create a fallback cover.');
+      }
     } finally {
       window.clearTimeout(timeout);
       if (thumbnailRequestRef.current === controller) {
@@ -531,7 +648,7 @@ export function PublishButton() {
               <div className="flex flex-col gap-4">
                 <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl border border-orange-200/30 bg-[#06152b] shadow-[0_18px_50px_rgba(0,0,0,0.35)]">
                   {previewThumb ? (
-                    <img src={previewThumb} alt={`${title} AI-generated game cover`} className="absolute inset-0 h-full w-full object-cover" />
+                    <img src={previewThumb} alt={`${title} game cover`} className="absolute inset-0 h-full w-full object-cover" />
                   ) : (
                     <div className="flex flex-col items-center gap-3 px-6 text-center">
                       <span className={isGeneratingThumbnail ? 'i-svg-spinners:90-ring-with-bg text-3xl text-orange-300' : 'i-ph:image-square text-4xl text-sky-200/50'} />
@@ -545,7 +662,7 @@ export function PublishButton() {
 
                 {coverError && (
                   <div className="rounded-lg border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-xs leading-relaxed text-amber-100">
-                    Cover generation needs another try: {coverError}
+                    {coverError}
                   </div>
                 )}
 
@@ -558,12 +675,12 @@ export function PublishButton() {
                   <span>{isExporting ? 'Publishing game and cover…' : 'Publish game'}</span>
                 </button>
 
-                {coverStatus === 'error' && !isExporting && (
+                {coverError && !isExporting && (
                   <button
                     onClick={() => void generateThumbnail()}
                     className="self-center rounded-lg border border-orange-200/40 bg-orange-400/15 px-4 py-2 text-xs font-extrabold text-orange-100 hover:bg-orange-400/25"
                   >
-                    Try cover again
+                    Retry AI cover
                   </button>
                 )}
 

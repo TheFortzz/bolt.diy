@@ -42,7 +42,9 @@ async function analyzeGameCoverBrief(env: Record<string, unknown> | undefined, i
       }),
       maxTokens: 220,
       temperature: 0.2,
-      abortSignal: AbortSignal.timeout(9000),
+      // The brief is only a quality hint; never let it keep cover creation
+      // waiting while the primary image provider is already flaky.
+      abortSignal: AbortSignal.timeout(5000),
     });
     const brief = result.text.trim().slice(0, 1200);
     return brief || fallback;
@@ -75,7 +77,16 @@ export async function generatePublishThumbnail(
   const generated = await generateFluxImage(
     // Bounded retries: the Azure deployment intermittently 502s / times out on
     // any size, so allow up to three attempts inside a 55s wall-clock budget.
-    { prompt, isSprite: false, width: 512, height: 512, timeoutMs: 30_000, deadlineMs: 55_000 },
+    {
+      prompt,
+      isSprite: false,
+      width: 512,
+      height: 512,
+      timeoutMs: 18_000,
+      deadlineMs: 36_000,
+      maxAttempts: 2,
+      retryDelayMs: 700,
+    },
     apiKey,
     endpoint,
   );

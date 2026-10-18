@@ -33,19 +33,28 @@ export async function action({ context, request }: ActionFunctionArgs) {
 
   const env = context.cloudflare?.env as unknown as Record<string, unknown> | undefined;
   if (!getFluxApiKey(env) || !getConfiguredFluxEndpoint(env)) {
-    return json({ error: 'AI cover secrets are missing from this Cloudflare environment; a local cover will be used.' }, { status: 503 });
+    return json(
+      { fallback: true, error: 'AI cover secrets are unavailable; use a local cover.' },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
   }
 
   const ip = request.headers.get('CF-Connecting-IP') || 'local';
   if (!allowThumbnailRequest(ip)) {
-    return json({ error: 'Too many cover-art requests. Try again later.' }, { status: 429 });
+    return json(
+      { fallback: true, error: 'AI cover generation is rate-limited; use a local cover.' },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
   }
 
   try {
     const input = publishThumbnailInputSchema.parse(await request.json());
     const dataUrl = await generatePublishThumbnail(env, input);
     if (!dataUrl) {
-      return json({ error: 'The AI cover generator did not return an image; a local cover will be used.' }, { status: 502 });
+      return json(
+        { fallback: true, error: 'The AI cover generator returned no image; use a local cover.' },
+        { headers: { 'Cache-Control': 'no-store' } },
+      );
     }
 
     return json({ dataUrl }, { headers: { 'Cache-Control': 'no-store' } });
@@ -55,8 +64,11 @@ export async function action({ context, request }: ActionFunctionArgs) {
     }
 
     return json(
-      { error: `AI cover generation failed; a local cover will be used. ${safePublishThumbnailError(error, getFluxApiKey(env))}` },
-      { status: 502 },
+      {
+        fallback: true,
+        error: `AI cover generation failed; use a local cover. ${safePublishThumbnailError(error, getFluxApiKey(env))}`,
+      },
+      { headers: { 'Cache-Control': 'no-store' } },
     );
   }
 }
