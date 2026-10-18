@@ -746,61 +746,24 @@ export const ChatImpl = memo(
       return () => window.removeEventListener('thefortz-html5-game-imported', handleImportedGame);
     }, [currentChatId, persistMessages, setMessages]);
 
-    const runtimeRepairCountRef = useRef(0);
-    const runtimeRepairInFlightRef = useRef(false);
-    const runtimeRepairTimerRef = useRef<number | undefined>(undefined);
+    const pendingRuntimeErrorsRef = useRef<string[]>([]);
 
     useEffect(() => {
-      runtimeRepairCountRef.current = 0;
-      runtimeRepairInFlightRef.current = false;
-      if (runtimeRepairTimerRef.current !== undefined) {
-        window.clearTimeout(runtimeRepairTimerRef.current);
-        runtimeRepairTimerRef.current = undefined;
-      }
+      pendingRuntimeErrorsRef.current = [];
     }, [currentChatId]);
 
     useEffect(() => {
       const handleRuntimeError = (event: Event) => {
         const message = String((event as CustomEvent<{ message?: string }>).detail?.message || '').trim();
-        if (
-          !message ||
-          runtimeRepairInFlightRef.current ||
-          runtimeRepairCountRef.current >= 2 ||
-          harnessIsBusy(harnessState.get().phase) ||
-          !Object.keys(workbenchStore.files.get()).length
-        ) {
-          return;
-        }
-
-        runtimeRepairCountRef.current++;
-        runtimeRepairInFlightRef.current = true;
-        toast.info('Grok found a game runtime error and is repairing the current game…', { autoClose: 5000 });
-        runtimeRepairTimerRef.current = window.setTimeout(() => {
-          runtimeRepairTimerRef.current = undefined;
-          if (harnessIsBusy(harnessState.get().phase)) {
-            runtimeRepairInFlightRef.current = false;
-            return;
-          }
-
-          void requestPlan(
-            `Automatically repair this game's actual browser runtime error without replacing or redesigning the game. Keep the uploaded project and its entry point. Inspect the reported file and surrounding code, fix the root cause, and verify the game starts and remains playable. Runtime error: ${safeRuntimeDiagnostic(message)}`,
-          )
-            .catch((error) => console.warn('[runtime repair] Could not start Grok repair:', error))
-            .finally(() => {
-              runtimeRepairInFlightRef.current = false;
-            });
-        }, 3000);
+        if (!message) return;
+        const diagnostic = safeRuntimeDiagnostic(message);
+        const pending = pendingRuntimeErrorsRef.current;
+        if (!pending.includes(diagnostic) && pending.length < 3) pending.push(diagnostic);
       };
 
       window.addEventListener('fortz-runtime-game-error', handleRuntimeError);
-      return () => {
-        window.removeEventListener('fortz-runtime-game-error', handleRuntimeError);
-        if (runtimeRepairTimerRef.current !== undefined) {
-          window.clearTimeout(runtimeRepairTimerRef.current);
-          runtimeRepairTimerRef.current = undefined;
-        }
-      };
-    }, [requestPlan]);
+      return () => window.removeEventListener('fortz-runtime-game-error', handleRuntimeError);
+    }, []);
 
     const { enhancingPrompt, promptEnhanced, enhancePrompt, resetEnhancer } = usePromptEnhancer();
     const { parsedMessages, parseMessages } = useMessageParser();
@@ -923,7 +886,11 @@ export const ChatImpl = memo(
         return;
       }
 
-      lastUserPromptRef.current = _input;
+      const pendingRuntimeErrors = pendingRuntimeErrorsRef.current.splice(0);
+      const promptWithRuntimeContext = pendingRuntimeErrors.length
+        ? `${_input}\n\n[Preview diagnostic captured before this prompt; it was not auto-repaired. Treat it as context only and follow the user's request. Do not modify game files unless this prompt asks for code changes.]\n${pendingRuntimeErrors.map((error) => `- ${error}`).join('\n')}`
+        : _input;
+      lastUserPromptRef.current = promptWithRuntimeContext;
       repairAttemptsRef.current = 0;
       const hasExistingProject = Object.keys(workbenchStore.files.get()).length > 0;
       const shouldPlan = hasPendingClarification() || shouldUseBuildPlanner(_input, agentMode, hasExistingProject);
@@ -948,7 +915,7 @@ export const ChatImpl = memo(
 
       if (shouldPlan) {
         const fileModifications = workbenchStore.getFileModifcations();
-        void requestPlan(_input, imageDataList);
+        void requestPlan(promptWithRuntimeContext, imageDataList);
 
         if (fileModifications !== undefined) {
           workbenchStore.resetAllFileModifications();
@@ -993,7 +960,7 @@ export const ChatImpl = memo(
 
         void runClineAgent(
           {
-            prompt: _input,
+            prompt: promptWithRuntimeContext,
             files: snapshotTextWorkspace(),
             readOnly: true,
             history: messages
