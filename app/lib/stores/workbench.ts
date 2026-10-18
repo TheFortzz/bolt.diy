@@ -758,46 +758,22 @@ listenOn(0);
   }
 
   /**
-   * Wait until a ready preview answers over HTTP. Never throws: returns whether
-   * a reachable preview was found, so a slow server can never fail a valid
-   * upload — the Game tab keeps rendering whatever is available meanwhile.
+   * Wait for the WebContainer port-ready event. Do not fetch the preview URL
+   * from the Studio origin: WebContainer preview hosts are cross-origin and
+   * intentionally omit Access-Control-Allow-Origin, so browser fetches only
+   * produce noisy CORS failures (and used to delay HTML imports for 15s).
    */
   async waitForPreviewReady(timeoutMs = 12_000): Promise<boolean> {
     const deadline = Date.now() + timeoutMs;
-    let lastError: unknown;
 
     while (Date.now() < deadline) {
-      const ready = this.previews.get().filter((preview) => preview.ready);
-
-      if (ready.length) {
-        // Prefer the Studio's own static servers over a stale dev server left
-        // running from a previous project, then check the rest.
-        const ordered = [
-          ...ready.filter((preview) => isFortzStaticPreviewPort(preview.port)),
-          ...ready.filter((preview) => !isFortzStaticPreviewPort(preview.port)),
-        ];
-
-        for (const preview of ordered) {
-          try {
-            const response = await fetch(new URL('/index.html', preview.baseUrl), {
-              cache: 'no-store',
-              signal: AbortSignal.timeout(1500),
-            });
-
-            if (response.ok) {
-              return true;
-            }
-          } catch (error) {
-            lastError = error;
-          }
-        }
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 250));
-    }
-
-    if (lastError instanceof Error) {
-      console.warn('Preview readiness probe:', lastError.message);
+      const previews = this.previews.get();
+      const fortzServerExists = previews.some((preview) => isFortzStaticPreviewPort(preview.port));
+      if (previews.some((preview) => preview.ready && isFortzStaticPreviewPort(preview.port))) return true;
+      // If this workspace has no Fortz static server, an open dev-server port
+      // is the best available signal. Otherwise wait for the preferred port.
+      if (!fortzServerExists && previews.some((preview) => preview.ready)) return true;
+      await new Promise((resolve) => setTimeout(resolve, 150));
     }
 
     return this.previews.get().some((preview) => preview.ready);

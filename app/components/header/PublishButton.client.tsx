@@ -262,7 +262,10 @@ export function PublishButton() {
        * it and the Play tab renders a black screen.
        */
       {
-        const webcontainer = await getWebContainer();
+        // Publishing source-only games must not depend on WebContainer boot
+        // succeeding. Initialize it lazily only when a binary asset really
+        // needs bytes from the virtual filesystem.
+        let webcontainer: Awaited<ReturnType<typeof getWebContainer>> | undefined;
         const mimeByExtension: Record<string, string> = {
           avif: 'image/avif', bin: 'application/octet-stream', fbx: 'application/octet-stream',
           gif: 'image/gif', glb: 'model/gltf-binary', gltf: 'model/gltf+json',
@@ -289,10 +292,16 @@ export function PublishButton() {
             continue;
           }
 
-          const bytes = await webcontainer.fs.readFile(assetPath);
-          if (!bytes || bytes.length === 0) continue;
-          const extension = assetPath.split('.').pop()?.toLowerCase() || '';
-          assetPayloads[assetPath] = bytesToDataUrl(bytes, mimeByExtension[extension] || 'application/octet-stream');
+          try {
+            webcontainer ||= await getWebContainer();
+            const bytes = await webcontainer.fs.readFile(assetPath);
+            if (!bytes || bytes.length === 0) continue;
+            const extension = assetPath.split('.').pop()?.toLowerCase() || '';
+            assetPayloads[assetPath] = bytesToDataUrl(bytes, mimeByExtension[extension] || 'application/octet-stream');
+          } catch (error) {
+            const detail = error instanceof Error ? ` ${error.message.slice(0, 180)}` : '';
+            throw new Error(`Could not collect binary game asset "${assetPath}".${detail}`);
+          }
         }
       }
       let publicationStatus = 'live';
