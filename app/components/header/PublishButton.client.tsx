@@ -133,7 +133,9 @@ export function PublishButton() {
     thumbnailRequestRef.current?.abort();
     const controller = new AbortController();
     thumbnailRequestRef.current = controller;
-    const timeout = window.setTimeout(() => controller.abort(), 65_000);
+    // Server budget: Grok brief (≤9s) + 3 retrying FLUX attempts within a 55s
+    // deadline, plus network overhead — 80s keeps us safely inside it.
+    const timeout = window.setTimeout(() => controller.abort(), 80_000);
 
     try {
       const projectFiles = (workbenchStore as any).files?.get?.() ?? files ?? {};

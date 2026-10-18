@@ -44,6 +44,16 @@ export interface FluxGenerationOptions {
   width?: number;
   height?: number;
   timeoutMs?: number;
+  /**
+   * Total attempts before giving up. The Azure FLUX deployment intermittently
+   * 502s / rate-limits / stalls, so a single-shot request fails fairly often.
+   * Default 3; pass 1 to restore single-shot behavior.
+   */
+  maxAttempts?: number;
+  /** Wall-clock cap across ALL attempts (default 120s). */
+  deadlineMs?: number;
+  /** Base backoff between attempts in ms (default 1200, scaled per attempt). */
+  retryDelayMs?: number;
 }
 
 export interface FluxGenerationResult {
@@ -240,22 +250,14 @@ export async function parseFluxResponse(res: Response): Promise<FluxGenerationRe
 }
 
 /**
- * Generates an image through the FLUX.2-pro deployment.
+ * Single-shot FLUX request (no retries). Used internally by generateFluxImage.
  * Handles timeouts, network issues, and sprite green-screen prompt formatting.
  */
-export async function generateFluxImage(
-  options: FluxGenerationOptions,
-  apiKey?: string,
-  endpoint = FLUX_ENDPOINT,
+async function generateFluxImageOnce(
+  options: Pick<FluxGenerationOptions, 'prompt' | 'isSprite' | 'width' | 'height' | 'timeoutMs'>,
+  apiKey: string,
+  endpoint: string,
 ): Promise<FluxGenerationResult> {
-  if (!apiKey) {
-    return {
-      ok: false,
-      skipped: true,
-      error: 'The image-generation secret is not configured in the server environment.',
-    };
-  }
-
   const {
     prompt,
     isSprite = true,
@@ -289,7 +291,7 @@ export async function generateFluxImage(
 
     return await parseFluxResponse(res);
   } catch (err: any) {
-    if (err?.name === 'AbortError') {
+    if (err?.name === 'AbortError' || err?.code === 'ABORT_ERR') {
       return {
         ok: false,
         error: `FLUX request timed out after ${timeoutMs}ms`,
@@ -303,4 +305,88 @@ export async function generateFluxImage(
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+/**
+ * Only permanent/auth/route problems are not worth retrying; transient
+ * provider 5xx, rate limits, timeouts, network errors, and empty payloads
+ * routinely succeed on the next attempt.
+ */
+function isRetryableFluxError(error: string): boolean {
+  return !/\bstatus (401|403|404)\b/i.test(error);
+}
+
+const RETRY_PROMPT_VARIATIONS = [
+  '',
+  ' Alternate dynamic composition of the same subject, stronger contrast, clean centered framing.',
+  ' Simplified bold composition of the same subject, vivid colors, centered, slight stylization change.',
+];
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Generates an image through the FLUX.2-pro deployment with bounded retries.
+ * The provider intermittently returns 502s, rate limits, timeouts, or empty
+ * payloads — so each transient failure is retried with a short backoff and a
+ * light prompt variation, all inside one wall-clock deadline.
+ */
+export async function generateFluxImage(
+  options: FluxGenerationOptions,
+  apiKey?: string,
+  endpoint = FLUX_ENDPOINT,
+): Promise<FluxGenerationResult> {
+  if (!apiKey) {
+    return {
+      ok: false,
+      skipped: true,
+      error: 'The image-generation secret is not configured in the server environment.',
+    };
+  }
+
+  const {
+    maxAttempts = 3,
+    deadlineMs = 120_000,
+    retryDelayMs = 1200,
+  } = options;
+
+  const deadline = Date.now() + deadlineMs;
+  let lastError = 'unknown FLUX error';
+  let attemptsUsed = 0;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const remaining = deadline - Date.now();
+    if (remaining < 10_000) break; // no time for a meaningful attempt
+
+    attemptsUsed = attempt;
+    const result = await generateFluxImageOnce(
+      {
+        ...options,
+        // Nudge the model toward a different frame on retries; content-filter
+        // and sampling edge cases often clear with a slightly different ask.
+        prompt: attempt === 1
+          ? options.prompt
+          : `${options.prompt}${RETRY_PROMPT_VARIATIONS[(attempt - 1) % RETRY_PROMPT_VARIATIONS.length]}`,
+        timeoutMs: Math.min(options.timeoutMs ?? 45_000, remaining),
+      },
+      apiKey,
+      endpoint,
+    );
+
+    if (result.ok || result.skipped) return result;
+    lastError = result.error || 'unknown FLUX error';
+
+    if (attempt < maxAttempts && isRetryableFluxError(lastError)) {
+      await sleep(Math.min(retryDelayMs * attempt + Math.random() * 300, Math.max(deadline - Date.now() - 8_000, 250)));
+      continue;
+    }
+    break;
+  }
+
+  return {
+    ok: false,
+    error:
+      attemptsUsed > 1
+        ? `FLUX failed after ${attemptsUsed} attempts: ${lastError}`
+        : lastError,
+  };
 }

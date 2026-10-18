@@ -191,15 +191,51 @@ describe('flux-client', () => {
     });
 
     it('handles network failure gracefully without breaking', async () => {
-      vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Connection reset'));
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Connection reset'));
 
       const result = await generateFluxImage(
-        { prompt: 'pixel hero', isSprite: true },
+        { prompt: 'pixel hero', isSprite: true, retryDelayMs: 1 },
         'dummy-test-key',
       );
 
       expect(result.ok).toBe(false);
       expect(result.error).toContain('Connection reset');
+      expect(result.error).toContain('3 attempts');
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+    });
+
+    it('retries transient provider failures and succeeds on a later attempt', async () => {
+      const sampleBase64 = Buffer.from('generated-png-data').toString('base64');
+      const fetchSpy = vi.spyOn(globalThis, 'fetch')
+        .mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: 'upstream 502' } }), { status: 502 }))
+        .mockResolvedValue(new Response(JSON.stringify({ data: [{ b64_json: sampleBase64 }] }), { status: 200 }));
+
+      const result = await generateFluxImage(
+        { prompt: 'cover art', isSprite: false, retryDelayMs: 1 },
+        'dummy-test-key',
+      );
+
+      expect(result.ok).toBe(true);
+      expect(result.base64).toBe(sampleBase64);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      // The retry nudges the composition so the model doesn't repeat the failure.
+      expect(JSON.parse(fetchSpy.mock.calls[1][1]?.body as string).prompt)
+        .not.toBe(JSON.parse(fetchSpy.mock.calls[0][1]?.body as string).prompt);
+    });
+
+    it('does not burn retries on permanent auth failures', async () => {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(JSON.stringify({ error: { message: 'bad key' } }), { status: 401 }),
+      );
+
+      const result = await generateFluxImage(
+        { prompt: 'pixel hero', isSprite: true, retryDelayMs: 1 },
+        'dummy-test-key',
+      );
+
+      expect(result.ok).toBe(false);
+      expect(result.error).toContain('status 401');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
     });
   });
 });

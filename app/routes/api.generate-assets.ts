@@ -79,6 +79,9 @@ export async function action({ context, request }: ActionFunctionArgs) {
                 width: operation.width,
                 height: operation.height,
                 timeoutMs: 30000,
+                // Same transient provider failures hit asset renders; retry
+                // inside a hard 40s cap so queued batches still make progress.
+                deadlineMs: 40000,
               },
               apiKey!,
               endpoint,

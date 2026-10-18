@@ -73,9 +73,9 @@ export async function generatePublishThumbnail(
     'No text, letters, logos, watermarks, interface panels, borders, or device mockups.',
   ].filter(Boolean).join(' ');
   const generated = await generateFluxImage(
-    // Keep publish covers on the same provider size proven by the game-art path.
-    // The Azure deployment intermittently 502s on the larger 1024x576 request.
-    { prompt, isSprite: false, width: 512, height: 512, timeoutMs: 45000 },
+    // Bounded retries: the Azure deployment intermittently 502s / times out on
+    // any size, so allow up to three attempts inside a 55s wall-clock budget.
+    { prompt, isSprite: false, width: 512, height: 512, timeoutMs: 30_000, deadlineMs: 55_000 },
     apiKey,
     endpoint,
   );
