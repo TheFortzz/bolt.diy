@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import JSZip from 'jszip';
-import { prepareHtml5GameImport } from './html5-game-import';
+import { MAX_GAME_IMPORT_BYTES, prepareHtml5GameImport } from './html5-game-import';
 
 async function zipFile(entries: Record<string, string>) {
   const zip = new JSZip();
@@ -20,6 +20,10 @@ function namedFile(name: string, content: string, relativePath = ''): File {
 }
 
 describe('HTML5 game import validator', () => {
+  it('allows up to 100 MiB per complete imported game', () => {
+    expect(MAX_GAME_IMPORT_BYTES).toBe(100 * 1024 * 1024);
+  });
+
   it('accepts a built ZIP game and strips a single enclosing folder', async () => {
     const archive = await zipFile({
       'NeonGame/index.html':

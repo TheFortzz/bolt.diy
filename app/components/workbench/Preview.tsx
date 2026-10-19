@@ -74,8 +74,8 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
     }
 
     const maxFiles = isImportedHtml5Game ? 24 : 64;
-    const maxFileBytes = isImportedHtml5Game ? 50 * 1024 * 1024 : 20 * 1024 * 1024;
-    const maxTotalBytes = isImportedHtml5Game ? 50 * 1024 * 1024 : 64 * 1024 * 1024;
+    const maxFileBytes = isImportedHtml5Game ? 100 * 1024 * 1024 : 20 * 1024 * 1024;
+    const maxTotalBytes = isImportedHtml5Game ? 100 * 1024 * 1024 : 64 * 1024 * 1024;
 
     let cancelled = false;
     const missing = Object.entries(files).filter(
