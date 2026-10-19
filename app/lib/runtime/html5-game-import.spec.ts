@@ -35,6 +35,18 @@ describe('HTML5 game import validator', () => {
     expect(result.files.find((file) => file.path === 'assets/ship.png')?.mimeType).toBe('image/png');
   });
 
+  it('accepts ZIP archives with 33 MiB of uncompressed game data', async () => {
+    const zip = new JSZip();
+    zip.file('index.html', '<!doctype html><html><body><canvas></canvas></body></html>');
+    zip.file('assets/large.bin', new Uint8Array(33 * 1024 * 1024), { compression: 'DEFLATE', compressionOptions: { level: 1 } });
+    const archive = new File([await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 1 } })], 'large-game.zip');
+
+    const imported = await prepareHtml5GameImport([archive]);
+
+    expect(imported.totalBytes).toBeGreaterThan(33 * 1024 * 1024);
+    expect(imported.entryPoint).toBe('index.html');
+  });
+
   it('accepts selected browser-ready HTML/JS files and preserves directory paths', async () => {
     const result = await prepareHtml5GameImport([
       namedFile(

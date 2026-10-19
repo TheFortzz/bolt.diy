@@ -13,7 +13,7 @@ export interface Html5GameImport {
 }
 
 const MAX_GAME_FILES = 250;
-const MAX_GAME_BYTES = 24 * 1024 * 1024;
+const MAX_GAME_BYTES = 50 * 1024 * 1024;
 const MIME_BY_EXTENSION: Record<string, string> = {
   '.html': 'text/html',
   '.htm': 'text/html',
@@ -182,13 +182,13 @@ async function readSelectedFiles(input: File[]): Promise<Html5GameFile[]> {
       const estimatedBytes = Number((entry as any)._data?.uncompressedSize || 0);
 
       if (estimatedBytes > MAX_GAME_BYTES || (estimatedBytes > 0 && totalBytes + estimatedBytes > MAX_GAME_BYTES)) {
-        throw new Error('The uncompressed game is too large. Keep the complete game under 24 MB.');
+        throw new Error('The uncompressed game is too large. Keep the complete game under 50 MB.');
       }
 
       const bytes = new Uint8Array(await entry.async('uint8array'));
       totalBytes += bytes.byteLength;
       if (totalBytes > MAX_GAME_BYTES) {
-        throw new Error('The uncompressed game is too large. Keep the complete game under 24 MB.');
+        throw new Error('The uncompressed game is too large. Keep the complete game under 50 MB.');
       }
 
       result.push({ path, bytes, mimeType: detectMimeType(path) });
@@ -211,7 +211,7 @@ async function readSelectedFiles(input: File[]): Promise<Html5GameFile[]> {
     totalBytes += bytes.byteLength;
 
     if (totalBytes > MAX_GAME_BYTES) {
-      throw new Error('The game is too large. Keep all selected files under 24 MB.');
+      throw new Error('The game is too large. Keep all selected files under 50 MB.');
     }
 
     result.push({ path, bytes, mimeType: detectMimeType(path, file.type) });
