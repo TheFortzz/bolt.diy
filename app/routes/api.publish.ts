@@ -341,14 +341,21 @@ export async function action({ context, request }: ActionFunctionArgs) {
       );
     }
 
-    const appwriteError = error as { code?: number; message?: string };
-    console.error('[api.publish] Appwrite publish failed:', appwriteError.message || 'Unknown error');
+    const appwriteError = error as { code?: number; type?: string; message?: string };
+    console.error('[api.publish] Appwrite publish failed:', appwriteError.code, appwriteError.type, appwriteError.message);
+    const status = typeof appwriteError.code === 'number' ? appwriteError.code : 0;
+    const detail = [
+      status ? `code ${status}` : '',
+      appwriteError.type || '',
+      appwriteError.message || '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
 
-    const message =
-      appwriteError.code === 401 || appwriteError.code === 403
-        ? 'Appwrite rejected the server publish credentials. Rotate the exposed API key, update APPWRITE_API_KEY in Cloudflare, and redeploy.'
-        : 'Appwrite could not save this game. Check the server-side database, collection, bucket, and required attributes.';
+    const message = detail
+      ? `Appwrite refused the publish (${detail}).`
+      : 'Appwrite could not save this game. Check the server-side database, collection, bucket, and required attributes.';
 
-    return json({ error: message }, { status: 502 });
+    return json({ error: message, detail }, { status: 502 });
   }
 }
