@@ -725,16 +725,20 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         </span>
                       </div>
                       {!chatStarted && (
-                        <IconButton
-                          title="Import an HTML5 game"
-                          className="transition-all text-sky-100/85 hover:text-white hover:bg-white/10"
-                          onClick={() => setGameImportOpen(true)}
+                        <button
+                          onClick={() => {
+                            const currentAuth = authStore.get();
+                            if (!currentAuth.user) {
+                              isAuthModalOpen.set(true);
+                              return;
+                            }
+                            setGameImportOpen(true);
+                          }}
+                          className="flex items-center gap-2 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-emerald-400 shadow-[0_0_12px_rgba(34,197,94,0.42)] group-hover:bg-emerald-400"
                         >
-                          <span className="grid h-7 w-7 place-items-center rounded-md bg-emerald-500 shadow-[0_0_12px_rgba(34,197,94,0.42)] transition-colors group-hover:bg-emerald-400">
-                            <img src="/images/upload-cloud-icon.png" alt="" className="h-5 w-5 object-contain" />
-                          </span>
-                          <span className="sr-only">Import an HTML5 game</span>
-                        </IconButton>
+                          <img src="/images/upload-cloud-icon.png" alt="" className="h-4 w-4 object-contain" />
+                          <span>Upload</span>
+                        </button>
                       )}
                     </div>
                     <div className="flex items-center gap-2 text-xs text-sky-100/85 select-none">
