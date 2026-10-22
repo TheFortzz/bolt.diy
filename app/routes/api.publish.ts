@@ -1,5 +1,5 @@
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
-import { Client, Databases, ID, Storage } from 'appwrite';
+import { Client, Databases, ID, Permission, Role, Storage } from 'appwrite';
 import { z } from 'zod';
 import { cleanWorkDirRelativePath } from '~/utils/diff';
 import { inlineGeneratedAssetUrls, type GeneratedAsset } from '~/lib/stores/generated-assets';
@@ -288,11 +288,11 @@ export async function action({ context, request }: ActionFunctionArgs) {
 
     try {
       const htmlFile = new File([htmlContent], `${cleanId}.html`, { type: 'text/html' });
-      // Appwrite instance here rejects the legacy "role:" prefix; permissions
-      // must be bare labels ('any', 'users', 'guests').
-      const publicPermission = 'any';
+      // Appwrite parses permissions as action("scope") strings; build them
+      // with the SDK helpers so the format always matches the server's parser.
+      const publicPermissions = [Permission.read(Role.any()), Permission.write(Role.any())];
 
-      const createdHtml = await storage.createFile(bucketId, ID.unique(), htmlFile, [publicPermission]);
+      const createdHtml = await storage.createFile(bucketId, ID.unique(), htmlFile, publicPermissions);
       uploadedFileIds.push(createdHtml.$id);
 
       const htmlUrl = `${endpoint}/storage/buckets/${bucketId}/files/${createdHtml.$id}/view?project=${projectId}`;
@@ -301,7 +301,7 @@ export async function action({ context, request }: ActionFunctionArgs) {
       let thumbFileId = '';
 
       if (thumbnail) {
-        const createdThumb = await storage.createFile(bucketId, ID.unique(), thumbnail, [publicPermission]);
+        const createdThumb = await storage.createFile(bucketId, ID.unique(), thumbnail, publicPermissions);
         uploadedFileIds.push(createdThumb.$id);
         thumbFileId = createdThumb.$id;
         thumbUrl = `${endpoint}/storage/buckets/${bucketId}/files/${createdThumb.$id}/view?project=${projectId}`;
@@ -325,7 +325,7 @@ export async function action({ context, request }: ActionFunctionArgs) {
           thumbnailFileId: thumbFileId,
           codeFiles: serializedFiles,
         },
-        [publicPermission],
+        publicPermissions,
       );
 
       return json({ success: true, id: doc.$id, title, status: 'live', htmlUrl, thumbUrl });
