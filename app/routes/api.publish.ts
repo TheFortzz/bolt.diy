@@ -321,11 +321,17 @@ export async function action({ context, request }: ActionFunctionArgs) {
           plays: 0,
           likes: 0,
           publishedAt: Date.now(),
-          htmlFileId: createdHtml.$id,
+          // The site's game player reads the game HTML file id from `tags`
+          // (`html:<bucketFileId>`); there is no htmlFileId attribute.
+          tags: `html:${createdHtml.$id}`,
           thumbnailFileId: thumbFileId,
           codeFiles: serializedFiles,
         },
-        publicPermissions,
+        [
+          Permission.read(Role.any()),
+          Permission.update(Role.any()),
+          creatorId ? Permission.delete(Role.user(creatorId)) : Permission.delete(Role.any()),
+        ],
       );
 
       return json({ success: true, id: doc.$id, title, status: 'live', htmlUrl, thumbUrl });
