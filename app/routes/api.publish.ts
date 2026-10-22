@@ -288,9 +288,9 @@ export async function action({ context, request }: ActionFunctionArgs) {
 
     try {
       const htmlFile = new File([htmlContent], `${cleanId}.html`, { type: 'text/html' });
-      // Appwrite storage/document permissions must be raw role strings
-      // (e.g. 'role:any', 'role:guests'), not Permission objects, on this SDK.
-      const publicPermission = 'role:any';
+      // Appwrite instance here rejects the legacy "role:" prefix; permissions
+      // must be bare labels ('any', 'users', 'guests').
+      const publicPermission = 'any';
 
       const createdHtml = await storage.createFile(bucketId, ID.unique(), htmlFile, [publicPermission]);
       uploadedFileIds.push(createdHtml.$id);

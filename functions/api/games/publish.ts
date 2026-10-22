@@ -211,7 +211,7 @@ export async function onRequest(context: any): Promise<Response> {
 
     try {
       const htmlFile = new File([htmlContent], `${cleanId}.html`, { type: 'text/html' });
-      const createdHtml = await storage.createFile(bucketId, ID.unique(), htmlFile, ['role:any']);
+      const createdHtml = await storage.createFile(bucketId, ID.unique(), htmlFile, ['any']);
       uploadedFileIds.push(createdHtml.$id);
 
       const htmlUrl = `${endpoint}/storage/buckets/${bucketId}/files/${createdHtml.$id}/view?project=${projectId}`;
@@ -219,7 +219,7 @@ export async function onRequest(context: any): Promise<Response> {
       let thumbUrl = '';
       let thumbFileId = '';
       if (thumbnail) {
-        const createdThumb = await storage.createFile(bucketId, ID.unique(), thumbnail, ['role:any']);
+        const createdThumb = await storage.createFile(bucketId, ID.unique(), thumbnail, ['any']);
         uploadedFileIds.push(createdThumb.$id);
         thumbFileId = createdThumb.$id;
         thumbUrl = `${endpoint}/storage/buckets/${bucketId}/files/${createdThumb.$id}/view?project=${projectId}`;
@@ -243,7 +243,7 @@ export async function onRequest(context: any): Promise<Response> {
           thumbnailFileId: thumbFileId,
           codeFiles: serializedFiles,
         },
-        ['role:any'],
+        ['any'],
       );
 
       return json({ success: true, id: doc.$id, title, status: 'live', htmlUrl, thumbUrl });
