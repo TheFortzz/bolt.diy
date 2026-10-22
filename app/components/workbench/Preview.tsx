@@ -798,9 +798,7 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
             src={activePreview ? iframeUrl : fallbackBlobUrl}
             srcDoc={!activePreview && !fallbackBlobUrl ? displayFallbackHtml || EMPTY_GAME_DOCUMENT : undefined}
             sandbox={
-              !activePreview && !fallbackBlobUrl
-                ? 'allow-scripts allow-forms allow-modals allow-popups allow-pointer-lock'
-                : 'allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-pointer-lock'
+              'allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-pointer-lock'
             }
             allow="cross-origin-isolated; autoplay; camera; microphone; clipboard-write; clipboard-read; fullscreen; encrypted-media; display-capture; geolocation"
             onLoad={() => {

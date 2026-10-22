@@ -130,6 +130,10 @@ export async function applyProjectSnapshot(wc: WebContainer, files: Record<strin
 const LOCAL_STORAGE_CHECKPOINT_PREFIX = 'fortz_checkpoint_';
 const inMemoryCheckpoints = new Map<string, StoredCheckpoint>();
 
+// localStorage is typically ~5 MB; never try to store a checkpoint larger than
+// about 2 MB so we never trigger QuotaExceededError on normal projects.
+const LOCAL_STORAGE_CHECKPOINT_MAX_BYTES = 2 * 1024 * 1024;
+
 function saveCheckpointToLocalStorage(checkpoint: StoredCheckpoint) {
   if (typeof window === 'undefined') return;
   try {
@@ -158,8 +162,14 @@ function saveCheckpointToLocalStorage(checkpoint: StoredCheckpoint) {
       files: serializedFiles,
     });
 
+    if (new TextEncoder().encode(payload).byteLength > LOCAL_STORAGE_CHECKPOINT_MAX_BYTES) {
+      // Project is too large for localStorage; keep it in memory and IndexedDB only.
+      return;
+    }
+
     localStorage.setItem(LOCAL_STORAGE_CHECKPOINT_PREFIX + checkpoint.chatId, payload);
   } catch (e) {
+    // QuotaExceededError or other storage failure: keep in memory and IndexedDB.
     console.warn('LocalStorage checkpoint save warning (in-memory preserved):', e);
   }
 }

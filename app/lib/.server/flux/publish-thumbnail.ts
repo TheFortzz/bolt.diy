@@ -68,24 +68,24 @@ export async function generatePublishThumbnail(
 
   const visualBrief = await analyzeGameCoverBrief(env, input);
   const prompt = [
-    'Create polished cinematic game-cover key art, square source composed to crop cleanly into a wide 16:9 game thumbnail. Keep the hero and essential action centered in the horizontal middle band.',
+    'Create polished cinematic game-cover key art in a wide 16:9 cinematic aspect ratio. Keep the hero and essential action centered.',
     `Game concept: ${input.title}. Genre: ${input.genre || 'ACTION'}.`,
     visualBrief ? `Grok's analysis of the actual game: ${visualBrief}` : '',
     'Create original key art that clearly depicts this specific game and its actual characters, setting, and gameplay; use the provided source context rather than generic genre imagery. Use a strong central subject, layered depth, rich lighting, and professional composition.',
     'No text, letters, logos, watermarks, interface panels, borders, or device mockups.',
   ].filter(Boolean).join(' ');
   const generated = await generateFluxImage(
-    // Bounded retries: the Azure deployment intermittently 502s / times out on
-    // any size, so allow up to three attempts inside a 55s wall-clock budget.
+    // Bounded retries: the Azure FLUX deployment intermittently 502s / times
+    // out, so allow up to four attempts inside a 70s wall-clock budget.
     {
       prompt,
       isSprite: false,
-      width: 512,
-      height: 512,
-      timeoutMs: 18_000,
-      deadlineMs: 36_000,
-      maxAttempts: 2,
-      retryDelayMs: 700,
+      width: 1024,
+      height: 576,
+      timeoutMs: 25_000,
+      deadlineMs: 70_000,
+      maxAttempts: 4,
+      retryDelayMs: 1000,
     },
     apiKey,
     endpoint,

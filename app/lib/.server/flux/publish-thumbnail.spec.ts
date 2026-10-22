@@ -37,7 +37,8 @@ describe('publish cover art', () => {
     const prompt = JSON.parse(fetchMock.mock.calls[0][1]?.body as string).prompt as string;
     expect(prompt).toContain('Neon Drift');
     expect(prompt).toContain('low-poly hovercar');
-    expect(JSON.parse(fetchMock.mock.calls[0][1]?.body as string).width).toBe(512);
+    expect(JSON.parse(fetchMock.mock.calls[0][1]?.body as string).width).toBe(1024);
+    expect(JSON.parse(fetchMock.mock.calls[0][1]?.body as string).height).toBe(576);
     expect(result).toBe(`data:image/png;base64,${base64}`);
     expect(result).not.toContain('test-only-secret');
   });

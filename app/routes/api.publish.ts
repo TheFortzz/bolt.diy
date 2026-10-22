@@ -1,5 +1,5 @@
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
-import { Client, Databases, ID, Permission, Role, Storage } from 'appwrite';
+import { Client, Databases, ID, Storage } from 'appwrite';
 import { z } from 'zod';
 import { cleanWorkDirRelativePath } from '~/utils/diff';
 import { inlineGeneratedAssetUrls, type GeneratedAsset } from '~/lib/stores/generated-assets';
@@ -288,7 +288,11 @@ export async function action({ context, request }: ActionFunctionArgs) {
 
     try {
       const htmlFile = new File([htmlContent], `${cleanId}.html`, { type: 'text/html' });
-      const createdHtml = await storage.createFile(bucketId, ID.unique(), htmlFile, [Permission.read(Role.any())]);
+      // Appwrite storage/document permissions must be raw role strings
+      // (e.g. 'role:any', 'role:guests'), not Permission objects, on this SDK.
+      const publicPermission = 'role:any';
+
+      const createdHtml = await storage.createFile(bucketId, ID.unique(), htmlFile, [publicPermission]);
       uploadedFileIds.push(createdHtml.$id);
 
       const htmlUrl = `${endpoint}/storage/buckets/${bucketId}/files/${createdHtml.$id}/view?project=${projectId}`;
@@ -297,7 +301,7 @@ export async function action({ context, request }: ActionFunctionArgs) {
       let thumbFileId = '';
 
       if (thumbnail) {
-        const createdThumb = await storage.createFile(bucketId, ID.unique(), thumbnail, [Permission.read(Role.any())]);
+        const createdThumb = await storage.createFile(bucketId, ID.unique(), thumbnail, [publicPermission]);
         uploadedFileIds.push(createdThumb.$id);
         thumbFileId = createdThumb.$id;
         thumbUrl = `${endpoint}/storage/buckets/${bucketId}/files/${createdThumb.$id}/view?project=${projectId}`;
@@ -321,7 +325,7 @@ export async function action({ context, request }: ActionFunctionArgs) {
           thumbnailFileId: thumbFileId,
           codeFiles: serializedFiles,
         },
-        [Permission.read(Role.any())],
+        [publicPermission],
       );
 
       return json({ success: true, id: doc.$id, title, status: 'live', htmlUrl, thumbUrl });
