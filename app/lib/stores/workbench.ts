@@ -495,11 +495,20 @@ const handler = function (req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
   res.setHeader('Access-Control-Expose-Headers', 'X-Fortz-Static-Preview');
   res.setHeader('X-Fortz-Static-Preview', '1');
-  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
   let cleanUrl = (req.url || '/').split('?')[0].replace(/^\\/+/, '');
   if (!cleanUrl) cleanUrl = 'index.html';
+
+  const requestExt = path.extname('/' + cleanUrl).toLowerCase();
+  const isHtmlRequest = !requestExt || requestExt === '.html' || requestExt === '.htm';
+  if (isHtmlRequest) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  } else {
+    // Models, sprites, sounds: brief browser caching keeps the next Play
+    // instant instead of re-downloading megabytes through WebContainer.
+    res.setHeader('Cache-Control', 'public, max-age=60, must-revalidate');
+  }
 
   const requestedPath = path.resolve(baseDir, cleanUrl);
   if (requestedPath !== baseDir && !requestedPath.startsWith(baseDir + path.sep)) {

@@ -524,9 +524,10 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
   const reloadPreview = useCallback(() => {
     if (iframeRef.current) {
       if (activePreview) {
+        // No cache-buster: the served HTML is no-store so it is always fresh,
+        // while game assets keep their short cache between Play reloads.
         const targetUrl = iframeUrl || activePreview.baseUrl;
-        const sep = targetUrl.includes('?') ? '&' : '?';
-        iframeRef.current.src = `${targetUrl}${sep}_cb=${Date.now()}`;
+        iframeRef.current.src = targetUrl;
       } else if (fallbackBlobUrl) {
         iframeRef.current.src = fallbackBlobUrl;
       } else if (displayFallbackHtml) {
@@ -780,12 +781,12 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
         />
       </div>
 
-      <div className="flex-1 border-t border-bolt-elements-borderColor flex justify-center items-center overflow-auto bg-[#0b1020]">
+      <div className="flex-1 border-t border-bolt-elements-borderColor flex justify-center items-center overflow-auto bg-[#0b1020]" style={{ overscrollBehavior: 'contain' }}>
         <div
           style={{
             width: isDeviceModeOn ? `${widthPercent}%` : '100%',
             height: '100%', // Always full height
-            overflow: 'visible',
+            overflow: 'hidden',
             background: '#0b1020',
             position: 'relative',
             display: 'flex',
