@@ -209,6 +209,7 @@ export function PublishButton() {
   const [title, setTitle] = useState('');
   const [genre, setGenre] = useState('ACTION');
   const [description, setDescription] = useState('');
+  const [coverIdea, setCoverIdea] = useState('');
   const [previewThumb, setPreviewThumb] = useState<string>('');
   const thumbnailRequestRef = useRef<AbortController | null>(null);
   const files = useStore(workbenchStore.files);
@@ -318,6 +319,7 @@ export function PublishButton() {
           title: finalTitle,
           genre,
           description: description.trim(),
+          prompt: coverIdea.trim(),
           gameContext: visualContext,
         }),
         signal: controller.signal,
@@ -666,8 +668,7 @@ export function PublishButton() {
                 </label>
                 <textarea
                   placeholder="Tell players about your game..."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  value={description}                  onChange={(e) => setDescription(e.target.value)}
                   maxLength={1200}
                   className="w-full p-2 bg-[#0b1c35] border border-orange-300/35 focus:border-orange-300 focus:outline-none rounded-lg text-white text-sm"
                   rows={2}
@@ -676,6 +677,19 @@ export function PublishButton() {
 
               <div className="mt-1 flex flex-col items-stretch gap-2">
                 <span className="text-[10px] text-sky-100/55">The cover will be based on your game files and generated art.</span>
+                <div>
+                  <label className="text-[11px] font-bold text-sky-100/80 uppercase tracking-wide mb-1 block">
+                    Cover idea <span className="text-sky-100/45 normal-case">(optional — fastest: describe your own art)</span>
+                  </label>
+                  <textarea
+                    placeholder="e.g. A lone knight with a glowing blue sword on a stormy battlefield, dramatic lighting…"
+                    value={coverIdea}
+                    onChange={(e) => setCoverIdea(e.target.value)}
+                    maxLength={600}
+                    rows={2}
+                    className="w-full p-2 bg-[#0b1c35] border border-sky-300/25 focus:border-sky-300 focus:outline-none rounded-lg text-white text-sm"
+                  />
+                </div>
                 <button
                   onClick={() => void generateThumbnail()}
                   disabled={isGeneratingThumbnail || isExporting || !title.trim() || !hasFiles || isPublished}

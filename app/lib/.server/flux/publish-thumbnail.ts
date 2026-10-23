@@ -8,6 +8,8 @@ export const publishThumbnailInputSchema = z.object({
   title: z.string().trim().min(1).max(100),
   genre: z.string().trim().max(40).default('ACTION'),
   description: z.string().trim().max(1200).default(''),
+  /** Optional art direction from the game's creator; skips the AI brief for speed. */
+  prompt: z.string().trim().max(600).default(''),
   gameContext: z.string().trim().max(12_000).default(''),
 }).strict();
 
@@ -67,11 +69,16 @@ export async function generatePublishThumbnail(
     throw new Error('The thumbnail-maker endpoint secret is not available in this Cloudflare environment.');
   }
 
-  const visualBrief = await analyzeGameCoverBrief(env, input);
+  const creatorBrief = (input.prompt || '').trim();
+  const visualBrief = creatorBrief
+    ? creatorBrief
+    : await analyzeGameCoverBrief(env, input);
   const prompt = [
     'Create polished cinematic game-cover key art in a wide 16:9 cinematic aspect ratio. Keep the hero and essential action centered.',
     `Game concept: ${input.title}. Genre: ${input.genre || 'ACTION'}.`,
-    visualBrief ? `Art-director review of the actual game: ${visualBrief}` : '',
+    creatorBrief
+      ? `Cover direction from the game's creator (top priority): ${creatorBrief}`
+      : `Art-director review of the actual game: ${visualBrief}`,
     'Create original key art that depicts precisely this game: its named characters, enemies, setting, and camera view, matching the described dominant colors.',
     'Do not use generic genre imagery. Strong central subject, layered depth, rich lighting, professional composition.',
     'No text, letters, logos, watermarks, interface panels, borders, or device mockups.',
