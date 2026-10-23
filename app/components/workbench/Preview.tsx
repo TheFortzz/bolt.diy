@@ -725,7 +725,12 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
       {isPortDropdownOpen && (
         <div className="z-iframe-overlay w-full h-full absolute" onClick={() => setIsPortDropdownOpen(false)} />
       )}
-      <div className="bg-bolt-elements-background-depth-2 p-2 flex items-center gap-1.5">
+      <div
+        className={classNames(
+          'absolute inset-x-0 top-0 z-30 p-2 flex items-center gap-1.5 border-b border-bolt-elements-borderColor/60 bg-bolt-elements-background-depth-2/90 backdrop-blur-md transition-opacity duration-200',
+          isPortDropdownOpen ? 'opacity-100' : 'opacity-0 hover:opacity-100 focus-within:opacity-100',
+        )}
+      >
         <IconButton icon="i-ph:arrow-clockwise" onClick={reloadPreview} />
 
         <div
@@ -781,7 +786,10 @@ export const Preview = memo(({ isStreaming = false }: { isStreaming?: boolean })
         />
       </div>
 
-      <div className="flex-1 border-t border-bolt-elements-borderColor flex justify-center items-center overflow-auto bg-[#0b1020]" style={{ overscrollBehavior: 'contain' }}>
+      <div
+        className="flex-1 border-t-0 flex justify-center items-center overflow-hidden bg-[#0b1020]"
+        style={{ overscrollBehavior: 'contain' }}
+      >
         <div
           style={{
             width: isDeviceModeOn ? `${widthPercent}%` : '100%',
