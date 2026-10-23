@@ -8,6 +8,7 @@ import {
   type PreviewValidationResult,
 } from '~/lib/runtime/preview-validation';
 import { cleanWorkDirRelativePath } from '~/utils/diff';
+import { classNames } from '~/utils/classNames';
 import { PortDropdown } from './PortDropdown';
 import { generatedAssets } from '~/lib/stores/generated-assets';
 import { CookingStatus } from '~/components/chat/CookingStatus';
