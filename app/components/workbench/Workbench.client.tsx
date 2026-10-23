@@ -29,6 +29,7 @@ import {
 import { chatId, dbPromise, getMessages, setMessages } from '~/lib/persistence';
 import { getWebContainer } from '~/lib/webcontainer';
 import { startActivity, updateActivity } from '~/lib/stores/activity';
+import { harnessIsBusy, harnessState } from '~/lib/stores/harness';
 
 const EditorPanel = lazy(() => import('./EditorPanel').then((module) => ({ default: module.EditorPanel })));
 const Preview = lazy(() => import('./Preview').then((module) => ({ default: module.Preview })));
@@ -85,6 +86,10 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
   const [isSyncing, setIsSyncing] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [pinPlayView, setPinPlayView] = useState(false);
+  const harness = useStore(harnessState);
+  // The AI run is active from the first streamed token until the harness
+  // settles (planning → preparing assets → editing → verifying).
+  const agentBusy = Boolean(isStreaming) || harnessIsBusy(harness.phase);
 
   const hasPreview = useStore(computed(workbenchStore.previews, (previews) => previews.length > 0));
   const showWorkbench = useStore(workbenchStore.showWorkbench);
@@ -209,7 +214,6 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
   };
 
   const isSmallViewport = useViewport(768);
-  const wasStreamingRef = useRef(false);
 
   const setSelectedView = useCallback((view: WorkbenchViewType) => {
     workbenchStore.currentView.set(view);
@@ -256,33 +260,41 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
     return () => window.removeEventListener('fortz-play-while-building', onPlayWhileBuilding);
   }, []);
 
-  useEffect(() => {
-    const streaming = Boolean(isStreaming);
-    const wasStreaming = wasStreamingRef.current;
+  const agentBusyRef = useRef(false);
 
-    // Keep Game visible during edits so the running iframe never disappears.
-    if (streaming) {
-      if (!wasStreaming) {
-        setPinPlayView(true);
-        workbenchStore.preferPlayView.set(true);
+  useEffect(() => {
+    const busy = agentBusy;
+    const wasBusy = agentBusyRef.current;
+
+    if (busy) {
+      // While the AI is building the game the workspace shows the Code tab so
+      // the streaming files stay in view; the Game panel is not forced open.
+      if (!wasBusy) {
+        setPinPlayView(false);
+        workbenchStore.preferPlayView.set(false);
       }
-      if (showWorkbench && selectedView !== 'preview') {
-        setSelectedView('preview');
+
+      if (showWorkbench && selectedView !== 'code') {
+        setSelectedView('code');
       }
-    } else if (wasStreaming) {
-      // Streaming just stopped — switch to preview exactly once.
+    } else if (wasBusy) {
+      // The run just settled — hand control back to the Game tab exactly once.
       const hasHtml = Object.values(files).some(
         (d) =>
           d?.type === 'file' && Boolean(d.content) && (d.content.includes('<html') || d.content.includes('<!DOCTYPE')),
       );
 
-      if (validation.status === 'passed' && (hasPreview || hasHtml)) {
+      workbenchStore.preferPlayView.set(true);
+      setPinPlayView(true);
+      workbenchStore.showWorkbench.set(true);
+
+      if (validation.status !== 'checking' && (validation.status === 'passed' || hasHtml || hasPreview)) {
         setSelectedView('preview');
       }
     }
 
-    wasStreamingRef.current = streaming;
-  }, [isStreaming, showWorkbench, pinPlayView, selectedView, setSelectedView]);
+    agentBusyRef.current = busy;
+  }, [agentBusy, showWorkbench, selectedView, setSelectedView, files, hasPreview, validation.status]);
 
   useEffect(() => {
     setMountedViews((previous) => (previous[selectedView] ? previous : { ...previous, [selectedView]: true }));
@@ -467,6 +479,7 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
                         editorDocument={currentDocument}
                         isStreaming={Boolean(
                           isStreaming ||
+                            agentBusy ||
                             streamingFile ||
                             validation.status === 'checking' ||
                             checkpointOperation !== 'idle' ||
