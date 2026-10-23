@@ -8,11 +8,7 @@ import { chatId } from '~/lib/persistence';
 import { toast } from 'react-toastify';
 
 function buildGameVisualContext(files: Record<string, unknown>, assetPaths: string[]) {
-  const assetNames = assetPaths
-    .map((path) => path.replace(/\\/g, '/').split('/').pop())
-    .filter(Boolean)
-    .slice(0, 16);
-  const sourceFiles = Object.entries(files)
+  const sourceEntries = Object.entries(files)
     .map(([path, entry]) => {
       const content = typeof entry === 'string'
         ? entry
@@ -25,26 +21,78 @@ function buildGameVisualContext(files: Record<string, unknown>, assetPaths: stri
       Boolean(content) &&
       /\.(?:html?|(?:m|c)?js|tsx?|css|md)$/i.test(path) &&
       !/(?:node_modules|\.min\.|\.env|dist\/|build\/|vendor\/)/i.test(path),
+    );
+
+  const sampledContent = sourceEntries
+    .slice(0, 12)
+    .map(([, content]) => String(content).slice(0, 40_000))
+    .join('\n');
+
+  // Mine the real game source for visual facts so the cover shows THIS game:
+  // color palette, entity/weapon names, and on-screen title text.
+  const palette = Array.from(
+    sampledContent.matchAll(/#[0-9a-fA-F]{6}\b/g)
+  )
+    .map((match) => match[0].toLowerCase())
+    .reduce((counts, hex) => {
+      counts.set(hex, (counts.get(hex) || 0) + 1);
+      return counts;
+    }, new Map<string, number>());
+  const topPalette = [...palette.entries()]
+    .sort((left, right) => right[1] - left[1])
+    .filter(([hex]) => hex !== '#ffffff' && hex !== '#000000')
+    .slice(0, 8)
+    .map(([hex]) => hex);
+
+  const nameMines = Array.from(
+    sampledContent.matchAll(
+      /\b(?:class|function|const)\s+([A-Z][A-Za-z0-9]{3,24})|\b(?:entity|enemy|boss|weapon|character|ship|tower|hero|player|sprite)\s*[:=]\s*["']([A-Za-z0-9_ -]{4,32})["']/gi,
     )
-    .sort(([left], [right]) => Number(/(?:index|main|game|scene|readme)/i.test(right)) - Number(/(?:index|main|game|scene|readme)/i.test(left)))
-    .slice(0, 5)
+  )
+    .map((match) => (match[1] || match[2] || '').replace(/[_-]+/g, ' ').trim())
+    .filter(Boolean);
+  const entityNames = [...new Set(nameMines)].slice(0, 12);
+
+  const titleText = Array.from(
+    sampledContent.matchAll(/(?:<title>|<h1[^>]*>|titleText\s*[:=]|title\s*[:=]\s*)["'<>]+([A-Za-z0-9 !?&:'-]{4,60})["'<]/i)
+  )
+    .map((match) => match[1].trim())
+    .filter(Boolean)
+    .slice(0, 4);
+
+  const assetList = assetPaths.length
+    ? assetPaths
+    : sourceEntries.map(([path]) => path);
+  const assetNames = assetList
+    .map((path) => path.replace(/\\/g, '/').replace(/^(?:\/home\/project\/|\/project\/|home\/project\/|project\/|\/|\.\/)+/, ''))
+    .filter(Boolean)
+    .slice(0, 48);
+
+  const featuredSources = sourceEntries
+    .sort(([left], [right]) => Number(/(?:index|main|game|scene)/i.test(right)) - Number(/(?:index|main|game|scene)/i.test(left)))
+    .slice(0, 4)
     .map(([path, content]) => {
       const excerpt = String(content)
         .split(/\r?\n/)
         .map((line) => line.trim())
-        .filter((line) => line && !line.startsWith('//') && !line.startsWith('*') && line.length < 260)
-        .slice(0, 12)
+        .filter((line) => line && !line.startsWith('//') && line.length < 240)
+        .slice(0, 26)
         .join(' ')
         .replace(/((?:api[_-]?key|secret|token|password)\s*[:=]\s*)["'][^"']+["']/gi, '$1"[redacted]"')
-        .slice(0, 650);
+        .slice(0, 1800);
       return excerpt ? `${path}: ${excerpt}` : '';
     })
     .filter(Boolean);
 
-  return [
-    assetNames.length ? `Generated game art/assets: ${assetNames.join(', ')}.` : '',
-    sourceFiles.length ? `Game code context: ${sourceFiles.join(' ')}` : '',
-  ].filter(Boolean).join('\n').slice(0, 3800);
+  const review = [
+    assetNames.length ? `Named game art/assets: ${assetNames.join(', ')}.` : '',
+    topPalette.length ? `Dominant colors in the game code (hex): ${topPalette.join(', ')}.` : '',
+    entityNames.length ? `Characters/entities/weapons named in code: ${entityNames.join(', ')}.` : '',
+    titleText.length ? `In-game title text: ${titleText.join(' · ')}.` : '',
+    featuredSources.length ? `Game source review: ${featuredSources.join(' ')}` : '',
+  ].filter(Boolean).join('\n');
+
+  return review.slice(0, 11_000);
 }
 
 /** A quick PNG fallback so an upstream image-provider outage never blocks publishing. */
