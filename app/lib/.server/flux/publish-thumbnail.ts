@@ -78,16 +78,16 @@ export async function generatePublishThumbnail(
   ].filter(Boolean).join(' ');
   const generated = await generateFluxImage(
     // Bounded retries: the Azure FLUX deployment intermittently 502s / times
-    // out, so allow up to four attempts inside a 70s wall-clock budget.
+    // out, so allow up to three attempts inside a 45s wall-clock budget.
     {
       prompt,
       isSprite: false,
       width: 1024,
       height: 576,
-      timeoutMs: 25_000,
-      deadlineMs: 70_000,
-      maxAttempts: 4,
-      retryDelayMs: 1000,
+      timeoutMs: 18_000,
+      deadlineMs: 45_000,
+      maxAttempts: 3,
+      retryDelayMs: 800,
     },
     apiKey,
     endpoint,

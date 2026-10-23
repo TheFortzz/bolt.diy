@@ -54,7 +54,7 @@ function buildGameVisualContext(files: Record<string, unknown>, assetPaths: stri
   const entityNames = [...new Set(nameMines)].slice(0, 12);
 
   const titleText = Array.from(
-    sampledContent.matchAll(/(?:<title>|<h1[^>]*>|titleText\s*[:=]|title\s*[:=]\s*)["'<>]+([A-Za-z0-9 !?&:'-]{4,60})["'<]/i)
+    sampledContent.matchAll(/(?:<title>|<h1[^>]*>|titleText\s*[:=]|title\s*[:=]\s*)["'<>]+([A-Za-z0-9 !?&:'-]{4,60})["'<]/gi)
   )
     .map((match) => match[1].trim())
     .filter(Boolean)
@@ -282,9 +282,9 @@ export function PublishButton() {
     thumbnailRequestRef.current?.abort();
     const controller = new AbortController();
     thumbnailRequestRef.current = controller;
-    // The server now has a 5s art brief and two FLUX attempts under a 36s cap.
+    // The server has a 5s art brief and three FLUX attempts under a 45s cap.
     // Keep a small transport margin before switching to the local PNG fallback.
-    const timeout = window.setTimeout(() => controller.abort(), 50_000);
+    const timeout = window.setTimeout(() => controller.abort(), 48_000);
     const fallBackToLocalCover = (reason: string) => {
       if (thumbnailRequestRef.current !== controller) return;
       const localCover = createLocalFallbackCover(finalTitle, genre);
