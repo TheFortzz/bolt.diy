@@ -53,10 +53,12 @@ function buildGameVisualContext(files: Record<string, unknown>, assetPaths: stri
     .filter(Boolean);
   const entityNames = [...new Set(nameMines)].slice(0, 12);
 
-  const titleText = Array.from(
-    sampledContent.matchAll(/(?:<title>|<h1[^>]*>|titleText\s*[:=]|title\s*[:=]\s*)["'<>]+([A-Za-z0-9 !?&:'-]{4,60})["'<]/gi)
-  )
-    .map((match) => match[1].trim())
+  const titleText = [
+    ...sampledContent.matchAll(/<title[^>]*>([^<]{4,60})<\/title>/gi),
+    ...sampledContent.matchAll(/<h1[^>]*>([^<]{4,60})<\/h1>/gi),
+    ...sampledContent.matchAll(/\btitle\s*[:=]\s*["']([A-Za-z0-9 !?&:'-]{4,60})["']/gi),
+  ]
+    .map((match) => (match[1] || '').trim())
     .filter(Boolean)
     .slice(0, 4);
 
