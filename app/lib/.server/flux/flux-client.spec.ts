@@ -50,13 +50,17 @@ describe('flux-client', () => {
 
   describe('getFluxEndpoint', () => {
     it('prefers the Cloudflare thumbnail-maker endpoint binding', () => {
-      expect(getFluxEndpoint({ 'tunbnailmaker-url': 'https://image.example/providers/blackforestlabs/v1/flux-2-pro' }))
-        .toBe('https://image.example/providers/blackforestlabs/v1/flux-2-pro?api-version=preview');
+      expect(
+        getFluxEndpoint({ 'tunbnailmaker-url': 'https://image.example/providers/blackforestlabs/v1/flux-2-pro' }),
+      ).toBe('https://image.example/providers/blackforestlabs/v1/flux-2-pro?api-version=preview');
     });
 
     it('supports the standard spelling and falls back to the legacy endpoint', () => {
-      expect(getFluxEndpoint({ THUMBNAILMAKER_URL: 'https://image.example/providers/blackforestlabs/v1/flux-2-pro?api-version=preview' }))
-        .toBe('https://image.example/providers/blackforestlabs/v1/flux-2-pro?api-version=preview');
+      expect(
+        getFluxEndpoint({
+          THUMBNAILMAKER_URL: 'https://image.example/providers/blackforestlabs/v1/flux-2-pro?api-version=preview',
+        }),
+      ).toBe('https://image.example/providers/blackforestlabs/v1/flux-2-pro?api-version=preview');
       expect(getFluxEndpoint({})).toBe(`${FLUX_ENDPOINT}?api-version=preview`);
     });
   });
@@ -138,10 +142,10 @@ describe('flux-client', () => {
     });
 
     it('handles non-200 error responses gracefully without throwing', async () => {
-      const mockResponse = new Response(
-        JSON.stringify({ error: { message: 'Quota exceeded' } }),
-        { status: 429, headers: { 'Content-Type': 'application/json' } },
-      );
+      const mockResponse = new Response(JSON.stringify({ error: { message: 'Quota exceeded' } }), {
+        status: 429,
+        headers: { 'Content-Type': 'application/json' },
+      });
 
       const result = await parseFluxResponse(mockResponse);
       expect(result.ok).toBe(false);
@@ -190,6 +194,31 @@ describe('flux-client', () => {
       expect(JSON.parse(fetchSpy.mock.calls[0][1]?.body as string).model).toBe('FLUX.2-pro');
     });
 
+    it('disables prompt upsampling and forwards image references when requested', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(JSON.stringify({ data: [{ b64_json: Buffer.from('image').toString('base64') }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+
+      await generateFluxImage(
+        {
+          prompt: 'wordless game scene',
+          isSprite: false,
+          disablePromptUpsampling: true,
+          referenceImages: ['data:image/png;base64,QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo='],
+          outputFormat: 'jpeg',
+        },
+        'dummy-test-key',
+      );
+
+      const body = JSON.parse(vi.mocked(globalThis.fetch).mock.calls[0][1]?.body as string);
+      expect(body.disable_pup).toBe(true);
+      expect(body.input_image).toBe('QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo=');
+      expect(body.output_format).toBe('jpeg');
+    });
+
     it('handles network failure gracefully without breaking', async () => {
       const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Connection reset'));
 
@@ -206,7 +235,8 @@ describe('flux-client', () => {
 
     it('retries transient provider failures and succeeds on a later attempt', async () => {
       const sampleBase64 = Buffer.from('generated-png-data').toString('base64');
-      const fetchSpy = vi.spyOn(globalThis, 'fetch')
+      const fetchSpy = vi
+        .spyOn(globalThis, 'fetch')
         .mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: 'upstream 502' } }), { status: 502 }))
         .mockResolvedValue(new Response(JSON.stringify({ data: [{ b64_json: sampleBase64 }] }), { status: 200 }));
 
@@ -218,15 +248,17 @@ describe('flux-client', () => {
       expect(result.ok).toBe(true);
       expect(result.base64).toBe(sampleBase64);
       expect(fetchSpy).toHaveBeenCalledTimes(2);
+
       // The retry nudges the composition so the model doesn't repeat the failure.
-      expect(JSON.parse(fetchSpy.mock.calls[1][1]?.body as string).prompt)
-        .not.toBe(JSON.parse(fetchSpy.mock.calls[0][1]?.body as string).prompt);
+      expect(JSON.parse(fetchSpy.mock.calls[1][1]?.body as string).prompt).not.toBe(
+        JSON.parse(fetchSpy.mock.calls[0][1]?.body as string).prompt,
+      );
     });
 
     it('does not burn retries on permanent auth failures', async () => {
-      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-        new Response(JSON.stringify({ error: { message: 'bad key' } }), { status: 401 }),
-      );
+      const fetchSpy = vi
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValue(new Response(JSON.stringify({ error: { message: 'bad key' } }), { status: 401 }));
 
       const result = await generateFluxImage(
         { prompt: 'pixel hero', isSprite: true, retryDelayMs: 1 },
@@ -235,6 +267,23 @@ describe('flux-client', () => {
 
       expect(result.ok).toBe(false);
       expect(result.error).toContain('status 401');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not retry Azure content-policy 400 responses', async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValue(
+          new Response(JSON.stringify({ error: { message: 'Content violated RAI policy' } }), { status: 400 }),
+        );
+
+      const result = await generateFluxImage(
+        { prompt: 'cover art', isSprite: false, maxAttempts: 3, retryDelayMs: 1 },
+        'dummy-test-key',
+      );
+
+      expect(result.ok).toBe(false);
+      expect(result.error).toContain('status 400');
       expect(fetchSpy).toHaveBeenCalledTimes(1);
     });
   });
