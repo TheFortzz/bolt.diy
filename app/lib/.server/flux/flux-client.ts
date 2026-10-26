@@ -64,24 +64,6 @@ export interface FluxGenerationOptions {
 
   /** Base backoff between attempts in ms (default 1200, scaled per attempt). */
   retryDelayMs?: number;
-
-  /**
-   * FLUX.2's prompt upsampler rewrites short prompts. For game covers that
-   * rewrite tends to invent poster layouts, titles, and brand logos ("F1",
-   * "MINECRAFT"), so cover generation disables it. Leave undefined for
-   * sprite/asset generation where upsampling is useful.
-   */
-  disablePromptUpsampling?: boolean;
-
-  /**
-   * Up to four base64 reference images (no data URI prefix). Used as
-   * image-to-image conditioning so a cover preserves the game's real world,
-   * characters, and palette instead of inventing generic genre art.
-   */
-  referenceImages?: string[];
-
-  /** Encoded output format. Covers use JPEG to keep uploads small and fast. */
-  outputFormat?: 'png' | 'jpeg';
 }
 
 export interface FluxGenerationResult {
@@ -330,65 +312,16 @@ export async function parseFluxResponse(res: Response): Promise<FluxGenerationRe
  * Handles timeouts, network issues, and sprite green-screen prompt formatting.
  */
 async function generateFluxImageOnce(
-  options: Pick<
-    FluxGenerationOptions,
-    | 'prompt'
-    | 'isSprite'
-    | 'width'
-    | 'height'
-    | 'timeoutMs'
-    | 'disablePromptUpsampling'
-    | 'referenceImages'
-    | 'outputFormat'
-  >,
+  options: Pick<FluxGenerationOptions, 'prompt' | 'isSprite' | 'width' | 'height' | 'timeoutMs'>,
   apiKey: string,
   endpoint: string,
 ): Promise<FluxGenerationResult> {
-  const {
-    prompt,
-    isSprite = true,
-    width = 512,
-    height = 512,
-    timeoutMs = 45000,
-    disablePromptUpsampling,
-    referenceImages = [],
-    outputFormat = 'png',
-  } = options;
+  const { prompt, isSprite = true, width = 512, height = 512, timeoutMs = 45000 } = options;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   const formattedPrompt = formatFluxPrompt(prompt, isSprite);
-
-  /*
-   * The provider expects raw base64 (no data URI prefix). Strip defensively so
-   * callers can pass either a data URL or an already-encoded string.
-   */
-  const referencePayloads = referenceImages
-    .map((image) =>
-      String(image || '')
-        .trim()
-        .replace(/^data:image\/[a-z0-9.+-]+;base64,/i, '')
-        .replace(/\s/g, ''),
-    )
-    .filter((image) => image.length > 32)
-    .slice(0, 4);
-
-  const body: Record<string, unknown> = {
-    model: 'FLUX.2-pro',
-    prompt: formattedPrompt,
-    width,
-    height,
-    output_format: outputFormat,
-  };
-
-  if (typeof disablePromptUpsampling === 'boolean') {
-    body.disable_pup = disablePromptUpsampling;
-  }
-
-  referencePayloads.forEach((image, index) => {
-    body[index === 0 ? 'input_image' : `input_image_${index + 1}`] = image;
-  });
 
   try {
     const res = await fetch(ensureFluxApiVersion(endpoint), {
@@ -398,7 +331,13 @@ async function generateFluxImageOnce(
         Authorization: `Bearer ${apiKey}`,
         'api-key': apiKey,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        model: 'FLUX.2-pro',
+        prompt: formattedPrompt,
+        width,
+        height,
+        output_format: 'png',
+      }),
       signal: controller.signal,
     });
 

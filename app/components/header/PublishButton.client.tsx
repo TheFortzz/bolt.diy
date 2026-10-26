@@ -3,107 +3,9 @@ import { useStore } from '@nanostores/react';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { generatedAssets } from '~/lib/stores/generated-assets';
 import { bytesToDataUrl } from '~/lib/runtime/html5-game-import';
-import { composeAiCover, createFallbackCover, createGameArtCover, type CoverArtResult } from '~/lib/cover-art';
 import { getWebContainer } from '~/lib/webcontainer';
 import { chatId } from '~/lib/persistence';
 import { toast } from 'react-toastify';
-
-function buildGameVisualContext(files: Record<string, unknown>, assetPaths: string[]) {
-  const sourceEntries = Object.entries(files)
-    .map(([path, entry]) => {
-      const content =
-        typeof entry === 'string'
-          ? entry
-          : entry && typeof entry === 'object' && 'content' in entry && typeof entry.content === 'string'
-            ? entry.content
-            : '';
-      return [path, content] as const;
-    })
-    .filter(
-      ([path, content]) =>
-        Boolean(content) &&
-        /\.(?:html?|(?:m|c)?js|tsx?|css|md)$/i.test(path) &&
-        !/(?:node_modules|\.min\.|\.env|dist\/|build\/|vendor\/)/i.test(path),
-    );
-
-  const sampledContent = sourceEntries
-    .slice(0, 12)
-    .map(([, content]) => String(content).slice(0, 40_000))
-    .join('\n');
-
-  /*
-   * Mine the real game source for visual facts so the cover shows THIS game:
-   * color palette, entity/weapon names, and on-screen title text.
-   */
-  const palette = Array.from(sampledContent.matchAll(/#[0-9a-fA-F]{6}\b/g))
-    .map((match) => match[0].toLowerCase())
-    .reduce((counts, hex) => {
-      counts.set(hex, (counts.get(hex) || 0) + 1);
-      return counts;
-    }, new Map<string, number>());
-  const topPalette = [...palette.entries()]
-    .sort((left, right) => right[1] - left[1])
-    .filter(([hex]) => hex !== '#ffffff' && hex !== '#000000')
-    .slice(0, 8)
-    .map(([hex]) => hex);
-
-  const nameMines = Array.from(
-    sampledContent.matchAll(
-      /\b(?:class|function|const)\s+([A-Z][A-Za-z0-9]{3,24})|\b(?:entity|enemy|boss|weapon|character|ship|tower|hero|player|sprite)\s*[:=]\s*["']([A-Za-z0-9_ -]{4,32})["']/gi,
-    ),
-  )
-    .map((match) => (match[1] || match[2] || '').replace(/[_-]+/g, ' ').trim())
-    .filter(Boolean);
-  const entityNames = [...new Set(nameMines)].slice(0, 12);
-
-  const titleText = [
-    ...sampledContent.matchAll(/<title[^>]*>([^<]{4,60})<\/title>/gi),
-    ...sampledContent.matchAll(/<h1[^>]*>([^<]{4,60})<\/h1>/gi),
-    ...sampledContent.matchAll(/\btitle\s*[:=]\s*["']([A-Za-z0-9 !?&:'-]{4,60})["']/gi),
-  ]
-    .map((match) => (match[1] || '').trim())
-    .filter(Boolean)
-    .slice(0, 4);
-
-  const assetList = assetPaths.length ? assetPaths : sourceEntries.map(([path]) => path);
-  const assetNames = assetList
-    .map((path) =>
-      path.replace(/\\/g, '/').replace(/^(?:\/home\/project\/|\/project\/|home\/project\/|project\/|\/|\.\/)+/, ''),
-    )
-    .filter(Boolean)
-    .slice(0, 48);
-
-  const featuredSources = sourceEntries
-    .sort(
-      ([left], [right]) =>
-        Number(/(?:index|main|game|scene)/i.test(right)) - Number(/(?:index|main|game|scene)/i.test(left)),
-    )
-    .slice(0, 4)
-    .map(([path, content]) => {
-      const excerpt = String(content)
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter((line) => line && !line.startsWith('//') && line.length < 240)
-        .slice(0, 26)
-        .join(' ')
-        .replace(/((?:api[_-]?key|secret|token|password)\s*[:=]\s*)["'][^"']+["']/gi, '$1"[redacted]"')
-        .slice(0, 1800);
-      return excerpt ? `${path}: ${excerpt}` : '';
-    })
-    .filter(Boolean);
-
-  const review = [
-    assetNames.length ? `Named game art/assets: ${assetNames.join(', ')}.` : '',
-    topPalette.length ? `Dominant colors in the game code (hex): ${topPalette.join(', ')}.` : '',
-    entityNames.length ? `Characters/entities/weapons named in code: ${entityNames.join(', ')}.` : '',
-    titleText.length ? `In-game title text: ${titleText.join(' · ')}.` : '',
-    featuredSources.length ? `Game source review: ${featuredSources.join(' ')}` : '',
-  ]
-    .filter(Boolean)
-    .join('\n');
-
-  return review.slice(0, 11_000);
-}
 
 function prepareUploadedCover(file: File): Promise<string> {
   if (!/^image\/(?:png|jpe?g|webp)$/i.test(file.type)) {
@@ -147,150 +49,17 @@ function prepareUploadedCover(file: File): Promise<string> {
   });
 }
 
-/** A quick PNG fallback so an upstream image-provider outage never blocks publishing. */
-function createLocalFallbackCover(title: string, genre: string): string {
-  const canvas = document.createElement('canvas');
-  canvas.width = 1280;
-  canvas.height = 720;
-
-  const ctx = canvas.getContext('2d');
-
-  if (!ctx) {
-    throw new Error('This browser could not create the fallback cover image.');
-  }
-
-  const genreKey = genre.toLowerCase();
-  const accent = /horror|dark|halloween/.test(genreKey)
-    ? '#fb4668'
-    : /race|car|sport/.test(genreKey)
-      ? '#ff9d35'
-      : /space|sci|flight/.test(genreKey)
-        ? '#49c9ff'
-        : /puzzle|strategy|knowledge/.test(genreKey)
-          ? '#52e0c0'
-          : '#a78bfa';
-  const secondary = /race|car|sport/.test(genreKey) ? '#4ddcff' : '#fb5b90';
-
-  const background = ctx.createLinearGradient(0, 0, 1280, 720);
-  background.addColorStop(0, '#080d24');
-  background.addColorStop(0.52, '#17204a');
-  background.addColorStop(1, '#080b1c');
-  ctx.fillStyle = background;
-  ctx.fillRect(0, 0, 1280, 720);
-
-  const glow = ctx.createRadialGradient(850, 310, 20, 850, 310, 510);
-  glow.addColorStop(0, `${accent}99`);
-  glow.addColorStop(0.42, `${secondary}36`);
-  glow.addColorStop(1, 'transparent');
-  ctx.fillStyle = glow;
-  ctx.fillRect(280, 0, 1000, 680);
-
-  // Add depth and motion without depending on any remote artwork or fonts.
-  ctx.save();
-  ctx.translate(850, 305);
-  ctx.rotate(-0.24);
-
-  for (let i = 0; i < 9; i++) {
-    ctx.strokeStyle = i % 2 ? `${secondary}35` : `${accent}48`;
-    ctx.lineWidth = i % 3 === 0 ? 5 : 2;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 190 + i * 24, 112 + i * 15, 0, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  ctx.save();
-  ctx.globalAlpha = 0.28;
-  ctx.strokeStyle = '#dbeafe';
-  ctx.lineWidth = 1;
-
-  for (let x = 0; x < 1280; x += 56) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x - 260, 720);
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  const lowerShade = ctx.createLinearGradient(0, 300, 0, 720);
-  lowerShade.addColorStop(0, 'transparent');
-  lowerShade.addColorStop(1, 'rgba(3,6,18,0.96)');
-  ctx.fillStyle = lowerShade;
-  ctx.fillRect(0, 290, 1280, 430);
-
-  ctx.fillStyle = accent;
-  ctx.fillRect(74, 84, 9, 44);
-  ctx.font = '800 22px Arial, sans-serif';
-  ctx.fillText('THEFORTZ  /  GAME COVER', 102, 115);
-
-  const cleanTitle = title.trim().slice(0, 100) || 'YOUR NEXT GAME';
-  const words = cleanTitle.split(/\s+/);
-  const titleLines: string[] = [];
-  let line = '';
-  ctx.font = '900 76px Arial, sans-serif';
-
-  for (const word of words) {
-    const candidate = line ? `${line} ${word}` : word;
-
-    if (line && ctx.measureText(candidate).width > 1040) {
-      titleLines.push(line);
-      line = word;
-    } else {
-      line = candidate;
-    }
-  }
-
-  if (line) {
-    titleLines.push(line);
-  }
-
-  const shownLines = titleLines.slice(0, 2);
-  const titleSize = shownLines.some((row) => ctx.measureText(row).width > 1080) ? 58 : 76;
-  ctx.font = `900 ${titleSize}px Arial, sans-serif`;
-  shownLines.forEach((row, index) => {
-    const y = 540 + index * (titleSize + 6);
-    ctx.lineWidth = 8;
-    ctx.strokeStyle = 'rgba(3,6,18,0.9)';
-    ctx.strokeText(row, 78, y, 1100);
-    ctx.fillStyle = '#fff';
-    ctx.fillText(row, 78, y, 1100);
-  });
-
-  const badge = (genre || 'ACTION').toUpperCase().slice(0, 22);
-  ctx.font = '700 20px Arial, sans-serif';
-
-  const badgeWidth = Math.max(130, ctx.measureText(badge).width + 42);
-  ctx.fillStyle = `${accent}dd`;
-  ctx.beginPath();
-
-  if (typeof ctx.roundRect === 'function') {
-    ctx.roundRect(80, 618, badgeWidth, 46, 18);
-  } else {
-    ctx.rect(80, 618, badgeWidth, 46);
-  }
-
-  ctx.fill();
-  ctx.fillStyle = '#07101e';
-  ctx.fillText(badge, 101, 648);
-
-  return canvas.toDataURL('image/png');
-}
-
 export function PublishButton() {
   const [isOpen, setIsOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(false);
   const [publishStep, setPublishStep] = useState<'details' | 'cover'>('details');
-  const [coverStatus, setCoverStatus] = useState<'idle' | 'generating' | 'ready' | 'error'>('idle');
+  const [coverStatus, setCoverStatus] = useState<'idle' | 'ready'>('idle');
   const [coverError, setCoverError] = useState('');
   const [publishProgress, setPublishProgress] = useState('');
   const [title, setTitle] = useState('');
   const [genre, setGenre] = useState('ACTION');
   const [description, setDescription] = useState('');
   const [previewThumb, setPreviewThumb] = useState<string>('');
-  const [gameArtThumb, setGameArtThumb] = useState<string>('');
-  const [aiCoverReady, setAiCoverReady] = useState(false);
-  const thumbnailRequestRef = useRef<AbortController | null>(null);
   const coverUploadRef = useRef<HTMLInputElement>(null);
   const files = useStore(workbenchStore.files);
   const currentChatId = useStore(chatId);
@@ -303,10 +72,6 @@ export function PublishButton() {
 
   useEffect(() => {
     if (!isOpen) {
-      thumbnailRequestRef.current?.abort();
-      thumbnailRequestRef.current = null;
-      setIsGeneratingThumbnail(false);
-
       return undefined;
     }
 
@@ -314,14 +79,9 @@ export function PublishButton() {
     setCoverStatus('idle');
     setCoverError('');
     setPreviewThumb('');
-    setGameArtThumb('');
-    setAiCoverReady(false);
     setPublishProgress('');
 
-    return () => {
-      thumbnailRequestRef.current?.abort();
-      thumbnailRequestRef.current = null;
-    };
+    return undefined;
   }, [isOpen]);
 
   useEffect(() => {
@@ -357,170 +117,17 @@ export function PublishButton() {
     } catch {}
   }, [isOpen, files]);
 
-  const generateThumbnail = async () => {
-    const finalTitle = title.trim();
-
-    if (!finalTitle) {
-      return;
-    }
-
-    setPublishStep('cover');
-    setCoverStatus('generating');
-    setCoverError('');
-    setIsGeneratingThumbnail(true);
-    thumbnailRequestRef.current?.abort();
-
-    const controller = new AbortController();
-    thumbnailRequestRef.current = controller;
-
-    const timeout = window.setTimeout(() => controller.abort(), 27_000);
-
-    let localCover: CoverArtResult | null = null;
-
-    try {
-      const projectFiles = (workbenchStore as any).files?.get?.() ?? files ?? {};
-      const binaryAssetPaths = Object.entries(projectFiles as Record<string, unknown>)
-        .filter(([, entry]) =>
-          Boolean(entry && typeof entry === 'object' && (entry as any).type === 'file' && (entry as any).isBinary),
-        )
-        .map(([path]) => path.replace(/^(?:\/home\/project\/|\/project\/|home\/project\/|project\/|\/|\.\/)+/, ''));
-      const visualContext = buildGameVisualContext(projectFiles, [
-        ...Object.values(generatedAssets.get()).map((asset) => asset.path),
-        ...binaryAssetPaths,
-      ]);
-
-      try {
-        const assetMap = Object.fromEntries(
-          Object.values(generatedAssets.get()).map((asset) => [asset.path, asset.dataUrl]),
-        ) as Record<string, string>;
-        localCover = await createGameArtCover({
-          title: finalTitle,
-          genre,
-          description: description.trim(),
-          assets: assetMap,
-          palette: [...visualContext.matchAll(/#[0-9a-fA-F]{6}\b/g)].map((match) => match[0]).slice(0, 8),
-        });
-      } catch {
-        localCover = {
-          dataUrl: createFallbackCover(finalTitle, genre) || createLocalFallbackCover(finalTitle, genre),
-          references: [],
-          referencePaths: [],
-          palette: [],
-          accent: '#f59e0b',
-          secondary: '#8b5cf6',
-          style: 'illustration',
-          hasGameArt: false,
-        };
-      }
-
-      if (thumbnailRequestRef.current !== controller) {
-        return;
-      }
-
-      if (!localCover) {
-        throw new Error('Could not create a game-art cover.');
-      }
-
-      setGameArtThumb(localCover.dataUrl);
-      setPreviewThumb(localCover.dataUrl);
-      setCoverStatus('ready');
-
-      /*
-       * AI refinement is best-effort. The game-art cover above is already
-       * publishable, so a slow or unavailable image provider never blocks.
-       */
-      const response = await fetch('/api/generate-thumbnail', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          /*
-           * The remote model only needs actual project image references. Keep
-           * user-entered titles, descriptions, and free-form prompts out of
-           * the safety-filtered prompt path; the real title is composited here.
-           */
-          title: 'Game',
-          genre,
-          description: '',
-          prompt: '',
-          visualFacts: '',
-          referenceImages: localCover.references,
-        }),
-        signal: controller.signal,
-      });
-      let result: { dataUrl?: string; error?: string } = {};
-
-      try {
-        result = (await response.json()) as { dataUrl?: string; error?: string };
-      } catch {
-        // The status below is more useful than a JSON parsing exception.
-      }
-
-      if (!response.ok || !result.dataUrl?.startsWith('data:image/')) {
-        if (thumbnailRequestRef.current === controller) {
-          const policyBlocked = /rai policy|bingblocklist|content violated/i.test(result.error || '');
-          setCoverError(
-            policyBlocked
-              ? 'The image provider blocked this request. Your game-art cover is ready, or upload another cover below.'
-              : 'Game-art cover is ready. AI refinement was unavailable; you can publish now or upload another cover.',
-          );
-        }
-
-        return;
-      }
-
-      const polishedCover = await composeAiCover(result.dataUrl, localCover, {
-        title: finalTitle,
-        genre,
-        description: description.trim(),
-      });
-
-      if (thumbnailRequestRef.current !== controller) {
-        return;
-      }
-
-      setPreviewThumb(polishedCover);
-      setAiCoverReady(true);
-      setCoverError('AI cover refined. You can switch back to the original game art below.');
-    } catch (error) {
-      if (thumbnailRequestRef.current !== controller) {
-        return;
-      }
-
-      setCoverStatus(localCover ? 'ready' : 'error');
-      setCoverError(
-        localCover
-          ? 'Game-art cover is ready. AI refinement did not finish; you can publish now.'
-          : error instanceof Error
-            ? error.message
-            : 'Could not create a cover.',
-      );
-    } finally {
-      window.clearTimeout(timeout);
-
-      if (thumbnailRequestRef.current === controller) {
-        thumbnailRequestRef.current = null;
-        setIsGeneratingThumbnail(false);
-      }
-    }
-  };
-
   const uploadCover = async (file?: File) => {
     if (!file) {
       return;
     }
 
-    thumbnailRequestRef.current?.abort();
-    thumbnailRequestRef.current = null;
-    setIsGeneratingThumbnail(false);
     setCoverError('');
 
     try {
       const dataUrl = await prepareUploadedCover(file);
       setPreviewThumb(dataUrl);
-      setGameArtThumb(dataUrl);
-      setAiCoverReady(false);
       setCoverStatus('ready');
-      setCoverError('');
     } catch (error) {
       setCoverError(error instanceof Error ? error.message : 'Could not use that cover image.');
     }
@@ -555,7 +162,9 @@ export function PublishButton() {
     }
 
     if (coverStatus !== 'ready' || !previewThumb) {
-      toast.info('Generate the game cover before publishing.');
+      setPublishStep('cover');
+      toast.info('Upload a cover image before publishing.');
+
       return;
     }
 
@@ -911,14 +520,14 @@ export function PublishButton() {
 
                 <div className="mt-1 flex flex-col items-stretch gap-2">
                   <span className="text-[10px] text-sky-100/55">
-                    AI uses your actual game images only; your title is added locally to avoid policy blocks.
+                    Upload a PNG, JPG, or WebP cover image. A cover upload is required to publish.
                   </span>
                   <button
-                    onClick={() => void generateThumbnail()}
-                    disabled={isGeneratingThumbnail || isExporting || !title.trim() || !hasFiles || isPublished}
+                    onClick={() => setPublishStep('cover')}
+                    disabled={isExporting || !title.trim() || !hasFiles || isPublished}
                     className="w-full flex items-center justify-center gap-2 rounded-lg border border-orange-200/60 bg-gradient-to-r from-orange-500 to-amber-400 px-4 py-2.5 text-xs font-extrabold uppercase tracking-wider text-[#1c2230] transition-colors hover:from-orange-400 hover:to-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <span>Continue · Create cover</span>
+                    <span>Continue · Upload cover</span>
                     <span aria-hidden="true">→</span>
                   </button>
                   <button
@@ -944,35 +553,12 @@ export function PublishButton() {
                     />
                   ) : (
                     <div className="flex flex-col items-center gap-3 px-6 text-center">
-                      <span
-                        className={
-                          isGeneratingThumbnail
-                            ? 'i-svg-spinners:90-ring-with-bg text-3xl text-orange-300'
-                            : 'i-ph:image-square text-4xl text-sky-200/50'
-                        }
-                      />
-                      <span className="text-sm font-bold text-white/90">
-                        {isGeneratingThumbnail ? 'Building a cover from your game art…' : 'Your cover will appear here'}
-                      </span>
-                      {isGeneratingThumbnail && (
-                        <span className="text-[11px] text-sky-100/60">
-                          AI refinement runs in the background; publishing is available as soon as this cover appears.
-                        </span>
-                      )}
+                      <span aria-hidden="true" className="i-ph:upload-simple text-4xl text-sky-200/70" />
+                      <span className="text-sm font-bold text-white/90">Upload a cover image to continue</span>
+                      <span className="text-[11px] text-sky-100/60">PNG, JPG, or WebP · required</span>
                     </div>
                   )}
                 </div>
-
-                {previewThumb && isGeneratingThumbnail && (
-                  <div
-                    className="flex items-center justify-center gap-2 text-[11px] font-semibold text-sky-100/70"
-                    role="status"
-                    aria-live="polite"
-                  >
-                    <span className="i-svg-spinners:90-ring-with-bg text-sky-200" />
-                    Cover ready — AI is refining it in the background. You can publish now.
-                  </div>
-                )}
 
                 <input
                   ref={coverUploadRef}
@@ -990,28 +576,14 @@ export function PublishButton() {
                   disabled={isExporting}
                   className="self-center rounded-lg border border-sky-200/35 bg-sky-300/10 px-4 py-2 text-xs font-extrabold text-sky-100 hover:bg-sky-300/20 disabled:opacity-50"
                 >
-                  Upload your own cover
+                  <span aria-hidden="true" className="i-ph:upload-simple" />
+                  {previewThumb ? 'Replace uploaded cover' : 'Upload cover image (required)'}
                 </button>
 
                 {coverError && (
-                  <div
-                    className={
-                      aiCoverReady
-                        ? 'rounded-lg border border-emerald-300/25 bg-emerald-300/10 px-3 py-2 text-xs leading-relaxed text-emerald-100'
-                        : 'rounded-lg border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-xs leading-relaxed text-amber-100'
-                    }
-                  >
+                  <div className="rounded-lg border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-xs leading-relaxed text-amber-100">
                     {coverError}
                   </div>
-                )}
-
-                {aiCoverReady && gameArtThumb && previewThumb !== gameArtThumb && (
-                  <button
-                    onClick={() => setPreviewThumb(gameArtThumb)}
-                    className="self-center rounded-lg border border-sky-200/35 bg-sky-300/10 px-3 py-1.5 text-[11px] font-bold text-sky-100 hover:bg-sky-300/20"
-                  >
-                    Use original game-art cover
-                  </button>
                 )}
 
                 <button
@@ -1022,15 +594,6 @@ export function PublishButton() {
                   <span>{isExporting ? '⏳' : '🚀'}</span>
                   <span>{isExporting ? 'Publishing game and cover…' : 'Publish game'}</span>
                 </button>
-
-                {coverError && !aiCoverReady && !/provider blocked this request/i.test(coverError) && !isExporting && (
-                  <button
-                    onClick={() => void generateThumbnail()}
-                    className="self-center rounded-lg border border-orange-200/40 bg-orange-400/15 px-4 py-2 text-xs font-extrabold text-orange-100 hover:bg-orange-400/25"
-                  >
-                    Retry AI cover
-                  </button>
-                )}
 
                 {isExporting && (
                   <div
@@ -1048,7 +611,7 @@ export function PublishButton() {
             {publishStep === 'details' && (
               <div className="mt-4 flex items-start gap-1.5 border-t border-sky-200/15 pt-3 text-[11px] leading-normal text-sky-100/75">
                 <span>💡</span>
-                <span>Your generated game cover and game files are published together to thefortz.me.</span>
+                <span>Your uploaded cover and game files are published together to thefortz.me.</span>
               </div>
             )}
           </div>

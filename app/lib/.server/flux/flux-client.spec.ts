@@ -194,31 +194,6 @@ describe('flux-client', () => {
       expect(JSON.parse(fetchSpy.mock.calls[0][1]?.body as string).model).toBe('FLUX.2-pro');
     });
 
-    it('disables prompt upsampling and forwards image references when requested', async () => {
-      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-        new Response(JSON.stringify({ data: [{ b64_json: Buffer.from('image').toString('base64') }] }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
-      );
-
-      await generateFluxImage(
-        {
-          prompt: 'wordless game scene',
-          isSprite: false,
-          disablePromptUpsampling: true,
-          referenceImages: ['data:image/png;base64,QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo='],
-          outputFormat: 'jpeg',
-        },
-        'dummy-test-key',
-      );
-
-      const body = JSON.parse(vi.mocked(globalThis.fetch).mock.calls[0][1]?.body as string);
-      expect(body.disable_pup).toBe(true);
-      expect(body.input_image).toBe('QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo=');
-      expect(body.output_format).toBe('jpeg');
-    });
-
     it('handles network failure gracefully without breaking', async () => {
       const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Connection reset'));
 
