@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import JSZip from 'jszip';
-import { MAX_GAME_IMPORT_BYTES, prepareHtml5GameImport } from './html5-game-import';
+import { MAX_GAME_FILES, MAX_GAME_IMPORT_BYTES, prepareHtml5GameImport } from './html5-game-import';
 
 async function zipFile(entries: Record<string, string>) {
   const zip = new JSZip();
@@ -22,6 +22,30 @@ function namedFile(name: string, content: string, relativePath = ''): File {
 describe('HTML5 game import validator', () => {
   it('allows up to 100 MiB per complete imported game', () => {
     expect(MAX_GAME_IMPORT_BYTES).toBe(100 * 1024 * 1024);
+  });
+
+  it('allows up to 600 files in a game ZIP', async () => {
+    const entries: Record<string, string> = {
+      'index.html': '<!doctype html><html><body>game</body></html>',
+    };
+    for (let i = 1; i < MAX_GAME_FILES; i++) {
+      entries[`assets/file-${i}.txt`] = 'x';
+    }
+
+    const imported = await prepareHtml5GameImport([await zipFile(entries)]);
+
+    expect(imported.files).toHaveLength(600);
+  });
+
+  it('rejects a game ZIP with more than 600 files', async () => {
+    const entries: Record<string, string> = {
+      'index.html': '<!doctype html><html><body>game</body></html>',
+    };
+    for (let i = 1; i <= MAX_GAME_FILES; i++) {
+      entries[`assets/file-${i}.txt`] = 'x';
+    }
+
+    await expect(prepareHtml5GameImport([await zipFile(entries)])).rejects.toThrow(/under 600 files/);
   });
 
   it('accepts a built ZIP game and strips a single enclosing folder', async () => {
