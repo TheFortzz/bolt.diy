@@ -102,18 +102,35 @@ export function Layout({ children }: { children: React.ReactNode }) {
       try {
         window.parent.postMessage({ type: 'thefortz-studio-resume' }, '*');
         window.parent.postMessage({ type: 'thefortz-auth-request' }, '*');
+        window.parent.postMessage(
+          { type: 'thefortz-studio-ping', requestId: `resume-${Date.now()}` },
+          '*',
+        );
       } catch (error) {
         console.warn('[Studio bridge] Parent sync request failed:', error);
       }
     };
 
     window.parent.postMessage({ type: 'thefortz-studio-ready' }, '*');
+    requestParentSync();
+    const heartbeat = window.setInterval(() => {
+      if (document.visibilityState === 'hidden') return;
+      try {
+        window.parent.postMessage(
+          { type: 'thefortz-studio-ping', requestId: `heartbeat-${Date.now()}` },
+          '*',
+        );
+      } catch {
+        /* the next online/focus event retries the handshake */
+      }
+    }, 30_000);
     window.addEventListener('focus', requestParentSync);
     window.addEventListener('online', requestParentSync);
     window.addEventListener('pageshow', requestParentSync);
     document.addEventListener('visibilitychange', requestParentSync);
 
     return () => {
+      window.clearInterval(heartbeat);
       window.removeEventListener('focus', requestParentSync);
       window.removeEventListener('online', requestParentSync);
       window.removeEventListener('pageshow', requestParentSync);

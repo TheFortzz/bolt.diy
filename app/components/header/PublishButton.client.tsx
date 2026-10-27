@@ -49,6 +49,46 @@ function prepareUploadedCover(file: File): Promise<string> {
   });
 }
 
+async function waitForFortzParent(origin: string): Promise<void> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const requestId = `publish-bridge-${Date.now()}-${attempt}`;
+    const acknowledged = await new Promise<boolean>((resolve) => {
+      const timeout = window.setTimeout(() => {
+        window.removeEventListener('message', onMessage);
+        resolve(false);
+      }, 1800);
+      const onMessage = (event: MessageEvent) => {
+        if (
+          event.source !== window.parent ||
+          event.origin !== origin ||
+          event.data?.type !== 'thefortz-studio-pong' ||
+          event.data?.requestId !== requestId
+        ) {
+          return;
+        }
+        window.clearTimeout(timeout);
+        window.removeEventListener('message', onMessage);
+        resolve(true);
+      };
+
+      window.addEventListener('message', onMessage);
+      try {
+        window.parent.postMessage({ type: 'thefortz-studio-ping', requestId }, origin);
+      } catch {
+        window.clearTimeout(timeout);
+        window.removeEventListener('message', onMessage);
+        resolve(false);
+      }
+    });
+
+    if (acknowledged) return;
+  }
+
+  throw new Error(
+    'The connection to thefortz.me was interrupted. Your project is still in Studio; return to the site and retry without closing this tab.',
+  );
+}
+
 export function PublishButton() {
   const [isOpen, setIsOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -318,6 +358,9 @@ export function PublishButton() {
         if (!parentOrigin || parentOrigin === 'null') {
           throw new Error('Could not securely connect to thefortz.me. Open the Studio from the site and try again.');
         }
+
+        setPublishProgress('Checking the connection to thefortz.me…');
+        await waitForFortzParent(parentOrigin);
 
         const requestId = crypto.randomUUID();
         await new Promise<string>((resolve, reject) => {
