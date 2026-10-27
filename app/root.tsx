@@ -95,9 +95,30 @@ export function Layout({ children }: { children: React.ReactNode }) {
   }, [theme]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
-      window.parent.postMessage({ type: 'thefortz-studio-ready' }, '*');
-    }
+    if (typeof window === 'undefined' || !window.parent || window.parent === window) return;
+
+    const requestParentSync = () => {
+      if (document.visibilityState === 'hidden') return;
+      try {
+        window.parent.postMessage({ type: 'thefortz-studio-resume' }, '*');
+        window.parent.postMessage({ type: 'thefortz-auth-request' }, '*');
+      } catch (error) {
+        console.warn('[Studio bridge] Parent sync request failed:', error);
+      }
+    };
+
+    window.parent.postMessage({ type: 'thefortz-studio-ready' }, '*');
+    window.addEventListener('focus', requestParentSync);
+    window.addEventListener('online', requestParentSync);
+    window.addEventListener('pageshow', requestParentSync);
+    document.addEventListener('visibilitychange', requestParentSync);
+
+    return () => {
+      window.removeEventListener('focus', requestParentSync);
+      window.removeEventListener('online', requestParentSync);
+      window.removeEventListener('pageshow', requestParentSync);
+      document.removeEventListener('visibilitychange', requestParentSync);
+    };
   }, []);
 
   return (
