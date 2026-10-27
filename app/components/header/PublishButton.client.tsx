@@ -429,7 +429,7 @@ export function PublishButton() {
             className={
               isPublished
                 ? 'i-ph:check-circle-fill text-emerald-300 text-xs'
-                : 'i-ph:rocket-launch text-orange-300 text-xs'
+                : 'i-ph:rocket-launch text-sky-300 text-xs'
             }
           />
           <span>{isPublished ? 'PUBLISHED' : 'PUBLISH'}</span>
@@ -446,13 +446,13 @@ export function PublishButton() {
           }}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-orange-400/60 bg-gradient-to-br from-[#123b72] via-[#102746] to-[#17213a] p-6 text-white relative shadow-[0_24px_90px_rgba(4,13,32,0.72)]"
+            className="w-full max-w-lg rounded-2xl border border-sky-400/50 bg-gradient-to-br from-[#123b72] via-[#102746] to-[#0b1730] p-7 text-white relative shadow-[0_24px_90px_rgba(4,13,32,0.72)] font-['Outfit',sans-serif]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-orange-300/25 pb-3 mb-4">
+            <div className="flex items-center justify-between border-b border-sky-300/25 pb-4 mb-5">
               <div className="flex items-center gap-2">
-                <span className="text-xl">🎮</span>
-                <h3 className="font-extrabold text-lg tracking-wider uppercase text-orange-300 font-['Anton',sans-serif]">
+                <span aria-hidden="true" className="i-ph:game-controller text-2xl text-sky-300" />
+                <h3 className="font-extrabold text-lg tracking-wider uppercase text-sky-100 font-['Syne',sans-serif]">
                   Publish Game
                 </h3>
               </div>
@@ -466,16 +466,16 @@ export function PublishButton() {
             </div>
 
             <div className="mb-4 flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.18em] text-sky-100/65">
-              <span className={publishStep === 'details' ? 'text-orange-300' : ''}>1 · Game details</span>
+              <span className={publishStep === 'details' ? 'text-sky-300' : ''}>1 · Game details</span>
               <span className="text-white/25">—</span>
-              <span className={publishStep === 'cover' ? 'text-orange-300' : ''}>2 · Cover art</span>
+              <span className={publishStep === 'cover' ? 'text-sky-300' : ''}>2 · Cover art</span>
             </div>
 
             {publishStep === 'details' ? (
               <div className="flex flex-col gap-4">
                 <div>
                   <label className="text-[11px] font-bold text-sky-100/80 uppercase tracking-wide mb-1 block">
-                    Game name <span className="text-orange-300">*</span>
+                    Game name <span className="text-sky-300">*</span>
                   </label>
                   <input
                     type="text"
@@ -483,7 +483,7 @@ export function PublishButton() {
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     maxLength={100}
-                    className="w-full p-2 bg-[#0b1c35] border border-orange-300/35 focus:border-orange-300 focus:outline-none rounded-lg text-white text-sm"
+                    className="w-full p-2.5 bg-[#0b1c35] border border-sky-300/30 focus:border-sky-300 focus:outline-none rounded-lg text-white text-sm"
                   />
                 </div>
 
@@ -494,7 +494,7 @@ export function PublishButton() {
                   <select
                     value={genre}
                     onChange={(e) => setGenre(e.target.value)}
-                    className="w-full p-2 bg-[#0b1c35] border border-orange-300/35 focus:border-orange-300 focus:outline-none rounded-lg text-white text-sm"
+                    className="w-full p-2.5 bg-[#0b1c35] border border-sky-300/30 focus:border-sky-300 focus:outline-none rounded-lg text-white text-sm"
                   >
                     <option value="ACTION">Action</option>
                     <option value="ADVENTURE">Adventure</option>
@@ -513,7 +513,7 @@ export function PublishButton() {
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     maxLength={1200}
-                    className="w-full p-2 bg-[#0b1c35] border border-orange-300/35 focus:border-orange-300 focus:outline-none rounded-lg text-white text-sm"
+                    className="w-full p-2.5 bg-[#0b1c35] border border-sky-300/30 focus:border-sky-300 focus:outline-none rounded-lg text-white text-sm"
                     rows={2}
                   />
                 </div>
@@ -525,7 +525,7 @@ export function PublishButton() {
                   <button
                     onClick={() => setPublishStep('cover')}
                     disabled={isExporting || !title.trim() || !hasFiles || isPublished}
-                    className="w-full flex items-center justify-center gap-2 rounded-lg border border-orange-200/60 bg-gradient-to-r from-orange-500 to-amber-400 px-4 py-2.5 text-xs font-extrabold uppercase tracking-wider text-[#1c2230] transition-colors hover:from-orange-400 hover:to-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-2 rounded-lg border border-sky-200/60 bg-gradient-to-r from-blue-600 to-sky-500 px-4 py-3 text-xs font-extrabold uppercase tracking-wider text-white transition-colors hover:from-blue-500 hover:to-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <span>Continue · Upload cover</span>
                     <span aria-hidden="true">→</span>
@@ -544,7 +544,22 @@ export function PublishButton() {
               </div>
             ) : (
               <div className="flex flex-col gap-4">
-                <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl border border-orange-200/30 bg-[#06152b] shadow-[0_18px_50px_rgba(0,0,0,0.35)]">
+                <div
+                  role="button"
+                  tabIndex={isExporting ? -1 : 0}
+                  aria-label={previewThumb ? 'Replace game cover image' : 'Upload game cover image'}
+                  aria-disabled={isExporting}
+                  onClick={() => {
+                    if (!isExporting) coverUploadRef.current?.click();
+                  }}
+                  onKeyDown={(event) => {
+                    if (!isExporting && (event.key === 'Enter' || event.key === ' ')) {
+                      event.preventDefault();
+                      coverUploadRef.current?.click();
+                    }
+                  }}
+                  className="group relative flex aspect-video w-full cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-dashed border-sky-300/50 bg-blue-950/60 shadow-[0_18px_50px_rgba(0,0,0,0.35)] transition-colors hover:border-sky-200 hover:bg-blue-900/60 focus:outline-none focus:ring-2 focus:ring-sky-300 disabled:cursor-not-allowed disabled:opacity-50"
+                >
                   {previewThumb ? (
                     <img
                       src={previewThumb}
@@ -553,9 +568,16 @@ export function PublishButton() {
                     />
                   ) : (
                     <div className="flex flex-col items-center gap-3 px-6 text-center">
-                      <span aria-hidden="true" className="i-ph:upload-simple text-4xl text-sky-200/70" />
-                      <span className="text-sm font-bold text-white/90">Upload a cover image to continue</span>
+                      <span aria-hidden="true" className="i-ph:upload-simple text-5xl text-sky-200/80 transition-transform group-hover:-translate-y-1" />
+                      <span className="text-sm font-bold text-white/90">Choose a cover image</span>
                       <span className="text-[11px] text-sky-100/60">PNG, JPG, or WebP · required</span>
+                    </div>
+                  )}
+
+                  {previewThumb && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-950/65 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                      <span aria-hidden="true" className="i-ph:upload-simple text-4xl text-sky-200" />
+                      <span className="text-xs font-bold">Replace cover image</span>
                     </div>
                   )}
                 </div>
@@ -570,16 +592,6 @@ export function PublishButton() {
                     event.target.value = '';
                   }}
                 />
-                <button
-                  type="button"
-                  onClick={() => coverUploadRef.current?.click()}
-                  disabled={isExporting}
-                  className="self-center rounded-lg border border-sky-200/35 bg-sky-300/10 px-4 py-2 text-xs font-extrabold text-sky-100 hover:bg-sky-300/20 disabled:opacity-50"
-                >
-                  <span aria-hidden="true" className="i-ph:upload-simple" />
-                  {previewThumb ? 'Replace uploaded cover' : 'Upload cover image (required)'}
-                </button>
-
                 {coverError && (
                   <div className="rounded-lg border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-xs leading-relaxed text-amber-100">
                     {coverError}
@@ -589,9 +601,12 @@ export function PublishButton() {
                 <button
                   onClick={executePublish}
                   disabled={isExporting || coverStatus !== 'ready' || !previewThumb || !hasFiles || isPublished}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl border border-orange-100/70 bg-gradient-to-r from-orange-500 via-amber-400 to-yellow-300 px-4 py-3.5 text-sm font-black uppercase tracking-wider text-[#1c2230] shadow-[0_8px_24px_rgba(249,115,22,0.25)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-2 rounded-xl border border-sky-100/70 bg-gradient-to-r from-blue-600 via-blue-500 to-sky-400 px-4 py-4 text-sm font-black uppercase tracking-wider text-white shadow-[0_8px_24px_rgba(37,99,235,0.3)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <span>{isExporting ? '⏳' : '🚀'}</span>
+                  <span
+                    aria-hidden="true"
+                    className={isExporting ? 'i-svg-spinners:90-ring-with-bg' : 'i-ph:upload-simple'}
+                  />
                   <span>{isExporting ? 'Publishing game and cover…' : 'Publish game'}</span>
                 </button>
 
@@ -610,7 +625,7 @@ export function PublishButton() {
 
             {publishStep === 'details' && (
               <div className="mt-4 flex items-start gap-1.5 border-t border-sky-200/15 pt-3 text-[11px] leading-normal text-sky-100/75">
-                <span>💡</span>
+                <span aria-hidden="true" className="i-ph:info text-sky-300" />
                 <span>Your uploaded cover and game files are published together to thefortz.me.</span>
               </div>
             )}
