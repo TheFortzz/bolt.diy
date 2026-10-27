@@ -153,7 +153,7 @@ async function readSelectedFiles(input: File[]): Promise<Html5GameFile[]> {
       throw new Error('Choose one ZIP archive at a time, or select the game files directly.');
     }
     if (zipFiles[0].size > MAX_GAME_IMPORT_BYTES) {
-      throw new Error('The ZIP archive is too large. Keep ZIP uploads under 100 MB.');
+      throw new Error('The ZIP archive is too large. Keep ZIP uploads under 200 MB.');
     }
 
     let archive: JSZip;
@@ -185,13 +185,13 @@ async function readSelectedFiles(input: File[]): Promise<Html5GameFile[]> {
       const estimatedBytes = Number((entry as any)._data?.uncompressedSize || 0);
 
       if (estimatedBytes > MAX_GAME_IMPORT_BYTES || (estimatedBytes > 0 && totalBytes + estimatedBytes > MAX_GAME_IMPORT_BYTES)) {
-        throw new Error('The uncompressed game is too large. Keep the complete game under 100 MB.');
+        throw new Error('The uncompressed game is too large. Keep the complete game under 200 MB.');
       }
 
       const bytes = new Uint8Array(await entry.async('uint8array'));
       totalBytes += bytes.byteLength;
       if (totalBytes > MAX_GAME_IMPORT_BYTES) {
-        throw new Error('The uncompressed game is too large. Keep the complete game under 100 MB.');
+        throw new Error('The uncompressed game is too large. Keep the complete game under 200 MB.');
       }
 
       result.push({ path, bytes, mimeType: detectMimeType(path) });
@@ -211,14 +211,14 @@ async function readSelectedFiles(input: File[]): Promise<Html5GameFile[]> {
     const path = safeRelativePath(relativePath || file.name);
 
     if (file.size > MAX_GAME_IMPORT_BYTES || totalBytes + file.size > MAX_GAME_IMPORT_BYTES) {
-      throw new Error('The game is too large. Keep all selected files under 100 MB.');
+      throw new Error('The game is too large. Keep all selected files under 200 MB.');
     }
 
     const bytes = new Uint8Array(await file.arrayBuffer());
     totalBytes += bytes.byteLength;
 
     if (totalBytes > MAX_GAME_IMPORT_BYTES) {
-      throw new Error('The game is too large. Keep all selected files under 100 MB.');
+      throw new Error('The game is too large. Keep all selected files under 200 MB.');
     }
 
     result.push({ path, bytes, mimeType: detectMimeType(path, file.type) });
