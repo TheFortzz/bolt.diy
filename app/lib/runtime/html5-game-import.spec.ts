@@ -24,7 +24,7 @@ describe('HTML5 game import validator', () => {
     expect(MAX_GAME_IMPORT_BYTES).toBe(100 * 1024 * 1024);
   });
 
-  it('allows up to 600 files in a game ZIP', async () => {
+  it('allows up to 650 files in a game ZIP', async () => {
     const entries: Record<string, string> = {
       'index.html': '<!doctype html><html><body>game</body></html>',
     };
@@ -34,10 +34,10 @@ describe('HTML5 game import validator', () => {
 
     const imported = await prepareHtml5GameImport([await zipFile(entries)]);
 
-    expect(imported.files).toHaveLength(600);
+    expect(imported.files).toHaveLength(650);
   });
 
-  it('rejects a game ZIP with more than 600 files', async () => {
+  it('rejects a game ZIP with more than 650 files', async () => {
     const entries: Record<string, string> = {
       'index.html': '<!doctype html><html><body>game</body></html>',
     };
@@ -45,7 +45,7 @@ describe('HTML5 game import validator', () => {
       entries[`assets/file-${i}.txt`] = 'x';
     }
 
-    await expect(prepareHtml5GameImport([await zipFile(entries)])).rejects.toThrow(/under 600 files/);
+    await expect(prepareHtml5GameImport([await zipFile(entries)])).rejects.toThrow(/under 650 files/);
   });
 
   it('accepts a built ZIP game and strips a single enclosing folder', async () => {
