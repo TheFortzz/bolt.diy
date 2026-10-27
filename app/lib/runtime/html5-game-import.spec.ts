@@ -20,8 +20,8 @@ function namedFile(name: string, content: string, relativePath = ''): File {
 }
 
 describe('HTML5 game import validator', () => {
-  it('allows up to 100 MiB per complete imported game', () => {
-    expect(MAX_GAME_IMPORT_BYTES).toBe(100 * 1024 * 1024);
+  it('allows up to 200 MB per complete imported game', () => {
+    expect(MAX_GAME_IMPORT_BYTES).toBe(200_000_000);
   });
 
   it('allows up to 650 files in a game ZIP', async () => {
