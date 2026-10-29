@@ -658,7 +658,14 @@ listenOn(0);
         });
       }
 
-      const deadline = Date.now() + 7000;
+      /*
+       * 20s (was 7s): after a large (tens-of-MB) import, WebContainer is still
+       * materialising the workspace while the server is already listening;
+       * preview-URL exposure can legitimately lag past 7s and every retry of
+       * the import then reboots the whole workspace. Waiting longer only
+       * delays the fallback for genuinely dead servers.
+       */
+      const deadline = Date.now() + 20_000;
       let exposedPort: number | undefined;
 
       while (Date.now() < deadline && exposedPort === undefined) {
