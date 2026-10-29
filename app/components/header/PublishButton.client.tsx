@@ -688,12 +688,17 @@ export function PublishButton() {
 
                 {isExporting && (
                   <div
-                    className="flex items-center justify-center gap-2 text-[11px] font-semibold text-sky-100/75"
+                    className="space-y-2 text-[11px] font-semibold text-sky-100/75"
                     role="status"
                     aria-live="polite"
                   >
-                    <span className="i-svg-spinners:90-ring-with-bg text-sky-200" />
-                    {publishProgress || 'Publishing your game…'}
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="i-svg-spinners:90-ring-with-bg text-sky-200" />
+                      {publishProgress || 'Publishing your game…'}
+                    </div>
+                    <div className="fortz-publish-progress-track" aria-hidden="true">
+                      <div className="fortz-publish-progress-sweep" />
+                    </div>
                   </div>
                 )}
               </div>

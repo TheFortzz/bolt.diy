@@ -95,7 +95,9 @@ function inlineProjectFiles(files: Record<string, string>, title: string): strin
 
     inlinedScripts.add(path);
 
-    const moduleAttribute = /\btype\s*=\s*["']module["']/i.test(attributes) ? ' type="module"' : '';
+    const moduleAttribute = /\btype\s*=\s*(?:"module"|'module'|module(?=\s|\/?\s*>|$))/i.test(attributes)
+      ? ' type="module"'
+      : '';
 
     return `<script${moduleAttribute}>\n${script.replace(/<\/script/gi, '<\\/script')}\n</script>`;
   });

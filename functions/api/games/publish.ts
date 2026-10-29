@@ -69,7 +69,9 @@ function inlineProjectFiles(files: Record<string, string>, title: string): strin
     const script = path && files[path];
     if (!path || script === undefined) return `<!-- fortz-stripped-unresolved: ${src} -->`;
     inlinedScripts.add(path);
-    const moduleAttribute = /\btype\s*=\s*["']module["']/i.test(attributes) ? ' type="module"' : '';
+    const moduleAttribute = /\btype\s*=\s*(?:"module"|'module'|module(?=\s|\/?\s*>|$))/i.test(attributes)
+      ? ' type="module"'
+      : '';
     return `<script${moduleAttribute}>\n${script.replace(/<\/script/gi, '<\\/script')}\n</script>`;
   });
 
