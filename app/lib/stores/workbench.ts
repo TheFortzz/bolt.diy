@@ -22,6 +22,7 @@ import { actionStepId, startActionActivity, updateActivity } from '~/lib/stores/
 import { isFortzStaticPreviewPort, normalizeServerPreviewHtml } from '~/lib/runtime/static-preview';
 import { executionPolicy } from '~/lib/harness/execution-policy';
 import { formatWorkspaceSource } from '~/lib/runtime/source-format';
+import { repairImportedGameSource } from '~/lib/runtime/source-splice-repair';
 import type { Html5GameFile } from '~/lib/runtime/html5-game-import';
 import { generatedAssets } from '~/lib/stores/generated-assets';
 
@@ -845,8 +846,24 @@ listenOn(0);
         await wc.fs.mkdir(parent, { recursive: true });
       }
 
-      await wc.fs.writeFile(path, file.bytes);
-      snapshot[path] = file.bytes;
+      // Imported zips can carry the legacy mid-document splice corruption in
+      // their text sources; repair on the way in so the preview and every
+      // later publish start from clean sources.
+      let bytes = file.bytes;
+      if (/\.(?:html?|xhtml|mjs|jsx|tsx?|js|txt)$/i.test(path)) {
+        try {
+          const text = new TextDecoder().decode(bytes);
+          const repaired = repairImportedGameSource(path, text);
+          if (repaired !== text) {
+            bytes = new TextEncoder().encode(repaired) as Uint8Array;
+          }
+        } catch {
+          // Non-UTF8 payload: leave the bytes untouched.
+        }
+      }
+
+      await wc.fs.writeFile(path, bytes);
+      snapshot[path] = bytes;
     }
 
     this.#filesStore.replaceFromCheckpoint(snapshot);
