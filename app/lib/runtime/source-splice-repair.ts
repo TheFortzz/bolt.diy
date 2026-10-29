@@ -74,6 +74,11 @@ export function repairUnterminatedStringSplices(code: string): { code: string; r
       if (c === '/' && '([{,;=:?!&|+-*%~^<>'.includes(prevSig)) {
         mode = 'regex';
         prevSig = '/';
+        // The re-emit pass only runs when a splice was repaired, so every
+        // branch here must append the character it consumes — dropping the
+        // regex delimiters would corrupt every regex literal before the
+        // splice point (e.g. `replace(/[^/]*$/, "")` losing its slashes).
+        out += c;
         i++;
         continue;
       }
