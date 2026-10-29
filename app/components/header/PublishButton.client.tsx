@@ -89,6 +89,35 @@ async function waitForFortzParent(origin: string): Promise<void> {
   );
 }
 
+const PUBLISH_RETRY_DELAYS_MS = [2_500, 7_500];
+
+function isTransientPublishFailure(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error || '');
+  // The embedded parent reports asset-bundle failures before creating a game
+  // document. Retry only that explicitly safe-to-repeat case; a timeout after
+  // document creation must never risk publishing a duplicate listing.
+  return /no game listing was created/i.test(message) && /could not be included/i.test(message);
+}
+
+async function retryTransientPublish<T>(
+  operation: () => Promise<T>,
+  onRetry: (message: string) => void,
+): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (!isTransientPublishFailure(error) || attempt >= PUBLISH_RETRY_DELAYS_MS.length) {
+        throw error;
+      }
+
+      const delay = PUBLISH_RETRY_DELAYS_MS[attempt];
+      onRetry(`A required game asset was not saved; retrying automatically in case of a temporary storage timeout (${attempt + 1}/${PUBLISH_RETRY_DELAYS_MS.length})…`);
+      await new Promise((resolve) => window.setTimeout(resolve, delay));
+    }
+  }
+}
+
 export function PublishButton() {
   const [isOpen, setIsOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -362,64 +391,68 @@ export function PublishButton() {
         setPublishProgress('Checking the connection to thefortz.me…');
         await waitForFortzParent(parentOrigin);
 
-        const requestId = crypto.randomUUID();
-        await new Promise<string>((resolve, reject) => {
-          const timeout = window.setTimeout(() => {
-            window.removeEventListener('message', onResult);
-            reject(
-              new Error(
-                'Publishing is taking longer than expected. Check the Games tab before retrying to avoid a duplicate.',
-              ),
-            );
-          }, 600_000);
-          const onResult = (event: MessageEvent) => {
-            if (
-              event.source !== window.parent ||
-              event.origin !== parentOrigin ||
-              event.data?.requestId !== requestId
-            ) {
-              return;
-            }
+        await retryTransientPublish(
+          () =>
+            new Promise<string>((resolve, reject) => {
+              const requestId = crypto.randomUUID();
+              const timeout = window.setTimeout(() => {
+                window.removeEventListener('message', onResult);
+                reject(
+                  new Error(
+                    'Publishing is taking longer than expected. Check the Games tab before retrying to avoid a duplicate.',
+                  ),
+                );
+              }, 600_000);
+              const onResult = (event: MessageEvent) => {
+                if (
+                  event.source !== window.parent ||
+                  event.origin !== parentOrigin ||
+                  event.data?.requestId !== requestId
+                ) {
+                  return;
+                }
 
-            if (event.data?.type === 'thefortz-publish-progress') {
-              if (typeof event.data.status === 'string') {
-                setPublishProgress(event.data.status.slice(0, 180));
-              }
+                if (event.data?.type === 'thefortz-publish-progress') {
+                  if (typeof event.data.status === 'string') {
+                    setPublishProgress(event.data.status.slice(0, 180));
+                  }
 
-              return;
-            }
+                  return;
+                }
 
-            if (event.data?.type !== 'thefortz-publish-result') {
-              return;
-            }
+                if (event.data?.type !== 'thefortz-publish-result') {
+                  return;
+                }
 
-            window.clearTimeout(timeout);
-            window.removeEventListener('message', onResult);
+                window.clearTimeout(timeout);
+                window.removeEventListener('message', onResult);
 
-            if (event.data.success) {
-              resolve(typeof event.data.status === 'string' ? event.data.status : 'live');
-            } else {
-              reject(new Error(event.data.error || 'The site could not publish this game.'));
-            }
-          };
+                if (event.data.success) {
+                  resolve(typeof event.data.status === 'string' ? event.data.status : 'live');
+                } else {
+                  reject(new Error(event.data.error || 'The site could not publish this game.'));
+                }
+              };
 
-          window.addEventListener('message', onResult);
-          window.parent.postMessage(
-            {
-              type: 'thefortz-publish-game',
-              requestId,
-              payload: {
-                title: finalTitle,
-                genre: finalGenre,
-                description: description.trim(),
-                thumbDataUrl,
-                files: projectFiles,
-                assets: assetPayloads,
-              },
-            },
-            parentOrigin,
-          );
-        });
+              window.addEventListener('message', onResult);
+              window.parent.postMessage(
+                {
+                  type: 'thefortz-publish-game',
+                  requestId,
+                  payload: {
+                    title: finalTitle,
+                    genre: finalGenre,
+                    description: description.trim(),
+                    thumbDataUrl,
+                    files: projectFiles,
+                    assets: assetPayloads,
+                  },
+                },
+                parentOrigin,
+              );
+            }),
+          setPublishProgress,
+        );
       } else {
         setPublishProgress('Uploading the cover and game files…');
 
