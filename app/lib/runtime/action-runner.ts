@@ -10,7 +10,7 @@ import { cleanWorkDirRelativePath } from '~/utils/diff';
 import { actionStepId, updateActivity } from '~/lib/stores/activity';
 import { contentHash } from '~/lib/harness/blueprint';
 import { executionPolicy } from '~/lib/harness/execution-policy';
-import { balanceAndCloseJs } from '~/lib/runtime/static-preview';
+import { balanceAndCloseJs, normalizeServerPreviewHtml, staticPreviewModuleHintsHelperSource } from '~/lib/runtime/static-preview';
 import { isApprovedEngineMigration } from '~/lib/runtime/source-safety';
 
 const logger = createScopedLogger('ActionRunner');
@@ -62,6 +62,8 @@ const mimes = {
 };
 
 const baseDir = path.resolve(fs.existsSync('/home/project') ? '/home/project' : process.cwd());
+const normalizeServerPreviewHtml = (${normalizeServerPreviewHtml.toString()});
+${staticPreviewModuleHintsHelperSource}
 
 const handler = function (req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -101,7 +103,16 @@ const handler = function (req, res) {
   if (file) {
     const ext = path.extname(file).toLowerCase();
     res.writeHead(200, { 'Content-Type': mimes[ext] || 'application/octet-stream' });
-    fs.createReadStream(file).pipe(res);
+    if (ext === '.html') {
+      try {
+        const servedHtml = fs.readFileSync(file, 'utf8');
+        res.end(normalizeServerPreviewHtml(servedHtml, fortzCollectModuleHints(servedHtml, file)));
+      } catch (e) {
+        fs.createReadStream(file).pipe(res);
+      }
+    } else {
+      fs.createReadStream(file).pipe(res);
+    }
   } else {
     res.writeHead(404);
     res.end('Not Found');

@@ -1665,8 +1665,89 @@ export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPr
  * as plain JavaScript and behaves identically. Keep in sync with
  * normalizeStudioGameHtml above.
  */
-export const normalizeServerPreviewHtml: (html: string) => string = function (html) {
-  let out = typeof html === 'string' ? html : '';
+export type StaticPreviewModuleHint = { path: string; source: string };
+
+/*
+ * Plain-JS source text interpolated verbatim into the embedded static-server
+ * scripts (workbench.ts and action-runner.ts). It walks the module scripts an
+ * HTML file references (plus their small relative-import closure) so the
+ * injected import map covers bare specifiers that only exist in external
+ * module files. Bounded: no huge bundles, no node_modules. String.raw keeps
+ * regex backslashes intact after template cooking.
+ */
+export const staticPreviewModuleHintsHelperSource: string = String.raw`function fortzCollectModuleHints(htmlSrc, servedFile) {
+  var hints = [];
+  var seen = {};
+  var maxFiles = 60;
+  var maxFileBytes = 1200000;
+
+  function relKey(full) {
+    try {
+      return path.relative(baseDir, full).split(path.sep).join('/');
+    } catch (e) {
+      return full;
+    }
+  }
+
+  function readHint(full, depth) {
+    if (hints.length >= maxFiles || depth > 3) return;
+    var key = relKey(full);
+    if (!key || seen[key] || key.indexOf('node_modules') !== -1) return;
+    seen[key] = 1;
+    var text;
+    try {
+      if (fs.statSync(full).size > maxFileBytes) return;
+      text = fs.readFileSync(full, 'utf8');
+    } catch (e) {
+      return;
+    }
+    hints.push({ path: key, source: text.slice(0, 400000) });
+    var importRe = /from\s*["'](\.[^"']+)["']|import\s*["'](\.[^"']+)["']|import\s*\(\s*["'](\.[^"']+)["']/g;
+    var match;
+    while ((match = importRe.exec(text)) && hints.length < maxFiles) {
+      var spec = (match[1] || match[2] || match[3]).split('?')[0].split('#')[0];
+      if (!spec) continue;
+      var target = path.resolve(path.dirname(full), spec);
+      var candidates = [target, target + '.js', target + '.mjs', path.join(target, 'index.js'), path.join(target, 'index.mjs')];
+      for (var i = 0; i < candidates.length; i++) {
+        try {
+          if (fs.existsSync(candidates[i]) && fs.statSync(candidates[i]).isFile()) {
+            readHint(candidates[i], depth + 1);
+            break;
+          }
+        } catch (e) {}
+      }
+    }
+  }
+
+  var srcRe = /<script\b[^>]*type\s*=\s*["']module["'][^>]*src\s*=\s*["']([^"']+)["'][^>]*>[\s\S]*?<\/script\s*>|<script\b[^>]*src\s*=\s*["']([^"']+)["'][^>]*type\s*=\s*["']module["'][^>]*>[\s\S]*?<\/script\s*>/gi;
+  var entry;
+  while ((entry = srcRe.exec(htmlSrc || '')) && hints.length < maxFiles) {
+    var spec = (entry[1] || entry[2] || '').split('?')[0].split('#')[0];
+    if (!spec) continue;
+    var target = path.resolve(path.dirname(servedFile), spec);
+    var candidates = [target, target + '.js', target + '.mjs', path.join(target, 'index.js'), path.join(target, 'index.mjs')];
+    for (var i = 0; i < candidates.length; i++) {
+      try {
+        if (fs.existsSync(candidates[i]) && fs.statSync(candidates[i]).isFile()) {
+          readHint(candidates[i], 0);
+          break;
+        }
+      } catch (e) {}
+    }
+  }
+
+  return hints;
+}`;
+
+/**
+ * The function source is embedded verbatim into the runtime static-server
+ * scripts (workbench.ts/action templates stringify it), so keep the body
+ * plain JavaScript: no backticks, no ${…}, no parameter annotations.
+ */
+export const normalizeServerPreviewHtml: (html: string, moduleHints?: Array<StaticPreviewModuleHint>) => string =
+  function (html, moduleHints) {
+    let out = typeof html === 'string' ? html : '';
   const seenScriptSources = new Set<string>();
   out = out.replace(/<script\b([^>]*)>[\s\S]*?<\/script\s*>/gi, (tag, attributes) => {
     const source = /\b(?:src|data-inlined)\s*=\s*(["'])(.*?)\1/i.exec(attributes);
@@ -1693,11 +1774,79 @@ export const normalizeServerPreviewHtml: (html: string) => string = function (ht
   // 2. Rewrite unpkg three.js refs to pinned jsDelivr.
   out = out.replace(/(https?:)?\/\/unpkg\.com\/three/g, 'https://cdn.jsdelivr.net/npm/three');
 
-  // 3. Pinned three.js import map for bare imports without one.
+   // 3. Import map for bare module specifiers found in the HTML **or** in the
+   // module files the static server hints in (games often import three from an
+   // external <script type="module" src="..."> file, where no import specifier
+   // appears in the HTML itself). Bare specifiers can never resolve to local
+   // files without a bundler, so every detected one gets a CDN mapping.
   if (out.indexOf('data-studio-three-importmap') === -1 && !/<script\b[^>]*type\s*=\s*["']importmap["']/i.test(out)) {
-    if (/(?:from\s+|import\s*\(\s*|import\s+)["']three(?:\/[^"']*)?["']/i.test(out)) {
-      const importMap =
-        '<script type="importmap" data-studio-three-importmap>\n{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}\n</script>';
+    var fortzScanSources = [out];
+    var fortzHints = moduleHints || [];
+    for (var hj = 0; hj < fortzHints.length; hj++) {
+      var fortzHint = fortzHints[hj];
+      if (fortzHint && typeof fortzHint.source === 'string' && fortzHint.source) {
+        fortzScanSources.push(fortzHint.source);
+      }
+    }
+    var fortzSpecs = [];
+    var fortzPatterns = [
+      /from\s*["']([^"']+)["']/g,
+      /import\s*["']([^"']+)["']/g,
+      /import\s*\(\s*["']([^"']+)["']/g
+    ];
+    for (var fs = 0; fs < fortzScanSources.length; fs++) {
+      for (var fp = 0; fp < fortzPatterns.length; fp++) {
+        var fortzMatch;
+        fortzPatterns[fp].lastIndex = 0;
+        while ((fortzMatch = fortzPatterns[fp].exec(fortzScanSources[fs]))) {
+          var fortzSpecFound = fortzMatch[1];
+          if (!fortzSpecFound || fortzSpecs.indexOf(fortzSpecFound) !== -1) continue;
+          fortzSpecs.push(fortzSpecFound);
+        }
+      }
+    }
+
+    var fortzImports = {};
+    var fortzMapped = 0;
+    var fortzPinnedThree = 'https://cdn.jsdelivr.net/npm/three@0.160.0';
+    for (var specIndex = 0; specIndex < fortzSpecs.length; specIndex++) {
+      var fortzSpec = String(fortzSpecs[specIndex]).split('?')[0].split('#')[0];
+      if (!fortzSpec || /\s/.test(fortzSpec) || /^\.|^\/|^#|^[a-z][a-z0-9+.-]*:/i.test(fortzSpec)) continue;
+      var fortzRoot;
+      if (fortzSpec.charAt(0) === '@') {
+        var fortzScopedSlash = fortzSpec.indexOf('/', 1);
+        fortzRoot = fortzScopedSlash === -1 ? fortzSpec : fortzSpec.slice(0, fortzScopedSlash);
+      } else {
+        var fortzRootSlash = fortzSpec.indexOf('/');
+        fortzRoot = fortzRootSlash === -1 ? fortzSpec : fortzSpec.slice(0, fortzRootSlash);
+      }
+      if (fortzRoot === 'three') {
+        Reflect.set(fortzImports, 'three', fortzPinnedThree + '/build/three.module.js');
+        Reflect.set(fortzImports, 'three/addons/', fortzPinnedThree + '/examples/jsm/');
+        if (fortzSpec !== 'three' && !Reflect.get(fortzImports, fortzSpec)) {
+          var fortzThreeRest = fortzSpec.slice('three/'.length);
+          if (fortzThreeRest.indexOf('addons/') === 0) {
+            fortzThreeRest = 'examples/jsm/' + fortzThreeRest.slice('addons/'.length);
+          }
+          Reflect.set(fortzImports, fortzSpec, fortzPinnedThree + '/' + fortzThreeRest);
+        }
+        fortzMapped++;
+        continue;
+      }
+      if (!Reflect.get(fortzImports, fortzRoot)) {
+        Reflect.set(fortzImports, fortzRoot, 'https://cdn.jsdelivr.net/npm/' + fortzRoot + '/+esm');
+        fortzMapped++;
+      }
+      if (fortzSpec !== fortzRoot && !Reflect.get(fortzImports, fortzSpec)) {
+        Reflect.set(fortzImports, fortzSpec, 'https://cdn.jsdelivr.net/npm/' + fortzSpec + '/+esm');
+      }
+    }
+
+    if (fortzMapped > 0) {
+      var importMap =
+        '<script type="importmap" data-studio-three-importmap>\n' +
+        JSON.stringify({ imports: fortzImports }) +
+        '\n</script>';
 
       if (/<head[\s>]/i.test(out)) {
         out = out.replace(/<head[\s>]/i, (m) => {

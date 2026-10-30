@@ -19,7 +19,11 @@ import { WORK_DIR } from '~/utils/constants';
 import { description } from '~/lib/persistence';
 import Cookies from 'js-cookie';
 import { actionStepId, startActionActivity, updateActivity } from '~/lib/stores/activity';
-import { isFortzStaticPreviewPort, normalizeServerPreviewHtml } from '~/lib/runtime/static-preview';
+import {
+  isFortzStaticPreviewPort,
+  normalizeServerPreviewHtml,
+  staticPreviewModuleHintsHelperSource,
+} from '~/lib/runtime/static-preview';
 import { executionPolicy } from '~/lib/harness/execution-policy';
 import { formatWorkspaceSource } from '~/lib/runtime/source-format';
 import { repairImportedGameSource } from '~/lib/runtime/source-splice-repair';
@@ -491,6 +495,14 @@ const mimes = {
 
 const baseDir = path.resolve(fs.existsSync('/home/project') ? '/home/project' : process.cwd());
 const normalizeServerPreviewHtml = (${normalizeServerPreviewHtml.toString()});
+
+/*
+ * Bare module specifiers ("three") usually import from EXTERNAL module files,
+ * not from the HTML itself. The shared helper (defined in static-preview.ts)
+ * walks the module scripts the HTML references (plus their relative-import
+ * closure) so the injected import map covers the real dependency graph.
+ */
+${staticPreviewModuleHintsHelperSource}
 const handler = function (req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
@@ -567,7 +579,8 @@ const handler = function (req, res) {
     res.writeHead(200, { 'Content-Type': mimes[ext] || 'application/octet-stream' });
     if (ext === '.html') {
       try {
-        res.end(normalizeServerPreviewHtml(fs.readFileSync(file, 'utf8')));
+        var servedHtml = fs.readFileSync(file, 'utf8');
+        res.end(normalizeServerPreviewHtml(servedHtml, fortzCollectModuleHints(servedHtml, file)));
       } catch (e) {
         fs.createReadStream(file).pipe(res);
       }

@@ -427,6 +427,45 @@ describe('studio preview publish parity', () => {
     expect(out).toContain('Preview watchdog: ');
     expect(embedded(out)).toBe(out);
   });
+
+  it('injects the import map when bare imports only live in hinted module files', () => {
+    const embedded = new Function(`return (${normalizeServerPreviewHtml.toString()});`)() as (
+      html: string,
+      hints?: Array<{ path: string; source: string }>,
+    ) => string;
+
+    const html =
+      '<html><head></head><body><canvas id="game"></canvas><script type="module" src="main.js"></script></body></html>';
+    const hints = [
+      {
+        path: 'main.js',
+        source: 'import * as THREE from "three";\nimport { OrbitControls } from "three/addons/controls/OrbitControls.js";\nconsole.log(THREE, OrbitControls);',
+      },
+    ];
+    const out = embedded(html, hints);
+    expect(out).toContain('data-studio-three-importmap');
+    expect(out).toContain('cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js');
+    expect(out).toContain('three/addons/');
+  });
+
+  it('maps other bare packages, including scoped ones, from hinted module files', () => {
+    const embedded = new Function(`return (${normalizeServerPreviewHtml.toString()});`)() as (
+      html: string,
+      hints?: Array<{ path: string; source: string }>,
+    ) => string;
+
+    const html =
+      '<html><head></head><body><canvas></canvas><script type="module" src="game.js"></script></body></html>';
+    const out = embedded(html, [
+      { path: 'game.js', source: 'import howl from "howler";\nimport { geo } from "@tweenjs/tween.js";\nconsole.log(howl, geo);' },
+    ]);
+
+    expect(out).toContain('data-studio-three-importmap');
+    expect(out).toContain('cdn.jsdelivr.net/npm/howler/+esm');
+    expect(out).toContain('cdn.jsdelivr.net/npm/@tweenjs/tween.js/+esm');
+    // The map must load before any module script, or bare imports still fail.
+    expect(out.indexOf('data-studio-three-importmap')).toBeLessThan(out.indexOf('src="game.js"'));
+  });
 });
 
 describe('studio preview local module loading', () => {
