@@ -103,7 +103,7 @@ const handler = function (req, res) {
   if (file) {
     const ext = path.extname(file).toLowerCase();
     res.writeHead(200, { 'Content-Type': mimes[ext] || 'application/octet-stream' });
-    if (ext === '.html') {
+    if (ext === '.html' || ext === '.htm') {
       try {
         const servedHtml = fs.readFileSync(file, 'utf8');
         res.end(normalizeServerPreviewHtml(servedHtml, fortzCollectModuleHints(servedHtml, file)));

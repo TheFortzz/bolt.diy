@@ -308,6 +308,15 @@ describe('studio preview publish parity', () => {
     const withMap = '<html><head><script type="importmap">{"imports":{}}</script></head><body></body></html>';
     expect(ensureThreeImportMap(withMap)).toBe(withMap);
 
+    const incompleteMap =
+      '<html><head><script type="importmap">{"imports":{"react":"https://cdn.example/react.js"}}</script></head><body><script type="module">import * as THREE from "three";</script></body></html>';
+    const merged = ensureThreeImportMap(incompleteMap);
+    expect(merged).toContain('data-studio-three-importmap');
+    expect(merged).toContain('https://cdn.example/react.js');
+    expect(merged).toContain('three@0.160.0/build/three.module.js');
+    expect((merged.match(/type="importmap"/g) || []).length).toBe(1);
+    expect(merged.indexOf('data-studio-three-importmap')).toBeLessThan(merged.indexOf('type="module"'));
+
     expect(ensureThreeImportMap('<html><head></head><body>plain</body></html>')).not.toContain('importmap');
   });
 
@@ -464,6 +473,19 @@ describe('studio preview publish parity', () => {
     expect(out).toContain('cdn.jsdelivr.net/npm/howler/+esm');
     expect(out).toContain('cdn.jsdelivr.net/npm/@tweenjs/tween.js/+esm');
     // The map must load before any module script, or bare imports still fail.
+    expect(out.indexOf('data-studio-three-importmap')).toBeLessThan(out.indexOf('src="game.js"'));
+  });
+
+  it('merges an existing incomplete import map and places it before modules', () => {
+    const embedded = new Function(`return (${normalizeServerPreviewHtml.toString()});`)() as (html: string) => string;
+    const html =
+      '<html><head><script type="module" src="game.js"></script><script type="importmap">{"imports":{"react":"https://cdn.example/react.js"}}</script></head><body></body></html>';
+    const out = embedded(html);
+    const mapMatches = out.match(/type="importmap"/g) || [];
+
+    expect(mapMatches).toHaveLength(1);
+    expect(out).toContain('https://cdn.example/react.js');
+    expect(out).toContain('three@0.160.0/build/three.module.js');
     expect(out.indexOf('data-studio-three-importmap')).toBeLessThan(out.indexOf('src="game.js"'));
   });
 });

@@ -682,23 +682,56 @@ export function ensureThreeImportMap(html: string): string {
     return html;
   }
 
-  if (/<script\b[^>]*type\s*=\s*["']importmap["']/i.test(html)) {
-    return html;
-  }
-
-  const needsThree = /(?:from\s+|import\s*\(\s*|import\s+)["']three(?:\/[^"']*)?["']/i.test(html);
+  const needsThree =
+    /(?:from\s+|import\s*\(\s*|import\s+)["']three(?:\/[^"']*)?["']/i.test(html) ||
+    /<script\b[^>]*\btype\s*=\s*["']?module\b/i.test(html);
 
   if (!needsThree) {
     return html;
   }
 
-  const importMap = `<script type="importmap" data-studio-three-importmap>\n{"imports":{"three":"${PINNED_THREE_MODULE}","three/addons/":"${PINNED_THREE_ADDONS}"}}\n</script>`;
+  const mergedImports: Record<string, string> = {};
+  const mergedScopes: Record<string, Record<string, string>> = {};
+  const importMapTag = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi;
+  let existingMap = false;
+  let match: RegExpExecArray | null;
 
-  if (/<head[\s>]/i.test(html)) {
-    return html.replace(/<head[\s>]/i, (m) => `${m}\n${importMap}`);
+  while ((match = importMapTag.exec(html))) {
+    if (!/\btype\s*=\s*(["']?)importmap\1(?:\s|$)/i.test(match[1])) continue;
+    existingMap = true;
+    try {
+      const parsed = JSON.parse(match[2]) as {
+        imports?: Record<string, string>;
+        scopes?: Record<string, Record<string, string>>;
+      };
+      Object.assign(mergedImports, parsed.imports || {});
+      for (const [scope, imports] of Object.entries(parsed.scopes || {})) {
+        mergedScopes[scope] = { ...(mergedScopes[scope] || {}), ...imports };
+      }
+    } catch {
+      // Drop invalid maps below rather than leave the browser with a broken map.
+    }
   }
 
-  return `${importMap}\n${html}`;
+  // Pin three over stale mappings, while preserving unrelated game entries.
+  mergedImports.three = PINNED_THREE_MODULE;
+  mergedImports['three/addons/'] = PINNED_THREE_ADDONS;
+  const mapJson: { imports: Record<string, string>; scopes?: Record<string, Record<string, string>> } = {
+    imports: mergedImports,
+  };
+  if (Object.keys(mergedScopes).length) mapJson.scopes = mergedScopes;
+  const importMap = `<script type="importmap" data-studio-three-importmap>\n${JSON.stringify(mapJson)}\n</script>`;
+  const withoutExistingMaps = existingMap
+    ? html.replace(/<script\b([^>]*)>[\s\S]*?<\/script\s*>/gi, (tag, attributes: string) =>
+        /\btype\s*=\s*(["']?)importmap\1(?:\s|$)/i.test(attributes) ? '' : tag,
+      )
+    : html;
+
+  if (/<head[\s>]/i.test(withoutExistingMaps)) {
+    return withoutExistingMaps.replace(/<head[\s>]/i, (m) => `${m}\n${importMap}`);
+  }
+
+  return `${importMap}\n${withoutExistingMaps}`;
 }
 
 const storageShimScript = `<script data-studio-storage-shim>(function(){function m(){var s={};return{getItem:function(k){return Object.prototype.hasOwnProperty.call(s,k)?s[k]:null;},setItem:function(k,v){s[k]=String(v);},removeItem:function(k){delete s[k];},clear:function(){s={};},key:function(i){return Object.keys(s)[i]||null;},get length(){return Object.keys(s).length;}};}var ls=m();var ss=m();function patch(prop,store){try{var cur=window[prop];if(cur&&typeof cur.getItem==="function"){cur.getItem("__probe__");return;}}catch(_){}var targets=[(typeof Window!=="undefined"?Window.prototype:null)];try{if(window&&Object.getPrototypeOf(window))targets.push(Object.getPrototypeOf(window));}catch(_){}if(window)targets.push(window);for(var i=0;i<targets.length;i++){var t=targets[i];if(!t)continue;try{Object.defineProperty(t,prop,{get:function(){return store;},set:function(){},configurable:true,enumerable:true});}catch(e1){try{t[prop]=store;}catch(e2){}}}}patch("localStorage",ls);patch("sessionStorage",ss);})();</script>`;
@@ -1720,12 +1753,17 @@ export const staticPreviewModuleHintsHelperSource: string = String.raw`function 
     }
   }
 
-  var srcRe = /<script\b[^>]*type\s*=\s*["']module["'][^>]*src\s*=\s*["']([^"']+)["'][^>]*>[\s\S]*?<\/script\s*>|<script\b[^>]*src\s*=\s*["']([^"']+)["'][^>]*type\s*=\s*["']module["'][^>]*>[\s\S]*?<\/script\s*>/gi;
+  var srcRe = /<script\b([^>]*)>/gi;
   var entry;
   while ((entry = srcRe.exec(htmlSrc || '')) && hints.length < maxFiles) {
-    var spec = (entry[1] || entry[2] || '').split('?')[0].split('#')[0];
+    var attributes = entry[1] || '';
+    var typeMatch = /\btype\s*=\s*(["'])(.*?)\1|\btype\s*=\s*([^\s>]+)/i.exec(attributes);
+    var srcMatch = /\bsrc\s*=\s*(["'])(.*?)\1|\bsrc\s*=\s*([^\s>]+)/i.exec(attributes);
+    if (!typeMatch || String(typeMatch[2] || typeMatch[3] || '').toLowerCase() !== 'module' || !srcMatch) continue;
+    var spec = (srcMatch[2] || srcMatch[3] || '').split('?')[0].split('#')[0];
     if (!spec) continue;
-    var target = path.resolve(path.dirname(servedFile), spec);
+    if (/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(spec)) continue;
+    var target = spec.charAt(0) === '/' ? path.resolve(baseDir, spec.slice(1)) : path.resolve(path.dirname(servedFile), spec);
     var candidates = [target, target + '.js', target + '.mjs', path.join(target, 'index.js'), path.join(target, 'index.mjs')];
     for (var i = 0; i < candidates.length; i++) {
       try {
@@ -1774,12 +1812,11 @@ export const normalizeServerPreviewHtml: (html: string, moduleHints?: Array<Stat
   // 2. Rewrite unpkg three.js refs to pinned jsDelivr.
   out = out.replace(/(https?:)?\/\/unpkg\.com\/three/g, 'https://cdn.jsdelivr.net/npm/three');
 
-   // 3. Import map for bare module specifiers found in the HTML **or** in the
-   // module files the static server hints in (games often import three from an
-   // external <script type="module" src="..."> file, where no import specifier
-   // appears in the HTML itself). Bare specifiers can never resolve to local
-   // files without a bundler, so every detected one gets a CDN mapping.
-  if (out.indexOf('data-studio-three-importmap') === -1 && !/<script\b[^>]*type\s*=\s*["']importmap["']/i.test(out)) {
+  // 3. Inject a three.js import map for every served game page. A document can
+  // already contain an import map that omits three; skipping all map handling
+  // in that case leaves external module graphs broken. Merge existing maps,
+  // preserve their entries, and put the merged map before all game scripts.
+  if (out.indexOf('data-studio-three-importmap') === -1) {
     var fortzScanSources = [out];
     var fortzHints = moduleHints || [];
     for (var hj = 0; hj < fortzHints.length; hj++) {
@@ -1807,7 +1844,11 @@ export const normalizeServerPreviewHtml: (html: string, moduleHints?: Array<Stat
     }
 
     var fortzImports = {};
-    var fortzMapped = 0;
+    // A module entry may be minified or use syntax the lightweight scanner
+    // cannot recognize. The mapping is harmless when unused and guarantees
+    // bare three imports resolve in every Studio preview.
+    Reflect.set(fortzImports, 'three', 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js');
+    Reflect.set(fortzImports, 'three/addons/', 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/');
     var fortzPinnedThree = 'https://cdn.jsdelivr.net/npm/three@0.160.0';
     for (var specIndex = 0; specIndex < fortzSpecs.length; specIndex++) {
       var fortzSpec = String(fortzSpecs[specIndex]).split('?')[0].split('#')[0];
@@ -1830,31 +1871,91 @@ export const normalizeServerPreviewHtml: (html: string, moduleHints?: Array<Stat
           }
           Reflect.set(fortzImports, fortzSpec, fortzPinnedThree + '/' + fortzThreeRest);
         }
-        fortzMapped++;
         continue;
       }
       if (!Reflect.get(fortzImports, fortzRoot)) {
         Reflect.set(fortzImports, fortzRoot, 'https://cdn.jsdelivr.net/npm/' + fortzRoot + '/+esm');
-        fortzMapped++;
       }
       if (fortzSpec !== fortzRoot && !Reflect.get(fortzImports, fortzSpec)) {
         Reflect.set(fortzImports, fortzSpec, 'https://cdn.jsdelivr.net/npm/' + fortzSpec + '/+esm');
       }
     }
 
-    if (fortzMapped > 0) {
-      var importMap =
-        '<script type="importmap" data-studio-three-importmap>\n' +
-        JSON.stringify({ imports: fortzImports }) +
-        '\n</script>';
+    var existingMap = {};
+    var existingImports = {};
+    var existingScopes = {};
+    var hasImportMap = false;
+    var importMapTagRe = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi;
+    var importMapTag;
+    while ((importMapTag = importMapTagRe.exec(out))) {
+      if (!/\btype\s*=\s*(["']?)importmap\1(?:\s|$)/i.test(importMapTag[1])) continue;
+      hasImportMap = true;
+      try {
+        var parsedMap = JSON.parse(importMapTag[2]);
+        if (!parsedMap || typeof parsedMap !== 'object') continue;
+        var parsedImports = parsedMap.imports;
+        if (parsedImports && typeof parsedImports === 'object') {
+          var importKeys = Object.keys(parsedImports);
+          for (var ik = 0; ik < importKeys.length; ik++) {
+            Reflect.set(existingImports, importKeys[ik], Reflect.get(parsedImports, importKeys[ik]));
+          }
+        }
+        var parsedScopes = parsedMap.scopes;
+        if (parsedScopes && typeof parsedScopes === 'object') {
+          var scopeKeys = Object.keys(parsedScopes);
+          for (var sk = 0; sk < scopeKeys.length; sk++) {
+            var scopeName = scopeKeys[sk];
+            var sourceScope = Reflect.get(parsedScopes, scopeName);
+            if (!sourceScope || typeof sourceScope !== 'object') continue;
+            var mergedScope = Reflect.get(existingScopes, scopeName);
+            if (!mergedScope || typeof mergedScope !== 'object') {
+              mergedScope = {};
+              Reflect.set(existingScopes, scopeName, mergedScope);
+            }
+            var scopedKeys = Object.keys(sourceScope);
+            for (var sc = 0; sc < scopedKeys.length; sc++) {
+              Reflect.set(mergedScope, scopedKeys[sc], Reflect.get(sourceScope, scopedKeys[sc]));
+            }
+          }
+        }
+        var otherKeys = Object.keys(parsedMap);
+        for (var oi = 0; oi < otherKeys.length; oi++) {
+          if (otherKeys[oi] !== 'imports' && otherKeys[oi] !== 'scopes' && !Reflect.get(existingMap, otherKeys[oi])) {
+            Reflect.set(existingMap, otherKeys[oi], Reflect.get(parsedMap, otherKeys[oi]));
+          }
+        }
+      } catch (e) {}
+    }
 
-      if (/<head[\s>]/i.test(out)) {
-        out = out.replace(/<head[\s>]/i, (m) => {
-          return m + '\n' + importMap;
-        });
-      } else {
-        out = importMap + '\n' + out;
+    var existingImportKeys = Object.keys(existingImports);
+    for (var eik = 0; eik < existingImportKeys.length; eik++) {
+      if (!Reflect.get(fortzImports, existingImportKeys[eik])) {
+        Reflect.set(fortzImports, existingImportKeys[eik], Reflect.get(existingImports, existingImportKeys[eik]));
       }
+    }
+    var finalMap = {};
+    Reflect.set(finalMap, 'imports', fortzImports);
+    if (Object.keys(existingScopes).length) Reflect.set(finalMap, 'scopes', existingScopes);
+    var finalMapKeys = Object.keys(existingMap);
+    for (var fmk = 0; fmk < finalMapKeys.length; fmk++) {
+      Reflect.set(finalMap, finalMapKeys[fmk], Reflect.get(existingMap, finalMapKeys[fmk]));
+    }
+
+    var importMap =
+      '<script type="importmap" data-studio-three-importmap>\n' +
+      JSON.stringify(finalMap) +
+      '\n</script>';
+    if (hasImportMap) {
+      out = out.replace(/<script\b([^>]*)>[\s\S]*?<\/script\s*>/gi, (tag, attributes) => {
+        return /\btype\s*=\s*(["']?)importmap\1(?:\s|$)/i.test(attributes) ? '' : tag;
+      });
+    }
+    if (/<head[\s>]/i.test(out)) {
+      out = out.replace(/<head[\s>]/i, (m) => {
+        return m + '\n' + importMap;
+      });
+    } else {
+      out = importMap + '\n' + out;
     }
   }
 
