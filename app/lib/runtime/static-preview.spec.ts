@@ -493,6 +493,12 @@ describe('studio preview publish parity', () => {
     expect(out).toContain('data-studio-watchdog');
     expect(out).toContain('__fortzWatchdogFired');
     expect(out).toContain('Preview watchdog: ');
+    expect(out).toContain('data-fortz-websocket-guard');
+    expect(out).toContain('data-fortz-multiplayer-sdk');
+    expect(out.indexOf('data-fortz-websocket-guard')).toBeLessThan(out.indexOf('type="module"'));
+    const websocketGuard = /<script data-fortz-websocket-guard>([\s\S]*?)<\/script>/.exec(out)?.[1];
+    expect(websocketGuard).toBeTruthy();
+    assertParsesAsEsm(websocketGuard as string, 'Studio iframe WebSocket guard');
     expect(embedded(out)).toBe(out);
   });
 

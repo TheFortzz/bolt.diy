@@ -2137,6 +2137,27 @@ export const normalizeServerPreviewHtml: (html: string, moduleHints?: Array<Stat
     }
   }
 
+  // 3b. Multiplayer bridge for every Studio preview iframe. When a game builds
+  // ws:// from location.host inside about:srcdoc, the host is empty and the
+  // native constructor throws before app.js can finish loading. Make only that
+  // malformed connection inert; valid project WebSocket URLs remain native.
+  if (out.indexOf('data-fortz-websocket-guard') === -1) {
+    var fortzWebSocketGuard = '<script data-fortz-websocket-guard>(function(){if(window.__fortzWebSocketGuarded)return;window.__fortzWebSocketGuarded=true;var Native=window.WebSocket;if(typeof Native!=="function")return;function OfflineSocket(url){this.url=String(url||"");this.readyState=Native.CLOSED;this.bufferedAmount=0;this.extensions="";this.protocol="";this.binaryType="blob";this.__fortzUnavailable=true;this.send=function(){};this.close=function(){};this.addEventListener=function(){};this.removeEventListener=function(){};this.dispatchEvent=function(){return false;};try{Object.setPrototypeOf(this,Native.prototype);}catch(e){}}function FortzWebSocket(url,protocols){var raw=String(url||"");var socketScheme=raw.slice(0,5).toLowerCase()==="ws://"||raw.slice(0,6).toLowerCase()==="wss://";var missingHost=false;if(socketScheme){try{missingHost=!new URL(raw).hostname;}catch(e){missingHost=true;}}if(missingHost){if(!window.__fortzWebSocketWarningSent){window.__fortzWebSocketWarningSent=true;try{console.warn("[Fortz multiplayer] This game has no valid WebSocket server URL. The game UI will load offline; configure GAME_SERVER_URL or use the TheFortzMultiplayer Appwrite SDK.");}catch(e){}}return new OfflineSocket(raw);}return protocols===undefined?new Native(url):new Native(url,protocols);}FortzWebSocket.prototype=Native.prototype;try{Object.setPrototypeOf(FortzWebSocket,Native);}catch(e){}["CONNECTING","OPEN","CLOSING","CLOSED"].forEach(function(k){FortzWebSocket[k]=Native[k];});window.WebSocket=FortzWebSocket;})();</script>';
+    if (/<head[\s>]/i.test(out)) {
+      out = out.replace(/<head[\s>]/i, function (m) { return m + fortzWebSocketGuard; });
+    } else {
+      out = fortzWebSocketGuard + out;
+    }
+  }
+  if (out.indexOf('data-fortz-multiplayer-sdk') === -1 && out.indexOf('/sdk/thefortz-multiplayer.js') === -1) {
+    var fortzMultiplayerSdk = '<script data-fortz-multiplayer-sdk src="https://thefortz.me/sdk/thefortz-multiplayer.js"></script>';
+    if (/<head[\s>]/i.test(out)) {
+      out = out.replace(/<head[\s>]/i, function (m) { return m + fortzMultiplayerSdk; });
+    } else {
+      out = fortzMultiplayerSdk + out;
+    }
+  }
+
   // 4. In-memory storage fallback for opaque origins.
   if (out.indexOf('data-studio-storage-shim') === -1) {
     const storageShim =
