@@ -729,6 +729,10 @@ export function ensureThreeImportMap(html: string): string {
   mergedImports.three = PINNED_THREE_MODULE;
   mergedImports['three/addons/'] = PINNED_THREE_ADDONS;
   mergedImports['three/examples/jsm/'] = PINNED_THREE_ADDONS;
+  mergedImports['three/addons/BufferGeometryUtils.js'] =
+    'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/BufferGeometryUtils.js';
+  mergedImports['three/examples/jsm/BufferGeometryUtils.js'] =
+    'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/BufferGeometryUtils.js';
   mergedImports['three/'] = 'https://cdn.jsdelivr.net/npm/three@0.160.0/';
   const mapJson: { imports: Record<string, string>; scopes?: Record<string, Record<string, string>> } = {
     imports: mergedImports,
@@ -2022,6 +2026,8 @@ export const normalizeServerPreviewHtml: (html: string, moduleHints?: Array<Stat
     Reflect.set(fortzImports, 'three', 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js');
     Reflect.set(fortzImports, 'three/addons/', 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/');
     Reflect.set(fortzImports, 'three/examples/jsm/', 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/');
+    Reflect.set(fortzImports, 'three/addons/BufferGeometryUtils.js', 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/BufferGeometryUtils.js');
+    Reflect.set(fortzImports, 'three/examples/jsm/BufferGeometryUtils.js', 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/BufferGeometryUtils.js');
     Reflect.set(fortzImports, 'three/', 'https://cdn.jsdelivr.net/npm/three@0.160.0/');
     var fortzPinnedThree = 'https://cdn.jsdelivr.net/npm/three@0.160.0';
     for (var specIndex = 0; specIndex < fortzSpecs.length; specIndex++) {
@@ -2042,6 +2048,9 @@ export const normalizeServerPreviewHtml: (html: string, moduleHints?: Array<Stat
           var fortzThreeRest = fortzSpec.slice('three/'.length);
           if (fortzThreeRest.indexOf('addons/') === 0) {
             fortzThreeRest = 'examples/jsm/' + fortzThreeRest.slice('addons/'.length);
+          }
+          if (fortzThreeRest === 'examples/jsm/BufferGeometryUtils.js') {
+            fortzThreeRest = 'examples/jsm/utils/BufferGeometryUtils.js';
           }
           Reflect.set(fortzImports, fortzSpec, fortzPinnedThree + '/' + fortzThreeRest);
         }

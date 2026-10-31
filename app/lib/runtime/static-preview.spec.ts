@@ -353,6 +353,9 @@ describe('studio preview publish parity', () => {
 
     expect(map.imports['three/']).toBe('https://cdn.jsdelivr.net/npm/three@0.160.0/');
     expect(map.imports['three/examples/jsm/']).toBe('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/');
+    expect(map.imports['three/addons/BufferGeometryUtils.js']).toBe(
+      'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/BufferGeometryUtils.js',
+    );
 
     // Same algorithm as the browser's import map: longest matching prefix wins.
     const resolve = (spec: string): string => {
