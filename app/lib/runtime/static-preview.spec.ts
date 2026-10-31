@@ -321,6 +321,34 @@ describe('studio preview publish parity', () => {
     expect(ensureThreeImportMap('<html><head></head><body>plain</body></html>')).not.toContain('importmap');
   });
 
+  it('maps the whole three namespace so deep engine subpaths always resolve', () => {
+    const html = '<html><head></head><body><script type="module">import * as THREE from "three";</script></body></html>';
+    const out = ensureThreeImportMap(html);
+    const mapText = /<script type="importmap"[^>]*>([\s\S]*?)<\/script>/.exec(out)?.[1];
+    const map = JSON.parse(mapText as string) as { imports: Record<string, string> };
+
+    expect(map.imports['three/']).toBe('https://cdn.jsdelivr.net/npm/three@0.160.0/');
+    expect(map.imports['three/examples/jsm/']).toBe('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/');
+
+    // Same algorithm as the browser's import map: longest matching prefix wins.
+    const resolve = (spec: string): string => {
+      const keys = Object.keys(map.imports).sort((a, b) => b.length - a.length);
+      for (const key of keys) {
+        if (spec === key) return map.imports[key];
+        if (key.endsWith('/') && spec.startsWith(key)) return map.imports[key] + spec.slice(key.length);
+      }
+      throw new Error(`unresolved specifier: ${spec}`);
+    };
+
+    expect(resolve('three/examples/jsm/utils/BufferGeometryUtils.js')).toBe(
+      'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/BufferGeometryUtils.js',
+    );
+    expect(resolve('three/addons/controls/OrbitControls.js')).toBe(
+      'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js',
+    );
+    expect(resolve('three')).toBe('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js');
+  });
+
   it('adds storage shim and audio unlock helpers exactly once', () => {
     const html = '<html><head></head><body><button id="start">Start</button></body></html>';
     const once = normalizeStudioGameHtml(html);
@@ -456,6 +484,10 @@ describe('studio preview publish parity', () => {
     expect(out).toContain('data-studio-three-importmap');
     expect(out).toContain('cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js');
     expect(out).toContain('three/addons/');
+    // Deep three subpaths must resolve even when the scanner never saw the
+    // importing module (e.g. three/examples/jsm/utils/BufferGeometryUtils.js).
+    expect(out).toContain('"three/"');
+    expect(out).toContain('"three/examples/jsm/"');
   });
 
   it('maps other bare packages, including scoped ones, from hinted module files', () => {

@@ -714,8 +714,14 @@ export function ensureThreeImportMap(html: string): string {
   }
 
   // Pin three over stale mappings, while preserving unrelated game entries.
+  // The trailing-slash prefix entries resolve ANY deep three specifier
+  // (three/examples/jsm/..., three/src/..., three/addons/...) even when the
+  // module scanner never saw the importing file; longest prefix wins, so the
+  // addons mapping takes precedence over the generic three/ prefix.
   mergedImports.three = PINNED_THREE_MODULE;
   mergedImports['three/addons/'] = PINNED_THREE_ADDONS;
+  mergedImports['three/examples/jsm/'] = PINNED_THREE_ADDONS;
+  mergedImports['three/'] = 'https://cdn.jsdelivr.net/npm/three@0.160.0/';
   const mapJson: { imports: Record<string, string>; scopes?: Record<string, Record<string, string>> } = {
     imports: mergedImports,
   };
@@ -1874,9 +1880,13 @@ export const normalizeServerPreviewHtml: (html: string, moduleHints?: Array<Stat
     var fortzImports = {};
     // A module entry may be minified or use syntax the lightweight scanner
     // cannot recognize. The mapping is harmless when unused and guarantees
-    // bare three imports resolve in every Studio preview.
+    // bare three imports resolve in every Studio preview. The prefix entries
+    // also resolve deep three specifiers the scanner never saw, such as
+    // three/examples/jsm/utils/BufferGeometryUtils.js.
     Reflect.set(fortzImports, 'three', 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js');
     Reflect.set(fortzImports, 'three/addons/', 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/');
+    Reflect.set(fortzImports, 'three/examples/jsm/', 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/');
+    Reflect.set(fortzImports, 'three/', 'https://cdn.jsdelivr.net/npm/three@0.160.0/');
     var fortzPinnedThree = 'https://cdn.jsdelivr.net/npm/three@0.160.0';
     for (var specIndex = 0; specIndex < fortzSpecs.length; specIndex++) {
       var fortzSpec = String(fortzSpecs[specIndex]).split('?')[0].split('#')[0];
@@ -1903,6 +1913,10 @@ export const normalizeServerPreviewHtml: (html: string, moduleHints?: Array<Stat
       }
       if (!Reflect.get(fortzImports, fortzRoot)) {
         Reflect.set(fortzImports, fortzRoot, 'https://cdn.jsdelivr.net/npm/' + fortzRoot + '/+esm');
+      }
+      var fortzRootPrefix = fortzRoot + '/';
+      if (!Reflect.get(fortzImports, fortzRootPrefix)) {
+        Reflect.set(fortzImports, fortzRootPrefix, 'https://cdn.jsdelivr.net/npm/' + fortzRoot + '/');
       }
       if (fortzSpec !== fortzRoot && !Reflect.get(fortzImports, fortzSpec)) {
         Reflect.set(fortzImports, fortzSpec, 'https://cdn.jsdelivr.net/npm/' + fortzSpec + '/+esm');
