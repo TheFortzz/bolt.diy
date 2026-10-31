@@ -14,6 +14,7 @@ import {
   normalizeServerPreviewHtml,
   normalizeStudioGameHtml,
   resolveStaticPreviewFile,
+  staticPreviewModuleHintsHelperSource,
   resolveStaticPreviewFileLoose,
   rewriteUnpkgThreeToJsdelivr,
   stripBlockedSdkScripts,
@@ -487,6 +488,45 @@ describe('studio preview publish parity', () => {
     expect(out).toContain('https://cdn.example/react.js');
     expect(out).toContain('three@0.160.0/build/three.module.js');
     expect(out.indexOf('data-studio-three-importmap')).toBeLessThan(out.indexOf('src="game.js"'));
+  });
+
+  it('served module scripts drop CSS imports that would kill the module graph', () => {
+    const strip = new Function(`${staticPreviewModuleHintsHelperSource}; return fortzStripCssModuleImports;`)() as (
+      source: string,
+    ) => string;
+
+    const source = [
+      'import "./touch.css";',
+      "import './style.css?inline';",
+      'import theme from "./theme.scss";',
+      'import * as styles from "../ui/overlay.less";',
+      'const lazy = () => import("./late.css");',
+      'import * as THREE from "three";',
+      'import { helper } from "./helper.js";',
+      'console.log(THREE, helper, theme, styles, lazy);',
+    ].join('\n');
+
+    const out = strip(source);
+
+    expect(out).not.toContain('touch.css');
+    expect(out).not.toContain('style.css');
+    expect(out).not.toContain('theme.scss');
+    expect(out).not.toContain('overlay.less');
+    expect(out).not.toContain('late.css');
+    expect(out).toContain('import * as THREE from "three";');
+    expect(out).toContain('import { helper } from "./helper.js";');
+    expect(strip(out)).toBe(out);
+  });
+
+  it('inline module scripts in served HTML lose CSS imports too', () => {
+    const embedded = new Function(`return (${normalizeServerPreviewHtml.toString()});`)() as (html: string) => string;
+    const html =
+      '<html><head></head><body><canvas id="game"></canvas><script type="module">import "./style.css";import * as THREE from "three";console.log(THREE);</script></body></html>';
+    const out = embedded(html);
+
+    expect(out).not.toContain('./style.css');
+    expect(out).toContain('import * as THREE from "three";');
+    expect(out).toContain('data-studio-three-importmap');
   });
 });
 

@@ -1776,6 +1776,24 @@ export const staticPreviewModuleHintsHelperSource: string = String.raw`function 
   }
 
   return hints;
+}
+
+/*
+ * Bundler-style CSS imports (import "./style.css") are normal in Vite/webpack
+ * projects but illegal in a raw browser module graph: the stylesheet comes back
+ * as text/css and the browser aborts the ENTIRE entry module with a strict
+ * MIME-type error, so the game never boots. Stylesheets still load through the
+ * document's own <link> tags; dropping the module-side imports is safe.
+ */
+function fortzStripCssModuleImports(source) {
+  if (!source || typeof source !== 'string') return source;
+  if (source.indexOf('.css') === -1 && source.indexOf('.scss') === -1 && source.indexOf('.sass') === -1 && source.indexOf('.less') === -1 && source.indexOf('.styl') === -1 && source.indexOf('.pcss') === -1) {
+    return source;
+  }
+  var dynamicImportRe = /\bimport\s*\(\s*(["'])[^"']*\.(?:css|scss|sass|less|styl(?:us)?|pcss|postcss)(?:\?[^"')]*)?\1\s*\)/gi;
+  var namedImportRe = /\bimport\s+(?:[\w$]+\s*,\s*)?(?:\{[^{}]*\}|\*\s*as\s*[\w$]+|[\w$]+)\s*from\s*(["'])[^"']*\.(?:css|scss|sass|less|styl(?:us)?|pcss|postcss)(?:\?[^"')]*)?\1[ \t]*;?/gi;
+  var sideEffectImportRe = /\bimport\s*(["'])[^"']*\.(?:css|scss|sass|less|styl(?:us)?|pcss|postcss)(?:\?[^"')]*)?\1[ \t]*;?/gi;
+  return source.replace(dynamicImportRe, 'Promise.resolve()').replace(namedImportRe, '').replace(sideEffectImportRe, '');
 }`;
 
 /**
@@ -1811,6 +1829,16 @@ export const normalizeServerPreviewHtml: (html: string, moduleHints?: Array<Stat
 
   // 2. Rewrite unpkg three.js refs to pinned jsDelivr.
   out = out.replace(/(https?:)?\/\/unpkg\.com\/three/g, 'https://cdn.jsdelivr.net/npm/three');
+
+  // 2b. Drop bundler-only CSS module imports. A raw browser fetches the
+  // stylesheet as text/css and aborts the whole module graph on the strict
+  // MIME check, so inline modules must not keep `import "./style.css"`.
+  if (out.indexOf('.css') !== -1 || out.indexOf('.scss') !== -1 || out.indexOf('.sass') !== -1 || out.indexOf('.less') !== -1 || out.indexOf('.styl') !== -1 || out.indexOf('.pcss') !== -1) {
+    out = out
+      .replace(/\bimport\s*\(\s*(["'])[^"']*\.(?:css|scss|sass|less|styl(?:us)?|pcss|postcss)(?:\?[^"')]*)?\1\s*\)/gi, 'Promise.resolve()')
+      .replace(/\bimport\s+(?:[\w$]+\s*,\s*)?(?:\{[^{}]*\}|\*\s*as\s*[\w$]+|[\w$]+)\s*from\s*(["'])[^"']*\.(?:css|scss|sass|less|styl(?:us)?|pcss|postcss)(?:\?[^"')]*)?\1[ \t]*;?/gi, '')
+      .replace(/\bimport\s*(["'])[^"']*\.(?:css|scss|sass|less|styl(?:us)?|pcss|postcss)(?:\?[^"')]*)?\1[ \t]*;?/gi, '');
+  }
 
   // 3. Inject a three.js import map for every served game page. A document can
   // already contain an import map that omits three; skipping all map handling

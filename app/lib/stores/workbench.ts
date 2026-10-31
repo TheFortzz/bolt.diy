@@ -584,6 +584,13 @@ const handler = function (req, res) {
       } catch (e) {
         fs.createReadStream(file).pipe(res);
       }
+    } else if (ext === '.js' || ext === '.mjs') {
+      try {
+        var servedJs = fs.readFileSync(file, 'utf8');
+        res.end(fortzStripCssModuleImports(servedJs));
+      } catch (e) {
+        fs.createReadStream(file).pipe(res);
+      }
     } else {
       fs.createReadStream(file).pipe(res);
     }
