@@ -522,10 +522,10 @@ describe('studio preview publish parity', () => {
     expect(out.indexOf('data-studio-three-importmap')).toBeLessThan(out.indexOf('src="game.js"'));
   });
 
-  it('served module scripts drop CSS imports that would kill the module graph', () => {
-    const strip = new Function(`${staticPreviewModuleHintsHelperSource}; return fortzStripCssModuleImports;`)() as (
-      source: string,
-    ) => string;
+  it('served module scripts turn CSS imports into stylesheet injections', () => {
+    const rewrite = new Function(
+      `${staticPreviewModuleHintsHelperSource}; return fortzRewriteCssModuleImports;`,
+    )() as (source: string) => string;
 
     const source = [
       'import "./touch.css";',
@@ -538,25 +538,41 @@ describe('studio preview publish parity', () => {
       'console.log(THREE, helper, theme, styles, lazy);',
     ].join('\n');
 
-    const out = strip(source);
+    const out = rewrite(source);
 
-    expect(out).not.toContain('touch.css');
-    expect(out).not.toContain('style.css');
-    expect(out).not.toContain('theme.scss');
-    expect(out).not.toContain('overlay.less');
-    expect(out).not.toContain('late.css');
+    // No raw CSS module import survives: the browser would abort on text/css.
+    expect(out).not.toContain('import "./touch.css"');
+    expect(out).not.toContain("import './style.css?inline'");
+    expect(out).not.toContain('from "./theme.scss"');
+    expect(out).not.toContain('from "../ui/overlay.less"');
+    expect(out).not.toContain('import("./late.css")');
+    // Each stylesheet is instead injected as a <link> resolved against the module.
+    expect(out).toContain('new URL("./touch.css", import.meta.url)');
+    expect(out).toContain('new URL("./style.css?inline", import.meta.url)');
+    expect(out).toContain('new URL("./theme.scss", import.meta.url)');
+    expect(out).toContain('new URL("../ui/overlay.less", import.meta.url)');
+    expect(out).toContain('new URL("./late.css", import.meta.url)');
+    expect(out).toContain('createElement("link")');
+    expect(out).toContain('data-fortz-css');
+    // Bindings keep working without importing CSS as a module.
+    expect(out).toContain('const theme = {};');
+    expect(out).toContain('const styles = {};');
+    expect(out).toContain('Promise.resolve({})');
+    // JavaScript imports are untouched.
     expect(out).toContain('import * as THREE from "three";');
     expect(out).toContain('import { helper } from "./helper.js";');
-    expect(strip(out)).toBe(out);
+    expect(rewrite(out)).toBe(out);
   });
 
-  it('inline module scripts in served HTML lose CSS imports too', () => {
+  it('inline module scripts in served HTML also get stylesheet injections', () => {
     const embedded = new Function(`return (${normalizeServerPreviewHtml.toString()});`)() as (html: string) => string;
     const html =
       '<html><head></head><body><canvas id="game"></canvas><script type="module">import "./style.css";import * as THREE from "three";console.log(THREE);</script></body></html>';
     const out = embedded(html);
 
-    expect(out).not.toContain('./style.css');
+    expect(out).not.toContain('import "./style.css"');
+    expect(out).toContain('new URL("./style.css", import.meta.url)');
+    expect(out).toContain('createElement("link")');
     expect(out).toContain('import * as THREE from "three";');
     expect(out).toContain('data-studio-three-importmap');
   });

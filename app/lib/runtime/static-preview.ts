@@ -1788,18 +1788,76 @@ export const staticPreviewModuleHintsHelperSource: string = String.raw`function 
  * Bundler-style CSS imports (import "./style.css") are normal in Vite/webpack
  * projects but illegal in a raw browser module graph: the stylesheet comes back
  * as text/css and the browser aborts the ENTIRE entry module with a strict
- * MIME-type error, so the game never boots. Stylesheets still load through the
- * document's own <link> tags; dropping the module-side imports is safe.
+ * MIME-type error. Dropping them would break the game's styling, so instead
+ * rewrite each one into a runtime <link rel="stylesheet"> injection resolved
+ * against the importing module (import.meta.url). Side-effect, default, named,
+ * namespace and dynamic CSS imports are all handled.
  */
-function fortzStripCssModuleImports(source) {
+function fortzRewriteCssModuleImports(source) {
   if (!source || typeof source !== 'string') return source;
-  if (source.indexOf('.css') === -1 && source.indexOf('.scss') === -1 && source.indexOf('.sass') === -1 && source.indexOf('.less') === -1 && source.indexOf('.styl') === -1 && source.indexOf('.pcss') === -1) {
-    return source;
+  if (!/\.(?:css|scss|sass|less|styl|pcss|postcss)/i.test(source)) return source;
+
+  function injectionCode(spec = '') {
+    return [
+      'try{var u=new URL(',
+      JSON.stringify(spec),
+      ', import.meta.url).href;',
+      'if(typeof document!=="undefined"&&document.head){',
+      'var seen=false;var ls=document.querySelectorAll("link[rel=stylesheet]");',
+      'for(var li=0;li<ls.length;li++){if(ls[li].href===u)seen=true;}',
+      'if(!seen){var l=document.createElement("link");l.rel="stylesheet";l.href=u;',
+      'l.setAttribute("data-fortz-css",u);document.head.appendChild(l);}}',
+      'catch(e){}',
+    ].join('');
   }
-  var dynamicImportRe = /\bimport\s*\(\s*(["'])[^"']*\.(?:css|scss|sass|less|styl(?:us)?|pcss|postcss)(?:\?[^"')]*)?\1\s*\)/gi;
-  var namedImportRe = /\bimport\s+(?:[\w$]+\s*,\s*)?(?:\{[^{}]*\}|\*\s*as\s*[\w$]+|[\w$]+)\s*from\s*(["'])[^"']*\.(?:css|scss|sass|less|styl(?:us)?|pcss|postcss)(?:\?[^"')]*)?\1[ \t]*;?/gi;
-  var sideEffectImportRe = /\bimport\s*(["'])[^"']*\.(?:css|scss|sass|less|styl(?:us)?|pcss|postcss)(?:\?[^"')]*)?\1[ \t]*;?/gi;
-  return source.replace(dynamicImportRe, 'Promise.resolve()').replace(namedImportRe, '').replace(sideEffectImportRe, '');
+
+  function injectorStatement(spec = '') {
+    return ';(function(){' + injectionCode(spec) + '})();';
+  }
+
+  function injectorExpression(spec = '') {
+    return '(function(){' + injectionCode(spec) + 'return Promise.resolve({});})()';
+  }
+
+  function bindingStubs(clause = '') {
+    var stubs = [];
+    var ns = /\*\s*as\s+([\w$]+)/.exec(clause);
+    if (ns) stubs.push('const ' + ns[1] + ' = {};');
+    var brace = /\{([^}]*)\}/.exec(clause);
+    if (brace) {
+      var items = brace[1].split(',');
+      for (var i = 0; i < items.length; i++) {
+        var parts = items[i].trim().split(/\s+as\s+/);
+        var local = (parts[1] || parts[0] || '').trim();
+        if (local) stubs.push('const ' + local + ' = {};');
+      }
+    }
+    var trimmed = clause.trim();
+    if (trimmed.charAt(0) !== '{' && trimmed.charAt(0) !== '*') {
+      var def = /^([\w$]+)/.exec(trimmed);
+      if (def) stubs.push('const ' + def[1] + ' = {};');
+    }
+    return stubs.join(' ');
+  }
+
+  var cssExtRe = /\.(?:css|scss|sass|less|styl(?:us)?|pcss|postcss)(?:\?.*)?$/i;
+  var dynamicImportRe = /\bimport\s*\(\s*(["'])([^"']*\.(?:css|scss|sass|less|styl(?:us)?|pcss|postcss)(?:\?[^"')]*)?)\1\s*\)/gi;
+  source = source.replace(dynamicImportRe, function (match, quote, spec) {
+    return injectorExpression(spec);
+  });
+
+  var fromImportRe = /\bimport\s+([\w$*{}\s,]{1,200}?)\s*from\s*(["'])([^"']+)\2[ \t]*;?/gi;
+  source = source.replace(fromImportRe, function (match, clause, quote, spec) {
+    if (!cssExtRe.test(spec)) return match;
+    return injectorStatement(spec) + ' ' + bindingStubs(clause);
+  });
+
+  var sideEffectImportRe = /\bimport\s*(["'])([^"']*\.(?:css|scss|sass|less|styl(?:us)?|pcss|postcss)(?:\?[^"')]*)?)\1[ \t]*;?/gi;
+  source = source.replace(sideEffectImportRe, function (match, quote, spec) {
+    return injectorStatement(spec);
+  });
+
+  return source;
 }`;
 
 /**
@@ -1836,14 +1894,61 @@ export const normalizeServerPreviewHtml: (html: string, moduleHints?: Array<Stat
   // 2. Rewrite unpkg three.js refs to pinned jsDelivr.
   out = out.replace(/(https?:)?\/\/unpkg\.com\/three/g, 'https://cdn.jsdelivr.net/npm/three');
 
-  // 2b. Drop bundler-only CSS module imports. A raw browser fetches the
-  // stylesheet as text/css and aborts the whole module graph on the strict
-  // MIME check, so inline modules must not keep `import "./style.css"`.
-  if (out.indexOf('.css') !== -1 || out.indexOf('.scss') !== -1 || out.indexOf('.sass') !== -1 || out.indexOf('.less') !== -1 || out.indexOf('.styl') !== -1 || out.indexOf('.pcss') !== -1) {
-    out = out
-      .replace(/\bimport\s*\(\s*(["'])[^"']*\.(?:css|scss|sass|less|styl(?:us)?|pcss|postcss)(?:\?[^"')]*)?\1\s*\)/gi, 'Promise.resolve()')
-      .replace(/\bimport\s+(?:[\w$]+\s*,\s*)?(?:\{[^{}]*\}|\*\s*as\s*[\w$]+|[\w$]+)\s*from\s*(["'])[^"']*\.(?:css|scss|sass|less|styl(?:us)?|pcss|postcss)(?:\?[^"')]*)?\1[ \t]*;?/gi, '')
-      .replace(/\bimport\s*(["'])[^"']*\.(?:css|scss|sass|less|styl(?:us)?|pcss|postcss)(?:\?[^"')]*)?\1[ \t]*;?/gi, '');
+  // 2b. Rewrite bundler-style CSS module imports (import "./style.css") into
+  // runtime <link rel="stylesheet"> injections. A raw browser fetches the
+  // stylesheet as text/css and aborts the whole module graph on the strict MIME
+  // check, but dropping the import would lose the game's styling.
+  if (/\.(?:css|scss|sass|less|styl|pcss|postcss)/i.test(out)) {
+    function fortzCssInjectCode(spec = '') {
+      return [
+        'try{var u=new URL(',
+        JSON.stringify(spec),
+        ', import.meta.url).href;',
+        'if(typeof document!=="undefined"&&document.head){',
+        'var seen=false;var ls=document.querySelectorAll("link[rel=stylesheet]");',
+        'for(var li=0;li<ls.length;li++){if(ls[li].href===u)seen=true;}',
+        'if(!seen){var l=document.createElement("link");l.rel="stylesheet";l.href=u;',
+        'l.setAttribute("data-fortz-css",u);document.head.appendChild(l);}}',
+        'catch(e){}',
+      ].join('');
+    }
+    function fortzCssInjectStmt(spec = '') {
+      return ';(function(){' + fortzCssInjectCode(spec) + '})();';
+    }
+    function fortzCssInjectExpr(spec = '') {
+      return '(function(){' + fortzCssInjectCode(spec) + 'return Promise.resolve({});})()';
+    }
+    function fortzCssStubs(clause = '') {
+      var stubs = [];
+      var ns = /\*\s*as\s+([\w$]+)/.exec(clause);
+      if (ns) stubs.push('const ' + ns[1] + ' = {};');
+      var brace = /\{([^}]*)\}/.exec(clause);
+      if (brace) {
+        var items = brace[1].split(',');
+        for (var i = 0; i < items.length; i++) {
+          var parts = items[i].trim().split(/\s+as\s+/);
+          var localName = (parts[1] || parts[0] || '').trim();
+          if (localName) stubs.push('const ' + localName + ' = {};');
+        }
+      }
+      var trimmedClause = clause.trim();
+      if (trimmedClause.charAt(0) !== '{' && trimmedClause.charAt(0) !== '*') {
+        var defName = /^([\w$]+)/.exec(trimmedClause);
+        if (defName) stubs.push('const ' + defName[1] + ' = {};');
+      }
+      return stubs.join(' ');
+    }
+    var fortzCssExtPattern = /\.(?:css|scss|sass|less|styl(?:us)?|pcss|postcss)(?:\?.*)?$/i;
+    out = out.replace(/\bimport\s*\(\s*(["'])([^"']*\.(?:css|scss|sass|less|styl(?:us)?|pcss|postcss)(?:\?[^"')]*)?)\1\s*\)/gi, function (match, quote, spec) {
+      return fortzCssInjectExpr(spec);
+    });
+    out = out.replace(/\bimport\s+([\w$*{}\s,]{1,200}?)\s*from\s*(["'])([^"']+)\2[ \t]*;?/gi, function (match, clause, quote, spec) {
+      if (!fortzCssExtPattern.test(spec)) return match;
+      return fortzCssInjectStmt(spec) + ' ' + fortzCssStubs(clause);
+    });
+    out = out.replace(/\bimport\s*(["'])([^"']*\.(?:css|scss|sass|less|styl(?:us)?|pcss|postcss)(?:\?[^"')]*)?)\1[ \t]*;?/gi, function (match, quote, spec) {
+      return fortzCssInjectStmt(spec);
+    });
   }
 
   // 3. Inject a three.js import map for every served game page. A document can

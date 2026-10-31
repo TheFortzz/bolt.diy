@@ -113,7 +113,7 @@ const handler = function (req, res) {
     } else if (ext === '.js' || ext === '.mjs') {
       try {
         const servedJs = fs.readFileSync(file, 'utf8');
-        res.end(fortzStripCssModuleImports(servedJs));
+        res.end(fortzRewriteCssModuleImports(servedJs));
       } catch (e) {
         fs.createReadStream(file).pipe(res);
       }
