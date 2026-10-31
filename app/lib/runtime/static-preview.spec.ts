@@ -1,3 +1,7 @@
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   auditGameModuleGraph,
@@ -19,6 +23,25 @@ import {
   rewriteUnpkgThreeToJsdelivr,
   stripBlockedSdkScripts,
 } from '~/lib/runtime/static-preview';
+
+/**
+ * Preview code is shipped to real browsers, so a syntax slip breaks every game
+ * that hits the path (a single missing brace once did). Parse with the real
+ * Node ESM parser rather than trusting substring assertions.
+ */
+const assertParsesAsEsm = (code: string, label: string) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fortz-esm-'));
+  const file = path.join(dir, 'check.mjs');
+
+  try {
+    fs.writeFileSync(file, code);
+    const result = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' });
+
+    expect(result.status, `${label} is not valid ESM: ${result.stderr}`).toBe(0);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+};
 
 describe('static preview file resolution', () => {
   const files = [
@@ -540,6 +563,8 @@ describe('studio preview publish parity', () => {
 
     const out = rewrite(source);
 
+    assertParsesAsEsm(out, 'rewritten module with CSS imports');
+
     // No raw CSS module import survives: the browser would abort on text/css.
     expect(out).not.toContain('import "./touch.css"');
     expect(out).not.toContain("import './style.css?inline'");
@@ -575,6 +600,11 @@ describe('studio preview publish parity', () => {
     expect(out).toContain('createElement("link")');
     expect(out).toContain('import * as THREE from "three";');
     expect(out).toContain('data-studio-three-importmap');
+
+    const inlineModule = /<script type="module">([\s\S]*?)<\/script>/.exec(out)?.[1];
+
+    expect(inlineModule).toBeTruthy();
+    assertParsesAsEsm(inlineModule as string, 'inline module with CSS injection');
   });
 });
 
@@ -649,6 +679,9 @@ describe('studio preview local module loading', () => {
       const cssModule = texts.find((t) => t.includes('canvas { display: block; }'));
 
       expect(cssModule).toBeDefined();
+
+      assertParsesAsEsm(cssModule as string, 'blob stylesheet module');
+
       // The stylesheet is injected at runtime, never parsed as JavaScript.
       expect(cssModule).toContain('createElement(\'style\')');
       expect(cssModule).toContain('export default {};');

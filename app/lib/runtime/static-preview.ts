@@ -1829,7 +1829,7 @@ function fortzRewriteCssModuleImports(source) {
       'var seen=false;var ls=document.querySelectorAll("link[rel=stylesheet]");',
       'for(var li=0;li<ls.length;li++){if(ls[li].href===u)seen=true;}',
       'if(!seen){var l=document.createElement("link");l.rel="stylesheet";l.href=u;',
-      'l.setAttribute("data-fortz-css",u);document.head.appendChild(l);}}',
+      'l.setAttribute("data-fortz-css",u);document.head.appendChild(l);}}}',
       'catch(e){}',
     ].join('');
   }
@@ -1931,7 +1931,7 @@ export const normalizeServerPreviewHtml: (html: string, moduleHints?: Array<Stat
         'var seen=false;var ls=document.querySelectorAll("link[rel=stylesheet]");',
         'for(var li=0;li<ls.length;li++){if(ls[li].href===u)seen=true;}',
         'if(!seen){var l=document.createElement("link");l.rel="stylesheet";l.href=u;',
-        'l.setAttribute("data-fortz-css",u);document.head.appendChild(l);}}',
+        'l.setAttribute("data-fortz-css",u);document.head.appendChild(l);}}}',
         'catch(e){}',
       ].join('');
     }
