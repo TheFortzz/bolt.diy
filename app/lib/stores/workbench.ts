@@ -23,6 +23,7 @@ import {
   isFortzStaticPreviewPort,
   normalizeServerPreviewHtml,
   staticPreviewModuleHintsHelperSource,
+  staticPreviewThreeCompatModuleSource,
 } from '~/lib/runtime/static-preview';
 import { executionPolicy } from '~/lib/harness/execution-policy';
 import { formatWorkspaceSource } from '~/lib/runtime/source-format';
@@ -502,6 +503,7 @@ const mimes = {
 
 const baseDir = path.resolve(fs.existsSync('/home/project') ? '/home/project' : process.cwd());
 const normalizeServerPreviewHtml = (${normalizeServerPreviewHtml.toString()});
+const threeCompatModuleSource = ${JSON.stringify(staticPreviewThreeCompatModuleSource)};
 
 /*
  * Bare module specifiers ("three") usually import from EXTERNAL module files,
@@ -601,6 +603,11 @@ const handler = function (req, res) {
     } else {
       fs.createReadStream(file).pipe(res);
     }
+  } else if (/(?:^|\\/)three(?:\\.module|\\.min)?\\.js$/i.test(cleanUrl)) {
+    // Older projects commonly import a local ./three.js file that was never
+    // uploaded. Fall back to the pinned import-map package instead of a 404.
+    res.writeHead(200, { 'Content-Type': mimes['.js'], 'Cache-Control': 'no-store' });
+    res.end(threeCompatModuleSource);
   } else {
     res.writeHead(404);
     res.end('Not Found');

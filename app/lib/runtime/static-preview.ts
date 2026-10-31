@@ -321,6 +321,14 @@ export function balanceAndCloseJs(code: string): string {
   return code;
 }
 
+/** Legacy local three.js paths resolve to this module when no project file exists. */
+export const staticPreviewThreeCompatModuleSource = [
+  'import * as THREE from "three";',
+  'export * from "three";',
+  'if (typeof globalThis !== "undefined" && !globalThis.THREE) globalThis.THREE = THREE;',
+  'export default THREE;',
+].join('\n');
+
 /** Keep injected helpers before all document scripts and append an unlinked entry last. */
 export function injectStaticScripts(html: string, dependencies: string[], entries: string[]) {
   let result = html;

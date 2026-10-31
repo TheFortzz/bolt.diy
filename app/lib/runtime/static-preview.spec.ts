@@ -18,6 +18,7 @@ import {
   normalizeServerPreviewHtml,
   normalizeStudioGameHtml,
   resolveStaticPreviewFile,
+  staticPreviewThreeCompatModuleSource,
   staticPreviewModuleHintsHelperSource,
   resolveStaticPreviewFileLoose,
   rewriteUnpkgThreeToJsdelivr,
@@ -370,6 +371,12 @@ describe('studio preview publish parity', () => {
       'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js',
     );
     expect(resolve('three')).toBe('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js');
+  });
+
+  it('provides a valid compatibility module for missing local three.js entry files', () => {
+    expect(staticPreviewThreeCompatModuleSource).toContain('export * from "three";');
+    expect(staticPreviewThreeCompatModuleSource).toContain('export default THREE;');
+    assertParsesAsEsm(staticPreviewThreeCompatModuleSource, 'missing three.js compatibility module');
   });
 
   it('adds storage shim and audio unlock helpers exactly once', () => {

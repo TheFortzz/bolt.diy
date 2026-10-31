@@ -10,7 +10,12 @@ import { cleanWorkDirRelativePath } from '~/utils/diff';
 import { actionStepId, updateActivity } from '~/lib/stores/activity';
 import { contentHash } from '~/lib/harness/blueprint';
 import { executionPolicy } from '~/lib/harness/execution-policy';
-import { balanceAndCloseJs, normalizeServerPreviewHtml, staticPreviewModuleHintsHelperSource } from '~/lib/runtime/static-preview';
+import {
+  balanceAndCloseJs,
+  normalizeServerPreviewHtml,
+  staticPreviewModuleHintsHelperSource,
+  staticPreviewThreeCompatModuleSource,
+} from '~/lib/runtime/static-preview';
 import { isApprovedEngineMigration } from '~/lib/runtime/source-safety';
 
 const logger = createScopedLogger('ActionRunner');
@@ -70,6 +75,7 @@ const mimes = {
 
 const baseDir = path.resolve(fs.existsSync('/home/project') ? '/home/project' : process.cwd());
 const normalizeServerPreviewHtml = (${normalizeServerPreviewHtml.toString()});
+const threeCompatModuleSource = ${JSON.stringify(staticPreviewThreeCompatModuleSource)};
 ${staticPreviewModuleHintsHelperSource}
 
 const handler = function (req, res) {
@@ -127,6 +133,11 @@ const handler = function (req, res) {
     } else {
       fs.createReadStream(file).pipe(res);
     }
+  } else if (/(?:^|\\/)three(?:\\.module|\\.min)?\\.js$/i.test(cleanUrl)) {
+    // Older projects commonly import a local ./three.js file that was never
+    // uploaded. Fall back to the pinned import-map package instead of a 404.
+    res.writeHead(200, { 'Content-Type': mimes['.js'], 'Cache-Control': 'no-store' });
+    res.end(threeCompatModuleSource);
   } else {
     res.writeHead(404);
     res.end('Not Found');
