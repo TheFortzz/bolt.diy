@@ -628,6 +628,37 @@ describe('studio preview local module loading', () => {
     }
   });
 
+  it('turns CSS imports into style-injection modules instead of CSS-as-JS', async () => {
+    const { blobs, restore } = captureBlobs();
+
+    try {
+      const content = 'import "./style.css";\nimport * as THREE from "three";\nconsole.log(THREE);';
+      const html =
+        '<html><head></head><body><canvas></canvas>' +
+        '<script type="module" data-inlined="src/main.js">' +
+        content +
+        '</script></body></html>';
+      const out = inlineLocalModuleBlobImports(html, [
+        { path: 'src/main.js', content },
+        { path: 'src/style.css', content: 'canvas { display: block; }' },
+      ]);
+
+      expect(out).toContain('import "blob:');
+
+      const texts = await Promise.all(blobs.map((b) => b.text()));
+      const cssModule = texts.find((t) => t.includes('canvas { display: block; }'));
+
+      expect(cssModule).toBeDefined();
+      // The stylesheet is injected at runtime, never parsed as JavaScript.
+      expect(cssModule).toContain('createElement(\'style\')');
+      expect(cssModule).toContain('export default {};');
+      // The CSS text is embedded as a string literal, not as bare CSS.
+      expect(texts.some((t) => t.startsWith('canvas {'))).toBe(false);
+    } finally {
+      restore();
+    }
+  });
+
   it('leaves bare and absolute specifiers alone', () => {
     const html =
       '<html><head></head><body>' +

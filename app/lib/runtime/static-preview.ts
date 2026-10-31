@@ -1327,20 +1327,43 @@ export function inlineLocalModuleBlobImports(html: string, sourceFiles: StaticPr
 
     inProgress.add(normPath);
 
-    let code =
-      entry.path.endsWith('.js') || entry.path.endsWith('.mjs') ? balanceAndCloseJs(entry.content) : entry.content;
-
-    code = rewriteRelativeImports(normPath, code);
-    code = softenBlobImports(code, urlToPath());
-
     /*
-     * Append planned export repairs so the plain import survives: the target
-     * declared the binding but forgot `export`.
+     * Stylesheets are not JavaScript. Wrapping CSS text in a text/javascript
+     * blob makes the module parser reject the file and kills the whole module
+     * graph, so bundle-era CSS imports become a side-effect module that injects
+     * the stylesheet text into a <style> tag instead.
      */
-    const repairs = exportRepairs.get(normPath);
+    const isStylesheet = /\.(?:css|scss|sass|less|styl|stylus|pcss|postcss)$/i.test(normPath);
+    let code: string;
 
-    if (repairs && repairs.size > 0) {
-      code += `\nexport { ${Array.from(repairs).join(', ')} };`;
+    if (isStylesheet) {
+      code = [
+        `const __fortzCss = ${JSON.stringify(entry.content)};`,
+        'try {',
+        `  const __fortzKey = ${JSON.stringify(normPath)};`,
+        "  const __fortzStyle = document.createElement('style');",
+        "  __fortzStyle.setAttribute('data-fortz-css', __fortzKey);",
+        '  __fortzStyle.textContent = __fortzCss;',
+        '  document.head.appendChild(__fortzStyle);',
+        '} catch (e) {}',
+        'export default {};',
+      ].join('\n');
+    } else {
+      code =
+        entry.path.endsWith('.js') || entry.path.endsWith('.mjs') ? balanceAndCloseJs(entry.content) : entry.content;
+
+      code = rewriteRelativeImports(normPath, code);
+      code = softenBlobImports(code, urlToPath());
+
+      /*
+       * Append planned export repairs so the plain import survives: the target
+       * declared the binding but forgot `export`.
+       */
+      const repairs = exportRepairs.get(normPath);
+
+      if (repairs && repairs.size > 0) {
+        code += `\nexport { ${Array.from(repairs).join(', ')} };`;
+      }
     }
 
     inProgress.delete(normPath);
