@@ -213,7 +213,10 @@ export async function onRequest(context: any): Promise<Response> {
 
     try {
       const htmlFile = new File([htmlContent], `${cleanId}.html`, { type: 'text/html' });
-      const createdHtml = await storage.createFile(bucketId, ID.unique(), htmlFile, [Permission.read(Role.any()), Permission.write(Role.any())]);
+      const createdHtml = await storage.createFile(bucketId, ID.unique(), htmlFile, [
+        Permission.read(Role.any()),
+        Permission.write(Role.any()),
+      ]);
       uploadedFileIds.push(createdHtml.$id);
 
       const htmlUrl = `${endpoint}/storage/buckets/${bucketId}/files/${createdHtml.$id}/view?project=${projectId}`;
@@ -221,7 +224,10 @@ export async function onRequest(context: any): Promise<Response> {
       let thumbUrl = '';
       let thumbFileId = '';
       if (thumbnail) {
-        const createdThumb = await storage.createFile(bucketId, ID.unique(), thumbnail, [Permission.read(Role.any()), Permission.write(Role.any())]);
+        const createdThumb = await storage.createFile(bucketId, ID.unique(), thumbnail, [
+          Permission.read(Role.any()),
+          Permission.write(Role.any()),
+        ]);
         uploadedFileIds.push(createdThumb.$id);
         thumbFileId = createdThumb.$id;
         thumbUrl = `${endpoint}/storage/buckets/${bucketId}/files/${createdThumb.$id}/view?project=${projectId}`;
@@ -237,7 +243,7 @@ export async function onRequest(context: any): Promise<Response> {
           description: description || '',
           creator: creatorName || 'Studio Creator',
           ...(creatorId ? { creatorId } : {}),
-          status: 'live',
+          status: 'pending',
           plays: 0,
           likes: 0,
           publishedAt: Date.now(),
@@ -254,7 +260,7 @@ export async function onRequest(context: any): Promise<Response> {
         ],
       );
 
-      return json({ success: true, id: doc.$id, title, status: 'live', htmlUrl, thumbUrl });
+      return json({ success: true, id: doc.$id, title, status: 'pending', htmlUrl, thumbUrl });
     } catch (error) {
       await Promise.all(uploadedFileIds.map((fileId) => storage.deleteFile(bucketId, fileId).catch(() => undefined)));
       throw error;
@@ -267,13 +273,14 @@ export async function onRequest(context: any): Promise<Response> {
       );
     }
     const appwriteError = error as { code?: number; type?: string; message?: string };
-    console.error('[api.games.publish] Appwrite publish failed:', appwriteError.code, appwriteError.type, appwriteError.message);
+    console.error(
+      '[api.games.publish] Appwrite publish failed:',
+      appwriteError.code,
+      appwriteError.type,
+      appwriteError.message,
+    );
     const status = typeof appwriteError.code === 'number' ? appwriteError.code : 0;
-    const detail = [
-      status ? `code ${status}` : '',
-      appwriteError.type || '',
-      appwriteError.message || '',
-    ]
+    const detail = [status ? `code ${status}` : '', appwriteError.type || '', appwriteError.message || '']
       .filter(Boolean)
       .join(' · ');
     const message = detail

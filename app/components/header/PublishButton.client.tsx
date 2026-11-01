@@ -99,10 +99,7 @@ function isTransientPublishFailure(error: unknown): boolean {
   return /no game listing was created/i.test(message) && /could not be included/i.test(message);
 }
 
-async function retryTransientPublish<T>(
-  operation: () => Promise<T>,
-  onRetry: (message: string) => void,
-): Promise<T> {
+async function retryTransientPublish<T>(operation: () => Promise<T>, onRetry: (message: string) => void): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try {
       return await operation();
@@ -112,9 +109,35 @@ async function retryTransientPublish<T>(
       }
 
       const delay = PUBLISH_RETRY_DELAYS_MS[attempt];
-      onRetry(`A required game asset was not saved; retrying automatically in case of a temporary storage timeout (${attempt + 1}/${PUBLISH_RETRY_DELAYS_MS.length})…`);
+      onRetry(
+        `A required game asset was not saved; retrying automatically in case of a temporary storage timeout (${attempt + 1}/${PUBLISH_RETRY_DELAYS_MS.length})…`,
+      );
       await new Promise((resolve) => window.setTimeout(resolve, delay));
     }
+  }
+}
+
+function readRejectedTitles(): string[] {
+  try {
+    const value = JSON.parse(localStorage.getItem('thefortz:studio-rejected-titles') || '[]');
+
+    return Array.isArray(value)
+      ? value
+          .filter((title): title is string => typeof title === 'string' && title.trim().length > 0)
+          .map((title) => title.trim().toLowerCase())
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function readPublishedTitle(key: string): string {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || '{}');
+
+    return typeof value?.title === 'string' ? value.title.trim().toLowerCase() : '';
+  } catch {
+    return '';
   }
 }
 
@@ -135,7 +158,11 @@ export function PublishButton() {
   const projectIdentity = currentChatId || workbenchStore.firstArtifact?.id || 'default-project';
   const publishStorageKey = `thefortz:published:${projectIdentity}`;
   const [publishedStorageKey, setPublishedStorageKey] = useState<string | null>(null);
+  const [rejectedTitles, setRejectedTitles] = useState<string[]>([]);
   const isPublished = publishedStorageKey === publishStorageKey;
+  const publishedTitle = isPublished ? readPublishedTitle(publishStorageKey) : '';
+  const isRejectedSubmission = Boolean(isPublished && publishedTitle && rejectedTitles.includes(publishedTitle));
+  const publishLocked = isPublished && !isRejectedSubmission;
 
   const hasFiles = Object.keys(files || {}).length > 0;
 
@@ -161,16 +188,23 @@ export function PublishButton() {
         setPublishedStorageKey(null);
       }
     };
+    const refreshRejectedTitles = () => setRejectedTitles(readRejectedTitles());
     const onStorage = (event: StorageEvent) => {
-      if (event.key === publishStorageKey) {
+      if (event.key === publishStorageKey || event.key === 'thefortz:studio-rejected-titles') {
         refreshPublishedState();
+        refreshRejectedTitles();
       }
     };
 
     refreshPublishedState();
+    refreshRejectedTitles();
     window.addEventListener('storage', onStorage);
+    window.addEventListener('thefortz-publish-unlocked', refreshRejectedTitles);
 
-    return () => window.removeEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('thefortz-publish-unlocked', refreshRejectedTitles);
+    };
   }, [publishStorageKey]);
 
   // Auto-detect project title when modal opens or files change
@@ -238,14 +272,14 @@ export function PublishButton() {
     }
 
     try {
-      if (isPublished || localStorage.getItem(publishStorageKey)) {
+      if (publishLocked || (localStorage.getItem(publishStorageKey) && !isRejectedSubmission)) {
         setPublishedStorageKey(publishStorageKey);
-        toast.info('This game has already been published.');
+        toast.info('This game has already been submitted for review.');
 
         return;
       }
     } catch {
-      if (isPublished) {
+      if (publishLocked) {
         toast.info('This game has already been published.');
         return;
       }
@@ -481,7 +515,7 @@ export function PublishButton() {
         // Keep the current button locked even if browser storage is unavailable.
       }
       setPublishedStorageKey(publishStorageKey);
-      toast.success(`"${finalTitle}" published successfully!`);
+      toast.success(`"${finalTitle}" was submitted for approval. It will appear in Games after review.`);
       setIsOpen(false);
     } catch (err: any) {
       toast.error('Publish failed: ' + (err?.message || 'Unknown error'));
@@ -496,19 +530,27 @@ export function PublishButton() {
       <div className="flex items-center gap-1.5 publish-glow-container">
         <button
           type="button"
-          onClick={() => !isPublished && setIsOpen(true)}
+          onClick={() => !publishLocked && setIsOpen(true)}
           className="publish-glow-button"
-          disabled={isPublished}
-          title={isPublished ? 'This game is already published' : 'Publish your game to thefortz.me'}
+          disabled={publishLocked}
+          title={
+            isRejectedSubmission
+              ? 'Changes were requested. Update your game and submit it again.'
+              : publishLocked
+                ? 'This game is already submitted for review'
+                : 'Submit this game for approval'
+          }
         >
           <div
             className={
-              isPublished
+              publishLocked
                 ? 'i-ph:check-circle-fill text-emerald-300 text-xs'
-                : 'i-ph:rocket-launch text-sky-300 text-xs'
+                : isRejectedSubmission
+                  ? 'i-ph:arrow-clockwise text-amber-300 text-xs'
+                  : 'i-ph:rocket-launch text-sky-300 text-xs'
             }
           />
-          <span>{isPublished ? 'PUBLISHED' : 'PUBLISH'}</span>
+          <span>{isRejectedSubmission ? 'RESUBMIT' : publishLocked ? 'SUBMITTED' : 'PUBLISH'}</span>
         </button>
       </div>
 
@@ -644,7 +686,10 @@ export function PublishButton() {
                     />
                   ) : (
                     <div className="flex flex-col items-center gap-3 px-6 text-center">
-                      <span aria-hidden="true" className="i-ph:upload-simple text-5xl text-sky-200/80 transition-transform group-hover:-translate-y-1" />
+                      <span
+                        aria-hidden="true"
+                        className="i-ph:upload-simple text-5xl text-sky-200/80 transition-transform group-hover:-translate-y-1"
+                      />
                       <span className="text-sm font-bold text-white/90">Choose a cover image</span>
                       <span className="text-[11px] text-sky-100/60">PNG, JPG, or WebP · required</span>
                     </div>
@@ -687,11 +732,7 @@ export function PublishButton() {
                 </button>
 
                 {isExporting && (
-                  <div
-                    className="space-y-2 text-[11px] font-semibold text-sky-100/75"
-                    role="status"
-                    aria-live="polite"
-                  >
+                  <div className="space-y-2 text-[11px] font-semibold text-sky-100/75" role="status" aria-live="polite">
                     <div className="flex items-center justify-center gap-2">
                       <span className="i-svg-spinners:90-ring-with-bg text-sky-200" />
                       {publishProgress || 'Publishing your game…'}

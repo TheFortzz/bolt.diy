@@ -319,7 +319,7 @@ export async function action({ context, request }: ActionFunctionArgs) {
           description: description || '',
           creator: creatorName || 'Studio Creator',
           ...(creatorId ? { creatorId } : {}),
-          status: 'live',
+          status: 'pending',
           plays: 0,
           likes: 0,
           publishedAt: Date.now(),
@@ -336,7 +336,7 @@ export async function action({ context, request }: ActionFunctionArgs) {
         ],
       );
 
-      return json({ success: true, id: doc.$id, title, status: 'live', htmlUrl, thumbUrl });
+      return json({ success: true, id: doc.$id, title, status: 'pending', htmlUrl, thumbUrl });
     } catch (error) {
       await Promise.all(uploadedFileIds.map((fileId) => storage.deleteFile(bucketId, fileId).catch(() => undefined)));
       throw error;
@@ -350,13 +350,14 @@ export async function action({ context, request }: ActionFunctionArgs) {
     }
 
     const appwriteError = error as { code?: number; type?: string; message?: string };
-    console.error('[api.publish] Appwrite publish failed:', appwriteError.code, appwriteError.type, appwriteError.message);
+    console.error(
+      '[api.publish] Appwrite publish failed:',
+      appwriteError.code,
+      appwriteError.type,
+      appwriteError.message,
+    );
     const status = typeof appwriteError.code === 'number' ? appwriteError.code : 0;
-    const detail = [
-      status ? `code ${status}` : '',
-      appwriteError.type || '',
-      appwriteError.message || '',
-    ]
+    const detail = [status ? `code ${status}` : '', appwriteError.type || '', appwriteError.message || '']
       .filter(Boolean)
       .join(' · ');
 

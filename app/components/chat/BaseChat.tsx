@@ -498,7 +498,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               className={classNames('pt-2 px-2 sm:px-4 flex-1 flex flex-col min-h-0 overflow-hidden', {
                 'h-full': isWorkbenchActive || chatStarted,
                 'justify-end': isWorkbenchActive && !chatStarted,
-                'justify-center items-center my-auto pb-10 sm:pb-16': !chatStarted && !isWorkbenchActive,
+                'justify-center items-center my-auto pb-6 sm:pb-10': !chatStarted && !isWorkbenchActive,
               })}
             >
               <ClientOnly>
@@ -551,7 +551,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
 
               <div
                 className={classNames(
-                  'sticky bottom-0 relative w-full mx-auto z-prompt mb-1 px-2 sm:px-0 transition-all duration-300 flex-shrink-0',
+                  'sticky bottom-0 relative w-full mx-auto z-prompt mb-0 px-2 sm:px-0 transition-all duration-300 flex-shrink-0',
                   {
                     'mt-auto': isWorkbenchActive && !chatStarted,
                   },
