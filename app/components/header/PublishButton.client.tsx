@@ -131,6 +131,23 @@ function readRejectedTitles(): string[] {
   }
 }
 
+type StudioEditingGame = {
+  id: string;
+  title: string;
+  genre: string;
+  description: string;
+  thumbnailUrl?: string;
+};
+
+function readStudioEditingGame(): StudioEditingGame | null {
+  try {
+    const value = JSON.parse(localStorage.getItem('thefortz:studio-editing-game') || 'null');
+    return value && typeof value.id === 'string' ? value as StudioEditingGame : null;
+  } catch {
+    return null;
+  }
+}
+
 function readPublishedTitle(key: string): string {
   try {
     const value = JSON.parse(localStorage.getItem(key) || '{}');
@@ -152,6 +169,7 @@ export function PublishButton() {
   const [genre, setGenre] = useState('ACTION');
   const [description, setDescription] = useState('');
   const [previewThumb, setPreviewThumb] = useState<string>('');
+  const [editingGame, setEditingGame] = useState<StudioEditingGame | null>(() => readStudioEditingGame());
   const coverUploadRef = useRef<HTMLInputElement>(null);
   const files = useStore(workbenchStore.files);
   const currentChatId = useStore(chatId);
@@ -162,9 +180,22 @@ export function PublishButton() {
   const isPublished = publishedStorageKey === publishStorageKey;
   const publishedTitle = isPublished ? readPublishedTitle(publishStorageKey) : '';
   const isRejectedSubmission = Boolean(isPublished && publishedTitle && rejectedTitles.includes(publishedTitle));
-  const publishLocked = isPublished && !isRejectedSubmission;
+  const publishLocked = !editingGame && isPublished && !isRejectedSubmission;
 
   const hasFiles = Object.keys(files || {}).length > 0;
+
+  useEffect(() => {
+    const refreshEditingGame = () => setEditingGame(readStudioEditingGame());
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'thefortz:studio-editing-game') refreshEditingGame();
+    };
+    window.addEventListener('thefortz-studio-editing-changed', refreshEditingGame);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('thefortz-studio-editing-changed', refreshEditingGame);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isOpen) {
@@ -172,13 +203,18 @@ export function PublishButton() {
     }
 
     setPublishStep('details');
-    setCoverStatus('idle');
+    setCoverStatus(editingGame?.thumbnailUrl ? 'ready' : 'idle');
     setCoverError('');
-    setPreviewThumb('');
+    setPreviewThumb(editingGame?.thumbnailUrl || '');
     setPublishProgress('');
+    if (editingGame) {
+      setTitle(editingGame.title || '');
+      setGenre(editingGame.genre || 'ACTION');
+      setDescription(editingGame.description || '');
+    }
 
     return undefined;
-  }, [isOpen]);
+  }, [isOpen, editingGame]);
 
   useEffect(() => {
     const refreshPublishedState = () => {
@@ -264,7 +300,7 @@ export function PublishButton() {
       return;
     }
 
-    if (coverStatus !== 'ready' || !previewThumb) {
+    if (!editingGame && (coverStatus !== 'ready' || !previewThumb)) {
       setPublishStep('cover');
       toast.info('Upload a cover image before publishing.');
 
@@ -289,7 +325,7 @@ export function PublishButton() {
       setIsExporting(true);
       setPublishProgress('Sending your game to thefortz.me…');
 
-      const thumbDataUrl = previewThumb;
+      const thumbDataUrl = previewThumb.startsWith('data:') ? previewThumb : undefined;
 
       // Collect project files from the workbench store
       const projectFiles = (workbenchStore as any).files?.get?.() ?? files ?? {};
@@ -478,6 +514,7 @@ export function PublishButton() {
                     genre: finalGenre,
                     description: description.trim(),
                     thumbDataUrl,
+                    updateGameId: editingGame?.id,
                     files: projectFiles,
                     assets: assetPayloads,
                   },
@@ -498,6 +535,7 @@ export function PublishButton() {
             genre: finalGenre,
             description: description.trim(),
             thumbDataUrl,
+            updateGameId: editingGame?.id,
             files: projectFiles,
             assets: assetPayloads,
           }),
@@ -515,7 +553,16 @@ export function PublishButton() {
         // Keep the current button locked even if browser storage is unavailable.
       }
       setPublishedStorageKey(publishStorageKey);
-      toast.success(`"${finalTitle}" was submitted for approval. It will appear in Games after review.`);
+      if (editingGame) {
+        try {
+          localStorage.removeItem('thefortz:studio-editing-game');
+        } catch {}
+        setEditingGame(null);
+        window.dispatchEvent(new Event('thefortz-studio-editing-changed'));
+      }
+      toast.success(editingGame
+        ? `"${finalTitle}" was updated.`
+        : `"${finalTitle}" was submitted for approval. It will appear in Games after review.`);
       setIsOpen(false);
     } catch (err: any) {
       toast.error('Publish failed: ' + (err?.message || 'Unknown error'));
@@ -550,7 +597,7 @@ export function PublishButton() {
                   : 'i-ph:rocket-launch text-sky-300 text-xs'
             }
           />
-          <span>{isRejectedSubmission ? 'RESUBMIT' : publishLocked ? 'SUBMITTED' : 'PUBLISH'}</span>
+          <span>{editingGame ? 'UPDATE' : isRejectedSubmission ? 'RESUBMIT' : publishLocked ? 'SUBMITTED' : 'PUBLISH'}</span>
         </button>
       </div>
 
@@ -571,7 +618,7 @@ export function PublishButton() {
               <div className="flex items-center gap-2">
                 <span aria-hidden="true" className="i-ph:game-controller text-2xl text-sky-300" />
                 <h3 className="font-extrabold text-lg tracking-wider uppercase text-sky-100 font-['Syne',sans-serif]">
-                  Publish Game
+                  {editingGame ? 'Update Game' : 'Publish Game'}
                 </h3>
               </div>
               <button
@@ -638,11 +685,11 @@ export function PublishButton() {
 
                 <div className="mt-1 flex flex-col items-stretch gap-2">
                   <span className="text-[10px] text-sky-100/55">
-                    Upload a PNG, JPG, or WebP cover image. A cover upload is required to publish.
+                    {editingGame ? 'Keep the current cover, or upload a replacement.' : 'Upload a PNG, JPG, or WebP cover image. A cover upload is required to publish.'}
                   </span>
                   <button
                     onClick={() => setPublishStep('cover')}
-                    disabled={isExporting || !title.trim() || !hasFiles || isPublished}
+                    disabled={isExporting || !title.trim() || !hasFiles || publishLocked}
                     className="w-full flex items-center justify-center gap-2 rounded-lg border border-sky-200/60 bg-gradient-to-r from-blue-600 to-sky-500 px-4 py-3 text-xs font-extrabold uppercase tracking-wider text-white transition-colors hover:from-blue-500 hover:to-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <span>Continue · Upload cover</span>
@@ -721,14 +768,14 @@ export function PublishButton() {
 
                 <button
                   onClick={executePublish}
-                  disabled={isExporting || coverStatus !== 'ready' || !previewThumb || !hasFiles || isPublished}
+                  disabled={isExporting || (!editingGame && (coverStatus !== 'ready' || !previewThumb)) || !hasFiles || publishLocked}
                   className="w-full flex items-center justify-center gap-2 rounded-xl border border-sky-100/70 bg-gradient-to-r from-blue-600 via-blue-500 to-sky-400 px-4 py-4 text-sm font-black uppercase tracking-wider text-white shadow-[0_8px_24px_rgba(37,99,235,0.3)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span
                     aria-hidden="true"
                     className={isExporting ? 'i-svg-spinners:90-ring-with-bg' : 'i-ph:upload-simple'}
                   />
-                  <span>{isExporting ? 'Publishing game and cover…' : 'Publish game'}</span>
+                  <span>{isExporting ? (editingGame ? 'Updating game…' : 'Publishing game and cover…') : editingGame ? 'Update game' : 'Publish game'}</span>
                 </button>
 
                 {isExporting && (

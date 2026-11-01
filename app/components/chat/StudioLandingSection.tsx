@@ -156,7 +156,15 @@ export function StudioLandingSection({ onSelectTemplate, isWorkbenchActive }: St
   const [loadingGameId, setLoadingGameId] = useState<string | null>(null);
   const [orderedGames, setOrderedGames] = useState(STARTER_GAMES.slice(0, 5));
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
-  const [createdGames, setCreatedGames] = useState<StudioCreatedGame[]>([]);
+  const [createdGames, setCreatedGames] = useState<StudioCreatedGame[]>(() => {
+    try {
+      const cached = typeof window !== 'undefined' ? sessionStorage.getItem('thefortz:studio-games-cache') : null;
+      const parsed = cached ? JSON.parse(cached) : [];
+      return Array.isArray(parsed) ? parsed.filter(isStudioCreatedGame) : [];
+    } catch {
+      return [];
+    }
+  });
   const [editingGame, setEditingGame] = useState<StudioCreatedGame | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editGenre, setEditGenre] = useState('ACTION');
@@ -192,6 +200,11 @@ export function StudioLandingSection({ onSelectTemplate, isWorkbenchActive }: St
         const games: StudioCreatedGame[] = event.data.games.filter(isStudioCreatedGame);
 
         setCreatedGames(games);
+        try {
+          sessionStorage.setItem('thefortz:studio-games-cache', JSON.stringify(games));
+        } catch {
+          // The row still updates when session storage is unavailable.
+        }
 
         try {
           const rejectedTitles = games
@@ -367,7 +380,7 @@ export function StudioLandingSection({ onSelectTemplate, isWorkbenchActive }: St
   return (
     <div className="w-full flex flex-col items-center select-none p-0 mb-1">
       {!isWorkbenchActive && createdGames.length > 0 && (
-        <section className="mb-6 w-full max-w-5xl px-2 text-left" aria-label="Your published games">
+        <section className="mb-6 w-full max-w-6xl px-2 text-left" aria-label="Your published games">
           <div className="mb-2 flex items-center justify-between gap-3">
             <div>
               <h2 className="m-0 text-sm font-black tracking-[0.12em] text-purple-100">YOUR GAMES</h2>
@@ -390,7 +403,7 @@ export function StudioLandingSection({ onSelectTemplate, isWorkbenchActive }: St
               return (
                 <article
                   key={game.id}
-                  className="relative w-[clamp(180px,22vw,236px)] min-w-[180px] shrink-0 overflow-hidden rounded-sm border-2 border-white/70 bg-[#0b1433] shadow-lg shadow-black/30"
+                  className="relative w-[clamp(145px,16vw,190px)] min-w-[145px] shrink-0 overflow-hidden rounded-sm border-2 border-white/70 bg-[#0b1433] shadow-lg shadow-black/30"
                 >
                   <div className="relative aspect-video overflow-hidden bg-slate-900">
                     {game.thumbnailUrl ? (
@@ -616,7 +629,24 @@ export function StudioLandingSection({ onSelectTemplate, isWorkbenchActive }: St
               />
             </label>
             {editError && <div className="mt-3 text-xs text-red-200">{editError}</div>}
-            <div className="mt-4 flex justify-end gap-2">
+            <div className="mt-4 flex flex-wrap justify-between gap-2">
+              <button
+                type="button"
+                disabled={editBusy}
+                onClick={() => {
+                  if (!editingGame) return;
+                  try {
+                    window.parent.postMessage({ type: 'thefortz-studio-edit-game', gameId: editingGame.id }, '*');
+                    setEditingGame(null);
+                  } catch {
+                    setEditError('Could not open this project in Studio. Please try again.');
+                  }
+                }}
+                className="rounded-md border border-cyan-300/40 bg-cyan-950/60 px-3 py-2 text-xs font-bold text-cyan-100 hover:bg-cyan-900/70 disabled:opacity-50"
+              >
+                EDIT IN STUDIO
+              </button>
+              <div className="flex justify-end gap-2">
               <button
                 type="button"
                 disabled={editBusy}
@@ -632,6 +662,7 @@ export function StudioLandingSection({ onSelectTemplate, isWorkbenchActive }: St
               >
                 {editBusy ? 'UPDATING…' : 'UPDATE GAME'}
               </button>
+              </div>
             </div>
           </form>
         </div>

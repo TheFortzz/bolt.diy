@@ -148,6 +148,61 @@ export const ChatImpl = memo(
   ({ description, initialMessages, storeMessageHistory, importChat, exportChat }: ChatProps) => {
     useShortcuts();
 
+    useEffect(() => {
+      const handleStudioGameLoad = (event: MessageEvent) => {
+        if (event.source !== window.parent || !event.data || event.data.type !== 'thefortz-studio-load-game') return;
+        const game = event.data.game;
+        if (!game || typeof game.id !== 'string' || !game.files || typeof game.files !== 'object') return;
+
+        void (async () => {
+          try {
+            const mimeByExtension: Record<string, string> = {
+              css: 'text/css', html: 'text/html', htm: 'text/html', js: 'text/javascript', json: 'application/json',
+              mjs: 'text/javascript', svg: 'image/svg+xml', txt: 'text/plain',
+            };
+            const files = Object.entries(game.files as Record<string, unknown>)
+              .map(([rawPath, value]) => {
+                const path = rawPath.replace(/\\/g, '/').replace(/^\/+/, '');
+                const content = typeof value === 'string'
+                  ? value
+                  : value && typeof value === 'object' && typeof (value as any).content === 'string'
+                    ? (value as any).content
+                    : null;
+                if (!path || !content || path.split('/').some((part) => part === '..')) return null;
+                const extension = path.split('.').pop()?.toLowerCase() || '';
+                return { path, bytes: new TextEncoder().encode(content), mimeType: mimeByExtension[extension] || 'application/octet-stream' };
+              })
+              .filter(Boolean) as Array<{ path: string; bytes: Uint8Array; mimeType: string }>;
+
+            if (!files.length) throw new Error('This game has no editable text files.');
+            if (!files.some((file) => file.path.toLowerCase() === 'index.html')) {
+              const entry = files.find((file) => /\.html?$/i.test(file.path));
+              if (entry) files.unshift({ ...entry, path: 'index.html' });
+            }
+            if (!files.some((file) => file.path.toLowerCase() === 'index.html')) {
+              throw new Error('The game's HTML entry file could not be found.');
+            }
+
+            localStorage.setItem('thefortz:studio-editing-game', JSON.stringify({
+              id: game.id,
+              title: String(game.title || 'Untitled Game'),
+              genre: String(game.genre || 'ACTION'),
+              description: String(game.description || ''),
+              thumbnailUrl: String(game.thumbnailUrl || ''),
+            }));
+            window.dispatchEvent(new Event('thefortz-studio-editing-changed'));
+            await workbenchStore.importHtml5Game(files);
+            toast.success(`Loaded “${String(game.title || 'game')}” into the Studio editor.`);
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Could not load the game into Studio.');
+          }
+        })();
+      };
+
+      window.addEventListener('message', handleStudioGameLoad);
+      return () => window.removeEventListener('message', handleStudioGameLoad);
+    }, []);
+
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [chatStarted, setChatStarted] = useState(initialMessages.length > 0);
     const [uploadedFiles, setUploadedFiles] = useState<File[]>([]); // Move here
