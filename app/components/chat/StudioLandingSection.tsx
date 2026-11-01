@@ -184,7 +184,11 @@ export function StudioLandingSection({ onSelectTemplate, isWorkbenchActive }: St
   useEffect(() => {
     const handleParentMessage = (event: MessageEvent) => {
       if (event.source !== window.parent || !event.data || typeof event.data !== 'object') return;
-      if (event.data.type === 'thefortz-studio-games-sync' && Array.isArray(event.data.games)) {
+      if (event.data.type === 'thefortz-auth-sync') {
+        // Auth can arrive after the landing mounted; refresh the creator's
+        // games once the parent knows who is signed in.
+        requestCreatedGames();
+      } else if (event.data.type === 'thefortz-studio-games-sync' && Array.isArray(event.data.games)) {
         const games: StudioCreatedGame[] = event.data.games.filter(isStudioCreatedGame);
 
         setCreatedGames(games);
