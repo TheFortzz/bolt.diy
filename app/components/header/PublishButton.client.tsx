@@ -12,10 +12,8 @@ const STUDIO_GENRES = [
   { id: 'ADVENTURE', label: 'Adventure', file: 'adventure.png', color: '#0369a1', code: 'AD' },
   { id: 'BOARD', label: 'Board', file: 'Board.png', color: '#d97706', code: 'BO' },
   { id: 'HORROR', label: 'Horror', file: 'horror.png', color: '#991b1b', code: 'HO' },
-  { id: 'IDLE', label: 'Idle', file: 'idle.png', color: '#eab308', code: 'ID' },
   { id: 'MULTIPLAYER', label: 'Multiplayer', file: 'multiplayer.png', color: '#2563eb', code: 'MP' },
   { id: 'MUSIC', label: 'Music', file: 'music.png', color: '#ec4899', code: 'MU' },
-  { id: 'ONETAP', label: 'One-Tap', file: 'one-tab.png', color: '#8b5cf6', code: 'OT' },
   { id: 'PUZZLE', label: 'Puzzle', file: 'puzzle.png', color: '#0891b2', code: 'PU' },
   { id: 'RACING', label: 'Racing', file: 'racing.png', color: '#6b7280', code: 'RA' },
   { id: 'SIMULATION', label: 'Simulation', file: 'simulation.png', color: '#059669', code: 'SI' },
@@ -24,10 +22,9 @@ const STUDIO_GENRES = [
 ] as const;
 
 const STUDIO_GENRE_ALIASES: Record<string, string> = {
-  AC: 'ACTION', AD: 'ADVENTURE', BO: 'BOARD', HO: 'HORROR', ID: 'IDLE', MP: 'MULTIPLAYER',
-  MU: 'MUSIC', OT: 'ONETAP', PU: 'PUZZLE', RA: 'RACING', SI: 'SIMULATION', SP: 'SPORTS', ST: 'STRATEGY',
+  AC: 'ACTION', AD: 'ADVENTURE', BO: 'BOARD', HO: 'HORROR', MP: 'MULTIPLAYER',
+  MU: 'MUSIC', PU: 'PUZZLE', RA: 'RACING', SI: 'SIMULATION', SP: 'SPORTS', ST: 'STRATEGY',
   FIGHTING: 'ACTION', ARCADE: 'ACTION', KNOWLEDGE: 'BOARD', CARDS: 'BOARD', RPG: 'ADVENTURE', SANDBOX: 'SIMULATION',
-  'ONE-TAP': 'ONETAP', ONETAB: 'ONETAP',
 };
 
 function parseStudioGenres(raw: string): string[] {
