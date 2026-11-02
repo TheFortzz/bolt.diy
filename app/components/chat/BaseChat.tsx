@@ -119,20 +119,9 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const canStopAgent = isStreaming || ['planning', 'preparing-assets', 'editing'].includes(harness.phase);
     // "AI working" banner: visible after planning ends until the run settles.
     const showWorkingGif = ['preparing-assets', 'editing', 'verifying'].includes(harness.phase);
-    const [apiKeys, setApiKeys] = useState<Record<string, string>>(() => {
-      const savedKeys = Cookies.get('apiKeys');
-
-      if (savedKeys) {
-        try {
-          return JSON.parse(savedKeys);
-        } catch (error) {
-          console.error('Failed to parse API keys from cookies:', error);
-          return {};
-        }
-      }
-
-      return {};
-    });
+    // Cookies only exist client-side. Start from the same empty value during
+    // SSR and hydrate them in the effect below to avoid React #418 mismatches.
+    const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
     const [modelList, setModelList] = useState(MODEL_LIST);
     const [isListening, setIsListening] = useState(false);
     const [recognition, setRecognition] = useState<any>(null);

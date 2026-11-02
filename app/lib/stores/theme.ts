@@ -10,18 +10,9 @@ export function themeIsDark() {
 
 export const DEFAULT_THEME = 'light';
 
-export const themeStore = atom<Theme>(initStore());
-
-function initStore() {
-  if (!import.meta.env.SSR) {
-    const persistedTheme = localStorage.getItem(kTheme) as Theme | undefined;
-    const themeAttribute = document.querySelector('html')?.getAttribute('data-theme');
-
-    return persistedTheme ?? (themeAttribute as Theme) ?? DEFAULT_THEME;
-  }
-
-  return DEFAULT_THEME;
-}
+// Keep the first client render identical to SSR. The persisted theme is
+// restored by the root layout after hydration to avoid React #418 mismatches.
+export const themeStore = atom<Theme>(DEFAULT_THEME);
 
 export function toggleTheme() {
   const currentTheme = themeStore.get();

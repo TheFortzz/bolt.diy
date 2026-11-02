@@ -2,7 +2,7 @@ import { useStore } from '@nanostores/react';
 import type { LinksFunction } from '@remix-run/cloudflare';
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from '@remix-run/react';
 import tailwindReset from '@unocss/reset/tailwind-compat.css?url';
-import { themeStore } from './lib/stores/theme';
+import { kTheme, themeStore, type Theme } from './lib/stores/theme';
 import { stripIndents } from './utils/stripIndent';
 import { createHead } from 'remix-island';
 import { useEffect } from 'react';
@@ -91,7 +91,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const theme = useStore(themeStore);
 
   useEffect(() => {
-    document.querySelector('html')?.setAttribute('data-theme', theme);
+    let nextTheme: Theme = theme;
+    try {
+      const savedTheme = localStorage.getItem(kTheme);
+      const htmlTheme = document.documentElement.getAttribute('data-theme');
+      if (savedTheme === 'dark' || savedTheme === 'light') nextTheme = savedTheme;
+      else if (htmlTheme === 'dark' || htmlTheme === 'light') nextTheme = htmlTheme;
+    } catch {
+      /* retain the shared SSR default */
+    }
+    if (themeStore.get() !== nextTheme) themeStore.set(nextTheme);
+    document.documentElement.setAttribute('data-theme', nextTheme);
   }, [theme]);
 
   useEffect(() => {

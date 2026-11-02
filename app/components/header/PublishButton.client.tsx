@@ -205,7 +205,7 @@ export function PublishButton() {
   const [genres, setGenres] = useState<string[]>(['ACTION']);
   const [description, setDescription] = useState('');
   const [previewThumb, setPreviewThumb] = useState<string>('');
-  const [editingGame, setEditingGame] = useState<StudioEditingGame | null>(() => readStudioEditingGame());
+  const [editingGame, setEditingGame] = useState<StudioEditingGame | null>(null);
   const coverUploadRef = useRef<HTMLInputElement>(null);
   const files = useStore(workbenchStore.files);
   const currentChatId = useStore(chatId);
@@ -222,6 +222,7 @@ export function PublishButton() {
 
   useEffect(() => {
     const refreshEditingGame = () => setEditingGame(readStudioEditingGame());
+    refreshEditingGame();
     const onStorage = (event: StorageEvent) => {
       if (event.key === 'thefortz:studio-editing-game') refreshEditingGame();
     };
