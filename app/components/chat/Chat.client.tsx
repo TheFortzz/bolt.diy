@@ -180,7 +180,7 @@ export const ChatImpl = memo(
               if (entry) files.unshift({ ...entry, path: 'index.html' });
             }
             if (!files.some((file) => file.path.toLowerCase() === 'index.html')) {
-              throw new Error('The game's HTML entry file could not be found.');
+              throw new Error("The game's HTML entry file could not be found.");
             }
 
             localStorage.setItem('thefortz:studio-editing-game', JSON.stringify({

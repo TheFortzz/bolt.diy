@@ -7,6 +7,45 @@ import { getWebContainer } from '~/lib/webcontainer';
 import { chatId } from '~/lib/persistence';
 import { toast } from 'react-toastify';
 
+const STUDIO_GENRES = [
+  { id: 'ACTION', label: 'Action', file: 'action.png', color: '#ef4444', code: 'AC' },
+  { id: 'ADVENTURE', label: 'Adventure', file: 'adventure.png', color: '#0369a1', code: 'AD' },
+  { id: 'BOARD', label: 'Board', file: 'Board.png', color: '#d97706', code: 'BO' },
+  { id: 'HORROR', label: 'Horror', file: 'horror.png', color: '#991b1b', code: 'HO' },
+  { id: 'IDLE', label: 'Idle', file: 'idle.png', color: '#eab308', code: 'ID' },
+  { id: 'MULTIPLAYER', label: 'Multiplayer', file: 'multiplayer.png', color: '#2563eb', code: 'MP' },
+  { id: 'MUSIC', label: 'Music', file: 'music.png', color: '#ec4899', code: 'MU' },
+  { id: 'ONETAP', label: 'One-Tap', file: 'one-tab.png', color: '#8b5cf6', code: 'OT' },
+  { id: 'PUZZLE', label: 'Puzzle', file: 'puzzle.png', color: '#0891b2', code: 'PU' },
+  { id: 'RACING', label: 'Racing', file: 'racing.png', color: '#6b7280', code: 'RA' },
+  { id: 'SIMULATION', label: 'Simulation', file: 'simulation.png', color: '#059669', code: 'SI' },
+  { id: 'SPORTS', label: 'Sports', file: 'sports.png', color: '#16a34a', code: 'SP' },
+  { id: 'STRATEGY', label: 'Strategy', file: 'stratagy.png', color: '#0d9488', code: 'ST' },
+] as const;
+
+const STUDIO_GENRE_ALIASES: Record<string, string> = {
+  AC: 'ACTION', AD: 'ADVENTURE', BO: 'BOARD', HO: 'HORROR', ID: 'IDLE', MP: 'MULTIPLAYER',
+  MU: 'MUSIC', OT: 'ONETAP', PU: 'PUZZLE', RA: 'RACING', SI: 'SIMULATION', SP: 'SPORTS', ST: 'STRATEGY',
+  FIGHTING: 'ACTION', ARCADE: 'ACTION', KNOWLEDGE: 'BOARD', CARDS: 'BOARD', RPG: 'ADVENTURE', SANDBOX: 'SIMULATION',
+  'ONE-TAP': 'ONETAP', ONETAB: 'ONETAP',
+};
+
+function parseStudioGenres(raw: string): string[] {
+  const ids = raw.toUpperCase().split(/[,|;•·/&]+/).map((part) => part.trim().replace(/\s+/g, ''));
+  return [...new Set(ids.map((id) => STUDIO_GENRE_ALIASES[id] || id)
+    .filter((id) => STUDIO_GENRES.some((genre) => genre.id === id)))].slice(0, 5);
+}
+
+function serializeStudioGenres(ids: string[]): string {
+  const selected = ids.slice(0, 5);
+  const safe = selected.length ? selected : ['ACTION'];
+  return safe.map((id) => STUDIO_GENRES.find((genre) => genre.id === id)?.code || 'AC').join(',');
+}
+
+function studioGenreIcon(file: string): string {
+  return `https://thefortz.me/newcatagories/${encodeURIComponent(file)}`;
+}
+
 function prepareUploadedCover(file: File): Promise<string> {
   if (!/^image\/(?:png|jpe?g|webp)$/i.test(file.type)) {
     return Promise.reject(new Error('Choose a PNG, JPG, or WebP cover image.'));
@@ -166,7 +205,7 @@ export function PublishButton() {
   const [coverError, setCoverError] = useState('');
   const [publishProgress, setPublishProgress] = useState('');
   const [title, setTitle] = useState('');
-  const [genre, setGenre] = useState('ACTION');
+  const [genres, setGenres] = useState<string[]>(['ACTION']);
   const [description, setDescription] = useState('');
   const [previewThumb, setPreviewThumb] = useState<string>('');
   const [editingGame, setEditingGame] = useState<StudioEditingGame | null>(() => readStudioEditingGame());
@@ -209,8 +248,11 @@ export function PublishButton() {
     setPublishProgress('');
     if (editingGame) {
       setTitle(editingGame.title || '');
-      setGenre(editingGame.genre || 'ACTION');
+      const parsedGenres = parseStudioGenres(editingGame.genre || 'ACTION');
+      setGenres(parsedGenres.length ? parsedGenres : ['ACTION']);
       setDescription(editingGame.description || '');
+    } else {
+      setGenres(['ACTION']);
     }
 
     return undefined;
@@ -286,7 +328,7 @@ export function PublishButton() {
 
   const executePublish = async () => {
     const finalTitle = title.trim();
-    const finalGenre = genre || 'ACTION';
+    const finalGenre = serializeStudioGenres(genres);
 
     if (!hasFiles) {
       toast.error('Build a game before publishing it.');
@@ -653,20 +695,59 @@ export function PublishButton() {
                 </div>
 
                 <div>
-                  <label className="text-[11px] font-bold text-sky-100/80 uppercase tracking-wide mb-1 block">
-                    Genre
-                  </label>
-                  <select
-                    value={genre}
-                    onChange={(e) => setGenre(e.target.value)}
-                    className="w-full p-2.5 bg-[#0b1c35] border border-sky-300/30 focus:border-sky-300 focus:outline-none rounded-lg text-white text-sm"
-                  >
-                    <option value="ACTION">Action</option>
-                    <option value="ADVENTURE">Adventure</option>
-                    <option value="PUZZLE">Puzzle</option>
-                    <option value="RPG">RPG</option>
-                    <option value="RACING">Racing</option>
-                  </select>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <label className="text-[11px] font-bold text-sky-100/80 uppercase tracking-wide">
+                      Genres · choose up to 5
+                    </label>
+                    <span className="text-[10px] font-extrabold text-sky-200/70">{genres.length}/5</span>
+                  </div>
+                  <div className="grid grid-cols-5 gap-2">
+                    {STUDIO_GENRES.map((item) => {
+                      const active = genres.includes(item.id);
+                      const atLimit = genres.length >= 5 && !active;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          title={item.label}
+                          aria-label={`${item.label}${active ? ', selected' : ''}`}
+                          aria-pressed={active}
+                          disabled={atLimit}
+                          onClick={() => {
+                            setGenres((previous) => {
+                              if (previous.includes(item.id)) {
+                                return previous.length > 1 ? previous.filter((id) => id !== item.id) : previous;
+                              }
+                              return previous.length < 5 ? [...previous, item.id] : previous;
+                            });
+                          }}
+                          className="relative flex h-[62px] flex-col items-center justify-center gap-0.5 rounded-lg border p-1 transition-all"
+                          style={{
+                            borderColor: active ? item.color : 'rgba(125,211,252,0.2)',
+                            background: active ? `${item.color}33` : 'rgba(11,28,53,0.8)',
+                            boxShadow: active ? `0 0 12px ${item.color}55` : 'none',
+                            opacity: atLimit ? 0.4 : 1,
+                            cursor: atLimit ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          <img
+                            src={studioGenreIcon(item.file)}
+                            alt=""
+                            className="h-8 w-8 object-contain"
+                            loading="lazy"
+                          />
+                          <span className="max-w-full truncate text-[8px] font-extrabold uppercase tracking-wide text-sky-50/80">
+                            {item.label}
+                          </span>
+                          {active && (
+                            <span className="absolute right-1 top-1 text-[9px] font-black" style={{ color: item.color }}>
+                              ✓
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div>
