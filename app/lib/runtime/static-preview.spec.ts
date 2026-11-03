@@ -498,6 +498,12 @@ describe('studio preview publish parity', () => {
     expect(out).toContain('Preview watchdog: ');
     expect(out).toContain('data-fortz-websocket-guard');
     expect(out).toContain('data-fortz-multiplayer-sdk');
+    expect(out).toContain('src="https://studio.thefortz.me/sdk/thefortz-multiplayer.js"');
+    const multiplayerSdkPath = path.resolve(process.cwd(), 'public/sdk/thefortz-multiplayer.js');
+    expect(fs.existsSync(multiplayerSdkPath)).toBe(true);
+    expect(fs.readFileSync(path.resolve(process.cwd(), 'public/_headers'), 'utf8')).toContain(
+      'Cross-Origin-Resource-Policy: cross-origin',
+    );
     expect(out.indexOf('data-fortz-websocket-guard')).toBeLessThan(out.indexOf('type="module"'));
     const websocketGuard = /<script data-fortz-websocket-guard>([\s\S]*?)<\/script>/.exec(out)?.[1];
     expect(websocketGuard).toBeTruthy();
