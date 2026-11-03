@@ -2159,10 +2159,10 @@ export const normalizeServerPreviewHtml: (html: string, moduleHints?: Array<Stat
     }
   }
   if (out.indexOf('data-fortz-multiplayer-sdk') === -1 && out.indexOf('/sdk/thefortz-multiplayer.js') === -1) {
-    // Serve the SDK from this Cloudflare Pages project. The static game iframe
-    // inherits COEP and blocks the main site's asset when that response lacks
-    // CORP; this project's /_headers marks the mirrored SDK cross-origin safe.
-    var fortzMultiplayerSdk = '<script data-fortz-multiplayer-sdk src="https://studio.thefortz.me/sdk/thefortz-multiplayer.js"></script>';
+    // Serve the SDK from the stable Pages hostname. The custom Studio hostname
+    // is not resolvable in every WebContainer network; this project's /_headers
+    // marks the mirrored SDK cross-origin safe for the isolated preview frame.
+    var fortzMultiplayerSdk = '<script data-fortz-multiplayer-sdk src="https://bolt-di.pages.dev/sdk/thefortz-multiplayer.js"></script>';
     if (/<head[\s>]/i.test(out)) {
       out = out.replace(/<head[\s>]/i, function (m) { return m + fortzMultiplayerSdk; });
     } else {

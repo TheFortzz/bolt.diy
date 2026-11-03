@@ -5,7 +5,7 @@
  * dependencies, runs in any modern browser (and inside game iframes).
  *
  * QUICK START
- *   <script src="https://studio.thefortz.me/sdk/thefortz-multiplayer.js"></script>
+ *   <script src="https://bolt-di.pages.dev/sdk/thefortz-multiplayer.js"></script>
  *   <script>
  *     const mp = new TheFortzMultiplayer(); // uses the Fortz Appwrite relay
  *     mp.join("my-room-1", "player_" + Math.random().toString(36).slice(2, 8));

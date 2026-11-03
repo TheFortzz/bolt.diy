@@ -498,7 +498,7 @@ describe('studio preview publish parity', () => {
     expect(out).toContain('Preview watchdog: ');
     expect(out).toContain('data-fortz-websocket-guard');
     expect(out).toContain('data-fortz-multiplayer-sdk');
-    expect(out).toContain('src="https://studio.thefortz.me/sdk/thefortz-multiplayer.js"');
+    expect(out).toContain('src="https://bolt-di.pages.dev/sdk/thefortz-multiplayer.js"');
     const multiplayerSdkPath = path.resolve(process.cwd(), 'public/sdk/thefortz-multiplayer.js');
     expect(fs.existsSync(multiplayerSdkPath)).toBe(true);
     expect(fs.readFileSync(path.resolve(process.cwd(), 'public/_headers'), 'utf8')).toContain(
