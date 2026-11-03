@@ -22,22 +22,9 @@ export const ModelSelector = ({
   providerList,
 }: ModelSelectorProps) => {
   // Load enabled providers from cookies
-  const [enabledProviders, setEnabledProviders] = useState(() => {
-    const savedProviders = Cookies.get('providers');
-
-    if (savedProviders) {
-      try {
-        const parsedProviders = JSON.parse(savedProviders);
-        if (parsedProviders.OpenAILike === undefined) parsedProviders.OpenAILike = true;
-        return providerList.filter((p) => parsedProviders[p.name]);
-      } catch (error) {
-        console.error('Failed to parse providers from cookies:', error);
-        return providerList;
-      }
-    }
-
-    return providerList;
-  });
+  // Start with the same provider list on the server and browser. Cookie
+  // preferences are applied in the effect below after hydration.
+  const [enabledProviders, setEnabledProviders] = useState<ProviderInfo[]>(providerList);
 
   // Update enabled providers when cookies change
   useEffect(() => {

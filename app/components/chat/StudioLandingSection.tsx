@@ -156,15 +156,7 @@ export function StudioLandingSection({ onSelectTemplate, isWorkbenchActive }: St
   const [loadingGameId, setLoadingGameId] = useState<string | null>(null);
   const [orderedGames, setOrderedGames] = useState(STARTER_GAMES.slice(0, 5));
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
-  const [createdGames, setCreatedGames] = useState<StudioCreatedGame[]>(() => {
-    try {
-      const cached = typeof window !== 'undefined' ? sessionStorage.getItem('thefortz:studio-games-cache') : null;
-      const parsed = cached ? JSON.parse(cached) : [];
-      return Array.isArray(parsed) ? parsed.filter(isStudioCreatedGame) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [createdGames, setCreatedGames] = useState<StudioCreatedGame[]>([]);
   const [editingGame, setEditingGame] = useState<StudioCreatedGame | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editGenre, setEditGenre] = useState('ACTION');
@@ -190,6 +182,14 @@ export function StudioLandingSection({ onSelectTemplate, isWorkbenchActive }: St
   };
 
   useEffect(() => {
+    try {
+      const cached = sessionStorage.getItem('thefortz:studio-games-cache');
+      const parsed = cached ? JSON.parse(cached) : [];
+      if (Array.isArray(parsed)) setCreatedGames(parsed.filter(isStudioCreatedGame));
+    } catch {
+      // The parent sync below remains the source of truth when storage is unavailable.
+    }
+
     const handleParentMessage = (event: MessageEvent) => {
       if (event.source !== window.parent || !event.data || typeof event.data !== 'object') return;
       if (event.data.type === 'thefortz-auth-sync') {

@@ -219,40 +219,32 @@ export const ChatImpl = memo(
     const lastUserPromptRef = useRef('');
     const { activeProviders } = useSettings();
 
-    const [model, setModel] = useState(() => {
-      const savedModel = Cookies.get('selectedModel');
-      return !savedModel ||
-        savedModel === 'fortz-ai' ||
-        savedModel === 'claude-3-5-sonnet-latest' ||
-        savedModel === 'gpt-oss-120b' ||
-        savedModel === 'gpt-4.1-mini'
-        ? DEFAULT_MODEL
-        : savedModel;
-    });
+    const [model, setModel] = useState(DEFAULT_MODEL);
 
     useEffect(() => {
       const savedModel = Cookies.get('selectedModel');
-
-      if (
+      const normalizedModel = !savedModel ||
         savedModel === 'fortz-ai' ||
         savedModel === 'gpt-oss-120b' ||
         savedModel === 'claude-3-5-sonnet-latest' ||
         savedModel === 'gpt-4.1-mini'
-      ) {
+        ? DEFAULT_MODEL
+        : savedModel;
+      setModel(normalizedModel);
+      if (normalizedModel !== savedModel) {
         Cookies.set('selectedModel', DEFAULT_MODEL);
-        setModel(DEFAULT_MODEL);
       }
     }, []);
 
-    const [provider, setProvider] = useState(() => {
+    const [provider, setProvider] = useState(DEFAULT_PROVIDER);
+    useEffect(() => {
       const savedProvider = Cookies.get('selectedProvider');
-
-      if (!savedProvider || savedProvider === 'Anthropic') {
-        return DEFAULT_PROVIDER;
-      }
-
-      return PROVIDER_LIST.find((p) => p.name === savedProvider) || DEFAULT_PROVIDER;
-    });
+      setProvider(
+        savedProvider && savedProvider !== 'Anthropic'
+          ? PROVIDER_LIST.find((p) => p.name === savedProvider) || DEFAULT_PROVIDER
+          : DEFAULT_PROVIDER,
+      );
+    }, []);
 
     const { showChat } = useStore(chatStore);
     const currentChatId = useStore(chatId);
