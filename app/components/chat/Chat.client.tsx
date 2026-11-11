@@ -144,6 +144,15 @@ interface ChatProps {
   description?: string;
 }
 
+function base64ToBytes(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
 export const ChatImpl = memo(
   ({ description, initialMessages, storeMessageHistory, importChat, exportChat }: ChatProps) => {
     useShortcuts();
@@ -163,14 +172,21 @@ export const ChatImpl = memo(
             const files = Object.entries(game.files as Record<string, unknown>)
               .map(([rawPath, value]) => {
                 const path = rawPath.replace(/\\/g, '/').replace(/^\/+/, '');
-                const content = typeof value === 'string'
+                let content = typeof value === 'string'
                   ? value
                   : value && typeof value === 'object' && typeof (value as any).content === 'string'
                     ? (value as any).content
                     : null;
                 if (!path || !content || path.split('/').some((part) => part === '..')) return null;
+
+                // Binary files travel as data URLs (the Studio upload box encodes
+                // images/audio that way). Encoding the raw string would corrupt
+                // them — decode base64 data URLs into real bytes instead.
+                const dataUrl = /^data:[^,]*;base64,([\s\S]+)$/.exec(content);
+                const bytes = dataUrl ? base64ToBytes(dataUrl[1]) : new TextEncoder().encode(content);
+
                 const extension = path.split('.').pop()?.toLowerCase() || '';
-                return { path, bytes: new TextEncoder().encode(content), mimeType: mimeByExtension[extension] || 'application/octet-stream' };
+                return { path, bytes, mimeType: mimeByExtension[extension] || 'application/octet-stream' };
               })
               .filter(Boolean) as Array<{ path: string; bytes: Uint8Array; mimeType: string }>;
 
