@@ -435,7 +435,9 @@ async function getOpenAILikeModels(
   settings?: IProviderSetting,
 ): Promise<ModelInfo[]> {
   try {
-    const baseUrl = settings?.baseUrl || import.meta.env.OPENAI_LIKE_API_BASE_URL || '';
+    // Bring-your-own OpenAI-compatible endpoint: only the user's own base URL
+    // counts. No default endpoint — without one there is simply nothing to list.
+    const baseUrl = settings?.baseUrl || '';
 
     if (!baseUrl) {
       return [];
