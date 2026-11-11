@@ -2247,7 +2247,7 @@ export const normalizeServerPreviewHtml: (html: string, moduleHints?: Array<Stat
    */
   if (out.indexOf('data-studio-watchdog') === -1) {
     const watchdog =
-      '<script data-studio-watchdog>(function(){if(window.__fortzWatchdogFired)return;function fire(message){if(window.__fortzWatchdogFired)return;window.__fortzWatchdogFired=true;try{console.error("[Fortz preview watchdog] "+message);}catch(e){}try{window.parent.postMessage({type:"thefortz-game-error",message:"Preview watchdog: "+message},"*");}catch(e){}try{window.dispatchEvent(new ErrorEvent("error",{message:"Preview watchdog: "+message}));}catch(e){}}function alive(){try{var d=window.__GAME_DIAGNOSTICS__;if(d&&(d.ready===true||d.simulationSteps>5||d.inputsHandled>0))return true;}catch(e){}return false;}function check(){if(alive())return;try{if(document.hidden)return;}catch(e){}var canvas=null;try{canvas=document.querySelector("canvas");}catch(e){}if(!canvas){fire("no canvas element rendered after 15s - the entry script may not run or no canvas was created; check script wiring and console.");}else{fire("canvas is present but the game never reported ready after 15s - the loop may be dead or the start path stuck; check console and wiring.");}}setTimeout(check,15000);})();</script>';
+      '<script data-studio-watchdog>(function(){if(window.__fortzWatchdogFired)return;var __fortzRafTicks=0;try{var __fortzNativeRaf=window.requestAnimationFrame.bind(window);window.requestAnimationFrame=function(cb){__fortzRafTicks++;return __fortzNativeRaf(cb);};}catch(e){}function fire(message){if(window.__fortzWatchdogFired)return;window.__fortzWatchdogFired=true;try{console.error("[Fortz preview watchdog] "+message);}catch(e){}try{window.parent.postMessage({type:"thefortz-game-error",message:"Preview watchdog: "+message},"*");}catch(e){}try{window.dispatchEvent(new ErrorEvent("error",{message:"Preview watchdog: "+message}));}catch(e){}}function alive(){try{var d=window.__GAME_DIAGNOSTICS__;if(d&&(d.ready===true||d.simulationSteps>5||d.inputsHandled>0))return true;}catch(e){}return false;}function loopAlive(){try{return __fortzRafTicks>90;}catch(e){}return false;}function check(){if(alive()||loopAlive())return;try{if(document.hidden)return;}catch(e){}var canvas=null;try{canvas=document.querySelector("canvas");}catch(e){}if(!canvas){fire("no canvas element rendered after 15s - the entry script may not run or no canvas was created; check script wiring and console.");}else if(!loopAlive()){fire("canvas is present but the game never reported ready after 15s - the loop may be dead or the start path stuck; check console and wiring.");}}setTimeout(check,15000);})();</script>';
 
     if (/<head[\s>]/i.test(out)) {
       out = out.replace(/<head[\s>]/i, (m) => {
@@ -2678,6 +2678,14 @@ export function buildFallbackHtml(
   const previewWatchdogScript = `<script id="bolt-game-watchdog">
 (function() {
   if (window.__fortzWatchdogFired) return;
+  var rafTicks = 0;
+  try {
+    var nativeRaf = window.requestAnimationFrame.bind(window);
+    window.requestAnimationFrame = function(cb) {
+      rafTicks++;
+      return nativeRaf(cb);
+    };
+  } catch (e) {}
   function fire(message) {
     if (window.__fortzWatchdogFired) return;
     window.__fortzWatchdogFired = true;
@@ -2692,8 +2700,12 @@ export function buildFallbackHtml(
     } catch (e) {}
     return false;
   }
+  function loopAlive() {
+    try { return rafTicks > 90; } catch (e) {}
+    return false;
+  }
   function check() {
-    if (alive()) return;
+    if (alive() || loopAlive()) return;
     try {
       if (document.hidden) return;
     } catch (e) {}
@@ -2701,7 +2713,7 @@ export function buildFallbackHtml(
     try { canvas = document.querySelector('canvas'); } catch (e) {}
     if (!canvas) {
       fire('no canvas element rendered after 15s — the entry script may not run or no canvas was created; check script wiring and console.');
-    } else {
+    } else if (!loopAlive()) {
       fire('canvas is present but the game never reported ready after 15s — the loop may be dead or the start path stuck; check console and wiring.');
     }
   }
