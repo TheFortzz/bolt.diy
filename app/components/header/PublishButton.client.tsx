@@ -4,7 +4,6 @@ import { workbenchStore } from '~/lib/stores/workbench';
 import { generatedAssets } from '~/lib/stores/generated-assets';
 import { bytesToDataUrl } from '~/lib/runtime/html5-game-import';
 import { getWebContainer } from '~/lib/webcontainer';
-import { chatId } from '~/lib/persistence';
 import { toast } from 'react-toastify';
 
 const STUDIO_GENRES = [
@@ -153,20 +152,6 @@ async function retryTransientPublish<T>(operation: () => Promise<T>, onRetry: (m
   }
 }
 
-function readRejectedTitles(): string[] {
-  try {
-    const value = JSON.parse(localStorage.getItem('thefortz:studio-rejected-titles') || '[]');
-
-    return Array.isArray(value)
-      ? value
-          .filter((title): title is string => typeof title === 'string' && title.trim().length > 0)
-          .map((title) => title.trim().toLowerCase())
-      : [];
-  } catch {
-    return [];
-  }
-}
-
 type StudioEditingGame = {
   id: string;
   title: string;
@@ -184,16 +169,6 @@ function readStudioEditingGame(): StudioEditingGame | null {
   }
 }
 
-function readPublishedTitle(key: string): string {
-  try {
-    const value = JSON.parse(localStorage.getItem(key) || '{}');
-
-    return typeof value?.title === 'string' ? value.title.trim().toLowerCase() : '';
-  } catch {
-    return '';
-  }
-}
-
 export function PublishButton() {
   const [isOpen, setIsOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -208,15 +183,6 @@ export function PublishButton() {
   const [editingGame, setEditingGame] = useState<StudioEditingGame | null>(null);
   const coverUploadRef = useRef<HTMLInputElement>(null);
   const files = useStore(workbenchStore.files);
-  const currentChatId = useStore(chatId);
-  const projectIdentity = currentChatId || workbenchStore.firstArtifact?.id || 'default-project';
-  const publishStorageKey = `thefortz:published:${projectIdentity}`;
-  const [publishedStorageKey, setPublishedStorageKey] = useState<string | null>(null);
-  const [rejectedTitles, setRejectedTitles] = useState<string[]>([]);
-  const isPublished = publishedStorageKey === publishStorageKey;
-  const publishedTitle = isPublished ? readPublishedTitle(publishStorageKey) : '';
-  const isRejectedSubmission = Boolean(isPublished && publishedTitle && rejectedTitles.includes(publishedTitle));
-  const publishLocked = !editingGame && isPublished && !isRejectedSubmission;
 
   const hasFiles = Object.keys(files || {}).length > 0;
 
@@ -255,33 +221,6 @@ export function PublishButton() {
 
     return undefined;
   }, [isOpen, editingGame]);
-
-  useEffect(() => {
-    const refreshPublishedState = () => {
-      try {
-        setPublishedStorageKey(localStorage.getItem(publishStorageKey) ? publishStorageKey : null);
-      } catch {
-        setPublishedStorageKey(null);
-      }
-    };
-    const refreshRejectedTitles = () => setRejectedTitles(readRejectedTitles());
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === publishStorageKey || event.key === 'thefortz:studio-rejected-titles') {
-        refreshPublishedState();
-        refreshRejectedTitles();
-      }
-    };
-
-    refreshPublishedState();
-    refreshRejectedTitles();
-    window.addEventListener('storage', onStorage);
-    window.addEventListener('thefortz-publish-unlocked', refreshRejectedTitles);
-
-    return () => {
-      window.removeEventListener('storage', onStorage);
-      window.removeEventListener('thefortz-publish-unlocked', refreshRejectedTitles);
-    };
-  }, [publishStorageKey]);
 
   // Auto-detect project title when modal opens or files change
   useEffect(() => {
@@ -345,20 +284,6 @@ export function PublishButton() {
       toast.info('Upload a cover image before publishing.');
 
       return;
-    }
-
-    try {
-      if (publishLocked || (localStorage.getItem(publishStorageKey) && !isRejectedSubmission)) {
-        setPublishedStorageKey(publishStorageKey);
-        toast.info('This game has already been submitted for review.');
-
-        return;
-      }
-    } catch {
-      if (publishLocked) {
-        toast.info('This game has already been published.');
-        return;
-      }
     }
 
     try {
@@ -587,12 +512,6 @@ export function PublishButton() {
         }
       }
 
-      try {
-        localStorage.setItem(publishStorageKey, JSON.stringify({ title: finalTitle, publishedAt: Date.now() }));
-      } catch {
-        // Keep the current button locked even if browser storage is unavailable.
-      }
-      setPublishedStorageKey(publishStorageKey);
       if (editingGame) {
         try {
           localStorage.removeItem('thefortz:studio-editing-game');
@@ -617,27 +536,16 @@ export function PublishButton() {
       <div className="flex items-center gap-1.5 publish-glow-container">
         <button
           type="button"
-          onClick={() => !publishLocked && setIsOpen(true)}
+          onClick={() => setIsOpen(true)}
           className="publish-glow-button"
-          disabled={publishLocked}
-          title={
-            isRejectedSubmission
-              ? 'Changes were requested. Update your game and submit it again.'
-              : publishLocked
-                ? 'This game is already submitted for review'
-                : 'Submit this game for approval'
-          }
+          title={editingGame ? 'Update your published game' : 'Submit this game for approval'}
         >
           <div
             className={
-              publishLocked
-                ? 'i-ph:check-circle-fill text-emerald-300 text-xs'
-                : isRejectedSubmission
-                  ? 'i-ph:arrow-clockwise text-amber-300 text-xs'
-                  : 'i-ph:rocket-launch text-sky-300 text-xs'
+              editingGame ? 'i-ph:arrow-clockwise text-amber-300 text-xs' : 'i-ph:rocket-launch text-sky-300 text-xs'
             }
           />
-          <span>{editingGame ? 'UPDATE' : isRejectedSubmission ? 'RESUBMIT' : publishLocked ? 'SUBMITTED' : 'PUBLISH'}</span>
+          <span>{editingGame ? 'UPDATE' : 'PUBLISH'}</span>
         </button>
       </div>
 
@@ -768,7 +676,7 @@ export function PublishButton() {
                   </span>
                   <button
                     onClick={() => setPublishStep('cover')}
-                    disabled={isExporting || !title.trim() || !hasFiles || publishLocked}
+                    disabled={isExporting || !title.trim() || !hasFiles}
                     className="w-full flex items-center justify-center gap-2 rounded-lg border border-sky-200/60 bg-gradient-to-r from-blue-600 to-sky-500 px-4 py-3 text-xs font-extrabold uppercase tracking-wider text-white transition-colors hover:from-blue-500 hover:to-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <span>Continue · Upload cover</span>
@@ -847,7 +755,7 @@ export function PublishButton() {
 
                 <button
                   onClick={executePublish}
-                  disabled={isExporting || (!editingGame && (coverStatus !== 'ready' || !previewThumb)) || !hasFiles || publishLocked}
+                  disabled={isExporting || (!editingGame && (coverStatus !== 'ready' || !previewThumb)) || !hasFiles}
                   className="w-full flex items-center justify-center gap-2 rounded-xl border border-sky-100/70 bg-gradient-to-r from-blue-600 via-blue-500 to-sky-400 px-4 py-4 text-sm font-black uppercase tracking-wider text-white shadow-[0_8px_24px_rgba(37,99,235,0.3)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span
