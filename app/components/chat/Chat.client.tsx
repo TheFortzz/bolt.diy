@@ -199,13 +199,24 @@ export const ChatImpl = memo(
               throw new Error("The game's HTML entry file could not be found.");
             }
 
-            localStorage.setItem('thefortz:studio-editing-game', JSON.stringify({
-              id: game.id,
-              title: String(game.title || 'Untitled Game'),
-              genre: String(game.genre || 'ACTION'),
-              description: String(game.description || ''),
-              thumbnailUrl: String(game.thumbnailUrl || ''),
-            }));
+            /*
+             * Only a game the user explicitly opened from their PUBLISHED
+             * library is an "editing" target (publish then updates it).
+             * Fresh uploads carry a temp id ("upload-…") and must start a
+             * NEW submission instead — clear any stale editing target.
+             */
+            const isFreshUpload = event.data.freshUpload === true || /^upload-/.test(String(game.id || ''));
+            if (isFreshUpload) {
+              localStorage.removeItem('thefortz:studio-editing-game');
+            } else {
+              localStorage.setItem('thefortz:studio-editing-game', JSON.stringify({
+                id: game.id,
+                title: String(game.title || 'Untitled Game'),
+                genre: String(game.genre || 'ACTION'),
+                description: String(game.description || ''),
+                thumbnailUrl: String(game.thumbnailUrl || ''),
+              }));
+            }
             window.dispatchEvent(new Event('thefortz-studio-editing-changed'));
             await workbenchStore.importHtml5Game(files);
             toast.success(`Loaded “${String(game.title || 'game')}” into the Studio editor.`);
