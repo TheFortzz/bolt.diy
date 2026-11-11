@@ -193,8 +193,14 @@ export const ChatImpl = memo(
             window.dispatchEvent(new Event('thefortz-studio-editing-changed'));
             await workbenchStore.importHtml5Game(files);
             toast.success(`Loaded “${String(game.title || 'game')}” into the Studio editor.`);
+            if (window.parent && window.parent !== window) {
+              window.parent.postMessage({ type: 'thefortz-studio-game-loaded', ok: true }, '*');
+            }
           } catch (error) {
             toast.error(error instanceof Error ? error.message : 'Could not load the game into Studio.');
+            if (window.parent && window.parent !== window) {
+              window.parent.postMessage({ type: 'thefortz-studio-game-loaded', ok: false }, '*');
+            }
           }
         })();
       };
