@@ -9,8 +9,7 @@ export const MODIFICATIONS_TAG_NAME = 'bolt_file_modifications';
 export const MODEL_REGEX = /^\[Model: (.*?)\]\n\n/;
 export const PROVIDER_REGEX = /\[Provider: (.*?)\]\n\n/;
 export const STUDIO_MODE_REGEX = /\[Studio Mode: (PLAN|BUILD|AUTO|CHAT)\]\n?/i;
-export const DEFAULT_MODEL = 'gpt-6-luna';
-export const DEFAULT_MODEL_LABEL = 'Grok 4.7';
+export const DEFAULT_MODEL = 'claude-3-5-sonnet-latest';
 export const PROMPT_COOKIE_KEY = 'cachedPrompt';
 
 export type StudioAgentMode = 'plan' | 'build' | 'auto' | 'chat';
@@ -84,20 +83,13 @@ const PROVIDER_LIST: ProviderInfo[] = [
   },
   {
     name: 'OpenAILike',
-    staticModels: [
-      {
-        name: 'fortz-ai',
-        label: 'Fortz AI (Grok 4.7)',
-        provider: 'OpenAILike',
-        maxTokenAllowed: 32768,
-      },
-      {
-        name: 'gpt-6-luna',
-        label: 'Grok 4.7',
-        provider: 'OpenAILike',
-        maxTokenAllowed: 32768,
-      },
-    ],
+    staticModels: [],
+
+    /**
+     * Your own OpenAI-compatible endpoint: models load live from its /models
+     * listing once you connect an API key + base URL in Settings.
+     */
+    getDynamicModels: getOpenAILikeModels,
   },
   {
     name: 'Cohere',
@@ -338,7 +330,7 @@ const PROVIDER_LIST: ProviderInfo[] = [
   },
 ];
 
-export const DEFAULT_PROVIDER = PROVIDER_LIST.find((p) => p.name === 'OpenAILike') || PROVIDER_LIST[0];
+export const DEFAULT_PROVIDER = PROVIDER_LIST[0];
 
 const staticModels: ModelInfo[] = PROVIDER_LIST.map((p) => p.staticModels).flat();
 
@@ -443,10 +435,7 @@ async function getOpenAILikeModels(
   settings?: IProviderSetting,
 ): Promise<ModelInfo[]> {
   try {
-    const baseUrl =
-      settings?.baseUrl ||
-      import.meta.env.OPENAI_LIKE_API_BASE_URL ||
-      'https://fortz-ai-resource.services.ai.azure.com/api/projects/fortz-ai/openai/v1';
+    const baseUrl = settings?.baseUrl || import.meta.env.OPENAI_LIKE_API_BASE_URL || '';
 
     if (!baseUrl) {
       return [];

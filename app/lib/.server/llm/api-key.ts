@@ -34,35 +34,9 @@ export function getAPIKey(cloudflareEnv: Env, provider: string, userApiKeys?: Re
     case 'Mistral':
       return env.MISTRAL_API_KEY || cloudflareEnv.MISTRAL_API_KEY;
     case 'OpenAILike': {
-      const directKey =
-        userApiKeys?.OpenAILike ||
-        env?.OPENAI_LIKE_API_KEY ||
-        cloudflareEnv?.OPENAI_LIKE_API_KEY ||
-        (cloudflareEnv as any)?.AZURE_OPENAI_API_KEY ||
-        (cloudflareEnv as any)?.FORTZ_AI_KEY;
-
-      if (directKey) {
-        return directKey;
-      }
-
-      // Embedded fallback key (base64) — works on both Node.js and Cloudflare Workers
-      const encoded = 'QzhVMW5sazVGaUhzQ1NuRU1DYlRZcUw1ZXp1QklWUFU4azE4elV1aFFuTk0zRURKaUJsQUpRUUo5OUNJQUNQVjByb1hKM3czQUFBQUFDT0dnV1l6';
-
-      try {
-        if (typeof globalThis.atob === 'function') {
-          return globalThis.atob(encoded);
-        }
-      } catch (_) {
-        // atob may exist but throw
-      }
-
-      try {
-        return Buffer.from(encoded, 'base64').toString('utf-8');
-      } catch (_) {
-        // Buffer not available
-      }
-
-      return '';
+      // No built-in AI anymore: users must connect their own OpenAI-compatible
+      // provider (API key + base URL) in Settings → Providers.
+      return userApiKeys?.OpenAILike || env?.OPENAI_LIKE_API_KEY || cloudflareEnv?.OPENAI_LIKE_API_KEY || '';
     }
     case 'Together':
       return env.TOGETHER_API_KEY || cloudflareEnv.TOGETHER_API_KEY;
@@ -82,12 +56,8 @@ export function getBaseURL(cloudflareEnv: Env, provider: string) {
     case 'Together':
       return env.TOGETHER_API_BASE_URL || cloudflareEnv.TOGETHER_API_BASE_URL || 'https://api.together.xyz/v1';
     case 'OpenAILike':
-      return (
-        env.OPENAI_LIKE_API_BASE_URL ||
-        cloudflareEnv.OPENAI_LIKE_API_BASE_URL ||
-        (cloudflareEnv as any).AZURE_OPENAI_API_BASE_URL ||
-        'https://fortz-ai-resource.services.ai.azure.com/api/projects/fortz-ai/openai/v1'
-      );
+      // Users bring their own OpenAI-compatible endpoint — no built-in fallback.
+      return env.OPENAI_LIKE_API_BASE_URL || cloudflareEnv.OPENAI_LIKE_API_BASE_URL || '';
     case 'LMStudio':
       return env.LMSTUDIO_API_BASE_URL || cloudflareEnv.LMSTUDIO_API_BASE_URL || 'http://localhost:1234';
     case 'Ollama': {

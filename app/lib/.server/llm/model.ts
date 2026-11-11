@@ -12,8 +12,6 @@ import { createMistral } from '@ai-sdk/mistral';
 import { createCohere } from '@ai-sdk/cohere';
 import type { LanguageModelV1 } from 'ai';
 import type { IProviderSetting } from '~/types/model';
-import { createAzureChatCompletionsModel } from '~/lib/.server/llm/azure-chat-completions-model';
-import { getFortzChatCompletionsUrl, getFortzDeploymentConfig } from '~/lib/.server/llm/deployment-config';
 
 export const DEFAULT_NUM_CTX = process.env.DEFAULT_NUM_CTX ? parseInt(process.env.DEFAULT_NUM_CTX, 10) : 32768;
 
@@ -142,12 +140,7 @@ export function getModel(
    * let baseURL;
    */
 
-  let apiKey = getAPIKey(env, provider, apiKeys);
-  if (!apiKey && provider !== 'OpenAILike') {
-    provider = 'OpenAILike';
-    model = 'gpt-6-luna';
-    apiKey = getAPIKey(env, provider, apiKeys);
-  }
+  const apiKey = getAPIKey(env, provider, apiKeys);
   const baseURL = (providerSettings?.[provider]?.baseUrl || '').trim() || getBaseURL(env, provider);
 
   switch (provider) {
@@ -164,22 +157,16 @@ export function getModel(
     case 'Google':
       return getGoogleModel(apiKey, model);
     case 'OpenAILike': {
-      const deploymentConfig = getFortzDeploymentConfig({
-        deployment: process.env.FORTZ_AI_DEPLOYMENT || env.FORTZ_AI_DEPLOYMENT,
-        responsesUrl: process.env.FORTZ_AI_RESPONSES_URL || env.FORTZ_AI_RESPONSES_URL,
-        openAILikeBaseUrl: baseURL,
-      });
-      const targetModel =
-        model === 'fortz-ai' || model === 'Fortz AI' || model === 'gpt-6-luna' || model === 'gpt-oss-120b' || !model
-          ? deploymentConfig.deployment
-          : model === 'gpt-4.1-mini'
-            ? deploymentConfig.deployment
-            : model;
+      // No built-in model: users connect their own OpenAI-compatible AI.
+      if (!apiKey) {
+        throw new Error('No API key connected for OpenAI-compatible providers. Connect your own AI in Settings → Providers.');
+      }
 
-      const chatCompletionsUrl = getFortzChatCompletionsUrl(deploymentConfig.responsesUrl);
+      if (!baseURL) {
+        throw new Error('No base URL connected for OpenAI-compatible providers. Connect your own AI in Settings → Providers.');
+      }
 
-      // Use the standard Chat Completions route as a compatibility path for Foundry projects.
-      return createAzureChatCompletionsModel(apiKey || '', targetModel, chatCompletionsUrl);
+      return getOpenAILikeModel(baseURL, apiKey, model);
     }
     case 'Together':
       return getOpenAILikeModel(baseURL, apiKey, model);

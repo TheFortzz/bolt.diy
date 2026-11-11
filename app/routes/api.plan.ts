@@ -2,8 +2,6 @@ import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { z } from 'zod';
 import { getFluxApiKey } from '~/lib/.server/flux/flux-client';
 import { runManagerAgent } from '~/lib/.server/harness/agents';
-import { getBaseURL } from '~/lib/.server/llm/api-key';
-import { getFortzChatCompletionsUrl, getFortzDeploymentConfig } from '~/lib/.server/llm/deployment-config';
 import {
   getHarnessSecret,
   issueCapability,
@@ -104,8 +102,8 @@ export async function action({ request, context }: ActionFunctionArgs) {
     try {
       blueprint = await runManagerAgent({
         ...input,
-        model: DEFAULT_MODEL,
-        provider: DEFAULT_PROVIDER.name,
+        model: input.model || DEFAULT_MODEL,
+        provider: input.provider || DEFAULT_PROVIDER.name,
         apiKeys: input.apiKeys,
         env,
         imagesAvailable: Boolean(getFluxApiKey(env)),
@@ -117,28 +115,12 @@ export async function action({ request, context }: ActionFunctionArgs) {
       console.error('Manager planning request failed:', error);
 
       const upstreamMessage = (error as Error).message || 'no error details returned';
-      const rateLimited = /rate.?limit|too many requests|http 429/i.test(upstreamMessage);
-      let configuration = 'deployment configuration could not be read';
-
-      try {
-        const modelConfig = getFortzDeploymentConfig({
-          deployment: process.env.FORTZ_AI_DEPLOYMENT || env.FORTZ_AI_DEPLOYMENT,
-          responsesUrl: process.env.FORTZ_AI_RESPONSES_URL || env.FORTZ_AI_RESPONSES_URL,
-          openAILikeBaseUrl: getBaseURL(env, 'OpenAILike'),
-        });
-        const endpoint = new URL(getFortzChatCompletionsUrl(modelConfig.responsesUrl));
-        configuration = `deployment "${modelConfig.deployment}" at ${endpoint.host}${endpoint.pathname}`;
-      } catch (configurationError) {
-        configuration = `invalid Azure configuration: ${(configurationError as Error).message}`;
-      }
 
       return json(
         {
-          error: rateLimited
-            ? `Azure token quota is exceeded for ${configuration}. Wait for the deployment quota to reset or request more TPM capacity. Upstream: ${upstreamMessage}`
-            : `Manager request failed (${configuration}). Check the server-side OPENAI_LIKE_API_KEY or saved OpenAILike key and Azure deployment settings. Upstream: ${upstreamMessage}`,
+          error: `Manager request failed. Connect your own AI in Settings → Providers (API key + base URL) so planning can run. Upstream: ${upstreamMessage}`,
         },
-        { status: rateLimited ? 429 : 502 },
+        { status: 502 },
       );
     }
 

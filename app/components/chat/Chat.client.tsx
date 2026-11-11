@@ -225,6 +225,7 @@ export const ChatImpl = memo(
       const savedModel = Cookies.get('selectedModel');
       const normalizedModel = !savedModel ||
         savedModel === 'fortz-ai' ||
+        savedModel === 'gpt-6-luna' ||
         savedModel === 'gpt-oss-120b' ||
         savedModel === 'claude-3-5-sonnet-latest' ||
         savedModel === 'gpt-4.1-mini'

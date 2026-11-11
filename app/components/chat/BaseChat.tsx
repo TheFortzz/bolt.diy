@@ -32,7 +32,6 @@ import { SpeechRecognitionButton } from '~/components/chat/SpeechRecognition';
 import type { IProviderSetting, ProviderInfo } from '~/types/model';
 import { validationState } from '~/lib/runtime/build-validator';
 import { harnessState, harnessIsBusy } from '~/lib/stores/harness';
-import { DEFAULT_MODEL_LABEL } from '~/utils/constants';
 import { GameImportModal } from './GameImportModal';
 
 const Workbench = lazy(() =>
@@ -302,6 +301,16 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
           }
         }
 
+        return;
+      }
+
+      // Own-AI gate: the built-in model was removed. Users must connect their
+      // own AI (provider API key) before any chat can be sent.
+      const needsOwnKey = provider && !['Ollama', 'LMStudio'].includes(provider.name);
+
+      if (needsOwnKey && !apiKeys[provider.name]) {
+        toast.info('🔌 Connect your own AI in Settings → Providers to start building!');
+        setIsSettingsOpen(true);
         return;
       }
 
@@ -624,7 +633,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     placeholder={
                       chatStarted
                         ? 'Ask for a change, a new level, or a fix…'
-                        : 'Tell Grok 4.7 what game you want to play…'
+                        : 'Describe the game you want to build…'
                     }
                     aria-label="Message the game agent"
                     translate="no"
@@ -704,14 +713,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
 
                       <div
                         className={styles.ModelBadge}
-                        title={`Active model: ${model === 'gpt-6-luna' || model === 'fortz-ai' ? 'Grok 4.7' : model || 'Grok 4.7'}`}
+                        title={`Active model: ${model || 'none — connect your own AI in Settings'}`}
                       >
                         <span className="i-ph:cpu" aria-hidden="true" />
-                        <span>
-                          {model === 'gpt-6-luna' || model === 'fortz-ai'
-                            ? DEFAULT_MODEL_LABEL
-                            : model || DEFAULT_MODEL_LABEL}
-                        </span>
+                        <span>{model || 'Connect your AI'}</span>
                       </div>
                       {!chatStarted && (
                         <button
