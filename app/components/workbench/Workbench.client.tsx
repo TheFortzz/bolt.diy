@@ -27,7 +27,7 @@ import {
   restoreCheckpoint,
 } from '~/lib/persistence/checkpoints';
 import { chatId, dbPromise, getMessages, setMessages } from '~/lib/persistence';
-import { getWebContainer } from '~/lib/webcontainer';
+import { getWebContainer, webcontainerContext } from '~/lib/webcontainer';
 import { startActivity, updateActivity } from '~/lib/stores/activity';
 import { harnessIsBusy, harnessState } from '~/lib/stores/harness';
 
@@ -108,6 +108,28 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
   const activeChatId = useStore(chatId);
   const checkpoint = useStore(latestCheckpoint);
   const checkpointOperation = useStore(checkpointBusy);
+
+  /*
+   * WebContainer boot takes a few seconds after the Studio loads. While it is
+   * still booting the workspace would otherwise show empty panels — hold a
+   * loading overlay over it until the container is actually up.
+   */
+  const [containerReady, setContainerReady] = useState(webcontainerContext.loaded);
+
+  useEffect(() => {
+    let cancelled = false;
+    getWebContainer()
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) {
+          setContainerReady(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!activeChatId) return;
@@ -375,6 +397,28 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
               }}
               className="h-full flex flex-col bg-bolt-elements-background-depth-2 border-2 rounded-none overflow-hidden"
             >
+              {!containerReady && (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-[#0b1120]"
+                >
+                  <style>{`@keyframes fortz-ws-spin { to { transform: rotate(360deg); } }`}</style>
+                  <span
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: '50%',
+                      border: '3px solid rgba(147, 197, 253, 0.25)',
+                      borderTopColor: '#7dd3fc',
+                      animation: 'fortz-ws-spin 0.9s linear infinite',
+                    }}
+                  />
+                  <span className="text-sm font-semibold text-slate-200" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                    Opening the workspace…
+                  </span>
+                </div>
+              )}
               <div
                 style={{
                   background: 'linear-gradient(100deg, #2563eb 0%, #4f46e5 55%, #7c3aed 100%)',
