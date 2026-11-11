@@ -46,6 +46,20 @@ if (!import.meta.env.SSR) {
         if (webcontainer) {
           webcontainerContext.loaded = true;
         }
+
+        /*
+         * Tell the thefortz.me shell the workspace is actually up. The iframe
+         * document alone loads a few seconds earlier — without this signal
+         * the shell's loading screen would release onto a blank workspace.
+         */
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage({ type: 'thefortz-studio-booted' }, '*');
+          }
+        } catch {
+          /* parent origin restrictions — the shell's failsafe covers it */
+        }
+
         return webcontainer;
       })
       .catch(() => null as unknown as WebContainer);
