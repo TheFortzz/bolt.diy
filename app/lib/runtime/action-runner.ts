@@ -87,6 +87,12 @@ const handler = function (req, res) {
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
   let cleanUrl = (req.url || '/').split('?')[0].replace(/^\\/+/, '');
+  // Game assets often have spaces in their names; browsers percent-encode
+  // them (%20), so the raw URL never matches the real file. Decode first,
+  // falling back to the raw path if it contains a malformed escape.
+  if (cleanUrl.indexOf('%') !== -1) {
+    try { cleanUrl = decodeURIComponent(cleanUrl); } catch (e) {}
+  }
   if (!cleanUrl) cleanUrl = 'index.html';
 
   const requestedPath = path.resolve(baseDir, cleanUrl);
