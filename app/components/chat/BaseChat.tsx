@@ -190,6 +190,23 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       }
     }, [auth.user]);
 
+    /*
+     * Parent bridge: thefortz.me can ask the Studio to open its own game
+     * import box (the Lobby's upload icon navigates here first, then signals
+     * this). Only a bare modal toggle — nothing sensitive — so a loose origin
+     * check is sufficient.
+     */
+    useEffect(() => {
+      const onMessage = (event: MessageEvent) => {
+        if (event.data?.type === 'fortz-open-upload') {
+          setGameImportOpen(true);
+        }
+      };
+
+      window.addEventListener('message', onMessage);
+      return () => window.removeEventListener('message', onMessage);
+    }, []);
+
     useEffect(() => {
       console.log(transcript);
     }, [transcript]);
