@@ -12,7 +12,7 @@ export interface Html5GameImport {
   totalBytes: number;
 }
 
-export const MAX_GAME_FILES = 650;
+export const MAX_GAME_FILES = 5000;
 export const MAX_GAME_IMPORT_BYTES = 200_000_000;
 const MIME_BY_EXTENSION: Record<string, string> = {
   '.html': 'text/html',
